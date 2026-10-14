@@ -96,6 +96,7 @@ fn settle(session: &LiveSession) -> TerminalSession {
     let (state, turn_finished) = settle_state(&meta.state, idle_ms, tracked, screen_in_turn, interaction.turn_active);
     if turn_finished {
         interaction.turn_active = false;
+        interaction.aprovacao_contada = false;
         meta.attention_seq += 1;
     }
     meta.state = state;
@@ -192,6 +193,10 @@ async fn serve_client(stream: TcpStream, state: Arc<EngineState>) -> Result<()> 
     let mut lines = BufReader::new(reader).lines();
     while let Some(line) = lines.next_line().await? {
         let response = match serde_json::from_str::<EngineRequest>(&line) {
+            // Assíncrona (é o roteador do axum): não pode ir para o `spawn_blocking` das outras.
+            Ok(EngineRequest::Api { token, method, path, body, body_base64, headers }) if token == state.token => {
+                mobile::local(state.clone(), &method, &path, body, body_base64, headers).await
+            }
             Ok(request) if request.token() == state.token => {
                 let state = state.clone();
                 tokio::task::spawn_blocking(move || handle_request(request, &state)).await?
@@ -267,6 +272,7 @@ fn handle_request(request: EngineRequest, state: &Arc<EngineState>) -> EngineRes
                 omni_core::conversations::rename(&dir, &conversation_id, &title).map_err(|erro| anyhow!(erro))
             })
             .map(|_| EngineResponse::Ok),
+        EngineRequest::Api { .. } => unreachable!("tratada em serve_client"),
         EngineRequest::Shutdown { .. } => {
             std::process::exit(0);
         }
@@ -319,9 +325,38 @@ type PtySpawn = (Option<u32>, Box<dyn Write + Send>, Box<dyn MasterPty + Send>, 
 /// engine velho ("unknown variant `mobile_totp`").
 const VARIAVEIS_DO_ENGINE: [&str; 3] = ["OMNI_ENGINE_PORT", "OMNI_DATA_DIR", "OMNI_ENGINE_PATH"];
 
+/// Marcas que o Claude Code põe nos processos que ele mesmo abre. Se o engine nasce de dentro de
+/// uma sessão do Claude (alguém pediu ao agente para rodar `npm run dev`), todo terminal herdava
+/// essas marcas — e o Claude aberto ali se via como "sessão filha": **não grava transcript**
+/// ("Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker"). Sem transcript, o
+/// histórico, o celular e a web ficam sem a conversa.
+const MARCAS_DE_SESSAO_DO_CLAUDE: [&str; 11] = [
+    "CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_SESSION_ATTENDED",
+    "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_EXECPATH", "CLAUDE_CODE_MESSAGING_SOCKET",
+    "CLAUDE_CODE_MESSAGING_TOKEN", "CLAUDE_CODE_SSE_PORT", "CLAUDE_PID", "CLAUDE_EFFORT",
+];
+
+/// O engine está rodando dentro de uma sessão do Claude Code (herdou as marcas dela).
+fn herdou_sessao_do_claude(ambiente: impl Fn(&str) -> bool) -> bool {
+    ambiente("CLAUDECODE") || ambiente("CLAUDE_CODE_CHILD_SESSION")
+}
+
 fn ambiente_do_terminal(command: &mut CommandBuilder, env: &[(String, String)]) {
+    ambiente_do_terminal_com(command, env, herdou_sessao_do_claude(|nome| env::var_os(nome).is_some()));
+}
+
+fn ambiente_do_terminal_com(command: &mut CommandBuilder, env: &[(String, String)], dentro_do_claude: bool) {
     for nome in VARIAVEIS_DO_ENGINE {
         command.env_remove(nome);
+    }
+    if dentro_do_claude {
+        for nome in MARCAS_DE_SESSAO_DO_CLAUDE {
+            command.env_remove(nome);
+        }
+        // Dentro de uma sessão do Claude, `CLAUDE_CONFIG_DIR` é a conta **daquela** sessão, não uma
+        // escolha do usuário: herdada, ela fazia o perfil Padrão rodar na conta de outro perfil. A
+        // conta de cada terminal vem do perfil (`env`, logo abaixo), nunca do pai.
+        command.env_remove("CLAUDE_CONFIG_DIR");
     }
     command.env("OMNI_AGENTS", "1");
     // Isolamento de conta: o CLI é digitado no shell, então herda o ambiente daqui.
@@ -656,6 +691,11 @@ fn duplicate_session(state: &Arc<EngineState>, session_id: &str) -> Result<Engin
         .get(session_id)
         .ok_or_else(|| anyhow!("session not found"))?
         .metadata();
+    // Sessão de agente: "duplicar" é **bifurcar** a conversa — uma conversa nova com todo o histórico
+    // da original, que segue independente dela. Shell continua virando outro shell igual.
+    if let Some(provider) = source.provider.clone().filter(|p| p == "claude" || p == "codex") {
+        return bifurcar(state, source, &provider);
+    }
     let id = state.next_id();
     // Duplicate is "a new terminal just like this one", not "clone the agent's work in
     // progress" — never replays initial_command, so it never re-triggers agent work.
@@ -677,6 +717,76 @@ fn duplicate_session(state: &Arc<EngineState>, session_id: &str) -> Result<Engin
     Ok(EngineResponse::Session { session: metadata })
 }
 
+/// Bifurca a conversa da sessão: a CLI copia o histórico para uma sessão nova, e o OMNI registra uma
+/// conversa nova ("<nome> (fork)") apontando para ela. A original não muda.
+///
+/// Claude: `--resume <id> --fork-session --session-id <novo>` — o id novo é escolhido aqui (conferido
+/// na 2.1.296: o arquivo nasce com ele), então a timeline sabe onde ler desde o primeiro instante.
+/// Codex: `codex fork <id>` escolhe o id sozinho; a descoberta de rollouts acha o arquivo depois.
+/// Sem mensagem ainda (nada a bifurcar), abre uma conversa nova do mesmo agente e conta.
+fn bifurcar(state: &Arc<EngineState>, source: TerminalSession, provider: &str) -> Result<EngineResponse> {
+    let dir = state.state_file.parent().ok_or_else(|| anyhow!("engine dir unavailable"))?.to_path_buf();
+    let mut indice = omni_core::conversations::read_index(&dir);
+    let original = source.conversation_id.as_deref().and_then(|id| indice.iter().find(|c| c.id == id)).cloned();
+    let sessao_externa = source.external_session_id.clone()
+        .or_else(|| original.as_ref().and_then(|c| c.segments.last()).and_then(|s| s.external_session_id.clone()));
+    let base = mobile::comando_do_agente(state, provider);
+    let novo = uuid::Uuid::new_v4().to_string();
+    let pasta_do_claude = source.env.iter().find(|(chave, _)| chave == "CLAUDE_CONFIG_DIR").map(|(_, valor)| PathBuf::from(valor))
+        .or_else(|| env::var_os("USERPROFILE").or_else(|| env::var_os("HOME")).map(|home| PathBuf::from(home).join(".claude")));
+    let transcript_do_novo = || pasta_do_claude.as_ref()
+        .map(|pasta| omni_core::conversations::claude_transcript_path(pasta, &source.cwd, &novo).to_string_lossy().into_owned());
+    let (comando, externo, transcript) = match (provider, &sessao_externa) {
+        ("claude", Some(sid)) => (format!("{base} --resume {sid} --fork-session --session-id {novo}"), Some(novo.clone()), transcript_do_novo()),
+        ("claude", None) => (format!("{base} --session-id {novo}"), Some(novo.clone()), transcript_do_novo()),
+        ("codex", Some(sid)) => (format!("{base} fork {sid}"), None, None),
+        _ => (base.clone(), None, None),
+    };
+    let titulo = format!("{} (fork)", original.as_ref().map(omni_core::conversations::display_title).unwrap_or_else(|| source.name.clone()));
+    let conversation_id = format!("conv-{}", uuid::Uuid::new_v4());
+    let agora = now_ms();
+    let metadata = spawn_terminal_inner(
+        state,
+        state.next_id(),
+        source.project_id.clone(),
+        titulo.clone(),
+        source.cwd.clone(),
+        Some(source.shell.clone()),
+        Some(comando),
+        source.rows,
+        source.cols,
+        agora,
+        SessionOrigin {
+            headless: false,
+            env: source.env.clone(),
+            provider: Some(provider.to_string()),
+            profile_id: source.profile_id.clone(),
+            conversation_id: Some(conversation_id.clone()),
+            external_session_id: externo.clone(),
+        },
+    )?;
+    indice.push(omni_core::conversations::Conversation {
+        id: conversation_id,
+        project_id: source.project_id,
+        cwd: source.cwd,
+        title: titulo,
+        // O "(fork)" é o que separa as duas na lista: o nome automático não pode apagá-lo.
+        title_source: omni_core::conversations::TitleSource::Manual,
+        created_at_ms: agora,
+        segments: vec![omni_core::conversations::Segment {
+            provider: provider.to_string(),
+            profile_id: source.profile_id,
+            external_session_id: externo,
+            transcript_path: transcript,
+            terminal_session_id: Some(metadata.id.clone()),
+            started_at_ms: agora,
+            ended_at_ms: None,
+        }],
+    });
+    omni_core::conversations::write_index(&dir, &indice)?;
+    Ok(EngineResponse::Session { session: metadata })
+}
+
 /// Comando para reabrir a sessão no **Reiniciar**.
 ///
 /// Uma conversa Claude nasce com `claude --session-id <uuid>`, que serve para *criar* a conversa com
@@ -690,6 +800,11 @@ fn comando_ao_reiniciar(meta: &TerminalSession) -> Option<String> {
         return Some(original);
     }
     let Some(id) = meta.external_session_id.as_deref() else { return Some(original) };
+    // Fork: reiniciar retoma **a cópia** — repetir o `--fork-session` bifurcaria de novo.
+    if original.contains("--fork-session") && transcript_claude_existe(meta, id) {
+        let base = original.split(" --resume ").next().unwrap_or("claude");
+        return Some(format!("{base} --resume {id}"));
+    }
     let criar = format!("--session-id {id}");
     if !original.contains(&criar) || !transcript_claude_existe(meta, id) {
         return Some(original);
@@ -736,6 +851,10 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
             context.parser = vt100::Parser::new(meta.rows, meta.cols, 0);
             context.input_revision += 1;
             context.turn_active = false;
+            // Solta a tela antes de subir o processo: o spawn (wsl.exe, CLI com hooks) leva segundos,
+            // e `list_sessions` passa por esta trava em toda sessão — a lista inteira ficava parada,
+            // e o app desistia por tempo esgotado. A saída do processo velho já não conta (pid).
+            drop(context);
             let (pid, writer, master, child, reader) =
                 open_pty_and_spawn(&meta.cwd, &meta.shell, meta.rows, meta.cols, &meta.env, meta.provider.is_some())?;
             *session.writer.lock().map_err(|_| anyhow!("terminal writer poisoned"))? = writer;
@@ -751,7 +870,6 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
                 meta.last_activity_at_ms = now_ms();
                 meta.clone()
             };
-            drop(context);
             state.persist()?;
             // Reabre o mesmo agente; conversa Claude com histórico volta com `--resume`.
             spawn_initial_command_thread(session.clone(), comando_ao_reiniciar(&meta));
@@ -795,34 +913,60 @@ fn looks_like_approval_prompt(chunk: &str) -> bool {
 
 /// Motivos de parada que `state` não distingue: o agente fica ocioso (logo, `Answered`) tanto
 /// quando terminou a tarefa quanto quando bateu no limite da conta ou levou erro da API.
-/// ponytail: lista de frases em inglês colada contra as mensagens do Claude Code/Codex — outro
-/// CLI, outro idioma, ou uma troca de texto pelo provider vira falso negativo (o item ainda
-/// aparece como "terminou", só perde o rótulo). Upgrade path: sinal estruturado do provider.
-const USAGE_LIMIT_PATTERNS: [&str; 4] = [
-    "usage limit reached",  // Claude Code: "Claude usage limit reached. Your limit will reset at ..."
-    "hit your usage limit", // Codex: "You've hit your usage limit."
+/// Começo das linhas que a CLI escreve quando para — e só o começo. Procurar a frase em qualquer
+/// ponto da tela casava com texto que o agente mostra: um `grep` no código do engine, um teste, uma
+/// resposta falando de limite. O engine dizia "limite de uso", o failover trocava de conta e
+/// reabria a sessão no meio do trabalho — a "sessão que cai".
+/// ponytail: frases em inglês contra as mensagens do Claude Code/Codex; texto novo do provider vira
+/// falso negativo (perde o rótulo, não o aviso). Upgrade path: sinal estruturado do provider.
+const USAGE_LIMIT_LINES: [&str; 5] = [
+    "you've hit your",      // Claude: "You've hit your session/weekly limit · resets…"; Codex: "…usage limit."
+    "usage limit reached",     // Claude: "Usage limit reached · continuing automatically at…"
+    "claude usage limit reached", // Claude Code antigo
     "5-hour limit reached",
     "rate limit exceeded",
 ];
-const API_ERROR_PATTERNS: [&str; 5] = [
-    "api error:", // "API Error: 529 {\"type\":\"overloaded_error\"}"
-    "overloaded_error",
-    "authentication_error",
-    "invalid_api_key",
+const API_ERROR_LINES: [&str; 3] = [
+    "api error", // "API Error: 529 {…overloaded…}"
     "credit balance is too low",
+    "invalid api key",
 ];
+/// Marcadores que a TUI põe antes da mensagem (`⎿`, `●`, `■`…); o resto da linha tem de começar
+/// com a frase.
+const MARCADORES: &str = "⎿●■⏺•✻└│∙";
 
-/// Lê a TELA (vt100), não o chunk: a mensagem some sozinha quando sai de vista, então não existe
-/// código de limpeza espalhado por write/stop/restart, e uma frase partida entre duas leituras de
-/// 8 KB continua sendo reconhecida — bug que a varredura por chunk tem de graça.
+#[cfg(test)]
 fn detect_notice(screen_text: &str) -> Option<String> {
-    let lower = screen_text.to_ascii_lowercase();
+    notice_since(notice_counts(screen_text), (0, 0))
+}
+
+/// Quantas linhas de aviso da CLI há na tela: (limite de uso, erro de API).
+fn notice_counts(screen_text: &str) -> (usize, usize) {
+    let mut counts = (0, 0);
+    for line in screen_text.lines() {
+        let line = line
+            .trim_start_matches(|c: char| c.is_whitespace() || MARCADORES.contains(c))
+            .replace('’', "'")
+            .to_ascii_lowercase();
+        if USAGE_LIMIT_LINES.iter().any(|p| line.starts_with(p)) && line.contains("limit") {
+            counts.0 += 1;
+        } else if API_ERROR_LINES.iter().any(|p| line.starts_with(p)) {
+            counts.1 += 1;
+        }
+    }
+    counts
+}
+
+/// O aviso **deste turno**: só conta o que apareceu na tela depois que ele começou. A mensagem de
+/// limite do turno anterior continua visível depois que o agente volta (failover, reset do limite)
+/// e termina normalmente — sem a base, a conversa que acabou de terminar aparecia "interrompida".
+fn notice_since(counts: (usize, usize), base: (usize, usize)) -> Option<String> {
     // Limite antes de erro: "rate limit exceeded" casa nos dois, e "estourou o limite" é a
     // informação acionável (esperar o reset); "erro de API" só mandaria tentar de novo.
-    if USAGE_LIMIT_PATTERNS.iter().any(|pattern| lower.contains(pattern)) {
+    if counts.0 > base.0 {
         return Some("usage_limit".into());
     }
-    if API_ERROR_PATTERNS.iter().any(|pattern| lower.contains(pattern)) {
+    if counts.1 > base.1 {
         return Some("api_error".into());
     }
     None
@@ -849,12 +993,35 @@ fn append_output(session: &LiveSession, bytes: &[u8], watched_pid: Option<u32>) 
         // O diálogo real, reconhecido estrito — não "do you want to" solto numa resposta do agente.
         Some(provider) => {
             let dialog = interaction::approval(&screen_text, provider).is_some();
-            if dialog || in_turn(&screen_text) { interaction.turn_active = true; }
+            let trabalhando = in_turn(&screen_text);
+            // Turno novo começando: o que já estava na tela é passado.
+            if trabalhando && !interaction.turn_active {
+                interaction.avisos_antes_do_turno = notice_counts(&screen_text);
+                interaction.turnos_iniciados += 1;
+            }
+            if dialog || trabalhando { interaction.turn_active = true; }
+            // O agente voltou a trabalhar (o rodapé "esc to interrupt" só existe sem diálogo
+            // aberto): o próximo pedido de aprovação é um pedido novo.
+            if trabalhando && !dialog { interaction.aprovacao_contada = false; }
             dialog
         }
         None => looks_like_approval_prompt(&data),
     };
-    let notice = detect_notice(&screen_text);
+    let counts = notice_counts(&screen_text);
+    let sem_turno = interaction.turnos_iniciados == 0;
+    let base = &mut interaction.avisos_antes_do_turno;
+    *base = if sem_turno {
+        // Nenhum turno nesta sessão ainda: o que está na tela é histórico (o `--resume` do failover
+        // reexibe o aviso que fez a conta trocar). A CLI só avisa de novo depois de um turno.
+        counts
+    } else {
+        // Aviso que rolou para fora da tela sai da base também; senão o próximo igual não contaria.
+        (base.0.min(counts.0), base.1.min(counts.1))
+    };
+    // No meio do turno ("esc to interrupt" na tela) o agente está trabalhando: o que aparecer é
+    // saída dele, não a CLI avisando que parou.
+    let em_turno = tracked_provider.is_some() && in_turn(&screen_text);
+    let notice = if em_turno { None } else { notice_since(counts, *base) };
     if let Ok(mut output) = session.output.lock() {
         let sequence = output.next_seq;
         output.next_seq += 1;
@@ -870,8 +1037,19 @@ fn append_output(session: &LiveSession, bytes: &[u8], watched_pid: Option<u32>) 
         if let Ok(mut meta) = session.meta.lock() {
             meta.output_seq = output.next_seq;
             meta.last_activity_at_ms = now_ms();
-            let next = if approval_requested { SessionState::ApprovalRequired } else { SessionState::Working };
-            if tracked_provider.is_some() && next == SessionState::ApprovalRequired && meta.state != next {
+            let next = if approval_requested {
+                SessionState::ApprovalRequired
+            } else if em_turno || tracked_provider.is_none() || meta.state != SessionState::Answered {
+                SessionState::Working
+            } else {
+                // Claude/Codex parado e a tela mudou sem "esc to interrupt": é redesenho (aba
+                // reaberta, janela redimensionada, relógio do rodapé), não trabalho. Antes isso
+                // virava "trabalhando" por 1,5 s — o agente parecia começar a pensar sozinho toda
+                // vez que alguém abria a conversa.
+                SessionState::Answered
+            };
+            if tracked_provider.is_some() && next == SessionState::ApprovalRequired && meta.state != next && !interaction.aprovacao_contada {
+                interaction.aprovacao_contada = true;
                 meta.attention_seq += 1;
             }
             meta.state = next;
@@ -1100,6 +1278,33 @@ mod tests {
             sessions: Mutex::new(HashMap::new()),
             id_sequence: AtomicU64::new(1),
         })
+    }
+
+    /// Engine aberto de dentro de uma sessão do Claude: o terminal não pode herdar as marcas dela
+    /// (o Claude ali pararia de gravar transcript) nem a pasta de conta dela (rodaria na conta errada).
+    #[test]
+    fn terminal_nao_herda_a_sessao_do_claude_que_abriu_o_engine() {
+        assert!(herdou_sessao_do_claude(|nome| nome == "CLAUDECODE"));
+        assert!(!herdou_sessao_do_claude(|_| false));
+
+        let mut comando = CommandBuilder::new("cmd");
+        comando.env("CLAUDE_CODE_CHILD_SESSION", "1");
+        comando.env("CLAUDE_CONFIG_DIR", "C:/perfil-do-pai");
+        ambiente_do_terminal_com(&mut comando, &[], true);
+        assert!(comando.get_env("CLAUDE_CODE_CHILD_SESSION").is_none());
+        assert!(comando.get_env("CLAUDE_CONFIG_DIR").is_none());
+
+        // A conta do perfil entra depois da limpeza e vale.
+        let mut comando = CommandBuilder::new("cmd");
+        comando.env("CLAUDE_CONFIG_DIR", "C:/perfil-do-pai");
+        ambiente_do_terminal_com(&mut comando, &[("CLAUDE_CONFIG_DIR".into(), "C:/perfil-certo".into())], true);
+        assert_eq!(comando.get_env("CLAUDE_CONFIG_DIR").and_then(|v| v.to_str()), Some("C:/perfil-certo"));
+
+        // Fora de uma sessão do Claude, a pasta configurada pelo usuário é respeitada.
+        let mut comando = CommandBuilder::new("cmd");
+        comando.env("CLAUDE_CONFIG_DIR", "C:/escolha-do-usuario");
+        ambiente_do_terminal_com(&mut comando, &[], false);
+        assert_eq!(comando.get_env("CLAUDE_CONFIG_DIR").and_then(|v| v.to_str()), Some("C:/escolha-do-usuario"));
     }
 
     #[test]
@@ -1381,6 +1586,24 @@ mod tests {
         assert!(saida.matches("OMNI_HEADLESS_OK").count() >= 2, "o shell não chegou a rodar o comando: {saida:?}");
     }
 
+    /// Reiniciar a aba de um fork retoma a cópia; repetir o `--fork-session` bifurcaria outra vez.
+    #[test]
+    fn reiniciar_um_fork_retoma_a_copia() {
+        let pasta = tempfile::tempdir().unwrap();
+        let cwd = "C:/projeto";
+        let novo = "11111111-2222-3333-4444-555555555555";
+        let transcript = omni_core::conversations::claude_transcript_path(pasta.path(), cwd, novo);
+        fs::create_dir_all(transcript.parent().unwrap()).unwrap();
+        fs::write(&transcript, "{}\n").unwrap();
+        let meta: TerminalSession = serde_json::from_value(serde_json::json!({
+            "id":"s","project_id":"p","name":"x","cwd":cwd,"shell":"bash","state":"answered","pid":null,
+            "created_at_ms":1,"last_activity_at_ms":1,"output_seq":0,"rows":24,"cols":80,"provider":"claude",
+            "external_session_id":novo,"env":[["CLAUDE_CONFIG_DIR",pasta.path().to_string_lossy()]],
+            "initial_command":format!("claude --resume original --fork-session --session-id {novo}")
+        })).unwrap();
+        assert_eq!(comando_ao_reiniciar(&meta).unwrap(), format!("claude --resume {novo}"));
+    }
+
     #[test]
     fn approval_prompt_patterns_are_detected_case_insensitively() {
         assert!(looks_like_approval_prompt("Do You Want To continue? (y/n)"));
@@ -1392,9 +1615,42 @@ mod tests {
     fn notice_distinguishes_usage_limit_from_api_error() {
         assert_eq!(detect_notice("Claude usage limit reached. Resets at 3pm").as_deref(), Some("usage_limit"));
         assert_eq!(detect_notice("API Error: 529 {\"type\":\"overloaded_error\"}").as_deref(), Some("api_error"));
-        // "rate limit exceeded" casa nas duas listas; o limite vence porque é o acionável.
         assert_eq!(detect_notice("Rate limit exceeded").as_deref(), Some("usage_limit"));
         assert_eq!(detect_notice("compiling api error handling module"), None);
+        // As mensagens de verdade, com o marcador da TUI na frente.
+        assert_eq!(detect_notice("  ⎿  You've hit your session limit · resets 8:10pm (America/Sao_Paulo)").as_deref(), Some("usage_limit"));
+        assert_eq!(detect_notice("● Usage limit reached · continuing automatically at 8:10pm · esc or type to cancel").as_deref(), Some("usage_limit"));
+    }
+
+    /// A "sessão que cai": o agente mostrou na tela o código do próprio engine com as frases de
+    /// limite, e o failover trocou de conta no meio do trabalho. Frase no meio da linha não é aviso.
+    #[test]
+    fn frase_de_limite_no_meio_de_codigo_nao_e_aviso() {
+        let grep = "831:const PATTERNS = [
+    \"usage limit reached\",  // padrões do engine
+  ⎿  assert_eq!(detect_notice(\"Claude usage limit reached. Resets at 3pm\"))
+";
+        assert_eq!(detect_notice(grep), None);
+    }
+
+    /// O relato: "um que apenas acabou está como interrompido". A mensagem de limite do turno
+    /// anterior continuava na tela depois que o agente voltou e terminou normalmente.
+    #[test]
+    fn aviso_de_limite_de_um_turno_anterior_nao_vale_para_o_novo() {
+        let limite = "> opa
+  ⎿  Claude usage limit reached. Resets at 8pm
+";
+        assert_eq!(notice_since(notice_counts(limite), (0, 0)).as_deref(), Some("usage_limit"));
+        // O turno novo começou com o aviso velho na tela: ele vira base.
+        let base = notice_counts(limite);
+        let terminou = format!("{limite}> continua
+  Pronto, terminei.
+");
+        assert_eq!(notice_since(notice_counts(&terminou), base), None);
+        // Bater no limite de novo neste turno é aviso.
+        let de_novo = format!("{terminou}  ⎿  Claude usage limit reached. Resets at 9pm
+");
+        assert_eq!(notice_since(notice_counts(&de_novo), base).as_deref(), Some("usage_limit"));
     }
 
     #[test]

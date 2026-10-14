@@ -1,4 +1,5 @@
 import { Button } from "../../components/ui";
+import type { AgentView } from "../../types/settings";
 import { Component, useCallback, useEffect, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import type { PaneNode, SplitNode, WorkspaceAction } from "../../types/workspace";
@@ -11,6 +12,7 @@ import { GitDiffPane } from "../git/GitDiffPane";
 import { GitGraphPane } from "../git/GitGraphPane";
 import { KanbanBoard } from "../kanban/KanbanBoard";
 import { TerminalPane } from "../terminal/TerminalPane";
+import { AbaDeAgente } from "../conversa/AbaDeAgente";
 import { closeTerminal } from "../terminal/terminalService";
 import { PANE_DRAG_TYPE } from "./tabDrag";
 import { TAB_DRAG_EVENT, type DropZone, type TabDragState } from "./tabPointerDrag";
@@ -25,6 +27,8 @@ interface PaneViewProps {
   projectId: string;
   projectPath: string;
   fileSaveMode: "auto" | "manual";
+  /** Aba de agente: o chat (como na web) ou o terminal cru. Ver `AgentView` em `types/settings`. */
+  agentView: AgentView;
   kanban: KanbanState;
   kanbanDispatch: React.Dispatch<KanbanAction>;
   dispatch: React.Dispatch<WorkspaceAction>;
@@ -38,6 +42,7 @@ export function PaneView({
   projectId,
   projectPath,
   fileSaveMode,
+  agentView,
   kanban,
   kanbanDispatch,
   dispatch,
@@ -164,7 +169,17 @@ export function PaneView({
               </Button>
             ))}
           </div>
-        ) : tab.kind === "terminal" || tab.kind === "agent" ? (
+        ) : tab.kind === "agent" ? (
+          <AbaDeAgente agentView={agentView} sessionId={tab.resourceId ?? null}>
+            <TerminalPane
+              projectId={projectId}
+              projectPath={projectPath}
+              paneId={pane.id}
+              tab={tab}
+              onSessionCreated={bindSession}
+            />
+          </AbaDeAgente>
+        ) : tab.kind === "terminal" ? (
           <TerminalPane
             projectId={projectId}
             projectPath={projectPath}

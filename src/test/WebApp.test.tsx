@@ -90,7 +90,7 @@ it("troca de projeto com conversa aberta, pesquisa globalmente e oferece voltar"
 
   const primeira = await screen.findByRole("button", { name: /Abrir conversa Corrigir o login/ });
   await act(async () => { await userEvent.click(primeira); });
-  expect(await screen.findByRole("button", { name: "Voltar para conversas" })).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "Fechar conversa" })).toBeInTheDocument();
 
   const lateral = screen.getByRole("complementary", { name: "Projetos e conversas" });
   await act(async () => { await userEvent.click(within(lateral).getByRole("button", { name: "Outro" })); });
@@ -101,7 +101,7 @@ it("troca de projeto com conversa aberta, pesquisa globalmente e oferece voltar"
   expect(within(lateral).getByRole("button", { name: /Abrir conversa Corrigir o login/ })).toBeInTheDocument();
   expect(within(lateral).queryByRole("button", { name: /Abrir conversa Auditar pagamentos/ })).not.toBeInTheDocument();
 
-  await act(async () => { await userEvent.click(screen.getByRole("button", { name: "Voltar para conversas" })); });
+  await act(async () => { await userEvent.click(screen.getByRole("button", { name: "Fechar conversa" })); });
   expect(location.hash).toBe("");
   expect(await screen.findByText(/Escolha uma conversa/)).toBeInTheDocument();
 });
@@ -135,7 +135,8 @@ it("renomear a conversa manda o nome novo para o PC", async () => {
   });
 
   await act(async () => {
-    await userEvent.click(await screen.findByRole("button", { name: "Corrigir o login" }));
+    // O título também aparece na coluna "Precisa de você"; o de renomear é o da barra da conversa.
+    await userEvent.click(await screen.findByTitle("Renomear conversa"));
   });
   const campo = await screen.findByLabelText("Nome da conversa");
   await act(async () => {
@@ -161,4 +162,74 @@ it("agente trabalhando trava a troca de modo — tecla no meio do turno não é 
 
   expect(await screen.findByRole("button", { name: "Plano" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Auto" })).toBeDisabled();
+});
+
+/** O relato: abrir a conversa não tirava o aviso, e ele "voltava do nada". Abrir marca o pedido
+ *  atual como visto; só um evento novo do agente (chave `attention` diferente) traz de volta. */
+it("abrir a conversa tira de Precisa de você até o agente terminar outro turno", async () => {
+  const lista = [conversa({ attention: "s:1" })];
+  vi.stubGlobal("fetch", servidor(lista));
+  render(<WebApp />);
+  const pendencias = await screen.findByRole("complementary", { name: "Precisa de você" });
+  await waitFor(() => expect(within(pendencias).getByTitle("Corrigir o login")).toBeInTheDocument());
+  expect(document.title).toBe("(1) OMNI AGENTS");
+
+  await act(async () => {
+    await userEvent.click(within(pendencias).getByTitle("Corrigir o login"));
+  });
+  await waitFor(() => expect(within(pendencias).getByText("Nada pendente agora.")).toBeInTheDocument());
+  await act(async () => {
+    await userEvent.click(screen.getByRole("button", { name: "Fechar conversa" }));
+  });
+  // Fechada, continua vista: o agente parado esperando não é pedido novo.
+  await act(async () => {
+    await userEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+  });
+  expect(within(pendencias).getByText("Nada pendente agora.")).toBeInTheDocument();
+  expect(document.title).toBe("OMNI AGENTS");
+
+  // Terminou outro turno: volta — uma vez só, mesmo que a lista traga a conversa de novo.
+  lista[0] = conversa({ attention: "s:2" });
+  await act(async () => {
+    await userEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+  });
+  await waitFor(() => expect(within(pendencias).getAllByTitle("Corrigir o login")).toHaveLength(1));
+});
+
+/** "No web eu devo conseguir acessar os terminais sem agentes, criar um novo terminal pra dar um
+ *  npm run dev." */
+it("cria um terminal sem agente no projeto, abre no centro e fecha", async () => {
+  const shells: { id: string; name: string; project_id: string; cwd: string; state: string; updated_at_ms: number }[] = [];
+  const enviados: { url: string; body: unknown }[] = [];
+  const base = servidor([conversa()]);
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === "/terminais" && init?.method === "POST") {
+      enviados.push({ url, body: JSON.parse(String(init.body)) });
+      shells.push({ id: "t1", name: "Terminal", project_id: "p", cwd: "C:/p", state: "answered", updated_at_ms: Date.now() });
+      return new Response(JSON.stringify({ id: "t1" }), { status: 201 });
+    }
+    if (url === "/terminais") return new Response(JSON.stringify(shells));
+    if (url.startsWith("/terminais/t1/saida")) return new Response(JSON.stringify({ live: true, data: "$ ", from_seq: 0, next_seq: 1, cols: 80, rows: 24 }));
+    if (url === "/terminais/t1/fechar") {
+      enviados.push({ url, body: null });
+      shells.length = 0;
+      return new Response(JSON.stringify({ ok: true }));
+    }
+    return base(url, init);
+  }));
+  render(<WebApp />);
+  await screen.findByRole("button", { name: "Projeto" });
+
+  await act(async () => {
+    await userEvent.click(await screen.findByRole("button", { name: "Novo terminal" }));
+  });
+  expect(enviados[0]).toEqual({ url: "/terminais", body: { project_id: "p" } });
+  expect(await screen.findByRole("button", { name: "Fechar terminal" })).toBeInTheDocument();
+  expect(location.hash).toBe("#/t/t1");
+
+  await act(async () => {
+    await userEvent.click(screen.getByRole("button", { name: "Fechar terminal" }));
+  });
+  await waitFor(() => expect(enviados.some((item) => item.url === "/terminais/t1/fechar")).toBe(true));
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Fechar terminal" })).not.toBeInTheDocument());
 });

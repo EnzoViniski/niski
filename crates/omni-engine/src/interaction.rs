@@ -5,9 +5,17 @@ use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}, time::{Dur
 
 /// `turn_active`: o agente mostrou sinal de turno (hint de interromper ou diálogo de aprovação) desde
 /// o último fim de turno. É o que separa "terminou" de "está ocioso" em `settle`.
-pub struct Interaction { pub parser: vt100::Parser, pub input_revision: u64, pub turn_active: bool, generation: u64 }
+/// `aprovacao_contada`: o diálogo de aprovação na tela já virou aviso (`attention_seq`). A TUI
+/// redesenha o diálogo em pedaços, e um quadro parcial não é reconhecido — sem esta trava, cada
+/// redesenho contava um pedido novo e o aviso já visto voltava sozinho.
+///
+/// `avisos_antes_do_turno`: quantos avisos (limite, erro de API) já estavam na tela quando o turno
+/// atual começou. Só os que aparecerem depois disso são deste turno — ver `notice_since`.
+///
+/// `turnos_iniciados`: antes do primeiro turno, nada na tela é aviso novo — ver `append_output`.
+pub struct Interaction { pub parser: vt100::Parser, pub input_revision: u64, pub turn_active: bool, pub aprovacao_contada: bool, pub avisos_antes_do_turno: (usize, usize), pub turnos_iniciados: u64, generation: u64 }
 impl Interaction {
-    pub fn new(rows: u16, cols: u16) -> Self { Self { parser: vt100::Parser::new(rows,cols,0), input_revision: 0, turn_active: false, generation: rand::random() } }
+    pub fn new(rows: u16, cols: u16) -> Self { Self { parser: vt100::Parser::new(rows,cols,0), input_revision: 0, turn_active: false, aprovacao_contada: false, avisos_antes_do_turno: (0, 0), turnos_iniciados: 0, generation: rand::random() } }
     pub fn revision(&self, session: &Arc<LiveSession>) -> String {
         let mut hash = DefaultHasher::new();
         self.parser.screen().contents().hash(&mut hash);
@@ -269,7 +277,7 @@ fn end_hidden_claude(state: &Arc<EngineState>, id: &str) {
 
 /// Espera o Claude recém-aberto chegar no composer vazio, passando pelo "confiar nesta pasta" (a
 /// pasta é a do próprio engine; o Claude grava a confiança, então só acontece na primeira vez).
-fn wait_claude_ready(session: &Arc<LiveSession>, limit: Duration) -> bool {
+pub(crate) fn wait_claude_ready(session: &Arc<LiveSession>, limit: Duration) -> bool {
     let started = Instant::now();
     while started.elapsed() < limit {
         std::thread::sleep(Duration::from_millis(300));

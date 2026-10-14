@@ -1,0 +1,4 @@
+/* O PC trava a página na altura da janela; no celular quem rola é o documento, e a barra de
+   cima e a de digitação ficam presas com `sticky`, que lida melhor com o teclado do iOS. */
+html, body, #root { min-height: 100%; height: auto; overflow: visible; }
+body { user-select: text; -webkit-user-select: text; -webkit-tap-highlight-color: transparent; }

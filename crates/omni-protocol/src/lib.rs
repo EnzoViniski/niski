@@ -165,6 +165,20 @@ pub enum EngineRequest {
     /// Renomear a conversa. Mora aqui (e não num comando do Tauri escrevendo o arquivo) para o
     /// índice de conversas ter um escritor só — desktop e celular passam pelo mesmo caminho.
     RenameConversation { token: String, conversation_id: String, title: String },
+    /// As rotas HTTP do celular (`/conversas/{id}/timeline`, `/prompt`…), chamadas pelo desktop por
+    /// dentro deste protocolo. A visão "Conversa" do desktop é o mesmo chat da web: um caminho só
+    /// para ler e responder conversas, sem depender do acesso remoto estar ligado.
+    ///
+    /// `body_base64`: corpo binário (anexo colado no chat). `headers`: os que a rota lê, como o
+    /// nome do anexo (`x-omni-nome`).
+    Api {
+        token: String,
+        method: String,
+        path: String,
+        #[serde(default)] body: Option<String>,
+        #[serde(default)] body_base64: Option<String>,
+        #[serde(default)] headers: Vec<(String, String)>,
+    },
     Shutdown { token: String },
 }
 
@@ -197,6 +211,7 @@ impl EngineRequest {
             | Self::RestartSession { token, .. }
             | Self::Snapshot { token, .. }
             | Self::RenameConversation { token, .. }
+            | Self::Api { token, .. }
             | Self::Shutdown { token } => token,
         }
     }
@@ -236,6 +251,7 @@ pub enum EngineResponse {
     Sessions { sessions: Vec<TerminalSession> },
     Session { session: TerminalSession },
     Snapshot { session: TerminalSession, from_seq: u64, next_seq: u64, data: String },
+    Api { status: u16, body: String },
     Ok,
     Error { code: String, message: String },
 }

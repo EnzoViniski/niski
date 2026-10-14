@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { WebApp } from "./WebApp";
 import "../index.css";
+import "../mobile/pagina.css";
 import "../mobile/mobile.css";
 import "./web.css";
 

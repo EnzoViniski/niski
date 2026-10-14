@@ -1,7 +1,35 @@
-import { useCallback, useEffect, useState } from "react";
-import { ApiError, request, salvarToken, type Conversation, type Projects } from "./api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ApiError, chaveDeAtencao, esquecerVersao, precisaDeVoce, request, requestSeMudou, salvarToken, type Conversation, type Painel, type Projects } from "./api";
 import { aplicarTema, guardarTema, temaGuardado, type TemaPublicado } from "./tema";
 import { usePoll } from "./usePoll";
+
+const CHAVE_VISTAS = "omni-vistas";
+
+/** Pedido de atenção já visto, por conversa. Fica no aparelho: cada celular/navegador tem a sua
+ *  caixa de entrada, como num app de mensagens. */
+function lerVistas(): Record<string, string> {
+  try {
+    const salvo = JSON.parse(localStorage.getItem(CHAVE_VISTAS) ?? "{}");
+    return salvo && typeof salvo === "object" && !Array.isArray(salvo) ? salvo : {};
+  } catch {
+    return {};
+  }
+}
+
+function gravarVistas(vistas: Record<string, string>) {
+  try { localStorage.setItem(CHAVE_VISTAS, JSON.stringify(vistas)); } catch { /* vale só nesta aba */ }
+}
+
+/** A página está na frente de alguém. Conversa aberta numa aba escondida não foi vista. */
+function useVisivel(): boolean {
+  const [visivel, setVisivel] = useState(() => typeof document === "undefined" || document.visibilityState !== "hidden");
+  useEffect(() => {
+    const atualizar = () => setVisivel(document.visibilityState !== "hidden");
+    document.addEventListener("visibilitychange", atualizar);
+    return () => document.removeEventListener("visibilitychange", atualizar);
+  }, []);
+  return visivel;
+}
 
 /**
  * Estado que vem do PC: conversas, o que pede atenção, o catálogo de projetos e o tema.
@@ -9,9 +37,10 @@ import { usePoll } from "./usePoll";
  * Extraído do `MobileApp` porque a página de computador (`src/web`) precisa exatamente do mesmo
  * carregamento — mesma API, mesmo poll, mesmo pareamento. O que muda entre as duas é só o layout.
  */
-export function useDados() {
+export function useDados(aberta: string | null = null) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [attention, setAttention] = useState<Conversation[]>([]);
+  const [vistas, setVistas] = useState<Record<string, string>>(lerVistas);
+  const visivel = useVisivel();
   const [catalog, setCatalog] = useState<Projects | null>(null);
   const [carregado, setCarregado] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,15 +52,16 @@ export function useDados() {
 
   useEffect(() => aplicarTema(tema), [tema]);
 
-  const refresh = useCallback(async () => {
-    const [all, waiting, projetos] = await Promise.all([
-      request<Conversation[]>("/conversas"),
-      request<Conversation[]>("/atencao"),
-      request<Projects>("/projetos"),
-    ]);
-    // Normaliza na entrada: um engine mais antigo (sem `/projetos`) ou uma resposta truncada
-    // deixava `projects` indefinido, e um `.find` adiante derrubava a tela inteira — sem lista,
-    // sem conversa, sem mensagem de erro. Confiar no formato aqui é o que deixa o resto simples.
+  /** Engine sem `/painel` (versão anterior): volta para as três rotas antigas e não tenta de novo. */
+  const semPainel = useRef(false);
+  /** A primeira leitura de cada montagem vem inteira: o ETag guardado é de uma tela que já não
+   *  existe, e um 304 aqui deixaria a lista vazia. */
+  const temDados = useRef(false);
+
+  const aplicar = useCallback((lista: Conversation[], projetos: Projects | null) => {
+    // Normaliza na entrada: um engine mais antigo ou uma resposta truncada deixava `projects`
+    // indefinido, e um `.find` adiante derrubava a tela inteira — sem lista, sem conversa, sem
+    // mensagem de erro. Confiar no formato aqui é o que deixa o resto simples.
     const novoTema = projetos?.theme && typeof projetos.theme === "object" ? projetos.theme : null;
     setCatalog({
       published_at_ms: Number(projetos?.published_at_ms) || 0,
@@ -45,11 +75,60 @@ export function useDados() {
       // Compara por valor: objeto novo a cada poll reaplicaria o tema (e o `matchMedia`) à toa.
       setTema((atual) => (JSON.stringify(atual) === JSON.stringify(novoTema) ? atual : novoTema));
     }
-    setConversations(Array.isArray(all) ? all : []);
-    setAttention(Array.isArray(waiting) ? waiting : []);
+    const conversas = Array.isArray(lista) ? lista : [];
+    setConversations(conversas);
+  }, []);
+
+  // Abrir a conversa (com a página na frente) marca o pedido atual como visto. Só volta para
+  // "Precisa de você" quando o agente terminar outro turno ou pedir aprovação — uma entrada por
+  // conversa, nunca uma por evento, e nada reaparece sem algo novo ter acontecido.
+  const conversaAberta = aberta && visivel ? conversations.find((item) => item.id === aberta) : undefined;
+  const chaveAberta = conversaAberta && precisaDeVoce(conversaAberta) ? chaveDeAtencao(conversaAberta) : null;
+  useEffect(() => {
+    if (!aberta || chaveAberta === null) return;
+    setVistas((atual) => {
+      if (atual[aberta] === chaveAberta) return atual;
+      // Poda o que não existe mais no PC, senão o mapa cresce para sempre.
+      const ids = new Set(conversations.map((item) => item.id));
+      const novas: Record<string, string> = { [aberta]: chaveAberta };
+      for (const [id, chave] of Object.entries(atual)) if (ids.has(id) && id !== aberta) novas[id] = chave;
+      gravarVistas(novas);
+      return novas;
+    });
+  }, [aberta, chaveAberta, conversations]);
+
+  const attention = useMemo(
+    () => conversations.filter((item) =>
+      precisaDeVoce(item)
+      && !(item.id === aberta && visivel)
+      && vistas[item.id] !== chaveDeAtencao(item)),
+    [conversations, vistas, aberta, visivel]
+  );
+
+  const refresh = useCallback(async () => {
+    if (!semPainel.current) {
+      try {
+        // `null` = nada mudou desde a última leitura: a tela fica como está, sem re-renderizar.
+        if (!temDados.current) esquecerVersao("/painel");
+        const painel = await requestSeMudou<Painel>("/painel");
+        // Resposta fora do formato (proxy, engine estranho): melhor as rotas antigas que tela vazia.
+        if (painel === null || Array.isArray(painel?.conversations)) {
+          if (painel) { aplicar(painel.conversations, painel.catalog); temDados.current = true; }
+          setCarregado(true);
+          setError(null);
+          return;
+        }
+        semPainel.current = true;
+      } catch (reason) {
+        if (!(reason instanceof ApiError && reason.status === 404)) throw reason;
+        semPainel.current = true;
+      }
+    }
+    const [all, projetos] = await Promise.all([request<Conversation[]>("/conversas"), request<Projects>("/projetos")]);
+    aplicar(all, projetos);
     setCarregado(true);
     setError(null);
-  }, []);
+  }, [aplicar]);
 
   usePoll(
     refresh,

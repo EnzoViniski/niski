@@ -1,22 +1,22 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { Select } from "../components/ui/Select";
 import { AgentIcon } from "../components/ui/AgentIcon";
 import { OmniLogo } from "../components/ui/OmniLogo";
-import { ArrowLeftIcon, FolderIcon, PlayIcon, ReloadIcon, WarningIcon } from "../components/ui/PixelIcon";
-import { request, actionKey, ApiError, type Conversation, type Projects, type Timeline } from "./api";
-import { AgentWorking, MessageBubble, PairingScreen } from "./Chat";
+import { ArrowLeftIcon, AttachmentIcon, ChatIcon, EditIcon, FolderIcon, NotesIcon, PlayIcon, ReloadIcon, WarningIcon } from "../components/ui/PixelIcon";
+import { request, requestSeMudou, esquecerVersao, enviarTeclas, actionKey, ApiError, type Conversation, type Mensagem, type Projects, type Timeline } from "./api";
+import { AgentWorking, BlocoDeAcoes, LinhaDeAviso, LinhaDeComando, MessageBubble, PairingScreen } from "./Chat";
 import { Composer } from "./Composer";
+import { AjustesDaConversa, type Ajustes } from "./AjustesDaConversa";
 import {
   ANEXO_MAX_BYTES,
   criarAnexo,
   descartarAnexo,
   enviarAnexo,
   montarPrompt,
-  type Anexo,
-} from "./anexos";
+  type Anexo, EVENTO_ANEXAR, EVENTO_ARRASTANDO } from "./anexos";
 import { useRota, type Rota } from "./rota";
 import { useDados } from "./useDados";
 import { usePoll } from "./usePoll";
@@ -55,6 +55,16 @@ function tomDoEstado(state: string | null, approve: boolean): string {
   if (state === "answered") return "m-dot-ok";
   if (state === "crashed") return "m-dot-erro";
   return "m-dot-parado";
+}
+
+/** "agora", "5 min", "3 h", "2 d": quanto faz desde a última atividade da conversa. */
+export function haQuanto(ms: number | undefined, agora = Date.now()): string | null {
+  if (!ms) return null;
+  const minutos = Math.floor(Math.max(0, agora - ms) / 60_000);
+  if (minutos < 1) return "agora";
+  if (minutos < 60) return `${minutos} min`;
+  if (minutos < 24 * 60) return `${Math.floor(minutos / 60)} h`;
+  return `${Math.floor(minutos / (24 * 60))} d`;
 }
 
 /** Guarda uma preferência só desta aba. Navegador sem armazenamento segue sem ela. */
@@ -144,9 +154,11 @@ export function ProjectList({ projects, conversations, abrir }: {
   })}</ul>;
 }
 
-export function ConversationList({ conversations, perfis, projetos = [], mostrarProjeto = false, abrir, vazio }: {
+export function ConversationList({ conversations, perfis, projetos = [], mostrarProjeto = false, abrir, vazio, ativa = null }: {
   conversations: Conversation[]; perfis: Projects["profiles"]; projetos?: Projects["projects"];
   mostrarProjeto?: boolean; abrir: (id: string) => void; vazio: string;
+  /** Conversa aberta ao lado (web): fica marcada na lista. */
+  ativa?: string | null;
 }) {
   if (conversations.length === 0) return <Vazio>{vazio}</Vazio>;
   return <ul className="m-lista">{conversations.map(c => {
@@ -156,7 +168,8 @@ export function ConversationList({ conversations, perfis, projetos = [], mostrar
     const detalhe = [STATES[c.state ?? ""] ?? "Histórico", NOME_DO_AGENTE[c.provider ?? ""] ?? c.provider, conta, projeto]
       .filter(Boolean).join(" · ");
     return <li key={c.id}>
-      <button type="button" className="m-card glass glass-hover" onClick={() => abrir(c.id)} aria-label={`Abrir conversa ${c.title}`}>
+      <button type="button" className={`m-card glass glass-hover${c.id === ativa ? " m-card-ativo" : ""}`} onClick={() => abrir(c.id)}
+        aria-label={`Abrir conversa ${c.title}`} aria-current={c.id === ativa ? "true" : undefined}>
         <span className="m-card-icone">
           {c.provider ? <AgentIcon provider={c.provider} size={20} /> : <PlayIcon aria-hidden className="h-5 w-5" />}
         </span>
@@ -167,14 +180,19 @@ export function ConversationList({ conversations, perfis, projetos = [], mostrar
             {detalhe}
           </span>
         </span>
-        {aprovar && <span className="m-card-lado"><span className="m-badge m-badge-alerta">Aprovar</span></span>}
+        <span className="m-card-lado">
+          {aprovar && <span className="m-badge m-badge-alerta">Aprovar</span>}
+          {haQuanto(c.updated_at_ms) && <time className="m-card-tempo">{haQuanto(c.updated_at_ms)}</time>}
+        </span>
       </button>
     </li>;
   })}</ul>;
 }
 
-export function NovaSessao({ project, catalog, onCriada }: {
+export function NovaSessao({ project, catalog, onCriada, classeBotao = "w-full" }: {
   project: { id: string; name: string }; catalog: Projects; onCriada: () => Promise<void>;
+  /** Classe do botão fechado: no celular ocupa a largura toda; na lateral da web divide a linha. */
+  classeBotao?: string;
 }) {
   const [aberto, setAberto] = useState(false);
   const [provider, setProvider] = useState("");
@@ -208,7 +226,9 @@ export function NovaSessao({ project, catalog, onCriada }: {
     } finally { setBusy(false); }
   }
 
-  if (!aberto) return <Button variant="primary" className="w-full" onClick={() => setAberto(true)}>Nova sessão</Button>;
+  if (!aberto) return <Button variant="primary" className={classeBotao} onClick={() => setAberto(true)}>
+    <ChatIcon aria-hidden className="h-4 w-4" />Nova sessão
+  </Button>;
   return <div className="glass m-painel">
     <h3 className="m-secao-titulo">Nova sessão em {project.name}</h3>
     <label htmlFor="agente" className="m-rotulo">Agente</label>
@@ -241,12 +261,18 @@ interface Enviado {
   anexos: { nome: string; previa: string | null }[];
 }
 
-/** Ritmo do polling com o agente ativo. 5 s faz a conversa parecer travada; 1,5 s parece ao vivo. */
-const POLL_ATIVO_MS = 1_500;
+/** Ritmo do polling com o agente ativo. 5 s faz a conversa parecer travada; 1,2 s parece ao vivo.
+ *  Barato: com o `ETag`, consulta sem novidade volta 304 sem corpo. */
+const POLL_ATIVO_MS = 1_200;
+/** Parado, ainda curto: uma resposta digitada no PC aparece aqui em poucos segundos. */
+const POLL_PARADO_MS = 3_000;
 
 /** Quanto esperar a mensagem enviada aparecer no transcript antes de desistir do balão otimista.
  *  Sem isto, uma mensagem que a CLI não aceitou deixava o "trabalhando" girando para sempre. */
 const LIMITE_DE_CONFIRMACAO_MS = 120_000;
+
+/** Distância do fim (px) que ainda conta como "lendo o fim": a tela acompanha o que chega. */
+const PERTO_DO_FIM_PX = 120;
 
 /** O servidor numera as mensagens (`<conversa>:<n>`) na ordem do transcript. */
 function indiceDaMensagem(id: string): number {
@@ -254,27 +280,79 @@ function indiceDaMensagem(id: string): number {
   return Number.isFinite(n) ? n : -1;
 }
 
-export function ConversationDetail({ conversation, refresh }: { conversation: Conversation; refresh: () => Promise<void> }) {
-  const chaveRascunho = `omni-rascunho:${conversation.id}`;
+/** O que a conversa desenha, já agrupado: ações seguidas viram um bloco só. */
+type Bloco =
+  | { tipo: "fala"; mensagem: Mensagem }
+  | { tipo: "acoes"; id: string; acoes: Mensagem[] }
+  | { tipo: "comando"; mensagem: Mensagem }
+  | { tipo: "aviso"; mensagem: Mensagem };
+
+export function agruparMensagens(mensagens: Mensagem[]): Bloco[] {
+  const blocos: Bloco[] = [];
+  for (const mensagem of mensagens) {
+    const tipo = mensagem.kind ?? "text";
+    if (tipo === "tool") {
+      const anterior = blocos[blocos.length - 1];
+      if (anterior?.tipo === "acoes") anterior.acoes.push(mensagem);
+      else blocos.push({ tipo: "acoes", id: mensagem.id, acoes: [mensagem] });
+    } else if (tipo === "command") blocos.push({ tipo: "comando", mensagem });
+    else if (tipo === "notice") blocos.push({ tipo: "aviso", mensagem });
+    else blocos.push({ tipo: "fala", mensagem });
+  }
+  return blocos;
+}
+
+/** Quem rola a conversa: a lista de mensagens (web) ou a página inteira (celular). */
+function rolagemDe(elemento: HTMLElement | null): HTMLElement | null {
+  for (let atual = elemento?.parentElement ?? null; atual; atual = atual.parentElement) {
+    const { overflowY } = getComputedStyle(atual);
+    if (overflowY === "auto" || overflowY === "scroll") return atual;
+  }
+  return (document.scrollingElement as HTMLElement | null) ?? null;
+}
+
+function pertoDoFim(rolagem: HTMLElement | null): boolean {
+  if (!rolagem) return true;
+  return rolagem.scrollHeight - rolagem.scrollTop - rolagem.clientHeight < PERTO_DO_FIM_PX;
+}
+
+export function ConversationDetail({ conversation: daLista, refresh, abrirConversa }: {
+  conversation: Conversation;
+  refresh: () => Promise<void>;
+  /** Retomar uma conversa do histórico cria a conversa do OMNI com outro id: a tela vai para ela. */
+  abrirConversa?: (id: string) => void;
+}) {
+  const chaveRascunho = `omni-rascunho:${daLista.id}`;
   const [data, setData] = useState<Timeline | null>(null);
   // O rascunho sobrevive ao refresh da página: atualizar no meio da digitação não apaga nada.
   const [text, setText] = useState(() => lerSessao(chaveRascunho) ?? "");
   const [anexos, setAnexos] = useState<Anexo[]>([]);
+  const [arrastando, setArrastando] = useState(false);
+  const telaRef = useRef<HTMLElement>(null);
   const [error, setError] = useState<string | null>(null);
   // Separado de `error`: o polling limpa `error` a cada ciclo bem-sucedido, e uma recusa da fila
   // aparecia e sumia no mesmo instante. Este só limpa no próximo envio.
   const [falhaEnvio, setFalhaEnvio] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editandoNome, setEditandoNome] = useState(false);
+  const [parando, setParando] = useState(false);
   // `null` = fim da conversa, como um chat abre. Número = lendo uma página antiga.
   const [cursor, setCursor] = useState<number | null>(null);
   const [enviado, setEnviado] = useState<Enviado | null>(null);
+  const [novidades, setNovidades] = useState(false);
   const pending = useRef<{ signature: string; key: string; revision: string } | null>(null);
   const trabalhandoDesde = useRef<number | null>(null);
   const fim = useRef<HTMLDivElement>(null);
+  const grudado = useRef(true);
+  const urlCarregada = useRef<string | null>(null);
   const anexosVivos = useRef<Anexo[]>([]);
   anexosVivos.current = anexos;
   const enviadoVivo = useRef<Enviado | null>(null);
   enviadoVivo.current = enviado;
+
+  // O estado que veio com a timeline é mais novo que o da lista (que anda a cada 5 s). Conversa só
+  // do histórico não tem estado vivo; fica o da lista.
+  const conversation = data?.conversation && data.conversation.id === daLista.id ? { ...daLista, ...data.conversation } : daLista;
 
   useEffect(() => { gravarSessao(chaveRascunho, text || null); }, [chaveRascunho, text]);
   // Prévia local não pode vazar memória ao sair da conversa.
@@ -290,16 +368,62 @@ export function ConversationDetail({ conversation, refresh }: { conversation: Co
 
   const base = `/conversas/${encodeURIComponent(conversation.id)}/timeline`;
   const url = cursor === null ? base : `${base}?cursor=${cursor}`;
-  const load = useCallback(async () => { setData(await request<Timeline>(url)); }, [url]);
-  usePoll(async () => {
-    const result = await request<Timeline>(url);
-    setData(result); setError(null);
-    // Com o agente ativo o estado da conversa também precisa andar rápido, senão o "trabalhando"
-    // fica na tela até o próximo ciclo lento da lista.
-    if (ativo) await refresh();
-  }, reason => setError(String(reason)), [url, ativo], ativo ? POLL_ATIVO_MS : undefined);
 
-  const mensagens = data?.timeline.messages ?? [];
+  /** Lê a timeline. Página nova (ou componente recém-montado) vem inteira; depois só se mudou. */
+  const ler = useCallback(async () => {
+    if (urlCarregada.current !== url) esquecerVersao(url);
+    const resultado = await requestSeMudou<Timeline>(url);
+    urlCarregada.current = url;
+    if (resultado) setData(resultado);
+  }, [url]);
+
+  usePoll(async () => { await ler(); setError(null); }, reason => setError(String(reason)), [ler],
+    ativo ? POLL_ATIVO_MS : POLL_PARADO_MS);
+
+  // O agente terminou (ou começou): a lista ao lado também precisa saber, sem esperar o ciclo dela.
+  const estadoAnterior = useRef(conversation.state);
+  useEffect(() => {
+    if (estadoAnterior.current !== conversation.state) {
+      estadoAnterior.current = conversation.state;
+      void refresh().catch(() => undefined);
+    }
+  }, [conversation.state, refresh]);
+
+  const mensagens = useMemo(() => data?.timeline.messages ?? [], [data]);
+  const blocos = useMemo(() => agruparMensagens(mensagens), [mensagens]);
+  // Só a primeira fala do agente em cada turno leva "Claude · 17:54"; as seguintes (falas curtas
+  // entre ações) seguem coladas, sem repetir o cabeçalho.
+  // "Hoje", "Ontem" ou a data entre mensagens de dias diferentes — numa conversa longa é o que dá
+  // noção de tempo sem olhar hora por hora.
+  const separadores = useMemo(() => {
+    const mapa = new Map<number, string>();
+    let anterior = "";
+    blocos.forEach((bloco, indice) => {
+      const quando = bloco.tipo === "acoes" ? bloco.acoes[0]?.timestamp : bloco.mensagem.timestamp;
+      const data = quando ? new Date(quando) : null;
+      if (!data || Number.isNaN(data.getTime())) return;
+      const chave = data.toDateString();
+      if (chave === anterior) return;
+      anterior = chave;
+      const hoje = new Date();
+      const ontem = new Date(hoje.getTime() - 86_400_000);
+      mapa.set(indice, chave === hoje.toDateString() ? "Hoje" : chave === ontem.toDateString() ? "Ontem"
+        : data.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: data.getFullYear() === hoje.getFullYear() ? undefined : "numeric" }));
+    });
+    return mapa;
+  }, [blocos]);
+
+  const continuacoes = useMemo(() => {
+    const indices = new Set<number>();
+    let jaFalou = false;
+    blocos.forEach((bloco, indice) => {
+      if (bloco.tipo !== "fala") return;
+      if (bloco.mensagem.role === "user") { jaFalou = false; return; }
+      if (jaFalou) indices.add(indice);
+      jaFalou = true;
+    });
+    return indices;
+  }, [blocos]);
   const ultimaId = mensagens[mensagens.length - 1]?.id ?? "";
 
   /** Tira o balão otimista da tela, devolvendo as prévias locais que ele segurava. */
@@ -314,7 +438,7 @@ export function ConversationDetail({ conversation, refresh }: { conversation: Co
   // O prompt otimista sai quando chega de verdade no transcript, ou quando a fila o recusa.
   useEffect(() => {
     if (!enviado) return;
-    const chegou = mensagens.some(m => m.role === "user"
+    const chegou = mensagens.some(m => m.role === "user" && (m.kind ?? "text") === "text"
       && (m.text.trim() === enviado.texto.trim() || indiceDaMensagem(m.id) > enviado.base));
     const acao = data?.actions.find(a => a.id === enviado.acao);
     if (chegou) { descartarEnviado(null); return; }
@@ -333,17 +457,68 @@ export function ConversationDetail({ conversation, refresh }: { conversation: Co
     return () => window.clearTimeout(timer);
   }, [enviado, descartarEnviado]);
 
-  // Chat rola para a mensagem mais nova; lendo página antiga, começa do topo dela.
+  // Saber se quem lê está no fim. Lendo mensagens antigas, a tela não pode pular sozinha para baixo
+  // a cada novidade — antes pulava, e era impossível ler o começo de uma resposta longa.
   useEffect(() => {
-    if (cursor === null) fim.current?.scrollIntoView?.({ block: "end" });
-    else window.scrollTo?.({ top: 0 });
-  }, [ultimaId, ativo, cursor]);
+    const rolagem = rolagemDe(fim.current);
+    const alvo: HTMLElement | Window | null = rolagem === document.scrollingElement ? window : rolagem;
+    if (!alvo) return;
+    const aoRolar = () => {
+      grudado.current = pertoDoFim(rolagem);
+      if (grudado.current) setNovidades(false);
+    };
+    alvo.addEventListener("scroll", aoRolar, { passive: true });
+    return () => alvo.removeEventListener("scroll", aoRolar);
+  }, [data !== null]);
+
+  const irParaOFim = useCallback((suave = false) => {
+    fim.current?.scrollIntoView?.({ block: "end", behavior: suave ? "smooth" : "auto" });
+    grudado.current = true;
+    setNovidades(false);
+  }, []);
+
+  // Chegou coisa nova: acompanha se estava no fim; senão avisa com o botão "novas mensagens".
+  useEffect(() => {
+    if (cursor !== null) { window.scrollTo?.({ top: 0 }); return; }
+    if (grudado.current) irParaOFim();
+    else if (ultimaId) setNovidades(true);
+  }, [ultimaId, ativo, cursor, irParaOFim]);
 
   function adicionar(arquivos: File[]) {
     if (arquivos.length === 0) return;
     setFalhaEnvio(null);
     setAnexos(lista => [...lista, ...arquivos.map(criarAnexo)]);
   }
+
+  // Arquivos entregues por fora dos eventos do navegador (o arrastar do app do PC) e o colar sem foco
+  // em lugar nenhum (Ctrl+V com a conversa na tela).
+  const adicionarRef = useRef(adicionar);
+  adicionarRef.current = adicionar;
+  useEffect(() => {
+    const tela = telaRef.current;
+    if (!tela) return;
+    const anexar = (evento: Event) => adicionarRef.current((evento as CustomEvent<File[]>).detail ?? []);
+    const arrastar = (evento: Event) => setArrastando(Boolean((evento as CustomEvent<boolean>).detail));
+    const colarSolto = (evento: ClipboardEvent) => {
+      // Já tratado (o campo de texto ou a própria conversa colaram): não anexa duas vezes.
+      if (evento.defaultPrevented) return;
+      const alvo = evento.target as HTMLElement | null;
+      if (alvo && alvo !== document.body && alvo.closest("input, textarea, [contenteditable], .xterm")) return;
+      if (!tela.isConnected || tela.closest(".invisible")) return;
+      const arquivos = Array.from(evento.clipboardData?.files ?? []);
+      if (arquivos.length === 0) return;
+      evento.preventDefault();
+      adicionarRef.current(arquivos);
+    };
+    tela.addEventListener(EVENTO_ANEXAR, anexar);
+    tela.addEventListener(EVENTO_ARRASTANDO, arrastar);
+    document.addEventListener("paste", colarSolto);
+    return () => {
+      tela.removeEventListener(EVENTO_ANEXAR, anexar);
+      tela.removeEventListener(EVENTO_ARRASTANDO, arrastar);
+      document.removeEventListener("paste", colarSolto);
+    };
+  }, []);
 
   function remover(id: string) {
     setAnexos(lista => {
@@ -356,7 +531,7 @@ export function ConversationDetail({ conversation, refresh }: { conversation: Co
   const marcar = (id: string, mudanca: Partial<Anexo>) =>
     setAnexos(lista => lista.map(a => (a.id === id ? { ...a, ...mudanca } : a)));
 
-  async function post(kind: "prompt" | "aprovar" | "modo", body: Record<string, unknown>) {
+  async function post(kind: "prompt" | "aprovar" | "modo" | "ajustes", body: Record<string, unknown>) {
     const capability = conversation.capabilities!;
     const signature = JSON.stringify([kind, body]);
     if (pending.current?.signature !== signature) pending.current = { signature, key: actionKey(), revision: capability.revision };
@@ -378,7 +553,7 @@ export function ConversationDetail({ conversation, refresh }: { conversation: Co
   async function aprovar(permitir: boolean) {
     if (!conversation.capabilities || busy) return;
     setBusy(true); setError(null); setFalhaEnvio(null);
-    try { await post("aprovar", { permitir }); await Promise.all([load(), refresh()]); }
+    try { await post("aprovar", { permitir }); await Promise.all([ler(), refresh()]); }
     catch (reason) { falhou(reason); }
     finally { setBusy(false); }
   }
@@ -387,9 +562,48 @@ export function ConversationDetail({ conversation, refresh }: { conversation: Co
   async function trocarModo(alvo: "plan" | "auto") {
     if (!conversation.capabilities?.prompt || busy) return;
     setBusy(true); setError(null); setFalhaEnvio(null);
-    try { await post("modo", { modo: alvo }); await refresh(); }
+    try { await post("modo", { modo: alvo }); await Promise.all([ler(), refresh()]); }
     catch (reason) { falhou(reason); }
     finally { setBusy(false); }
+  }
+
+  /** Conta, modelo e esforço: o engine reabre a conversa com `--resume` e os ajustes novos. */
+  async function ajustar(ajustes: Ajustes) {
+    if (!conversation.capabilities?.prompt || busy) return;
+    setBusy(true); setError(null); setFalhaEnvio(null);
+    try { await post("ajustes", { ...ajustes }); await Promise.all([ler(), refresh()]); }
+    catch (reason) { falhou(reason); throw reason; }
+    finally { setBusy(false); }
+  }
+
+  /** Conversa sem sessão: abre uma no PC com `--resume`, já com conta, modelo e esforço. A fila
+   *  abre em segundo plano, então espera a sessão aparecer antes de trocar de tela. */
+  async function retomar(ajustes: Ajustes) {
+    setBusy(true); setError(null); setFalhaEnvio(null);
+    try {
+      const acao = await request<{ conversation_id?: string }>(`/conversas/${encodeURIComponent(conversation.id)}/retomar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": actionKey() },
+        body: JSON.stringify({ ...ajustes }),
+      });
+      const destino = acao.conversation_id || conversation.id;
+      for (let tentativa = 0; tentativa < 30; tentativa += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 700));
+        const lido = await request<Timeline>(`/conversas/${encodeURIComponent(destino)}/timeline`).catch(() => null);
+        if (lido?.conversation?.capabilities) break;
+      }
+      await refresh();
+      if (destino !== conversation.id && abrirConversa) abrirConversa(destino);
+      else await ler();
+    } catch (reason) { setError(String(reason)); throw reason; }
+    finally { setBusy(false); }
+  }
+
+  /** O Esc do terminal: para o agente no meio do turno, como no PC. */
+  async function interromper() {
+    setError(null);
+    try { await enviarTeclas(conversation.id, "\u001b"); await ler(); }
+    catch (reason) { setError(String(reason)); }
   }
 
   async function renomear(nome: string) {
@@ -401,7 +615,7 @@ export function ConversationDetail({ conversation, refresh }: { conversation: Co
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nome: limpo }),
       });
-      await refresh();
+      await Promise.all([ler(), refresh()]);
     } catch (reason) { falhou(reason); }
   }
 
@@ -437,7 +651,8 @@ export function ConversationDetail({ conversation, refresh }: { conversation: Co
       setText("");
       setAnexos([]);
       setCursor(null);
-      await Promise.all([load(), refresh()]);
+      grudado.current = true;
+      await Promise.all([ler(), refresh()]);
     } catch (reason) {
       falhou(reason);
     } finally { setBusy(false); }
@@ -448,8 +663,44 @@ export function ConversationDetail({ conversation, refresh }: { conversation: Co
   const anexoGrande = anexos.some(a => a.arquivo.size > ANEXO_MAX_BYTES);
   const podeEnviar = Boolean(capability?.prompt) && !busy && temConteudo && !anexoGrande;
   const timeline = data?.timeline;
+  const ultimoBloco = blocos[blocos.length - 1];
 
-  return <section className="chat-tela">
+  function renderizarBloco(bloco: Bloco, indice: number) {
+    if (bloco.tipo === "acoes") {
+      return <BlocoDeAcoes key={bloco.id} acoes={bloco.acoes} provider={bloco.acoes[0]?.provider}
+        aoVivo={ativo && cursor === null && bloco === ultimoBloco} />;
+    }
+    if (bloco.tipo === "comando") return <LinhaDeComando key={bloco.mensagem.id} texto={bloco.mensagem.text} />;
+    if (bloco.tipo === "aviso") return <LinhaDeAviso key={bloco.mensagem.id} texto={bloco.mensagem.text} />;
+    const message = bloco.mensagem;
+    return <MessageBubble key={message.id} lado={message.role === "user" ? "user" : "agent"}
+      provider={message.provider} texto={message.text} horario={message.timestamp} continua={continuacoes.has(indice)} />;
+  }
+
+  return <section className="chat-tela" ref={telaRef}
+    onDragEnter={(evento) => { if (temArquivos(evento.dataTransfer)) { evento.preventDefault(); setArrastando(true); } }}
+    onDragOver={(evento) => { if (temArquivos(evento.dataTransfer)) { evento.preventDefault(); evento.dataTransfer.dropEffect = "copy"; } }}
+    onDragLeave={(evento) => { if (!evento.currentTarget.contains(evento.relatedTarget as Node | null)) setArrastando(false); }}
+    onDrop={(evento) => {
+      const arquivos = Array.from(evento.dataTransfer?.files ?? []);
+      setArrastando(false);
+      if (arquivos.length === 0) return;
+      evento.preventDefault();
+      adicionar(arquivos);
+    }}
+    onPaste={(evento) => {
+      // O campo de texto já trata o próprio colar; aqui é o colar com o foco em outro ponto da conversa.
+      if ((evento.target as HTMLElement).id === "reply") return;
+      const arquivos = Array.from(evento.clipboardData?.files ?? []);
+      if (arquivos.length === 0) return;
+      evento.preventDefault();
+      adicionar(arquivos);
+    }}>
+    {arrastando && (
+      <div className="chat-soltar" aria-hidden>
+        <span><AttachmentIcon className="h-5 w-5" />Solte para anexar à conversa</span>
+      </div>
+    )}
     {timeline?.prev_cursor != null && (
       <Button variant="ghost" size="sm" className="m-paginar" onClick={() => setCursor(timeline.prev_cursor!)}>
         Mensagens anteriores
@@ -458,10 +709,14 @@ export function ConversationDetail({ conversation, refresh }: { conversation: Co
     {!!timeline?.unavailable_segments.length && <p className="m-aviso">Parte do histórico está indisponível; nenhum transcript foi associado por aproximação.</p>}
 
     <div className="chat" aria-label="Mensagens">
+      {!data && <Vazio>Carregando conversa…</Vazio>}
       {data && mensagens.length === 0 && !enviado && !ativo && !timeline?.unavailable_segments.length && cursor === null &&
         <Vazio>Nenhuma mensagem ainda. Mande o primeiro prompt abaixo.</Vazio>}
-      {mensagens.map(message => <MessageBubble key={message.id} lado={message.role === "user" ? "user" : "agent"}
-        provider={message.provider} texto={message.text} horario={message.timestamp} />)}
+      {blocos.map((bloco, indice) => {
+        const dia = separadores.get(indice);
+        const conteudo = renderizarBloco(bloco, indice);
+        return dia ? <div key={`dia-${indice}`} className="chat-grupo"><p className="chat-dia"><span>{dia}</span></p>{conteudo}</div> : conteudo;
+      })}
       {enviado && <MessageBubble lado="user" pendente texto={enviado.texto}
         anexosLocais={enviado.anexos.length ? enviado.anexos : undefined} />}
       {capability?.approve && <div className="bubble bubble-agent bubble-aprovacao glass">
@@ -476,6 +731,10 @@ export function ConversationDetail({ conversation, refresh }: { conversation: Co
         <AgentWorking desde={trabalhandoDesde.current ?? Date.now()} provider={conversation.provider} />}
       <div ref={fim} />
     </div>
+
+    {novidades && cursor === null && (
+      <button type="button" className="chat-novidades" onClick={() => irParaOFim(true)}>Novas mensagens ↓</button>
+    )}
 
     {cursor !== null && (
       <div className="m-acoes m-acoes-centro">
@@ -492,51 +751,62 @@ export function ConversationDetail({ conversation, refresh }: { conversation: Co
 
     <Composer texto={text} onTexto={setText} anexos={anexos} onAdicionar={adicionar} onRemover={remover}
       onEnviar={() => void enviarPrompt()} podeEnviar={podeEnviar} ocupado={busy}
-      placeholder={!capability?.prompt ? (trabalhando ? "Agente trabalhando…" : "Sem sessão ativa") : "Mensagem para o agente…"}
-      toolbar={<BarraDaConversa conversa={conversation} ocupado={busy} onModo={trocarModo} onRenomear={renomear} />} />
+      placeholder={!capability?.prompt ? (trabalhando ? "Agente trabalhando… escreva a próxima mensagem"
+        : conversation.capabilities ? "Sem sessão ativa" : "Conversa fechada — escolha conta, modelo e esforço e retome abaixo") : "Mensagem para o agente…"}
+      toolbar={editandoNome ? <RenomearConversa nome={conversation.title} onFechar={() => setEditandoNome(false)}
+        onSalvar={(nome) => { setEditandoNome(false); void renomear(nome); }} /> : null}
+      chips={<>
+        {(conversation.live || conversation.capabilities) ? (
+          <AjustesDaConversa conversaId={conversation.id} pronto={Boolean(conversation.capabilities?.prompt) && !busy}
+            onAplicar={ajustar} />
+        ) : (
+          <AjustesDaConversa key="retomar" conversaId={conversation.id} pronto={!busy} onAplicar={ajustar} onRetomar={retomar} />
+        )}
+        <button type="button" className="composer-botao" title="Renomear conversa" aria-label="Renomear conversa"
+          onClick={() => setEditandoNome(true)}>
+          <EditIcon aria-hidden className="h-4 w-4" />
+        </button>
+      </>}
+      // Sessão ligada = há `capabilities` (engine antigo não manda `live`).
+      direita={conversation.capabilities && <ModoDoAgente modo={conversation.mode} pronto={Boolean(conversation.capabilities?.prompt) && !busy} onModo={trocarModo} />}
+      onParar={trabalhando && conversation.live ? () => { setParando(true); void interromper().finally(() => setParando(false)); } : undefined}
+      parando={parando} />
   </section>;
 }
 
-/** Nome da conversa e modo do agente, na mesma faixa acima do campo de texto.
- *
- *  O modo é o que o `shift+tab` alterna no terminal; aqui só plano e automático, que são os dois do
- *  dia a dia. Sem tela reconhecida (`capabilities.prompt` falso) os botões ficam travados: mandar
- *  tecla no meio de um turno não é para o agente. */
-export function BarraDaConversa({ conversa, ocupado, onModo, onRenomear }: {
-  conversa: Conversation;
-  ocupado: boolean;
-  onModo: (alvo: "plan" | "auto") => Promise<void>;
-  onRenomear: (nome: string) => Promise<void>;
-}) {
-  const [editando, setEditando] = useState(false);
-  const pronto = Boolean(conversa.capabilities?.prompt) && !ocupado;
+/** Arrasto que traz arquivos (e não texto ou uma aba sendo movida). */
+function temArquivos(dados: DataTransfer | null): boolean {
+  return Boolean(dados && Array.from(dados.types ?? []).includes("Files"));
+}
 
-  if (editando) {
-    return <form className="m-barra-conversa" onSubmit={(evento) => {
-      evento.preventDefault();
-      const campo = evento.currentTarget.elements.namedItem("nome") as HTMLInputElement | null;
-      setEditando(false);
-      if (campo) void onRenomear(campo.value);
-    }}>
-      <input name="nome" defaultValue={conversa.title} aria-label="Nome da conversa" className="m-campo-nome"
-        autoFocus onKeyDown={(evento) => { if (evento.key === "Escape") setEditando(false); }} />
-      <Button size="sm" type="submit">Salvar</Button>
-    </form>;
-  }
-
-  return <div className="m-barra-conversa">
-    <button type="button" className="m-nome-conversa" onClick={() => setEditando(true)}
-      title="Renomear conversa">{conversa.title}</button>
-    <div className="m-modos">
-      {(["plan", "auto"] as const).map((alvo) => (
-        <Button key={alvo} size="sm" variant={conversa.mode === alvo ? "primary" : "ghost"} disabled={!pronto}
-          aria-pressed={conversa.mode === alvo} onClick={() => void onModo(alvo)}>
-          {alvo === "plan" ? "Plano" : "Auto"}
-        </Button>
-      ))}
-    </div>
+/** Plano e automático — o que o `shift+tab` alterna no terminal; os dois do dia a dia. Travado sem
+ *  tela reconhecida: tecla no meio de um turno não é para o agente. */
+export function ModoDoAgente({ modo, pronto, onModo }: { modo?: string | null; pronto: boolean; onModo: (alvo: "plan" | "auto") => Promise<void> }) {
+  return <div className="composer-modos" role="group" aria-label="Modo do agente">
+    {(["plan", "auto"] as const).map((alvo) => (
+      <button key={alvo} type="button" className={`composer-modo${modo === alvo ? " is-ativo" : ""}`} aria-pressed={modo === alvo}
+        disabled={!pronto} onClick={() => void onModo(alvo)}
+        title={alvo === "plan" ? "Plano: o agente planeja e pergunta antes de mexer" : "Auto: o agente executa sem pedir aprovação"}>
+        {alvo === "plan" ? <NotesIcon aria-hidden className="h-3.5 w-3.5" /> : <PlayIcon aria-hidden className="h-3.5 w-3.5" />}
+        <span>{alvo === "plan" ? "Plano" : "Auto"}</span>
+      </button>
+    ))}
   </div>;
 }
+
+function RenomearConversa({ nome, onSalvar, onFechar }: { nome: string; onSalvar: (nome: string) => void; onFechar: () => void }) {
+  return <form className="m-barra-conversa" onSubmit={(evento) => {
+    evento.preventDefault();
+    const campo = evento.currentTarget.elements.namedItem("nome") as HTMLInputElement | null;
+    if (campo) onSalvar(campo.value);
+  }}>
+    <input name="nome" defaultValue={nome} aria-label="Nome da conversa" className="m-campo-nome"
+      autoFocus onKeyDown={(evento) => { if (evento.key === "Escape") onFechar(); }} />
+    <Button size="sm" type="submit">Salvar</Button>
+    <Button size="sm" variant="ghost" type="button" onClick={onFechar}>Cancelar</Button>
+  </form>;
+}
+
 
 /* ─────────────────────────────────────────────────────────────── app */
 
@@ -544,7 +814,7 @@ const CHAVE_FILTRO = "omni-filtro";
 
 export function MobileApp() {
   const { rota, ir, voltar } = useRota();
-  const { conversations, attention, catalog, carregado, error, semAcesso, refresh, atualizar, parear } = useDados();
+  const { conversations, attention, catalog, carregado, error, semAcesso, refresh, atualizar, parear } = useDados(rota.tela === "conversa" ? rota.conversa : null);
   const [onlyAttention, setOnlyAttention] = useState(() => lerSessao(CHAVE_FILTRO) === "atencao");
   const [query, setQuery] = useState("");
 
@@ -578,7 +848,7 @@ export function MobileApp() {
             .filter(Boolean).join(" · ")}
         </span>
       </>;
-      conteudo = <ConversationDetail key={conversa.id} conversation={conversa} refresh={refresh} />;
+      conteudo = <ConversationDetail key={conversa.id} conversation={conversa} refresh={refresh} abrirConversa={abrirConversa} />;
     } else {
       titulo = "Conversa";
       conteudo = <Vazio>{carregado ? "Essa conversa não existe mais no PC." : "Carregando conversa…"}</Vazio>;

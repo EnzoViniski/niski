@@ -80,3 +80,9 @@ vi.mock("@monaco-editor/react", () => ({
     });
   },
 }));
+
+// jsdom não tem ResizeObserver; o terminal da web (carregado sob demanda) usa para ajustar a fonte.
+// Sem isto, um teste que abre o terminal falhava ou passava conforme o carregamento chegasse a tempo.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+}

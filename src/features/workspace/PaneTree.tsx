@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import type { AgentView } from "../../types/settings";
 import type { LayoutNode, WorkspaceAction } from "../../types/workspace";
 import type { KanbanAction, KanbanState } from "../../types/kanban";
 import { PaneView } from "./PaneView";
@@ -11,13 +12,15 @@ interface PaneTreeProps {
   projectId: string;
   projectPath: string;
   fileSaveMode: "auto" | "manual";
+  /** Aba de agente: o chat (como na web) ou o terminal cru. Ver `AgentView` em `types/settings`. */
+  agentView: AgentView;
   kanban: KanbanState;
   kanbanDispatch: React.Dispatch<KanbanAction>;
   dispatch: React.Dispatch<WorkspaceAction>;
 }
 
 export function PaneTree(props: PaneTreeProps) {
-  const { node, activePaneId, maximizedPaneId, paneCount, projectId, projectPath, fileSaveMode, kanban, kanbanDispatch, dispatch } =
+  const { node, activePaneId, maximizedPaneId, paneCount, projectId, projectPath, fileSaveMode, agentView, kanban, kanbanDispatch, dispatch } =
     props;
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -36,6 +39,7 @@ export function PaneTree(props: PaneTreeProps) {
         projectId={projectId}
         projectPath={projectPath}
         fileSaveMode={fileSaveMode}
+        agentView={agentView}
         kanban={kanban}
         kanbanDispatch={kanbanDispatch}
         dispatch={dispatch}

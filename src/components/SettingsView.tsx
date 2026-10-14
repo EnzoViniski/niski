@@ -18,7 +18,7 @@ type SectionId = "aparencia" | "agentes" | "skills" | "mobile" | "atalhos" | "so
 const SECTIONS: { id: SectionId; label: string }[] = [
   { id: "agentes", label: "Agentes" },
   { id: "skills", label: "Skills" },
-  { id: "mobile", label: "Celular" },
+  { id: "mobile", label: "Acesso remoto" },
   { id: "aparencia", label: "Aparência" },
   { id: "atalhos", label: "Atalhos" },
   { id: "sobre", label: "Sobre" },
@@ -264,6 +264,19 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
           min={0}
           max={100}
           onChange={(v) => onChange({ terminalOpacity: v })}
+        />
+      </Card>
+
+      <Card title="Agentes">
+        <Segmented
+          label="Como ver os agentes"
+          description="Conversa mostra o agente como um chat, igual ao acesso pelo navegador: mensagens, o que ele está fazendo, aprovar e parar. O terminal continua a um clique em cada aba. Terminais sem IA (npm run dev, git…) são sempre terminal."
+          options={[
+            { value: "conversa", label: "Conversa" },
+            { value: "terminal", label: "Terminal" },
+          ]}
+          value={settings.agentView}
+          onChange={(v) => onChange({ agentView: v })}
         />
       </Card>
 

@@ -14,6 +14,26 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.6.0",
+    date: "2026-10-14",
+    changes: [
+      "As abas de agente podem aparecer como conversa, do jeito do navegador: mensagens, o que o agente está fazendo, aprovar e parar. Escolha em Configurações → Aparência → Agentes. O terminal continua a um clique em cada aba.",
+      "A conversa ganhou um visual novo: ícone do agente em cada resposta, separador por dia, ícone para cada tipo de ação, blocos de código com botão de copiar e um campo de mensagem novo, com Plano/Auto e o botão de enviar em destaque.",
+      "Troque a conta, o modelo e o esforço de uma conversa direto no campo de mensagem, ou na faixa acima do terminal. A conversa reabre em segundos, de onde parou.",
+      "Conversas antigas do histórico podem ser retomadas pelo app ou pelo navegador, já escolhendo conta, modelo e esforço.",
+      "Bifurcar conversa: na lista CHATS, crie uma cópia de uma conversa com todo o histórico dela, que segue independente da original.",
+      "Anexe PDFs, planilhas, documentos, CSV, Markdown, imagens e outros arquivos arrastando para a conversa ou colando com Ctrl+V — no app, no navegador e no celular.",
+      "No navegador do computador: terminais sem agente para rodar comandos como npm run dev, o uso de cada conta igual ao do app e um visual mais caprichado.",
+      "A barra lateral separa CHATS (conversas com IA) de TERMINALS e mostra o status de cada conversa: trabalhando, aprovar, interrompido ou finalizado.",
+      "Avisos de conversa: agora é um só por conversa, abrir a conversa limpa o aviso e ele não volta sozinho.",
+      "Corrigido: o OMNI podia trocar de conta e reabrir uma conversa sozinho quando o agente mostrava na tela algum texto sobre limite de uso. E conversas que tinham acabado de terminar apareciam como interrompidas.",
+      "Corrigido: abrir uma conversa nova em projeto do WSL às vezes dava tempo esgotado e acabava criando sessões repetidas.",
+      "Conversas abertas pelo celular numa pasta nova não ficam mais presas na pergunta \"confia nesta pasta?\".",
+      "Com o Docker fechado, a barra lateral mostra só \"Docker fechado\", sem mensagem de erro.",
+      "A aba Celular das Configurações agora se chama Acesso remoto e explica que serve tanto para o celular quanto para outro computador.",
+    ],
+  },
+  {
     version: "0.5.4",
     date: "2026-09-26",
     changes: [

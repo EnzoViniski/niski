@@ -1,5 +1,5 @@
-/* Layout da página de computador. O CSP do servidor do celular proíbe estilo inline, então tudo
-   que posiciona algo aqui precisa ser classe. */
+/* Layout da página de computador. O CSP do servidor do celular proíbe atributo `style` em HTML,
+   então tudo que posiciona algo aqui precisa ser classe. */
 
 .w-tela {
   display: flex;
@@ -8,26 +8,42 @@
   overflow: hidden;
 }
 
+/* ── Cabeçalho ─────────────────────────────────────────────────────────── */
 .w-topo {
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  padding: 0.5rem 1rem;
+  min-height: 3.25rem;
+  padding: 0.375rem 1rem;
   border-bottom: 2px solid rgb(var(--c-border-subtle));
   flex-shrink: 0;
 }
-.w-logo { width: 1.5rem; height: 1.5rem; }
-.w-marca { font-size: 0.6875rem; color: rgb(var(--c-text-primary)); }
+.w-logo { width: 1.5rem; height: 1.5rem; flex-shrink: 0; }
+.w-marca { font-size: 0.6875rem; color: rgb(var(--c-text-primary)); flex-shrink: 0; }
 .w-topo-espaco { flex: 1 1 auto; }
-.w-erro { font-size: 0.6875rem; color: rgb(var(--c-danger)); }
-.w-atualizar { min-height: 2rem; padding: 0 0.5rem; }
-.w-voltar { min-height: 2rem; width: 2rem; padding: 0; }
+.w-topo-conversa {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.75rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid rgb(var(--c-border-subtle));
+}
+.w-topo-texto { min-width: 0; display: flex; flex-direction: column; }
+.w-topo-titulo { font-size: 0.875rem; font-weight: 700; color: rgb(var(--c-text-primary)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-topo-sub { display: flex; align-items: center; gap: 0.375rem; font-size: 0.6875rem; color: rgb(var(--c-text-secondary)); overflow: hidden; white-space: nowrap; }
+.w-erro { font-size: 0.6875rem; color: rgb(var(--c-danger)); max-width: 24rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-atualizar { min-height: 2rem; padding: 0 0.5rem; flex-shrink: 0; }
+.w-voltar { min-height: 2rem; width: 2rem; padding: 0; flex-shrink: 0; }
 
-/* Três colunas de altura fixa: cada uma rola sozinha, como num cliente de e-mail. A do meio é a
+/* ── Colunas ───────────────────────────────────────────────────────────────
+   Três colunas de altura fixa: cada uma rola sozinha, como num cliente de e-mail. A do meio é a
    conversa e fica com o espaço que sobra. */
 .w-colunas {
   display: grid;
-  grid-template-columns: 19rem minmax(0, 1fr) 15rem;
+  grid-template-columns: 20rem minmax(0, 1fr) 16rem;
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -43,17 +59,16 @@
   border-right: 2px solid rgb(var(--c-border-subtle));
 }
 .w-direita { border-left: 2px solid rgb(var(--c-border-subtle)); }
-/* A conversa controla o próprio scroll (a lista de mensagens rola por dentro). */
-.w-centro { overflow: hidden; display: flex; flex-direction: column; padding: 0; }
-.w-centro > .chat-tela { height: 100%; min-height: 0; overflow: hidden; padding: 0.75rem; }
-.w-centro .chat { min-height: 0; overflow-y: auto; padding-right: 0.25rem; }
-.w-centro .composer-faixa { position: static; flex-shrink: 0; margin: 0; padding: 0.5rem 0 0; }
-.w-centro .m-barra-conversa { flex-shrink: 0; }
 
 /* Tela estreita (notebook pequeno, janela dividida): a coluna de pendências sai primeiro. */
-@media (max-width: 1100px) {
-  .w-colunas { grid-template-columns: 16rem minmax(0, 1fr); }
+@media (max-width: 1180px) {
+  .w-colunas { grid-template-columns: 17rem minmax(0, 1fr); }
   .w-direita { display: none; }
+}
+@media (max-width: 760px) {
+  .w-colunas { grid-template-columns: minmax(0, 1fr); }
+  .w-lateral { display: none; }
+  .w-marca { display: none; }
 }
 
 .w-rotulo {
@@ -62,7 +77,12 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: rgb(var(--c-text-muted));
-  margin: 0.5rem 0 0.375rem;
+  margin: 0.75rem 0 0.375rem;
+  /* Na lateral (coluna flex) o rótulo encolhia junto com a lista até sumir — 5 px de altura. */
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .w-vazio {
   font-size: 0.75rem;
@@ -71,11 +91,29 @@
   text-align: center;
 }
 
-.w-projetos-bloco { max-height: 32%; flex-shrink: 0; overflow-y: auto; }
+/* ── Lateral: busca, projetos, conversas ──────────────────────────────── */
+.w-busca { width: 100%; flex-shrink: 0; }
+.w-projetos-bloco { max-height: 34%; flex-shrink: 0; overflow-y: auto; }
 .w-projetos, .w-atencao { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.125rem; }
-.w-busca { width: 100%; flex-shrink: 0; margin-bottom: 0.5rem; }
 .w-conversas { min-height: 0; flex: 1 1 auto; overflow-y: auto; padding-right: 0.25rem; }
-.w-nova-sessao { flex-shrink: 0; padding-top: 0.625rem; }
+/* Na coluna estreita o cartão do celular (ícone grande, sombra de pixel) come metade da largura e
+   cortava a conta. Aqui a conversa é uma linha de lista, como no app do PC. */
+.w-conversas .m-lista { gap: 0.125rem; padding: 0; }
+.w-conversas .m-card {
+  padding: 0.4375rem 0.5rem;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  box-shadow: none;
+}
+.w-conversas .m-card:hover { background: rgb(var(--c-overlay) / 0.07); }
+.w-conversas .m-card:active { transform: none; }
+.w-conversas .m-card-ativo { border-left-color: rgb(var(--c-accent)); background: rgb(var(--c-accent) / 0.12); }
+.w-conversas .m-card-icone { width: 1.25rem; height: 1.25rem; background: none; border: none; }
+.w-conversas .m-card-titulo { font-size: 0.8125rem; font-weight: 600; }
+.w-conversas .m-card-sub { font-size: 0.625rem; }
+.w-conversas .m-card-lado { flex-direction: row; align-items: center; gap: 0.375rem; }
 .w-projeto {
   display: flex;
   align-items: center;
@@ -88,6 +126,7 @@
   background: none;
   border: none;
   border-left: 2px solid transparent;
+  cursor: pointer;
 }
 .w-projeto:hover { background: rgb(var(--c-overlay) / 0.07); }
 .w-projeto-ativo {
@@ -96,8 +135,174 @@
   background: rgb(var(--c-accent) / 0.12);
 }
 .w-projeto-nome { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-projeto-total { font-size: 0.625rem; color: rgb(var(--c-text-muted)); min-width: 1.25rem; text-align: right; }
 
-.w-atencao-item { width: 100%; justify-content: flex-start; gap: 0.375rem; }
-.w-atencao-texto { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ── Centro: abas e conversa ───────────────────────────────────────────── */
+.w-centro { overflow: hidden; display: flex; flex-direction: column; padding: 0; }
+.w-abas {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem 0;
+  border-bottom: 2px solid rgb(var(--c-border-subtle));
+  flex-shrink: 0;
+}
+.w-aba {
+  padding: 0.375rem 0.875rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgb(var(--c-text-secondary));
+  background: none;
+  border: 2px solid transparent;
+  border-bottom: none;
+  margin-bottom: -2px;
+  cursor: pointer;
+}
+.w-aba:hover:not(:disabled) { color: rgb(var(--c-text-primary)); }
+.w-aba:disabled { opacity: 0.45; cursor: default; }
+.w-aba-ativa {
+  color: rgb(var(--c-text-primary));
+  background: rgb(var(--c-bg-primary));
+  border-color: rgb(var(--c-border-subtle));
+  box-shadow: inset 0 2px 0 rgb(var(--c-accent));
+}
+.w-painel-central { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
+/* A conversa controla o próprio scroll (a lista de mensagens rola por dentro) e fica numa largura
+   de leitura confortável, centralizada — linha de 200 caracteres cansa. */
+.w-painel-central > .chat-tela { height: 100%; min-height: 0; overflow: hidden; padding: 0.75rem 0 0; gap: 0.5rem; }
+.w-painel-central .chat {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.25rem max(1rem, calc((100% - 56rem) / 2)) 1rem;
+  scrollbar-gutter: stable;
+}
+.w-painel-central .bubble { max-width: min(88%, 48rem); }
+.w-painel-central .m-paginar,
+.w-painel-central .m-aviso,
+.w-painel-central .m-alerta,
+.w-painel-central .m-dica,
+.w-painel-central .m-acoes-centro { margin-inline: max(1rem, calc((100% - 56rem) / 2)); }
+.w-painel-central .composer-faixa {
+  position: static;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.5rem max(1rem, calc((100% - 56rem) / 2)) 0.75rem;
+}
+.w-painel-central .chat-novidades { position: static; margin-top: -0.25rem; }
+.w-centro .m-barra-conversa { flex-shrink: 0; }
+
+.w-boas-vindas {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+}
+.w-boas-vindas-logo { width: 4rem; height: 4rem; opacity: 0.9; }
+.w-dica { font-size: 0.6875rem; color: rgb(var(--c-text-muted)); }
+.w-dica kbd, .w-terminal-barra kbd {
+  padding: 0 0.3125rem;
+  font: inherit;
+  font-size: 0.625rem;
+  border: 1px solid rgb(var(--c-outline));
+  background: rgb(var(--c-overlay) / 0.08);
+}
+
+/* ── Terminal ao vivo ─────────────────────────────────────────────────── */
+.w-terminal { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.w-terminal-barra {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.6875rem;
+  color: rgb(var(--c-text-secondary));
+  flex-shrink: 0;
+}
+.w-terminal-erro { margin-left: auto; color: rgb(var(--c-danger)); }
+.w-terminal-tela {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.5rem;
+  background: #0e0e14;
+  overflow: hidden;
+}
+.w-terminal-tela .xterm { height: 100%; }
+
+/* ── Direita: precisa de você, trabalhando agora ──────────────────────── */
+.w-atencao-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  font: inherit;
+  font-size: 0.75rem;
+  color: rgb(var(--c-text-secondary));
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+}
+.w-atencao-item:hover { background: rgb(var(--c-overlay) / 0.07); color: rgb(var(--c-text-primary)); }
+.w-atencao-item-alerta { border-left-color: rgb(var(--c-warning)); }
+.w-atencao-item-ativa { background: rgb(var(--c-accent) / 0.12); color: rgb(var(--c-text-primary)); }
+.w-atencao-texto { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-atencao-tempo { font-size: 0.625rem; color: rgb(var(--c-text-muted)); flex-shrink: 0; }
 
 .w-pareamento { display: grid; place-items: center; min-height: 100dvh; padding: 1rem; }
+
+/* ── Terminais sem agente (npm run dev) ───────────────────────────────── */
+.w-terminais-bloco { flex-shrink: 0; max-height: 25%; overflow-y: auto; }
+.w-fechar-terminal { min-height: 1.75rem; margin-bottom: 0.25rem; padding: 0 0.625rem; font-size: 0.6875rem; }
+
+/* ── Uso das contas (igual ao rodapé do app do PC) ─────────────────────── */
+.w-uso { list-style: none; margin: 0 0 0.25rem; padding: 0; display: flex; flex-direction: column; gap: 0.375rem; }
+.w-uso-conta { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.375rem 0.5rem; border-left: 2px solid transparent; background: rgb(var(--c-overlay) / 0.04); }
+.w-uso-conta-ativa { border-left-color: rgb(var(--c-accent)); background: rgb(var(--c-accent) / 0.10); }
+.w-uso-nome { display: flex; align-items: center; gap: 0.375rem; min-width: 0; font-size: 0.75rem; font-weight: 600; color: rgb(var(--c-text-primary)); }
+.w-uso-janela { display: flex; align-items: center; gap: 0.375rem; font-size: 0.625rem; color: rgb(var(--c-text-secondary)); }
+.w-uso-janela > span:first-child { width: 2.75rem; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.04em; }
+.w-uso-barra { position: relative; flex: 1 1 auto; height: 0.375rem; background: rgb(var(--c-overlay) / 0.16); }
+.w-uso-preenchido { position: absolute; inset: 0 auto 0 0; }
+.w-uso-pct { width: 2.5rem; flex-shrink: 0; text-align: right; font-weight: 700; }
+.w-uso-vazio { font-size: 0.625rem; color: rgb(var(--c-text-muted)); }
+
+/* ── Polimento: lateral, abas, uso ─────────────────────────────────────── */
+/* Rodapé da lateral: as duas ações do projeto lado a lado, sem comer a lista. */
+.w-rodape-lateral {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  padding-top: 0.625rem;
+  margin-top: 0.375rem;
+  border-top: 2px solid rgb(var(--c-border-subtle));
+}
+.w-rodape-lateral > .m-painel { flex: 1 1 100%; }
+.w-rodape-botao { flex: 1 1 0; min-width: 0; min-height: 2.25rem; padding: 0 0.5rem; gap: 0.375rem; font-size: 0.75rem; white-space: nowrap; }
+.w-rodape-erro { flex: 1 1 100%; white-space: normal; }
+
+.w-projeto-icone { color: rgb(var(--c-text-muted)); }
+.w-projeto-ativo .w-projeto-icone { color: rgb(var(--c-accent)); }
+.w-projeto-total { min-width: 1.5rem; padding: 0 0.25rem; text-align: center; background: rgb(var(--c-overlay) / 0.06); }
+
+.w-aba { display: inline-flex; align-items: center; gap: 0.375rem; }
+
+.w-uso-agente {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgb(var(--c-text-muted));
+}
+
+/* O secundário com contorno: fantasma puro parecia desabilitado ao lado do azul. */
+.w-rodape-botao.btn-ghost { color: rgb(var(--c-text-primary)); border: 2px solid rgb(var(--c-outline)); background: rgb(var(--c-overlay) / 0.04); }
+.w-rodape-botao.btn-ghost:hover:not(:disabled) { border-color: rgb(var(--c-accent) / 0.7); }

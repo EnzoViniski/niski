@@ -7,10 +7,8 @@
   `style-src 'self'`.
 */
 
-/* O PC trava a página na altura da janela; no celular quem rola é o documento, e a barra de
-   cima e a de digitação ficam presas com `sticky`, que lida melhor com o teclado do iOS. */
-html, body, #root { min-height: 100%; height: auto; overflow: visible; }
-body { user-select: text; -webkit-user-select: text; -webkit-tap-highlight-color: transparent; }
+/* Regras da página inteira (html/body) moram em `pagina.css`: este arquivo também é usado dentro
+   do app do PC, na visão Conversa das abas de agente, e não pode mexer na página de lá. */
 
 .m-shell {
   max-width: 48rem;
@@ -160,8 +158,10 @@ body { user-select: text; -webkit-user-select: text; -webkit-tap-highlight-color
 .bubble-time { margin-left: auto; padding-left: .75rem; font-weight: 400; color: rgb(var(--c-text-muted)); }
 .mobile-message { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .875rem; }
 
-/* Markdown da resposta com as cores do tema (o plugin de tipografia nasce pensado para fundo claro). */
-.bubble-markdown {
+/* Markdown da resposta com as cores do tema (o plugin de tipografia nasce pensado para fundo claro).
+   `.prose` junto no seletor: no app do PC este arquivo carrega **antes** do Tailwind, e a regra
+   padrão do `.prose` (cinza para fundo claro) vencia — o texto do agente saía apagado. */
+.bubble-markdown, .bubble-markdown.prose {
   font-size: .875rem;
   overflow-wrap: anywhere;
   --tw-prose-body: rgb(var(--c-text-primary));
@@ -225,34 +225,110 @@ body { user-select: text; -webkit-user-select: text; -webkit-tap-highlight-color
   background: rgb(var(--c-bg-primary));
   border-top: 2px solid rgb(var(--c-outline));
 }
-.composer-faixa > .m-barra-conversa { padding: .125rem .5rem .5rem; }
+.composer-faixa > .m-barra-conversa { padding: .125rem .25rem .5rem; }
+
+/* Um cartão só: o texto em cima e, embaixo, a barra com anexo, conta/modelo/esforço, modo e enviar —
+   como nos apps de chat. A borda acende quando o campo tem foco. */
 .composer {
   display: flex;
   flex-direction: column;
-  gap: .5rem;
-  padding: .5rem;
+  gap: .375rem;
+  padding: .625rem .625rem .5rem;
+  background: rgb(var(--c-bg-surface));
+  border: 2px solid rgb(var(--c-outline));
+  box-shadow: 4px 4px 0 rgb(var(--c-outline));
+  transition: border-color .15s, box-shadow .15s;
 }
-.composer-linha { display: flex; align-items: flex-end; gap: .5rem; }
-.composer-icone { width: 44px; min-width: 44px; height: 44px; padding: 0; flex-shrink: 0; }
-.composer-icone.is-disabled { opacity: .5; pointer-events: none; }
+.composer:focus-within { border-color: rgb(var(--c-accent)); box-shadow: 4px 4px 0 rgb(var(--c-accent) / .4); }
 .composer-campo {
-  flex: 1;
-  min-width: 0;
-  min-height: 44px;
+  width: 100%;
+  min-height: 2.75rem;
   max-height: 10rem;
   resize: none;
-  padding: .625rem .75rem;
+  padding: .375rem .25rem;
   font: inherit;
-  font-size: 16px;
-  line-height: 1.35;
+  font-size: 16px; /* iOS dá zoom em campo com menos de 16 px */
+  line-height: 1.5;
   color: rgb(var(--c-text-primary));
-  background: rgb(var(--c-bg-primary));
-  border: 2px solid rgb(var(--c-outline));
-  border-radius: 0;
+  background: transparent;
+  border: none;
   overflow-y: hidden;
 }
+@media (pointer: fine) { .composer-campo { font-size: .875rem; } }
 .composer-campo::placeholder { color: rgb(var(--c-text-muted)); }
-.composer-campo:focus { outline: none; border-color: rgb(var(--c-accent)); }
+.composer-campo:focus { outline: none; }
+
+.composer-rodape {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .375rem;
+  padding-top: .5rem;
+  border-top: 1px dashed rgb(var(--c-outline) / .7);
+}
+.composer-chips { display: flex; align-items: center; flex-wrap: wrap; gap: .375rem; flex: 1 1 auto; min-width: 0; }
+.composer-direita { display: flex; align-items: center; gap: .5rem; margin-left: auto; }
+
+.composer-botao {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  color: rgb(var(--c-text-secondary));
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.composer-botao:hover { color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .08); border-color: rgb(var(--c-outline)); }
+.composer-botao:focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 1px; }
+.composer-botao.is-disabled { opacity: .45; pointer-events: none; }
+
+.composer-enviar {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  color: #fff;
+  background: rgb(var(--c-accent));
+  border: 2px solid rgb(var(--c-accent));
+  box-shadow: 2px 2px 0 rgb(var(--c-outline));
+  cursor: pointer;
+  transition: transform .1s, box-shadow .1s, background .15s;
+}
+.composer-enviar:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 rgb(var(--c-outline)); }
+.composer-enviar:active:not(:disabled) { transform: translate(1px, 1px); box-shadow: none; }
+.composer-enviar:focus-visible { outline: 2px solid rgb(var(--c-text-primary)); outline-offset: 2px; }
+.composer-enviar:disabled {
+  color: rgb(var(--c-text-muted));
+  background: rgb(var(--c-overlay) / .06);
+  border-color: rgb(var(--c-outline));
+  box-shadow: none;
+  cursor: default;
+}
+.composer-parar { background: rgb(var(--c-danger)); border-color: rgb(var(--c-danger)); }
+
+/* Plano / Auto: segmentado, com ícone. */
+.composer-modos { display: flex; gap: 2px; padding: 2px; background: rgb(var(--c-bg-primary)); border: 1px solid rgb(var(--c-outline)); }
+.composer-modo {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  height: 1.75rem;
+  padding: 0 .5rem;
+  font: inherit;
+  font-size: .6875rem;
+  font-weight: 700;
+  color: rgb(var(--c-text-muted));
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.composer-modo:hover:not(:disabled) { color: rgb(var(--c-text-primary)); }
+.composer-modo.is-ativo { color: rgb(var(--c-accent)); background: rgb(var(--c-accent) / .18); }
+.composer-modo:disabled { opacity: .5; cursor: default; }
+.composer-modo:focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 1px; }
 
 .anexos { display: flex; gap: .5rem; overflow-x: auto; margin: 0; padding: 0 0 .25rem; list-style: none; scrollbar-width: thin; }
 .anexo-chip {
@@ -360,3 +436,315 @@ body { user-select: text; -webkit-user-select: text; -webkit-tap-highlight-color
   gap: 0.25rem;
   flex-shrink: 0;
 }
+
+/* ── Lista: conversa aberta e tempo desde a última atividade ────────────── */
+.m-card-ativo { border-color: rgb(var(--c-accent)); background: rgb(var(--c-accent) / .1); }
+.m-card-tempo { font-size: .625rem; color: rgb(var(--c-text-muted)); white-space: nowrap; }
+
+/* ── Ações do agente ──────────────────────────────────────────────────────
+   O que o agente fez entre duas falas (leu, rodou, editou). Mais leve que um balão: é contexto, não
+   conversa — no terminal do PC estas linhas também são discretas. */
+.acoes {
+  align-self: flex-start;
+  max-width: min(100%, 44rem);
+  width: fit-content;
+  border-left: 2px solid rgb(var(--c-outline));
+  padding-left: .625rem;
+  font-size: .75rem;
+  color: rgb(var(--c-text-secondary));
+}
+.acoes-ao-vivo { border-left-color: rgb(var(--c-accent)); }
+.acoes-cabecalho {
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+  min-width: 0;
+  max-width: 100%;
+  padding: .125rem 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.acoes-cabecalho:hover .acoes-contagem { color: rgb(var(--c-text-primary)); }
+.acoes-cabecalho:focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px; }
+.acoes-seta { width: 1ch; color: rgb(var(--c-text-muted)); }
+.acoes-contagem { font-weight: 600; white-space: nowrap; }
+.acoes-resumo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--c-text-muted)); }
+.acoes-resumo::before { content: "· "; }
+.acoes-lista { list-style: none; margin: .25rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .1875rem; }
+.acao { display: flex; align-items: baseline; gap: .5rem; min-width: 0; }
+.acao-verbo { flex-shrink: 0; font-weight: 600; color: rgb(var(--c-accent)); }
+.acao-detalhe {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "Cascadia Code", Consolas, ui-monospace, monospace;
+  font-size: .6875rem;
+  color: rgb(var(--c-text-secondary));
+}
+
+/* `/comando` do usuário e avisos da CLI: linhas, não balões. */
+.comando {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+  margin: 0;
+  font-size: .75rem;
+  color: rgb(var(--c-text-secondary));
+}
+.comando code { padding: .125rem .375rem; background: rgb(var(--c-accent) / .12); color: rgb(var(--c-text-primary)); }
+.comando-sinal { color: rgb(var(--c-accent)); font-weight: 700; }
+.aviso-cli {
+  align-self: center;
+  margin: 0;
+  font-size: .6875rem;
+  color: rgb(var(--c-text-muted));
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.aviso-cli::before, .aviso-cli::after { content: " — "; color: rgb(var(--c-outline)); }
+
+/* Lendo mensagens antigas e chegou coisa nova: um botão leva ao fim, em vez de pular sozinho. */
+.chat-novidades {
+  position: sticky;
+  bottom: 5.5rem;
+  align-self: center;
+  z-index: 11;
+  padding: .375rem .875rem;
+  font: inherit;
+  font-size: .75rem;
+  font-weight: 700;
+  color: rgb(var(--c-bg-primary));
+  background: rgb(var(--c-accent));
+  border: 2px solid rgb(var(--c-outline));
+  box-shadow: 3px 3px 0 rgb(var(--c-outline));
+  cursor: pointer;
+}
+
+/* ── Conta, modelo e esforço: chips na barra do composer ───────────────── */
+.m-chip > .relative > .field {
+  min-height: 2rem;
+  padding: .25rem .5rem;
+  gap: .375rem;
+  font-size: .6875rem;
+  font-weight: 700;
+  background: rgb(var(--c-bg-primary));
+  border: 1px solid rgb(var(--c-outline));
+}
+.m-chip > .relative > .field:hover:not(:disabled) { border-color: rgb(var(--c-accent) / .7); color: rgb(var(--c-text-primary)); }
+.m-chip > .relative > .field:disabled { opacity: .55; }
+.m-chip > .relative > .field > svg:last-child { width: .75rem; height: .75rem; }
+.m-chip .popover { right: auto; min-width: 11rem; }
+.m-chip-aplicar {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  height: 2rem;
+  padding: 0 .625rem;
+  font: inherit;
+  font-size: .6875rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgb(var(--c-accent));
+  border: none;
+  cursor: pointer;
+}
+.m-chip-aplicar:disabled { opacity: .5; cursor: default; }
+.m-chip-aviso { font-size: .625rem; color: rgb(var(--c-text-muted)); }
+
+/* ── Leitura da conversa ───────────────────────────────────────────────────
+   A fonte é a do app (a mesma do resto). O agente não fala em cartão: é texto corrido com um filete
+   na cor de destaque marcando o turno, como no app do Claude. Você fala em cartão destacado à
+   direita — é o que separa um turno do outro numa rolagem rápida. */
+.chat { gap: .5rem; }
+.chat .bubble-markdown, .chat .mobile-message { line-height: 1.7; color: rgb(var(--c-text-primary)); }
+.chat .bubble-markdown.prose p, .chat .bubble-markdown.prose li { color: rgb(var(--c-text-primary)); }
+
+.chat .bubble-agent {
+  max-width: min(100%, 46rem);
+  background: none;
+  border: none;
+  border-left: 2px solid rgb(var(--c-accent) / .55);
+  box-shadow: none;
+  padding: .125rem 0 .125rem .875rem;
+}
+.chat .bubble-continua { margin-top: -.25rem; }
+.chat .bubble-continua .bubble-author { display: none; }
+.chat .bubble-agent .bubble-author { font-size: .75rem; color: rgb(var(--c-text-primary)); margin-bottom: .375rem; }
+
+.chat .bubble-user {
+  margin-top: .875rem;
+  max-width: min(85%, 40rem);
+  background: rgb(var(--c-accent) / .2);
+  border: 2px solid rgb(var(--c-accent) / .85);
+  box-shadow: 3px 3px 0 rgb(var(--c-accent) / .35);
+  padding: .625rem .875rem;
+}
+.chat .bubble-user .bubble-author { color: rgb(var(--c-accent)); }
+.chat > .bubble-user:first-child { margin-top: 0; }
+
+/* As ações ficam presas ao filete do turno, mais apagadas que a fala. */
+.chat .acoes { border-left-color: rgb(var(--c-accent) / .55); padding-left: .875rem; margin-top: -.125rem; }
+.chat .acoes:not(.acoes-ao-vivo) { opacity: .85; }
+.chat .bubble-aprovacao { border: 2px solid rgb(var(--c-warning)); background: rgb(var(--c-warning) / .08); padding: .75rem .875rem; }
+
+/* ── Acabamento "premium" da conversa ─────────────────────────────────────
+   Pedido: menos colorido, mais limpo. A cor de destaque fica só onde ajuda — enviar, links, foco e o
+   que está ao vivo. O resto é neutro: bordas de 1 px, sem sombras duras, ícones apagados. */
+.chat .bubble-user {
+  background: rgb(var(--c-overlay) / .06);
+  border: 1px solid rgb(var(--c-outline) / .7);
+  box-shadow: none;
+}
+.chat .bubble-user .bubble-author,
+.chat .bubble-agent .bubble-author { color: rgb(var(--c-text-secondary)); font-weight: 600; }
+.chat .bubble-agent { border-left: 1px solid rgb(var(--c-outline) / .6); }
+.chat .acoes { border-left-color: rgb(var(--c-outline) / .6); }
+.chat .acoes-ao-vivo { border-left-color: rgb(var(--c-accent) / .7); }
+.chat .acao-verbo { color: rgb(var(--c-text-secondary)); }
+.chat .acoes img, .chat .acoes svg, .chat .bubble-author img, .chat .bubble-author svg { filter: grayscale(1); opacity: .55; }
+.chat .comando code { background: rgb(var(--c-overlay) / .08); }
+.chat .comando-sinal { color: rgb(var(--c-text-muted)); }
+
+/* Markdown: código inline e marcadores sem cor; só o link continua com destaque. */
+.chat .bubble-markdown.prose {
+  --tw-prose-code: rgb(var(--c-text-primary));
+  --tw-prose-bullets: rgb(var(--c-text-muted));
+  --tw-prose-quote-borders: rgb(var(--c-outline));
+}
+.chat .bubble-markdown :not(pre) > code { background: rgb(var(--c-overlay) / .09); border: 1px solid rgb(var(--c-outline) / .5); }
+.chat .bubble-markdown pre { border: 1px solid rgb(var(--c-outline) / .7); background: rgb(var(--c-bg-primary)); }
+
+/* Composer: cartão sóbrio; o foco acende a borda, sem sombra colorida. */
+.composer { border: 1px solid rgb(var(--c-outline)); box-shadow: 0 8px 24px rgb(0 0 0 / .25); }
+.composer:focus-within { border-color: rgb(var(--c-accent) / .55); box-shadow: 0 8px 24px rgb(0 0 0 / .25); }
+.composer-rodape { border-top-style: solid; border-top-color: rgb(var(--c-outline) / .45); }
+.composer-enviar { box-shadow: none; border-width: 1px; }
+.composer-enviar:hover:not(:disabled) { transform: none; box-shadow: none; filter: brightness(1.12); }
+.composer-enviar:active:not(:disabled) { transform: none; filter: brightness(.95); }
+.composer-modos { border-color: rgb(var(--c-outline) / .7); }
+.composer-modo.is-ativo { color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .12); }
+.m-chip > .relative > .field { border-color: rgb(var(--c-outline) / .7); background: transparent; font-weight: 600; color: rgb(var(--c-text-secondary)); }
+.m-chip > .relative > .field:hover:not(:disabled) { border-color: rgb(var(--c-outline)); background: rgb(var(--c-overlay) / .06); }
+.m-chip > .relative > .field svg, .m-chip > .relative > .field img { color: rgb(var(--c-text-muted)); filter: grayscale(1); opacity: .7; }
+
+/* Meio-termo (pedido: "tem que ter uma corzinha, só não como estava"): a cor de destaque volta em
+   doses baixas — tom leve na sua mensagem, filete suave no turno, verbos e ícones dos chips. */
+.chat .bubble-user { background: rgb(var(--c-accent) / .08); border-color: rgb(var(--c-accent) / .35); }
+.chat .bubble-user .bubble-author { color: rgb(var(--c-accent) / .9); }
+.chat .bubble-agent { border-left-color: rgb(var(--c-accent) / .35); }
+.chat .acoes { border-left-color: rgb(var(--c-accent) / .35); }
+.chat .acao-verbo { color: rgb(var(--c-accent) / .75); }
+.chat .bubble-author img, .chat .bubble-author svg { filter: none; opacity: 1; }
+.chat .bubble-markdown :not(pre) > code { background: rgb(var(--c-accent) / .08); border-color: rgb(var(--c-accent) / .22); }
+.chat .bubble-markdown.prose { --tw-prose-bullets: rgb(var(--c-accent) / .7); }
+.composer-modo.is-ativo { color: rgb(var(--c-accent)); background: rgb(var(--c-accent) / .14); }
+.m-chip > .relative > .field svg { color: rgb(var(--c-accent) / .8); filter: none; opacity: 1; }
+
+/* ── Desenho da conversa: avatar, separador de dia, copiar, código, ações ──
+   O agente ganha uma coluna de avatar à esquerda (o filete sai: o avatar já marca o turno) e todo o
+   turno alinha com ele. Copiar aparece só no hover — limpo em repouso, à mão quando precisa. */
+.chat .bubble-agent { position: relative; margin-left: 2.5rem; padding: 0 0 .25rem; border-left: none; }
+.chat .acoes { margin-left: 2.5rem; padding-left: 0; border-left: none; }
+.chat .bubble-avatar {
+  position: absolute;
+  left: -2.5rem;
+  top: -.125rem;
+  display: grid;
+  place-items: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  background: rgb(var(--c-overlay) / .07);
+  border: 1px solid rgb(var(--c-outline) / .6);
+}
+.chat .bubble-agent:not(.bubble-continua) { margin-top: .875rem; }
+.chat .bubble-continua { margin-top: 0; }
+.chat .bubble-agent .bubble-author { gap: .5rem; margin-bottom: .25rem; font-size: .75rem; color: rgb(var(--c-text-primary)); }
+
+.chat .bubble-user {
+  background: linear-gradient(135deg, rgb(var(--c-accent) / .16), rgb(var(--c-accent) / .05));
+  border: 1px solid rgb(var(--c-accent) / .3);
+  padding: .625rem .875rem .6875rem;
+}
+
+.chat-grupo { display: contents; }
+.chat-dia {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin: 1.25rem 0 .25rem;
+  font-size: .625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: rgb(var(--c-text-muted));
+}
+.chat-dia::before, .chat-dia::after { content: ""; flex: 1; height: 1px; background: rgb(var(--c-outline) / .5); }
+.chat > .chat-grupo:first-child > .chat-dia { margin-top: 0; }
+
+.bubble-copiar, .codigo-copiar {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .125rem .375rem;
+  font: inherit;
+  font-size: .625rem;
+  color: rgb(var(--c-text-muted));
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.bubble-copiar:hover, .codigo-copiar:hover { color: rgb(var(--c-text-primary)); border-color: rgb(var(--c-outline) / .7); background: rgb(var(--c-overlay) / .06); }
+.bubble-copiar { margin-top: .25rem; opacity: 0; transition: opacity .15s; }
+.bubble-agent:hover .bubble-copiar, .bubble-copiar:focus-visible { opacity: 1; }
+@media (hover: none) { .bubble-copiar { opacity: .6; } }
+
+.chat .codigo { margin: .75rem 0; border: 1px solid rgb(var(--c-outline) / .7); background: rgb(var(--c-bg-primary)); }
+.chat .codigo-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .1875rem .25rem .1875rem .625rem;
+  border-bottom: 1px solid rgb(var(--c-outline) / .5);
+  background: rgb(var(--c-overlay) / .04);
+}
+.chat .codigo-linguagem { font-size: .625rem; font-weight: 600; text-transform: lowercase; letter-spacing: .04em; color: rgb(var(--c-text-muted)); }
+.chat .bubble-markdown .codigo pre { margin: 0; border: none; background: none; padding: .75rem .875rem; }
+
+.chat .acao-icone { flex-shrink: 0; align-self: center; color: rgb(var(--c-text-muted)); }
+.chat .acoes-cabecalho .acao-icone { color: rgb(var(--c-accent) / .75); }
+.chat .acao { align-items: center; }
+.chat .acao-icone { color: rgb(var(--c-text-secondary)); }
+.chat .acao-prompt { width: .875rem; text-align: center; font-family: "Cascadia Code", Consolas, ui-monospace, monospace; font-size: .75rem; font-weight: 700; line-height: 1; }
+.chat-dia { align-self: stretch; width: 100%; }
+.chat-dia::before, .chat-dia::after { background: rgb(var(--c-text-muted) / .35); }
+
+/* ── Soltar arquivos na conversa ───────────────────────────────────────── */
+.chat-tela { position: relative; }
+.chat-soltar {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgb(var(--c-bg-primary) / .78);
+  border: 2px dashed rgb(var(--c-accent) / .8);
+  pointer-events: none;
+}
+.chat-soltar > span {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .75rem 1rem;
+  font-size: .875rem;
+  font-weight: 700;
+  color: rgb(var(--c-text-primary));
+  background: rgb(var(--c-bg-surface));
+  border: 1px solid rgb(var(--c-accent) / .6);
+}
+.chat-soltar svg { color: rgb(var(--c-accent)); }

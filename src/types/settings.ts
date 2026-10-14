@@ -45,9 +45,16 @@ export interface AppSettings {
   /** Toast do Windows + piscar na barra quando um agente pede atenção com o app fora de foco. */
   notifyAttention: boolean;
 
+  /** Como a aba de um agente aparece. Shells sem IA continuam sempre terminal. */
+  agentView: AgentView;
+
   /** Só os atalhos que o usuário trocou; o resto cai no padrão de `SHORTCUTS`. */
   shortcuts: ShortcutOverrides;
 }
+
+/** `conversa`: o chat da web (mensagens, ações do agente, aprovar, parar), com o terminal a um clique.
+ *  `terminal`: o terminal do CLI, como sempre foi. */
+export type AgentView = "conversa" | "terminal";
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: "escuro",
@@ -64,6 +71,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   fileSaveMode: "auto",
 
   notifyAttention: true,
+
+  agentView: "terminal",
 
   shortcuts: {},
 };

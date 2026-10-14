@@ -63,6 +63,52 @@ describe("useAttention", () => {
     expect(result.current.items).toHaveLength(1);
   });
 
+  /** Visto durante um redesenho (estado "trabalhando" por um instante) não pode gravar
+   *  "trabalhando": quando o estado voltava a "terminou", o aviso reaparecia sem evento novo. */
+  it("olhar a sessão no meio de um redesenho não faz o aviso voltar depois", () => {
+    const outro = [
+      workspace("ws-a", "Cliente X", [project("api", "s1")], "api"),
+      workspace("ws-b", "Estudos", [project("web", null)], "web"),
+    ];
+    const { result, rerender } = renderHook(
+      ({ state, ws }) => useAttention([session({ id: "s1", project_id: "api", state })], outro, ws),
+      { initialProps: { state: "answered" as TerminalSession["state"], ws: "ws-a" } }
+    );
+    expect(result.current.items).toHaveLength(0);
+    rerender({ state: "working", ws: "ws-a" });
+    rerender({ state: "answered", ws: "ws-b" });
+    expect(result.current.items).toHaveLength(0);
+  });
+
+  /** O print do relato: "opa" dez vezes em ATENÇÃO. O failover abre uma sessão nova a cada troca
+   *  de conta, e cada tentativa parada no limite virava um item. */
+  it("uma conversa com várias sessões é um aviso só, da sessão mais nova", () => {
+    const workspaces = [
+      workspace("ws-a", "Faculdade", [project("barber", null)], "barber"),
+      workspace("ws-b", "Outro", [project("web", null)], "web"),
+    ];
+    const tentativas = [1, 2, 3, 4].map((n) =>
+      session({ id: `terminal-17900000000${n}0-${n}`, name: "opa", project_id: "barber", conversation_id: "conv", state: "stopped", notice: "usage_limit" })
+    );
+    const { result, rerender } = renderHook(
+      ({ sessions }) => useAttention(sessions, workspaces, "ws-b"),
+      { initialProps: { sessions: tentativas } }
+    );
+    expect(result.current.items).toHaveLength(1);
+    expect(result.current.items[0].sessionId).toBe("terminal-1790000000040-4");
+    expect(result.current.countByWorkspace).toEqual({ "ws-a": 1 });
+
+    // Visto o limite, a próxima tentativa batendo no mesmo limite não é notícia.
+    act(() => result.current.dismiss("terminal-1790000000040-4"));
+    rerender({ sessions: [...tentativas, session({ id: "terminal-1790000000050-5", name: "opa", project_id: "barber", conversation_id: "conv", state: "stopped", notice: "usage_limit" })] });
+    expect(result.current.items).toHaveLength(0);
+
+    // A sessão viva representa a conversa, por mais antiga que seja.
+    rerender({ sessions: [...tentativas, session({ id: "terminal-1780000000000-9", name: "opa", project_id: "barber", conversation_id: "conv", state: "answered", attention_seq: 3 })] });
+    expect(result.current.items).toHaveLength(1);
+    expect(result.current.items[0]).toMatchObject({ sessionId: "terminal-1780000000000-9", reason: "answered" });
+  });
+
   /** O bug relatado: o aviso já lido voltava sozinho. A chave era `output_seq`, que sobe a cada
    *  pedaço de saída — e a TUI do Claude redesenha o tempo todo, mesmo sem nada acontecer. */
   it("redesenho da tela não traz de volta um aviso já visto", () => {

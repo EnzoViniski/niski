@@ -5,6 +5,25 @@ export interface Conversation {
   /** Modo de permissão lido do rodapé do CLI: `plan`, `auto`, `acceptEdits` ou `null` (não visível). */
   mode?: string | null;
   capabilities: { prompt: boolean; approve: boolean; revision: string; approval_text: string | null; reason: string | null } | null;
+  /** Há uma sessão aberta no PC ligada a esta conversa (dá para ver o terminal e mandar teclas). */
+  live?: boolean;
+  /** Última atividade (terminal ou transcript), em ms. Ordena a lista e vira o "há 5 min". */
+  updated_at_ms?: number;
+  /** Conversa achada só no histórico da CLI, sem sessão do OMNI. */
+  historical?: boolean;
+  /** Identidade do último evento de atenção (`sessão:contador`). Muda só quando o agente termina
+   *  um turno ou pede aprovação — redesenho da tela não mexe. Engine antigo não manda. */
+  attention?: string | null;
+}
+
+/** `text` é fala; `tool` é uma ação do agente (ler, rodar, editar); `command` é um `/comando`
+ *  digitado; `notice` é um aviso da CLI (interrompido, compactado). Engine antigo não manda: texto. */
+export type TipoMensagem = "text" | "tool" | "command" | "notice";
+export interface Mensagem {
+  id: string; role: string; text: string; provider: string; timestamp?: string | null;
+  kind?: TipoMensagem;
+  /** Nome da ferramenta (`Bash`, `Read`, `Shell`…) quando `kind` é `tool`. */
+  tool?: string;
 }
 export interface Projects {
   /** 0 = o desktop nunca publicou; a lista veio só das conversas já registradas. */
@@ -17,13 +36,34 @@ export interface Projects {
 }
 export interface Timeline {
   timeline: {
-    messages: { id: string; role: string; text: string; provider: string; timestamp?: string | null }[];
+    messages: Mensagem[];
     next_cursor: number | null;
     /** Onde começa a página anterior. Sem cursor o servidor devolve o fim da conversa. */
     prev_cursor?: number | null;
     unavailable_segments: number[];
   };
   actions: { id: string; state: string; error: string | null }[];
+  /** Estado atual da conversa, mandado junto para o chat aberto não precisar recarregar a lista. */
+  conversation?: Conversation;
+}
+
+/** Resposta do `/painel`: lista e catálogo numa chamada só. */
+export interface Painel { conversations: Conversation[]; catalog: Projects }
+
+/** Precisa de você: aprovação pendente ou agente parado esperando a próxima mensagem. Mesma regra
+ *  que o servidor usava no `/atencao`. */
+export function precisaDeVoce(conversa: Conversation): boolean {
+  return Boolean(conversa.capabilities?.approve || conversa.capabilities?.prompt || conversa.state === "approval_required");
+}
+/**
+ * O que identifica o pedido de atenção atual: abrir a conversa marca **este** pedido como visto, e
+ * ela só volta para "Precisa de você" quando a chave mudar — fim de turno novo ou aprovação. Sem
+ * `attention` (engine antigo), vale só o tipo do pedido: vista uma vez, fica vista até virar
+ * aprovação.
+ */
+export function chaveDeAtencao(conversa: Conversation): string {
+  const tipo = conversa.capabilities?.approve || conversa.state === "approval_required" ? "aprovar" : "responder";
+  return `${conversa.attention ?? ""}|${tipo}`;
 }
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number) { super(message); }
@@ -61,20 +101,73 @@ export function salvarToken(valor: string) {
   try { localStorage.setItem(TOKEN_KEY, valor); } catch { /* sem armazenamento: vale só nesta aba */ }
 }
 
+/** Quem leva a requisição até o engine. No celular e na web é o `fetch` HTTP; no app do PC é o
+ *  protocolo local do engine (`usarTransporte` em `src/main.tsx`) — mesmas rotas, sem servidor HTTP. */
+type Transporte = (path: string, init: RequestInit) => Promise<Response>;
+let transporte: Transporte = (path, init) => fetch(path, init);
+export function usarTransporte(novo: Transporte) {
+  transporte = novo;
+}
+
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await transporte(path, {
     ...init,
     headers: { ...init?.headers, "X-Omni-Token": token() },
     signal: init?.signal ?? AbortSignal.timeout(15_000),
   });
-  const result = await response.json();
   if (!response.ok) {
     // Token inválido ou rotacionado no PC: descarta, senão o celular insiste com o segredo velho.
     if (response.status === 401) esquecerToken();
+    // Rota que não existe (engine mais antigo que a tela) responde sem JSON: sem o `catch`, virava
+    // erro de parse e quem chamou não conseguia distinguir o 404.
+    const result = await response.json().catch(() => ({}));
     throw new ApiError(result.error ?? `Falha HTTP ${response.status}`, response.status);
   }
+  return (await response.json()) as T;
+}
+/** ETag da última resposta de cada endereço consultado com `requestSeMudou`. */
+const etags = new Map<string, string>();
+
+/**
+ * GET que só devolve dado quando algo mudou. Manda o `ETag` da última resposta; se o servidor diz
+ * `304`, volta `null` e quem chamou mantém o que já tem na tela — sem parsear, sem re-renderizar.
+ * A lista e a conversa aberta são consultadas a cada poucos segundos e, quase sempre, nada mudou.
+ */
+export async function requestSeMudou<T>(path: string, init?: RequestInit): Promise<T | null> {
+  const anterior = etags.get(path);
+  const response = await transporte(path, {
+    ...init,
+    cache: "no-store",
+    headers: { ...init?.headers, "X-Omni-Token": token(), ...(anterior ? { "If-None-Match": anterior } : {}) },
+    signal: init?.signal ?? AbortSignal.timeout(15_000),
+  });
+  if (response.status === 304) return null;
+  if (!response.ok) {
+    if (response.status === 401) esquecerToken();
+    // Rota que não existe num engine antigo cai na página de erro em texto, não em JSON.
+    const result = await response.json().catch(() => ({}));
+    throw new ApiError(result.error ?? `Falha HTTP ${response.status}`, response.status);
+  }
+  const result = await response.json();
+  const etag = response.headers.get("etag");
+  if (etag) etags.set(path, etag); else etags.delete(path);
   return result as T;
 }
+
+/** Esquece o ETag de um endereço: a próxima leitura vem inteira (ex.: o componente remontou). */
+export function esquecerVersao(path: string) {
+  etags.delete(path);
+}
+
+/** Teclas para o terminal da conversa no PC — `` é o Esc que interrompe o agente. */
+export async function enviarTeclas(conversa: string, dados: string) {
+  await request(`/conversas/${encodeURIComponent(conversa)}/teclas`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dados }),
+  });
+}
+
 // HTTP on a Tailscale IP is not a secure context: crypto.randomUUID may be unavailable.
 export function actionKey(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2,"0")).join("");

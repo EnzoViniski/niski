@@ -1,4 +1,5 @@
 import type { Project, WorkspacesAction } from "../../types/workspace";
+import type { AgentView } from "../../types/settings";
 import type { KanbanAction, KanbanState } from "../../types/kanban";
 import type { AttentionItem } from "../terminal/useAttention";
 import { AgentUsageStatus } from "../terminal/AgentUsageStatus";
@@ -13,6 +14,8 @@ interface WorkspaceViewProps {
   engineOnline: boolean;
   attention: AttentionItem[];
   fileSaveMode: "auto" | "manual";
+  /** Aba de agente: o chat (como na web) ou o terminal cru. Ver `AgentView` em `types/settings`. */
+  agentView: AgentView;
   kanban: KanbanState;
   kanbanDispatch: React.Dispatch<KanbanAction>;
   dispatch: React.Dispatch<WorkspacesAction>;
@@ -23,6 +26,7 @@ export function WorkspaceView({
   engineOnline,
   attention,
   fileSaveMode,
+  agentView,
   kanban,
   kanbanDispatch,
   dispatch,
@@ -68,6 +72,7 @@ export function WorkspaceView({
           projectId={project.id}
           projectPath={project.path}
           fileSaveMode={fileSaveMode}
+        agentView={agentView}
           kanban={kanban}
           kanbanDispatch={kanbanDispatch}
           dispatch={dispatch}

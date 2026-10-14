@@ -1,11 +1,15 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { memo, useEffect, useRef, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { AgentIcon } from "../components/ui/AgentIcon";
 import { OmniLogo } from "../components/ui/OmniLogo";
+import {
+  BookIcon, CheckIcon, CopyIcon, EditIcon, FileTextIcon, GlobeIcon, ListIcon, RobotIcon, SearchIcon, ToolsIcon,
+} from "../components/ui/PixelIcon";
 import { iconForPath } from "../features/files/fileIcons";
 import { nomeDoCaminho, separarAnexos } from "./anexos";
+import type { Mensagem } from "./api";
 
 /** Os quadros do spinner do Claude Code, em vai-e-volta — é o que faz parecer que ele "respira". */
 const QUADROS = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
@@ -90,6 +94,8 @@ interface MessageBubbleProps {
   pendente?: boolean;
   /** Anexos com prévia local — só no balão otimista, antes de o transcript chegar. */
   anexosLocais?: AnexoVisivel[];
+  /** Mais uma fala do agente no mesmo turno: sem cabeçalho, colada na anterior. */
+  continua?: boolean;
 }
 
 /**
@@ -99,33 +105,163 @@ interface MessageBubbleProps {
  * com o mesmo `rehype-sanitize`. Mensagem do usuário fica em texto puro — reinterpretar o que a
  * pessoa digitou mudaria o que ela vê do próprio prompt — e a lista de anexos vira cartões.
  */
-export function MessageBubble({ lado, provider, texto, horario, pendente, anexosLocais }: MessageBubbleProps) {
+export const MessageBubble = memo(function MessageBubble({ lado, provider, texto, horario, pendente, anexosLocais, continua }: MessageBubbleProps) {
   const doUsuario = lado === "user";
   const { texto: corpo, anexos } = doUsuario ? separarAnexos(texto) : { texto, anexos: [] as string[] };
   const cartoes = anexosLocais ?? anexos.map((caminho) => ({ nome: nomeDoCaminho(caminho) }));
   const autor = doUsuario ? "Você" : NOME_DO_AGENTE[provider ?? ""] ?? provider ?? "Agente";
   const hora = horarioCurto(horario);
   return (
-    <article className={`bubble ${doUsuario ? "bubble-user" : "bubble-agent"}${pendente ? " bubble-pending" : ""}`}>
+    <article className={`bubble ${doUsuario ? "bubble-user" : "bubble-agent"}${pendente ? " bubble-pending" : ""}${continua ? " bubble-continua" : ""}`}>
+      {/* Avatar só na primeira fala do turno; as seguintes alinham com ele. */}
+      {!doUsuario && !continua && (
+        <span className="bubble-avatar" aria-hidden><AgentIcon provider={provider} size={16} /></span>
+      )}
       <header className="bubble-author">
-        {!doUsuario && <AgentIcon provider={provider} size={12} className="shrink-0" />}
         <span>{autor}</span>
         {pendente ? <span className="bubble-time">enviando…</span> : hora && <time className="bubble-time">{hora}</time>}
       </header>
       {corpo && (doUsuario
         ? <div className="mobile-message">{corpo}</div>
         : <div className="bubble-markdown prose prose-sm max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{corpo}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={{ pre: BlocoDeCodigo }}>{corpo}</ReactMarkdown>
           </div>)}
       <CartoesDeAnexo anexos={cartoes} />
+      {!doUsuario && corpo && <BotaoCopiar texto={corpo} rotulo="Copiar resposta" className="bubble-copiar" />}
     </article>
   );
+});
+
+/** Copiar para a área de transferência. Some onde ela não existe (HTTP fora de localhost). */
+function BotaoCopiar({ texto, rotulo, className }: { texto: string | (() => string); rotulo: string; className: string }) {
+  const [copiado, setCopiado] = useState(false);
+  if (typeof navigator === "undefined" || !navigator.clipboard) return null;
+  return (
+    <button type="button" className={className} aria-label={rotulo} title={copiado ? "Copiado" : rotulo}
+      onClick={() => {
+        void navigator.clipboard.writeText(typeof texto === "function" ? texto() : texto).then(() => {
+          setCopiado(true);
+          window.setTimeout(() => setCopiado(false), 1500);
+        }).catch(() => undefined);
+      }}>
+      {copiado ? <CheckIcon aria-hidden className="h-3.5 w-3.5" /> : <CopyIcon aria-hidden className="h-3.5 w-3.5" />}
+      <span>{copiado ? "Copiado" : "Copiar"}</span>
+    </button>
+  );
+}
+
+/** Bloco de código do markdown com a linguagem no topo e um "Copiar", como num editor. */
+function BlocoDeCodigo({ children }: { children?: ReactNode }) {
+  const corpo = useRef<HTMLPreElement>(null);
+  const filho = Array.isArray(children) ? children[0] : children;
+  const classe = (filho as { props?: { className?: string } } | undefined)?.props?.className ?? "";
+  const linguagem = /language-([\w+#-]+)/.exec(classe)?.[1];
+  return (
+    <div className="codigo">
+      <div className="codigo-topo">
+        <span className="codigo-linguagem">{linguagem ?? "código"}</span>
+        <BotaoCopiar texto={() => corpo.current?.textContent ?? ""} rotulo="Copiar código" className="codigo-copiar" />
+      </div>
+      <pre ref={corpo}>{children}</pre>
+    </div>
+  );
+}
+
+/** Verbo de cada ferramenta, para a ação ler como frase ("Rodou npm test") e não como JSON. */
+const VERBO: Record<string, string> = {
+  Bash: "Rodou", PowerShell: "Rodou", Shell: "Rodou",
+  Read: "Leu", Edit: "Editou", MultiEdit: "Editou", Write: "Escreveu", NotebookEdit: "Editou",
+  Grep: "Buscou", Glob: "Procurou", WebFetch: "Abriu", WebSearch: "Pesquisou",
+  Task: "Delegou", Agent: "Delegou", TodoWrite: "Planejou", Skill: "Usou a skill", update_plan: "Planejou",
+};
+
+export function verboDaAcao(tool: string | undefined): string {
+  return VERBO[tool ?? ""] ?? tool ?? "Ação";
+}
+
+/** Caminho longo vira `…/pasta/arquivo.ts`: numa linha de ação o nome do arquivo é o que importa. */
+function encurtarCaminho(texto: string): string {
+  if (!/^([a-zA-Z]:)?[\\/]/.test(texto) || texto.length < 48) return texto;
+  const partes = texto.split(/[\\/]/).filter(Boolean);
+  return partes.length > 2 ? `…/${partes.slice(-2).join("/")}` : texto;
+}
+
+/** Ícone de cada ferramenta: ler o tipo de ação de relance, sem precisar do verbo. */
+const ICONE_DA_ACAO: Record<string, ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = {
+  Read: FileTextIcon, Edit: EditIcon, MultiEdit: EditIcon, Write: EditIcon, NotebookEdit: EditIcon, apply_patch: EditIcon,
+  Grep: SearchIcon, Glob: SearchIcon, WebFetch: GlobeIcon, WebSearch: GlobeIcon,
+  Task: RobotIcon, Agent: RobotIcon, TodoWrite: ListIcon, update_plan: ListIcon, Skill: BookIcon,
+};
+
+const DE_TERMINAL = new Set(["Bash", "PowerShell", "Shell"]);
+
+function IconeDaAcao({ tool }: { tool?: string }) {
+  // Comando vira um `$`, como no terminal: o ícone de terminal, pequeno, parecia uma caixa de seleção.
+  if (DE_TERMINAL.has(tool ?? "")) return <span aria-hidden className="acao-icone acao-prompt">$</span>;
+  const Icone = ICONE_DA_ACAO[tool ?? ""] ?? ToolsIcon;
+  return <Icone aria-hidden className="acao-icone h-3.5 w-3.5" />;
+}
+
+function LinhaDeAcao({ acao }: { acao: Mensagem }) {
+  return (
+    <li className="acao" title={acao.text}>
+      <IconeDaAcao tool={acao.tool} />
+      <span className="acao-verbo">{verboDaAcao(acao.tool)}</span>
+      {acao.text && <code className="acao-detalhe">{encurtarCaminho(acao.text)}</code>}
+    </li>
+  );
+}
+
+/**
+ * As ações do agente entre duas falas, num bloco só: no terminal do PC cada passo aparece; aqui elas
+ * ficam resumidas ("7 ações · Rodou npm test") e abrem num toque. O bloco do turno em andamento
+ * nasce aberto — é o que mostra, ao vivo, o que o agente está fazendo agora.
+ */
+export const BlocoDeAcoes = memo(function BlocoDeAcoes({ acoes, aoVivo }: {
+  acoes: Mensagem[]; provider?: string | null; aoVivo?: boolean;
+}) {
+  const [aberto, setAberto] = useState(Boolean(aoVivo));
+  useEffect(() => { if (aoVivo) setAberto(true); }, [aoVivo]);
+  const ultima = acoes[acoes.length - 1];
+  const visiveis = aberto ? acoes : [];
+  return (
+    <section className={`acoes${aoVivo ? " acoes-ao-vivo" : ""}`} aria-label="Ações do agente">
+      <button type="button" className="acoes-cabecalho" aria-expanded={aberto} onClick={() => setAberto((v) => !v)}>
+        <span className="acoes-seta" aria-hidden>{aberto ? "▾" : "▸"}</span>
+        {ultima && <IconeDaAcao tool={ultima.tool} />}
+        <span className="acoes-contagem">{acoes.length === 1 ? "1 ação" : `${acoes.length} ações`}</span>
+        {!aberto && ultima && (
+          <span className="acoes-resumo">
+            <span className="acao-verbo">{verboDaAcao(ultima.tool)}</span>{" "}
+            <span className="acoes-resumo-detalhe">{encurtarCaminho(ultima.text)}</span>
+          </span>
+        )}
+      </button>
+      {aberto && <ul className="acoes-lista">{visiveis.map((acao) => <LinhaDeAcao key={acao.id} acao={acao} />)}</ul>}
+    </section>
+  );
+});
+
+/** `/comando` digitado na CLI: no terminal aparece como `> /model`; aqui, como um selo do seu lado. */
+export function LinhaDeComando({ texto }: { texto: string }) {
+  return <p className="comando"><span className="comando-sinal" aria-hidden>›</span><code>{texto}</code></p>;
+}
+
+/** Aviso da própria CLI (interrompido, compactado): linha discreta no meio da conversa. */
+export function LinhaDeAviso({ texto }: { texto: string }) {
+  return <p className="aviso-cli" role="note">{texto}</p>;
 }
 
 interface AgentWorkingProps {
   /** Quando o trabalho começou (ms). Vira o contador "(12s)" igual ao do Claude Code. */
   desde: number;
   provider?: string | null;
+}
+
+/** "1min 05s" depois do primeiro minuto, como o Claude Code conta. */
+function duracao(segundos: number): string {
+  if (segundos < 60) return `${segundos}s`;
+  return `${Math.floor(segundos / 60)}min ${String(segundos % 60).padStart(2, "0")}s`;
 }
 
 /**
@@ -155,7 +291,7 @@ export function AgentWorking({ desde, provider }: AgentWorkingProps) {
         {provider && <AgentIcon provider={provider} size={12} className="shrink-0 self-center" />}
         <span className="working-glyph">{reduzirMovimento() ? "✻" : QUADROS[quadro]}</span>
         <span className="working-verb">{frase}…</span>
-        <span className="working-time">({segundos}s)</span>
+        <span className="working-time">({duracao(segundos)})</span>
       </span>
     </div>
   );

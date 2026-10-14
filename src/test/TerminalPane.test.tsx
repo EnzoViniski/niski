@@ -146,12 +146,13 @@ describe("TerminalPane — ritmo da leitura", () => {
     renderPane();
     await waitFor(() => expect(engine.terminalSnapshot).toHaveBeenCalled());
     const inicio = engine.terminalSnapshot.mock.calls.length;
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await new Promise((resolve) => setTimeout(resolve, 600));
     const leituras = engine.terminalSnapshot.mock.calls.length - inicio;
 
-    // Em 250ms, o ritmo econômico daria ~2 leituras; o de quadro dá mais de 10. A folga do limite
-    // absorve a lentidão do jsdom sem deixar a regressão passar.
-    expect(leituras).toBeGreaterThan(5);
+    // Em 600ms, o ritmo econômico (100ms) dá no máximo ~6 leituras; o de quadro, dezenas. Janela
+    // larga porque é relógio de verdade: com a suíte inteira rodando em paralelo, 250ms/5 leituras
+    // falhava às vezes sem regressão nenhuma.
+    expect(leituras).toBeGreaterThan(8);
   });
 
   it("sem saída nenhuma, volta ao ritmo econômico", async () => {

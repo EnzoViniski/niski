@@ -37,6 +37,9 @@ export const ATTENTION_LABEL: Record<AttentionReason, string> = {
 
 export interface AttentionItem {
   sessionId: string;
+  /** A conversa (ou a própria sessão, num terminal sem conversa). É a unidade do aviso: uma
+   *  conversa com dez sessões — o failover abre uma nova a cada troca de conta — é um aviso só. */
+  conversationKey: string;
   sessionName: string;
   reason: AttentionReason;
   state: TerminalState;
@@ -60,7 +63,37 @@ export interface AttentionItem {
  * motivo é evento novo e merece aparecer de novo.
  */
 function assinatura(session: TerminalSession): string {
-  return `${session.attention_seq ?? 0}:${session.notice ?? session.state}`;
+  const reason = session.notice ?? session.state;
+  // Fim de turno e aprovação são eventos da sessão: o contador diz se é um novo. Limite de uso,
+  // erro e travamento valem para a conversa: o failover tenta outra conta a cada 30 s, cada
+  // tentativa é uma sessão nova batendo no mesmo limite — e isso não é notícia de novo.
+  if (reason === "answered" || reason === "approval_required") return `${session.id}:${session.attention_seq ?? 0}:${reason}`;
+  return reason;
+}
+
+export function conversationKey(session: Pick<TerminalSession, "id" | "conversation_id">): string {
+  return session.conversation_id || session.id;
+}
+
+function criadaEm(session: TerminalSession): number {
+  return session.created_at_ms ?? (Number(/^terminal-(\d+)/.exec(session.id)?.[1]) || 0);
+}
+
+/**
+ * Uma sessão por conversa: a que está viva; entre várias, a mais nova. As outras são tentativas
+ * antigas (failover, reinício) que pararam e não dizem mais nada sobre a conversa.
+ */
+export function latestPerConversation(sessions: TerminalSession[]): TerminalSession[] {
+  const porConversa = new Map<string, TerminalSession>();
+  for (const session of sessions) {
+    const key = conversationKey(session);
+    const atual = porConversa.get(key);
+    const viva = (s: TerminalSession) => (s.state === "stopped" ? 0 : 1);
+    if (!atual || viva(session) > viva(atual) || (viva(session) === viva(atual) && criadaEm(session) > criadaEm(atual))) {
+      porConversa.set(key, session);
+    }
+  }
+  return sessions.filter((session) => porConversa.get(conversationKey(session)) === session);
 }
 
 /** Abas ATIVAS de cada pane — as únicas que estão de fato na tela. Difere de `collectResourceIds`
@@ -116,13 +149,16 @@ export function useAttention(
   const [, rerender] = useReducer((n: number) => n + 1, 0);
 
   const sessionById = new Map(sessions.map((session) => [session.id, session]));
+  // O que a conversa está fazendo agora é o que a sessão mais nova dela diz.
+  const atual = new Map(latestPerConversation(sessions).map((session) => [conversationKey(session), session]));
 
   /** O X do Attention Center: marca como visto sem abrir. Volta sozinho no **próximo evento** —
    *  fim de turno, pedido de aprovação ou motivo novo. */
   function dismiss(sessionId: string) {
     const session = sessionById.get(sessionId);
     if (!session) return;
-    seen.current[sessionId] = assinatura(session);
+    const key = conversationKey(session);
+    seen.current[key] = assinatura(atual.get(key) ?? session);
     rerender();
   }
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
@@ -132,10 +168,18 @@ export function useAttention(
   // Gravado durante o render de propósito: num efeito, o cálculo abaixo usaria o valor do poll
   // anterior e o badge piscaria por ~1s no agente que o usuário está olhando agora. A escrita é
   // idempotente, então o render duplo do StrictMode não muda nada.
+  //
+  // Só grava quando a sessão está pedindo algo. Gravar "working" (um redesenho da TUI ao trocar de
+  // aba, por exemplo) fazia o aviso já lido voltar sozinho 1,5 s depois, quando o estado retornava
+  // a "terminou" — sem evento nenhum novo.
   if (paneVisible) {
     for (const resourceId of visibleResourceIds(activeProject)) {
-      const session = sessionById.get(resourceId);
-      if (session) seen.current[resourceId] = assinatura(session);
+      const aberta = sessionById.get(resourceId);
+      // Abrir qualquer sessão da conversa é ver a conversa: marca a mais nova, que é a que avisa.
+      const session = aberta && atual.get(conversationKey(aberta));
+      if (session && ATTENTION_ORDER.includes((session.notice ?? session.state) as AttentionReason)) {
+        seen.current[conversationKey(session)] = assinatura(session);
+      }
     }
   }
 
@@ -154,7 +198,7 @@ export function useAttention(
   // depois de visto trazia o item de volta e soltava toast de um evento antigo.
   const all: AttentionItem[] = [];
   const items: AttentionItem[] = [];
-  for (const session of sessions) {
+  for (const session of atual.values()) {
     const reason = (session.notice ?? session.state) as AttentionReason;
     if (!ATTENTION_ORDER.includes(reason)) continue;
     // Sessão de um projeto que não está em workspace nenhum (projeto fechado, sessão viva no
@@ -163,6 +207,7 @@ export function useAttention(
     if (!place) continue;
     const item: AttentionItem = {
       sessionId: session.id,
+      conversationKey: conversationKey(session),
       sessionName: session.name,
       reason,
       state: session.state,
@@ -174,7 +219,7 @@ export function useAttention(
     };
     all.push(item);
     // Já visto: nenhum evento novo desde a última vez que essa sessão esteve na tela.
-    if (seen.current[session.id] !== assinatura(session)) items.push(item);
+    if (seen.current[conversationKey(session)] !== assinatura(session)) items.push(item);
   }
 
   items.sort((a, b) => ATTENTION_ORDER.indexOf(a.reason) - ATTENTION_ORDER.indexOf(b.reason));

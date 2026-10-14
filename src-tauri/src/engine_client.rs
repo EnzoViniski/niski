@@ -62,6 +62,18 @@ pub fn rename_conversation(conversation_id: String, title: String) -> EngineResp
     request_or_error(|token| EngineRequest::RenameConversation { token, conversation_id, title })
 }
 
+/// Rotas da API de conversas (as mesmas do celular), para a visão "Conversa" das abas de agente.
+#[tauri::command(async)]
+pub fn engine_api(
+    method: String,
+    path: String,
+    body: Option<String>,
+    body_base64: Option<String>,
+    headers: Option<Vec<(String, String)>>,
+) -> EngineResponse {
+    request_or_error(|token| EngineRequest::Api { token, method, path, body, body_base64, headers: headers.unwrap_or_default() })
+}
+
 #[tauri::command(async)]
 pub fn terminal_sessions() -> EngineResponse {
     request_or_error(|token| EngineRequest::ListSessions { token })
@@ -519,7 +531,21 @@ fn send_request(request: EngineRequest) -> Result<EngineResponse, String> {
         let mut connection = connect()?;
         return exchange(&mut connection, &request, Duration::from_secs(60)).map(outdated_engine_hint).map_err(|error| error.message);
     }
-    let timeout = Duration::from_secs(if matches!(&request, EngineRequest::MobileSettings { .. }) { 15 } else { 2 });
+    // O mesmo para o que sobe processo e para as rotas da conversa: abrir/reiniciar/duplicar sessão
+    // (wsl.exe, CLI com hooks de início) passa fácil de 2 s, e ler uma conversa enorme pela primeira
+    // vez leva ~5 s. Com 2 s o app desistia ("tempo esgotado") enquanto o engine terminava de abrir a
+    // sessão — e o "tentar de novo" abria **outra**. Conexão própria: não trava o terminal das
+    // outras abas enquanto espera.
+    if matches!(&request,
+        EngineRequest::SpawnTerminal { .. } | EngineRequest::RestartSession { .. } | EngineRequest::DuplicateSession { .. } | EngineRequest::Api { .. })
+    {
+        let mut connection = connect()?;
+        return exchange(&mut connection, &request, Duration::from_secs(30)).map(outdated_engine_hint).map_err(|error| error.message);
+    }
+    let timeout = Duration::from_secs(match &request {
+        EngineRequest::MobileSettings { .. } => 15,
+        _ => 2,
+    });
     let mut guard = IDLE_CONNECTION.lock().map_err(|_| "engine connection poisoned".to_string())?;
 
     // `take()`: a conexão só volta pro cache quando a troca termina bem. Depois de um erro ela pode

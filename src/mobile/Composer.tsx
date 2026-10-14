@@ -1,6 +1,5 @@
-import { useEffect, useRef, type ClipboardEvent, type FormEvent, type ReactNode } from "react";
-import { Button } from "../components/ui/Button";
-import { AttachmentIcon, CloseIcon, LoaderIcon, SendIcon, WarningIcon } from "../components/ui/PixelIcon";
+import { useEffect, useRef, type ClipboardEvent, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { AttachmentIcon, CloseIcon, LoaderIcon, SendIcon, StopIcon, WarningIcon } from "../components/ui/PixelIcon";
 import { iconForPath } from "../features/files/fileIcons";
 import { tamanhoLegivel, type Anexo } from "./anexos";
 
@@ -14,10 +13,24 @@ interface ComposerProps {
   podeEnviar: boolean;
   ocupado: boolean;
   placeholder: string;
+  /** Acima do cartão (renomear a conversa, por exemplo). */
   toolbar?: ReactNode;
+  /** Na barra de baixo, depois do anexo: conta, modelo, esforço. */
+  chips?: ReactNode;
+  /** Na barra de baixo, antes do enviar: o modo (plano/auto). */
+  direita?: ReactNode;
+  /** Agente trabalhando: o botão principal vira "Parar" (o Esc do terminal). */
+  onParar?: () => void;
+  parando?: boolean;
 }
 
 const ALTURA_MAXIMA_PX = 160;
+
+/** Teclado físico e mouse: Enter envia, como no terminal do PC. No celular o Enter do teclado
+ *  virtual continua quebrando linha — lá o botão de enviar está sempre à mão. */
+function enterEnvia(): boolean {
+  return typeof window !== "undefined" && Boolean(window.matchMedia?.("(pointer: fine)").matches);
+}
 
 function ChipAnexo({ anexo, onRemover, travado }: { anexo: Anexo; onRemover: () => void; travado: boolean }) {
   const Icone = iconForPath(anexo.arquivo.name);
@@ -53,7 +66,7 @@ function ChipAnexo({ anexo, onRemover, travado }: { anexo: Anexo; onRemover: () 
  * é o único jeito que abre o seletor em todo navegador de celular, inclusive o Safari antigo, que
  * ignora clique programático em input escondido. Sem `accept`: qualquer tipo de arquivo vale.
  */
-export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnviar, podeEnviar, ocupado, placeholder, toolbar }: ComposerProps) {
+export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnviar, podeEnviar, ocupado, placeholder, toolbar, chips, direita, onParar, parando }: ComposerProps) {
   const campo = useRef<HTMLTextAreaElement>(null);
 
   // Cresce com o texto até um limite, como nos apps de mensagem.
@@ -79,10 +92,20 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
     if (podeEnviar) onEnviar();
   }
 
+  function tecla(event: KeyboardEvent<HTMLTextAreaElement>) {
+    // `isComposing`: Enter que confirma acento/IME não pode disparar o envio.
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || !enterEnvia()) return;
+    event.preventDefault();
+    if (podeEnviar) onEnviar();
+  }
+
+  // Com texto escrito, o principal continua sendo enviar (a mensagem entra na fila do agente).
+  const parar = onParar && !texto.trim();
+
   return (
     <div className="composer-faixa">
       {toolbar}
-      <form onSubmit={enviar} className="composer glass">
+      <form onSubmit={enviar} className="composer">
         {anexos.length > 0 && (
           <ul className="anexos" aria-label="Anexos">
             {anexos.map((anexo) => (
@@ -90,9 +113,12 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
             ))}
           </ul>
         )}
-        <div className="composer-linha">
-          <label className={`btn btn-ghost composer-icone${ocupado ? " is-disabled" : ""}`} title="Anexar arquivo">
-            <AttachmentIcon aria-hidden className="h-5 w-5" />
+        <label htmlFor="reply" className="sr-only">Sua resposta</label>
+        <textarea id="reply" ref={campo} rows={1} value={texto} maxLength={16000} placeholder={placeholder}
+          className="composer-campo" onPaste={colar} onKeyDown={tecla} onChange={(event) => onTexto(event.target.value)} />
+        <div className="composer-rodape">
+          <label className={`composer-botao${ocupado ? " is-disabled" : ""}`} title="Anexar arquivo">
+            <AttachmentIcon aria-hidden className="h-4 w-4" />
             <input type="file" multiple className="sr-only" aria-label="Anexar arquivo" disabled={ocupado}
               onChange={(event) => {
                 onAdicionar(Array.from(event.target.files ?? []));
@@ -100,12 +126,20 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
                 event.target.value = "";
               }} />
           </label>
-          <label htmlFor="reply" className="sr-only">Sua resposta</label>
-          <textarea id="reply" ref={campo} rows={1} value={texto} maxLength={16000} placeholder={placeholder}
-            className="composer-campo" onPaste={colar} onChange={(event) => onTexto(event.target.value)} />
-          <Button type="submit" variant="primary" className="composer-icone" aria-label="Enviar resposta" disabled={!podeEnviar}>
-            {ocupado ? <LoaderIcon aria-hidden className="anexo-girando h-5 w-5" /> : <SendIcon aria-hidden className="h-5 w-5" />}
-          </Button>
+          <div className="composer-chips">{chips}</div>
+          <div className="composer-direita">
+            {direita}
+            {parar ? (
+              <button type="button" className="composer-enviar composer-parar" aria-label="Parar" title="Parar o agente (Esc no terminal)"
+                disabled={parando} onClick={onParar}>
+                {parando ? <LoaderIcon aria-hidden className="anexo-girando h-4 w-4" /> : <StopIcon aria-hidden className="h-4 w-4" />}
+              </button>
+            ) : (
+              <button type="submit" className="composer-enviar" aria-label="Enviar resposta" title="Enviar (Enter)" disabled={!podeEnviar}>
+                {ocupado ? <LoaderIcon aria-hidden className="anexo-girando h-4 w-4" /> : <SendIcon aria-hidden className="h-4 w-4" />}
+              </button>
+            )}
+          </div>
         </div>
       </form>
     </div>

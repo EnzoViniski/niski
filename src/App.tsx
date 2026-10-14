@@ -11,8 +11,9 @@ import { useKanban } from "./features/kanban/useKanban";
 import { useKanbanDispatcher } from "./features/kanban/useKanbanDispatcher";
 import { SessionProvidersContext } from "./features/terminal/sessionProviders";
 import { useTerminalSessions } from "./features/terminal/useTerminalSessions";
-import { useAttention, type AttentionItem } from "./features/terminal/useAttention";
+import { latestPerConversation, useAttention, type AttentionItem } from "./features/terminal/useAttention";
 import { useAttentionNotifier } from "./features/terminal/useAttentionNotifier";
+import { useJanelaEmFoco } from "./hooks/useJanelaEmFoco";
 import {
   closeTerminal,
   duplicateTerminal,
@@ -50,15 +51,17 @@ export function App() {
   const { sessions, online: engineOnline } = useTerminalSessions();
   const { kanban, dispatch: kanbanDispatch } = useKanban();
   useKanbanDispatcher(kanban, kanbanDispatch, workspace.projects, sessions);
-  // Com as Configurações abertas nenhuma pane está na tela, então nada pode ser marcado como visto.
+  // Com as Configurações abertas nenhuma pane está na tela, e com a janela fora de foco ninguém
+  // está olhando para ela — nos dois casos nada pode ser marcado como visto.
+  const janelaEmFoco = useJanelaEmFoco();
   const { items: attention, all: allAttention, countByWorkspace, dismiss: dismissAttention } = useAttention(
     sessions,
     workspaces,
     activeWorkspaceId,
-    view === "workspace"
+    view === "workspace" && janelaEmFoco
   );
 
-  useAttentionNotifier(allAttention, settings.notifyAttention);
+  useAttentionNotifier(allAttention, settings.notifyAttention, attention);
 
   // Sessões por id: a barra de abas troca o ícone de conversa pela marca do agente, e o rodapé
   // descobre provider, conta e transcript da aba em foco.
@@ -219,8 +222,10 @@ export function App() {
         onPathDeleted={(path) => {
           dispatch({ type: "CLOSE_TABS_BY_RESOURCE_PREFIX", prefix: path });
         }}
-        terminalSessions={sessions.filter(
-          (session) => session.project_id === workspace.activeProjectId,
+        // Uma linha por conversa: as tentativas antigas do failover (uma sessão parada por troca
+        // de conta) repetiam a mesma conversa dez vezes na lista.
+        terminalSessions={latestPerConversation(
+          sessions.filter((session) => session.project_id === workspace.activeProjectId),
         )}
         showSettings={view === "settings"}
         showHistory={view === "history"}
@@ -310,6 +315,7 @@ export function App() {
               engineOnline={engineOnline}
               attention={attention}
               fileSaveMode={settings.fileSaveMode}
+              agentView={settings.agentView}
               kanban={kanban}
               kanbanDispatch={kanbanDispatch}
               dispatch={dispatch}

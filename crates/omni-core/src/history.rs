@@ -194,17 +194,23 @@ pub fn scan(provider: &str, profiles: &[Profile], cache: &mut ScanCache) -> Vec<
     entries
 }
 
-/// Mensagens de texto de um transcript — só se o arquivo mora dentro da pasta de uma conta do
-/// provider. O caminho vem da UI, então é validado aqui e não lá.
-pub fn transcript(path: &Path, provider: &str, profiles: &[Profile]) -> Option<HistoryTranscript> {
+/// O caminho canônico do transcript, só se ele é um `.jsonl` dentro da pasta de uma conta do
+/// provider. Quem lê transcript a partir de um caminho que veio de fora passa por aqui.
+pub fn validated(path: &Path, provider: &str, profiles: &[Profile]) -> Option<PathBuf> {
     let path = path.canonicalize().ok()?;
     if path.extension().is_none_or(|extension| extension != "jsonl") { return None; }
-    let inside = profiles
+    profiles
         .iter()
         .filter(|profile| profile.provider == provider)
         .filter_map(|profile| Path::new(&profile.config_dir).canonicalize().ok())
-        .any(|root| path.starts_with(root));
-    if !inside { return None; }
+        .any(|root| path.starts_with(root))
+        .then_some(path)
+}
+
+/// Mensagens de texto de um transcript — só se o arquivo mora dentro da pasta de uma conta do
+/// provider. O caminho vem da UI, então é validado aqui e não lá.
+pub fn transcript(path: &Path, provider: &str, profiles: &[Profile]) -> Option<HistoryTranscript> {
+    let path = validated(path, provider, profiles)?;
     let mut messages = VecDeque::new();
     let mut total = 0;
     for line in BufReader::new(File::open(&path).ok()?).lines().map_while(Result::ok) {

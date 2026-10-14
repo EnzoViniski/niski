@@ -25,11 +25,21 @@ function isNotifiable(item: AttentionItem): boolean {
  * derrubar a tela. Mas falha **sempre loga** — um catch mudo aqui torna "não apareceu nada"
  * impossível de diagnosticar, que foi exatamente o que aconteceu na primeira versão disto.
  */
-export function useAttentionNotifier(items: AttentionItem[], enabled: boolean) {
+export function useAttentionNotifier(items: AttentionItem[], enabled: boolean, naoVistos?: AttentionItem[]) {
   // `null` até a primeira leitura: o que já estava pendente quando o app abriu não é evento novo.
   const notified = useRef<Set<string> | null>(null);
+  // Conversas que já têm um toast esperando você. **Um aviso por conversa**: o agente que termina três
+  // turnos enquanto você está fora não empilha três toasts — o primeiro já diz "vá ver", e abrindo
+  // a conversa você vê tudo. Libera de novo só depois que ela foi vista (saiu de `naoVistos`).
+  const pendentes = useRef(new Set<string>());
 
   useEffect(() => {
+    if (naoVistos) {
+      // Liberada = está pedindo atenção **e** já foi vista. Sumir da lista não basta: um redesenho
+      // da TUI põe a sessão em "trabalhando" por um instante, e isso não é você ter olhado.
+      const ainda = new Set(naoVistos.map((item) => item.conversationKey));
+      for (const item of items) if (!ainda.has(item.conversationKey)) pendentes.current.delete(item.conversationKey);
+    }
     const avisos = items.filter(isNotifiable);
     if (notified.current === null) {
       notified.current = new Set(avisos.map(keyOf));
@@ -39,7 +49,14 @@ export function useAttentionNotifier(items: AttentionItem[], enabled: boolean) {
     // Marca já, antes de qualquer await: o efeito roda a cada poll, e marcar só depois do toast
     // deixava dois polls seguidos mandarem o mesmo aviso.
     for (const item of novos) notified.current.add(keyOf(item));
-    if (!enabled || novos.length === 0) return;
+    // Uma por conversa também dentro do mesmo lote.
+    const avisar = novos.filter((item, i) =>
+      !pendentes.current.has(item.conversationKey)
+      && novos.findIndex((outro) => outro.conversationKey === item.conversationKey) === i);
+    if (!enabled || avisar.length === 0) return;
+    // Reserva já, antes do await, pelo mesmo motivo do `notified`. Sem acompanhamento de "visto"
+    // (chamada sem a lista) não reserva — a sessão nunca seria liberada.
+    if (naoVistos) for (const item of avisar) pendentes.current.add(item.conversationKey);
 
     void (async () => {
       try {
@@ -47,7 +64,8 @@ export function useAttentionNotifier(items: AttentionItem[], enabled: boolean) {
         const janela = getCurrentWindow();
         if (await janela.isFocused()) {
           // eslint-disable-next-line no-console
-          console.debug("[atenção] toast suprimido: a janela do OMNI está em foco", novos.map(keyOf));
+          console.debug("[atenção] toast suprimido: a janela do OMNI está em foco", avisar.map(keyOf));
+          for (const item of avisar) pendentes.current.delete(item.conversationKey);
           return;
         }
 
@@ -60,8 +78,8 @@ export function useAttentionNotifier(items: AttentionItem[], enabled: boolean) {
         if (permitido) {
           // Um toast por agente até três; acima disso vira resumo — dez toasts empilhados no
           // Windows são dez cliques pra limpar.
-          if (novos.length <= 3) {
-            for (const item of novos) {
+          if (avisar.length <= 3) {
+            for (const item of avisar) {
               sendNotification({
                 title: `${item.workspaceName} · ${item.projectName}`,
                 body: `${item.sessionName} — ${ATTENTION_LABEL[item.reason]}`,
@@ -70,7 +88,7 @@ export function useAttentionNotifier(items: AttentionItem[], enabled: boolean) {
           } else {
             sendNotification({
               title: "OMNI AGENTS",
-              body: `${novos.length} agentes precisam de você`,
+              body: `${avisar.length} agentes precisam de você`,
             });
           }
         }
@@ -84,7 +102,7 @@ export function useAttentionNotifier(items: AttentionItem[], enabled: boolean) {
         console.error("[atenção] falha ao notificar:", motivo);
       }
     })();
-  }, [items, enabled]);
+  }, [items, enabled, naoVistos]);
 }
 
 /**

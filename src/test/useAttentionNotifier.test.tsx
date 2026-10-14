@@ -31,6 +31,7 @@ function item(overrides: Partial<AttentionItem> = {}): AttentionItem {
     workspaceId: "ws-a",
     workspaceName: "Cliente X",
     ...overrides,
+    conversationKey: overrides.conversationKey ?? overrides.sessionId ?? "s1",
   };
 }
 
@@ -102,6 +103,42 @@ describe("useAttentionNotifier", () => {
     renderAfterStartup([item()], false);
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(toast.sendNotification).not.toHaveBeenCalled();
+  });
+
+  it("um toast por conversa até ela ser vista, por mais turnos que terminem", async () => {
+    const hook = renderHook(
+      ({ items, naoVistos }) => useAttentionNotifier(items, true, naoVistos),
+      { initialProps: { items: [] as AttentionItem[], naoVistos: [] as AttentionItem[] } }
+    );
+    hook.rerender({ items: [item()], naoVistos: [item()] });
+    await waitFor(() => expect(toast.sendNotification).toHaveBeenCalledTimes(1));
+
+    // Mais dois turnos com você fora, passando por "trabalhando" (some das listas) no meio.
+    hook.rerender({ items: [], naoVistos: [] });
+    hook.rerender({ items: [item({ attentionSeq: 2 })], naoVistos: [item({ attentionSeq: 2 })] });
+    hook.rerender({ items: [item({ attentionSeq: 3 })], naoVistos: [item({ attentionSeq: 3 })] });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(toast.sendNotification).toHaveBeenCalledTimes(1);
+
+    // Você abriu a conversa: o próximo turno avisa de novo.
+    hook.rerender({ items: [item({ attentionSeq: 3 })], naoVistos: [] });
+    hook.rerender({ items: [item({ attentionSeq: 4 })], naoVistos: [item({ attentionSeq: 4 })] });
+    await waitFor(() => expect(toast.sendNotification).toHaveBeenCalledTimes(2));
+  });
+
+  it("sessão nova da mesma conversa (failover) não solta outro toast antes de você ver", async () => {
+    const hook = renderHook(
+      ({ items, naoVistos }) => useAttentionNotifier(items, true, naoVistos),
+      { initialProps: { items: [] as AttentionItem[], naoVistos: [] as AttentionItem[] } }
+    );
+    const antiga = item({ sessionId: "s1", conversationKey: "conv" });
+    hook.rerender({ items: [antiga], naoVistos: [antiga] });
+    await waitFor(() => expect(toast.sendNotification).toHaveBeenCalledTimes(1));
+
+    const nova = item({ sessionId: "s2", conversationKey: "conv" });
+    hook.rerender({ items: [nova], naoVistos: [nova] });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(toast.sendNotification).toHaveBeenCalledTimes(1);
   });
 
   it("resume num aviso só quando são muitos agentes de uma vez", async () => {

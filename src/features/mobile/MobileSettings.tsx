@@ -204,16 +204,17 @@ export function MobileSettings({ accent }: { accent?: string } = {}) {
     : { texto: "desligado", cor: "text-text-muted", ponto: "bg-text-muted" };
   const enderecoPc = status?.public_url ? `${status.public_url.replace(/\/$/, "")}/pc/` : null;
 
-  return <section className="space-y-4" aria-label="Acesso pelo celular">
+  return <section className="space-y-4" aria-label="Acesso remoto">
     <div className="glass rounded-none p-5">
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center bg-accent/10">
           <OmniLogo size={36} aria-hidden />
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="pixel-text text-sm text-text-primary">Usar o OMNI pelo celular</h2>
+          <h2 className="pixel-text text-sm text-text-primary">Acesso remoto: celular e outro computador</h2>
           <p className="mt-1 text-xs text-text-secondary">
-            Você manda prompts do telefone (ou de outro computador) e os agentes rodam aqui no PC. Funciona
+            Use os agentes deste PC a partir do celular ou de outro computador (um notebook, o PC do
+            trabalho): você conversa por lá e eles rodam aqui. Funciona
             de qualquer lugar, inclusive no 4G — o PC precisa estar ligado. Fechar a janela do OMNI não
             desliga o acesso.
           </p>
@@ -230,7 +231,7 @@ export function MobileSettings({ accent }: { accent?: string } = {}) {
     </div>
 
     <ol className="space-y-4">
-      <Passo n={1} titulo="Instale o Tailscale no PC e no celular" feito={Boolean(status?.magic_dns)}>
+      <Passo n={1} titulo="Instale o Tailscale neste PC e no outro aparelho" feito={Boolean(status?.magic_dns)}>
         {status?.magic_dns
           ? <p className="text-xs text-text-secondary">Detectado neste PC: <code className="text-accent">{status.magic_dns}</code></p>
           : <>
@@ -243,7 +244,7 @@ export function MobileSettings({ accent }: { accent?: string } = {}) {
             </>}
       </Passo>
 
-      <Passo n={2} titulo="Escolha como o celular chega até aqui" feito={ligado}>
+      <Passo n={2} titulo="Escolha como o outro aparelho chega até aqui" feito={ligado}>
         <div className="grid gap-2 md:grid-cols-2">
           <OpcaoModo ativo={!serve} titulo="Direto" selo="funciona na hora" onSelect={() => setServe(false)}>
             O OMNI usa o endereço do Tailscale deste PC automaticamente. Não precisa configurar nada.
@@ -291,13 +292,14 @@ export function MobileSettings({ accent }: { accent?: string } = {}) {
         {status?.serve_hint && !linkLiberar && <p role="alert" className="border-l-2 border-warning pl-3 text-xs text-warning">{status.serve_hint}</p>}
       </Passo>
 
-      <Passo n={3} titulo="Aponte a câmera do celular para o código" feito={pronto}>
+      <Passo n={3} titulo="Conecte o celular ou o outro computador" feito={pronto}>
         {pronto ? <div className="space-y-4">
           <div className="flex flex-wrap items-start gap-5">
             {qrImage && <QrPersonalizado src={qrImage} alt="Código QR de acesso pelo celular" tamanho={216} />}
             <div className="min-w-0 flex-1 space-y-3">
+              <p className="text-xs font-medium text-text-primary">No celular</p>
               <p className="text-xs text-text-secondary">
-                O código já leva o acesso junto — não precisa digitar senha.
+                Aponte a câmera para o código. Ele já leva o acesso junto — não precisa digitar senha.
               </p>
               <div className="space-y-1">
                 <p className="text-[10px] uppercase tracking-wide text-text-muted">Abre em</p>

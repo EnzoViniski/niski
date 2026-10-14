@@ -30,6 +30,11 @@ pub struct MobileRuntime {
     actions: Mutex<VecDeque<Action>>,
     pending: Notify,
     history: Mutex<MobileHistory>,
+    /// Transcripts já lidos: a conversa aberta é consultada a cada 1,5 s e só o trecho novo é lido.
+    feeds: Mutex<omni_core::feed::FeedCache>,
+    /// Última busca por rollouts do Codex ainda sem caminho. Abre o começo de cada rollout da conta,
+    /// então não pode rodar a cada leitura da lista.
+    codex_descoberto_em: Mutex<u64>,
 }
 
 #[derive(Default)]
@@ -47,7 +52,29 @@ struct Action {
     #[serde(skip)] kind: ActionKind,
 }
 #[derive(Clone, PartialEq)]
-enum ActionKind { Prompt(String), Approval(bool), Spawn(SpawnPlan), Modo(String) }
+enum ActionKind { Prompt(String), Approval(bool), Spawn(SpawnPlan), Modo(String), Ajustes(Ajustes), Retomar(Retomada) }
+
+/// Uma conversa sem sessão aberta (do índice do OMNI ou só do histórico da CLI) e como reabri-la.
+/// Resolvido no servidor antes da fila, como o `SpawnPlan`: o corpo do request só escolhe conta,
+/// modelo e esforço.
+#[derive(Clone, PartialEq)]
+struct Retomada {
+    conversation_id: String,
+    project_id: String,
+    cwd: String,
+    title: String,
+    provider: String,
+    profile_id: Option<String>,
+    session_id: String,
+    /// O arquivo da conversa na conta de origem — é ele que vai junto se a conta mudar.
+    transcript: Option<String>,
+    ajustes: Ajustes,
+}
+
+/// Conta, modelo e esforço da conversa. `None` em modelo/esforço = o padrão da CLI.
+#[derive(Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Ajustes { profile_id: Option<String>, model: Option<String>, effort: Option<String> }
 
 /// Tudo já resolvido **no servidor** antes de entrar na fila. O corpo do request não contribui com
 /// nenhum caminho nem binário: o `cwd` vem do projeto conhecido, o `command` da lista de CLIs que o
@@ -77,7 +104,9 @@ impl MobileRuntime {
             serve_state: Mutex::new((None,None)),
             pareamento: Mutex::new(Pareamento::default()),
             status: Mutex::new((None,None)),changed: Notify::new(),actions: Mutex::new(VecDeque::new()),pending: Notify::new(),
-            history: Mutex::new(MobileHistory::default()) }
+            history: Mutex::new(MobileHistory::default()),
+            feeds: Mutex::new(omni_core::feed::FeedCache::default()),
+            codex_descoberto_em: Mutex::new(0) }
     }
 }
 
@@ -446,6 +475,13 @@ fn parear_em(state: &EngineState, codigo: &str, agora: u64) -> Result<Json<Value
 }
 
 pub fn start(state: Arc<EngineState>) {
+    // A primeira leitura do histórico abre o começo de todo transcript de todas as contas: segundos,
+    // numa máquina com muito histórico. Feita já na subida, quando ninguém está esperando, a primeira
+    // abertura do celular ou da web encontra tudo pronto em vez de ficar carregando.
+    if state.mobile.config.lock().map(|config| config.enabled).unwrap_or(false) {
+        let aquecer = state.clone();
+        tokio::task::spawn_blocking(move || { historical_entries(&aquecer); });
+    }
     let worker = state.clone();
     tokio::spawn(async move {
         loop {
@@ -501,22 +537,85 @@ pub fn start(state: Arc<EngineState>) {
     });
 }
 
-fn router(state: Arc<EngineState>) -> Router {
+/// As rotas da API, sem o bundle e sem a checagem de origem/token do celular — esta parte é comum
+/// ao servidor HTTP (`router`) e ao desktop (`local`).
+fn rotas() -> Router<Arc<EngineState>> {
     Router::new().route("/conversas",get(conversations))
         .route("/projetos",get(projects))
+        .route("/painel",get(painel))
         .route("/conversas/{id}/timeline",get(timeline))
+        .route("/conversas/{id}/terminal",get(terminal))
+        .route("/conversas/{id}/teclas",post(teclas))
         .route("/conversas/{id}/prompt",post(prompt))
         .route("/conversas/{id}/aprovar",post(approve))
         .route("/conversas/{id}/nome",post(renomear))
         .route("/conversas/{id}/modo",post(modo))
+        .route("/conversas/{id}/opcoes",get(opcoes))
+        .route("/conversas/{id}/ajustes",post(ajustar))
+        .route("/conversas/{id}/retomar",post(retomar_rota))
+        .route("/contas",get(contas))
+        .route("/terminais",get(listar_terminais).post(abrir_terminal))
+        .route("/terminais/{id}/saida",get(saida_do_terminal))
+        .route("/terminais/{id}/teclas",post(teclas_do_terminal))
+        .route("/terminais/{id}/fechar",post(fechar_terminal))
         // O limite global (32 KB) é para JSON. Anexo tem o dele, aplicado **só** nesta rota: por
         // dentro da camada global, e o extrator lê o limite mais interno.
         .route("/conversas/{id}/anexos",post(anexar).layer(DefaultBodyLimit::max(ANEXO_MAX_BYTES)))
         .route("/atencao",get(attention))
         .route("/sessoes",post(create_session))
         .route("/parear",post(parear))
+}
+
+fn router(state: Arc<EngineState>) -> Router {
+    rotas()
         .fallback(get(asset)).layer(DefaultBodyLimit::max(32 * 1024))
         .layer(middleware::from_fn_with_state(state.clone(),same_origin)).with_state(state)
+}
+
+/// Uma chamada da API pelo protocolo local do engine (`EngineRequest::Api`). Quem chega aqui já
+/// mostrou o token do engine, que vale mais que o de dispositivo: é o próprio desktop.
+pub async fn local(state: Arc<EngineState>, method: &str, path: &str, body: Option<String>, body_base64: Option<String>,
+    headers: Vec<(String, String)>) -> EngineResponse {
+    let app = rotas().layer(DefaultBodyLimit::max(32 * 1024)).with_state(state);
+    let corpo = match body_base64 {
+        Some(codificado) => match base64_decode(&codificado) {
+            Some(bytes) => axum::body::Body::from(bytes),
+            None => return EngineResponse::Error { code: "INVALID_REQUEST".into(), message: "corpo base64 inválido".into() },
+        },
+        None => axum::body::Body::from(body.unwrap_or_default()),
+    };
+    let mut request = axum::http::Request::builder().method(method).uri(path);
+    if !headers.iter().any(|(nome, _)| nome.eq_ignore_ascii_case("content-type")) {
+        request = request.header("content-type","application/json");
+    }
+    for (nome, valor) in &headers { request = request.header(nome.as_str(), valor.as_str()); }
+    let request = request.body(corpo);
+    let Ok(request) = request else {
+        return EngineResponse::Error { code: "INVALID_REQUEST".into(), message: format!("requisição inválida: {method} {path}") };
+    };
+    let response = match tower::ServiceExt::oneshot(app, request).await { Ok(response) => response, Err(never) => match never {} };
+    let status = response.status().as_u16();
+    let bytes = axum::body::to_bytes(response.into_body(), 4 * 1024 * 1024).await.unwrap_or_default();
+    EngineResponse::Api { status, body: String::from_utf8_lossy(&bytes).into_owned() }
+}
+
+/// Base64 padrão (com ou sem `=`). Uma função evita uma dependência para um uso só: o anexo
+/// colado no chat do PC, que atravessa o protocolo JSON do engine.
+fn base64_decode(texto: &str) -> Option<Vec<u8>> {
+    let valor = |c: u8| match c {
+        b'A'..=b'Z' => Some(c - b'A'), b'a'..=b'z' => Some(c - b'a' + 26), b'0'..=b'9' => Some(c - b'0' + 52),
+        b'+' => Some(62), b'/' => Some(63), _ => None,
+    };
+    let limpo: Vec<u8> = texto.bytes().filter(|c| !c.is_ascii_whitespace() && *c != b'=').collect();
+    if limpo.len() % 4 == 1 { return None; }
+    let mut saida = Vec::with_capacity(limpo.len() * 3 / 4);
+    for bloco in limpo.chunks(4) {
+        let mut acumulado = 0_u32;
+        for (i, c) in bloco.iter().enumerate() { acumulado |= u32::from(valor(*c)?) << (18 - 6 * i); }
+        let bytes = acumulado.to_be_bytes();
+        saida.extend_from_slice(&bytes[1..bloco.len()]);
+    }
+    Some(saida)
 }
 
 type ApiError = (StatusCode, Json<Value>);
@@ -576,7 +675,10 @@ async fn same_origin(State(state): State<Arc<EngineState>>, request: Request, ne
     headers.insert("cache-control","no-store".parse().unwrap());
     headers.insert("x-content-type-options","nosniff".parse().unwrap());
     headers.insert("referrer-policy","no-referrer".parse().unwrap());
-    headers.insert("content-security-policy","default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'".parse().unwrap());
+    // `style-src 'unsafe-inline'`: o espelho do terminal (xterm) cria o próprio `<style>` com as
+    // cores e o tamanho da fonte. Script continua só `'self'` — é ele que segura injeção de código;
+    // estilo inline no máximo muda a aparência, e o markdown das mensagens já passa por sanitize.
+    headers.insert("content-security-policy","default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'".parse().unwrap());
     response
 }
 
@@ -649,11 +751,48 @@ fn history_key(provider: &str, session_id: &str) -> String {
     format!("{provider}\0{session_id}")
 }
 
+/// Resumo de uma conversa do índice: o que a lista mostra e o que o chat precisa para saber se dá
+/// para responder agora. Estado e capacidades saem da sessão viva, quando há.
+fn resumo(state: &EngineState, c: &omni_core::conversations::Conversation) -> Value {
+    let live = linked_session(state,c);
+    let capabilities = live.as_ref().map(interaction::capabilities);
+    let meta = live.as_ref().map(|s| settle(s));
+    let status = meta.as_ref().map(|m| m.state.clone());
+    // Identidade do último evento de atenção (fim de turno, pedido de aprovação). A tela usa para
+    // saber se já foi vista: muda só quando acontece algo novo — nunca com redesenho da TUI. A
+    // sessão entra junto porque o contador recomeça do zero a cada sessão nova.
+    let attention = meta.as_ref().map(|m| format!("{}:{}", m.id, m.attention_seq));
+    // `mode` sai da tela viva (o rodapé responde na hora); sessão fechada não tem modo.
+    let mode = live.as_ref().and_then(interaction::modo_da_sessao);
+    json!({"id":c.id,"title":omni_core::conversations::display_title(c),"project_id":c.project_id,"provider":c.segments.last().map(|s|&s.provider),
+        "profile_id":c.segments.last().and_then(|s|s.profile_id.as_ref()),"state":status,"mode":mode,"capabilities":capabilities,
+        "attention":attention,"live":live.is_some(),"updated_at_ms":atividade(c,live.as_ref())})
+}
+
+/// Último sinal de vida da conversa: saída do terminal, escrita no transcript ou a criação. É o que
+/// ordena a lista — a conversa em que você está mexendo fica no topo, como num app de mensagens.
+fn atividade(c: &omni_core::conversations::Conversation, live: Option<&Arc<LiveSession>>) -> u64 {
+    let terminal = live.and_then(|s| s.meta.lock().ok().map(|meta| meta.last_activity_at_ms)).unwrap_or(0);
+    let transcript = c.segments.last().and_then(|s| s.transcript_path.as_deref())
+        .and_then(|path| omni_protocol::modified_ms(Path::new(path))).unwrap_or(0);
+    c.created_at_ms.max(terminal).max(transcript)
+}
+
+/// Intervalo mínimo entre buscas de rollout do Codex sem caminho conhecido.
+const CODEX_DESCOBERTA_MS: u64 = 15_000;
+
 fn summaries(state: &EngineState) -> Vec<Value> {
     let dir = state.state_file.parent().unwrap();
     let mut index = omni_core::conversations::read_index(dir);
     let profiles = omni_core::profiles(dir);
-    if omni_core::conversations::discover_codex_transcripts(&mut index, &profiles) {
+    let descobrir = {
+        let mut ultima = state.mobile.codex_descoberto_em.lock().expect("codex poisoned");
+        let agora = now_ms();
+        let vencida = agora.saturating_sub(*ultima) >= CODEX_DESCOBERTA_MS;
+        if vencida { *ultima = agora; }
+        vencida
+    };
+    if descobrir && omni_core::conversations::discover_codex_transcripts(&mut index, &profiles) {
         let _ = omni_core::conversations::write_index(dir, &index);
     }
     let projects = known_projects(state);
@@ -670,15 +809,8 @@ fn summaries(state: &EngineState) -> Vec<Value> {
                 known_transcripts.insert(path.replace('\\',"/").to_lowercase());
             }
         }
-        let live = linked_session(state,c);
-        let capabilities = live.as_ref().map(interaction::capabilities);
-        let status = live.as_ref().map(|s| {
-            settle(s).state
-        });
-        // `mode` sai da tela viva (o rodapé responde na hora); sessão fechada não tem modo.
-        let mode = live.as_ref().and_then(interaction::modo_da_sessao);
-        result.push((c.created_at_ms,json!({"id":c.id,"title":omni_core::conversations::display_title(c),"project_id":c.project_id,"provider":c.segments.last().map(|s|&s.provider),
-            "profile_id":c.segments.last().and_then(|s|s.profile_id.as_ref()),"state":status,"mode":mode,"capabilities":capabilities})));
+        let resumo = resumo(state,c);
+        result.push((resumo["updated_at_ms"].as_u64().unwrap_or(c.created_at_ms),resumo));
     }
     for entry in history {
         let transcript = entry.path.replace('\\',"/").to_lowercase();
@@ -690,7 +822,8 @@ fn summaries(state: &EngineState) -> Vec<Value> {
             .unwrap_or_else(||history_project_id(entry.cwd.as_deref().unwrap_or("")));
         let title = entry.title.clone().or(entry.first_prompt.clone()).unwrap_or_else(||"Conversa anterior".into());
         result.push((entry.updated_at_ms,json!({"id":history_id(&entry),"title":title,"project_id":project_id,"provider":entry.provider,
-            "profile_id":entry.profile_id,"state":Value::Null,"mode":Value::Null,"capabilities":Value::Null,"historical":true})));
+            "profile_id":entry.profile_id,"state":Value::Null,"mode":Value::Null,"capabilities":Value::Null,"historical":true,
+            "live":false,"updated_at_ms":entry.updated_at_ms})));
     }
     result.sort_by_key(|(updated,_)|std::cmp::Reverse(*updated));
     result.into_iter().map(|(_,summary)|summary).collect()
@@ -726,18 +859,21 @@ fn known_projects(state: &EngineState) -> Vec<PublishedProject> {
     projects
 }
 
+fn catalogo(state: &EngineState) -> Value {
+    let dir = state.state_file.parent().unwrap();
+    let (agents,published_at_ms,theme) = {
+        let workspace = state.mobile.workspace.lock().expect("workspace poisoned");
+        (workspace.agents.clone(),workspace.published_at_ms,workspace.theme.clone())
+    };
+    // `config_dir` fica de fora de propósito: é caminho de credencial e o celular não precisa.
+    let profiles: Vec<_> = omni_core::profiles(dir).into_iter()
+        .map(|p| json!({"id":p.id,"provider":p.provider,"name":p.name})).collect();
+    json!({"published_at_ms":published_at_ms,"projects":known_projects(state),"agents":agents,"profiles":profiles,"theme":theme})
+}
+
 async fn projects(State(state): State<Arc<EngineState>>) -> Json<Value> {
-    Json(tokio::task::spawn_blocking(move || {
-        let dir = state.state_file.parent().unwrap();
-        let (agents,published_at_ms,theme) = {
-            let workspace = state.mobile.workspace.lock().expect("workspace poisoned");
-            (workspace.agents.clone(),workspace.published_at_ms,workspace.theme.clone())
-        };
-        // `config_dir` fica de fora de propósito: é caminho de credencial e o celular não precisa.
-        let profiles: Vec<_> = omni_core::profiles(dir).into_iter()
-            .map(|p| json!({"id":p.id,"provider":p.provider,"name":p.name})).collect();
-        json!({"published_at_ms":published_at_ms,"projects":known_projects(&state),"agents":agents,"profiles":profiles,"theme":theme})
-    }).await.unwrap_or(json!({"published_at_ms":0,"projects":[],"agents":[],"profiles":[]})))
+    Json(tokio::task::spawn_blocking(move || catalogo(&state))
+        .await.unwrap_or(json!({"published_at_ms":0,"projects":[],"agents":[],"profiles":[]})))
 }
 
 async fn conversations(State(state): State<Arc<EngineState>>) -> Json<Value> {
@@ -747,28 +883,191 @@ async fn attention(State(state): State<Arc<EngineState>>) -> Json<Value> {
     Json(tokio::task::spawn_blocking(move || json!(summaries(&state).into_iter().filter(|c|
         c["capabilities"]["approve"] == true || c["capabilities"]["prompt"] == true || c["state"] == "approval_required").collect::<Vec<_>>())).await.unwrap_or(json!([])))
 }
+
+/// Resposta JSON com `ETag`. Se o cliente já tem exatamente esse conteúdo (`If-None-Match`), volta
+/// `304` sem corpo: a lista e a conversa aberta são consultadas a cada poucos segundos e, quase
+/// sempre, nada mudou — sem isto cada consulta remontava a tela inteira à toa.
+fn com_etag(headers: &HeaderMap, corpo: &Value) -> Response {
+    let texto = corpo.to_string();
+    let etag = format!("\"{:016x}\"", texto.bytes().fold(0xcbf29ce484222325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x100000001b3)));
+    if headers.get("if-none-match").and_then(|v| v.to_str().ok()) == Some(etag.as_str()) {
+        return (StatusCode::NOT_MODIFIED, [("etag", etag)]).into_response();
+    }
+    (StatusCode::OK, [("etag", etag), ("content-type", "application/json".into())], texto).into_response()
+}
+
+/// Lista de conversas e catálogo numa chamada só. Antes eram três (`/conversas`, `/atencao` e
+/// `/projetos`), cada uma montando a lista inteira de novo — o "precisa de você" agora é calculado
+/// no cliente a partir da mesma lista.
+async fn painel(State(state): State<Arc<EngineState>>, headers: HeaderMap) -> Response {
+    let corpo = tokio::task::spawn_blocking(move || json!({"conversations":summaries(&state),"catalog":catalogo(&state)}))
+        .await.unwrap_or(json!({"conversations":[],"catalog":{"published_at_ms":0,"projects":[],"agents":[],"profiles":[]}}));
+    com_etag(&headers, &corpo)
+}
+
 /// Sem `cursor` a timeline abre no fim da conversa, como um chat.
 #[derive(Deserialize)] struct Page { #[serde(default)] cursor: Option<usize> }
-async fn timeline(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, Query(page): Query<Page>) -> Result<Json<Value>, ApiError> {
-    tokio::task::spawn_blocking(move || {
+/// Itens por página. Ações do agente contam como item, então é maior que uma página só de texto.
+const TIMELINE_PAGINA: usize = 150;
+async fn timeline(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, Query(page): Query<Page>, headers: HeaderMap) -> Response {
+    let resultado = tokio::task::spawn_blocking(move || -> Result<Value, ApiError> {
         let dir = state.state_file.parent().unwrap();
         let profiles = omni_core::profiles(dir);
         if let Ok((conversation,_)) = current(&state,&id) {
-            let timeline = omni_core::conversations::timeline(&conversation,&profiles,page.cursor,100);
+            let timeline = {
+                let mut feeds = state.mobile.feeds.lock().expect("feeds poisoned");
+                omni_core::conversations::timeline_cached(&conversation,&profiles,page.cursor,TIMELINE_PAGINA,&mut feeds)
+            };
             let actions: Vec<_> = state.mobile.actions.lock().expect("actions poisoned").iter().filter(|a|a.conversation_id == id).cloned().collect();
-            return Ok(Json(json!({"timeline":timeline,"actions":actions})));
+            // O estado da conversa vem junto: o chat aberto não precisa recarregar a lista inteira a
+            // cada 1,5 s só para saber se o agente terminou.
+            return Ok(json!({"timeline":timeline,"actions":actions,"conversation":resumo(&state,&conversation)}));
         }
         let entry = historical_entries(&state).into_iter().find(|entry|history_id(entry) == id)
             .ok_or_else(||error(StatusCode::NOT_FOUND,"Conversa não encontrada"))?;
-        let transcript = omni_core::history::transcript(Path::new(&entry.path),&entry.provider,&profiles)
+        let caminho = omni_core::history::validated(Path::new(&entry.path),&entry.provider,&profiles)
             .ok_or_else(||error(StatusCode::NOT_FOUND,"Histórico não encontrado"))?;
-        let messages: Vec<_> = transcript.messages.into_iter().enumerate().map(|(index,message)|json!({
-            "id":format!("{id}:{index}"),"role":message.role,"text":message.text,
-            "provider":entry.provider,"timestamp":message.timestamp,
-        })).collect();
-        Ok(Json(json!({"timeline":{"messages":messages,"next_cursor":Value::Null,"prev_cursor":Value::Null,
-            "unavailable_segments":[]},"actions":[]})))
-    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ler timeline"))?
+        let itens: Vec<_> = {
+            let mut feeds = state.mobile.feeds.lock().expect("feeds poisoned");
+            feeds.read(&caminho,&entry.provider).map_err(|_|error(StatusCode::NOT_FOUND,"Histórico não encontrado"))?
+                .iter().map(|e|(entry.provider.clone(),e.item.clone())).collect()
+        };
+        let timeline = omni_core::conversations::page(&id,itens,page.cursor,TIMELINE_PAGINA);
+        Ok(json!({"timeline":timeline,"actions":[]}))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ler timeline"));
+    match resultado {
+        Ok(Ok(corpo)) => com_etag(&headers,&corpo),
+        Ok(Err(erro)) | Err(erro) => erro.into_response(),
+    }
+}
+
+/// Quanto do histórico do terminal vai na primeira leitura. O engine guarda até 5 MB; mandar tudo
+/// pela rede para desenhar uma tela é desperdício — 512 KB cobrem bem mais que a tela visível.
+const TERMINAL_INICIAL_BYTES: usize = 512 * 1024;
+#[derive(Deserialize)] struct Desde { #[serde(default)] desde: Option<u64> }
+
+/// O terminal da conversa como o PC desenha: a saída bruta da PTY a partir de `desde`.
+///
+/// Só leitura de propósito — **não** marca a sessão como exibida (`headless`): quem responde às
+/// perguntas do terminal continua sendo o xterm do desktop ou o próprio engine. Se a página também
+/// respondesse, a resposta chegaria em dobro e vazaria como texto digitado dentro da CLI.
+async fn terminal(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, Query(desde): Query<Desde>) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let (_, sessao) = current(&state,&id)?;
+        let Some(sessao) = sessao else {
+            return Ok(Json(json!({"live":false,"data":"","from_seq":0,"next_seq":0,"cols":0,"rows":0})));
+        };
+        ler_saida(&sessao, desde.desde)
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ler o terminal"))?
+}
+
+/// A saída bruta da PTY a partir de `desde` — comum ao terminal de uma conversa e a um shell.
+fn ler_saida(sessao: &Arc<LiveSession>, desde: Option<u64>) -> Result<Json<Value>, ApiError> {
+    {
+        let (cols, rows) = sessao.meta.lock().map(|meta| (meta.cols, meta.rows)).unwrap_or((120, 40));
+        let saida = sessao.output.lock().map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Terminal indisponível"))?;
+        let pedido = desde.unwrap_or(0);
+        // Primeira leitura (ou cliente que ficou para trás do buffer): só o fim, começando num bloco
+        // inteiro. Daí em diante vem só o que é novo.
+        let mut inicio = saida.chunks.front().map(|(seq,_)| *seq).unwrap_or(saida.next_seq).max(pedido);
+        if pedido == 0 || saida.chunks.front().is_some_and(|(seq,_)| *seq > pedido) {
+            let mut bytes = 0;
+            inicio = saida.next_seq;
+            for (seq, bloco) in saida.chunks.iter().rev() {
+                if bytes + bloco.len() > TERMINAL_INICIAL_BYTES && bytes > 0 { break; }
+                bytes += bloco.len();
+                inicio = *seq;
+            }
+        }
+        let data: String = saida.chunks.iter().filter(|(seq,_)| *seq >= inicio).map(|(_,bloco)| bloco.as_str()).collect();
+        Ok(Json(json!({"live":true,"data":data,"from_seq":inicio,"next_seq":saida.next_seq,"cols":cols,"rows":rows,
+            "reset":inicio != pedido})))
+    }
+}
+
+/* ── Terminais sem agente (shells) ───────────────────────────────────────────────────────────
+   Para quem está no celular ou no outro computador conseguir rodar um `npm run dev` num projeto.
+   A pasta sai **sempre** da lista de projetos: o navegador escolhe o projeto, nunca um caminho. */
+
+/// Um shell vivo pelo id. Sessão de agente não serve: aquela se lê pela conversa.
+fn shell_vivo(state: &EngineState, id: &str) -> Result<Arc<LiveSession>, ApiError> {
+    let sessoes = state.sessions.lock().map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Sessões indisponíveis"))?;
+    match sessoes.get(id) {
+        Some(SessionEntry::Live(sessao)) if sessao.meta.lock().map(|meta| meta.provider.is_none()).unwrap_or(false) => Ok(sessao.clone()),
+        _ => Err(error(StatusCode::NOT_FOUND,"Terminal não está aberto no PC")),
+    }
+}
+
+async fn listar_terminais(State(state): State<Arc<EngineState>>) -> Json<Value> {
+    let lista: Vec<Value> = state.sessions.lock().map(|sessoes| sessoes.values().filter_map(|entrada| match entrada {
+        SessionEntry::Live(sessao) => {
+            let meta = settle(sessao);
+            meta.provider.is_none().then(|| json!({"id":meta.id,"name":meta.name,"project_id":meta.project_id,"cwd":meta.cwd,
+                "state":meta.state,"created_at_ms":meta.created_at_ms,"updated_at_ms":meta.last_activity_at_ms}))
+        }
+        SessionEntry::Historical(_) => None,
+    }).collect()).unwrap_or_default();
+    Json(json!(lista))
+}
+
+async fn saida_do_terminal(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, Query(desde): Query<Desde>) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || ler_saida(&shell_vivo(&state,&id)?, desde.desde))
+        .await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ler o terminal"))?
+}
+
+async fn teclas_do_terminal(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, Json(body): Json<TeclasBody>) -> Result<Json<Value>, ApiError> {
+    if body.dados.is_empty() || body.dados.len() > TECLAS_MAX {
+        return Err(error(StatusCode::BAD_REQUEST,"Entrada vazia ou grande demais"));
+    }
+    tokio::task::spawn_blocking(move || {
+        shell_vivo(&state,&id)?;
+        write_terminal(&state,&id,&body.dados).map_err(|erro|error(StatusCode::CONFLICT,&erro.to_string()))?;
+        Ok(Json(json!({"ok":true})))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao enviar teclas"))?
+}
+
+async fn fechar_terminal(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || {
+        shell_vivo(&state,&id)?;
+        close_session(&state,&id).map_err(|erro|error(StatusCode::CONFLICT,&erro.to_string()))?;
+        Ok(Json(json!({"ok":true})))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao fechar o terminal"))?
+}
+
+#[derive(Deserialize)] #[serde(deny_unknown_fields)] struct AbrirTerminalBody { project_id: String }
+async fn abrir_terminal(State(state): State<Arc<EngineState>>, Json(body): Json<AbrirTerminalBody>) -> Result<(StatusCode,Json<Value>), ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let projeto = known_projects(&state).into_iter().find(|projeto| projeto.id == body.project_id && !projeto.path.is_empty())
+            .ok_or_else(||error(StatusCode::NOT_FOUND,"Projeto não encontrado neste PC"))?;
+        if !Path::new(&projeto.path).is_dir() { return Err(error(StatusCode::CONFLICT,"A pasta do projeto não existe mais neste PC")); }
+        if state.sessions.lock().expect("sessions poisoned").values()
+            .filter(|entry| matches!(entry,SessionEntry::Live(_))).count() >= MAX_SESSOES {
+            return Err(error(StatusCode::TOO_MANY_REQUESTS,"Muitas sessões abertas neste PC; feche alguma antes"));
+        }
+        // Headless: ninguém exibe esta PTY num terminal de verdade até o desktop abrir a aba.
+        let resposta = spawn_terminal(&state, projeto.id, "Terminal".into(), projeto.path, None, None, 32, 120,
+            SessionOrigin { headless: true, ..SessionOrigin::default() })
+            .map_err(|erro|error(StatusCode::INTERNAL_SERVER_ERROR,&erro.to_string()))?;
+        let EngineResponse::Session { session } = resposta else { return Err(error(StatusCode::INTERNAL_SERVER_ERROR,"Resposta inesperada")); };
+        Ok((StatusCode::CREATED,Json(json!({"id":session.id,"name":session.name,"project_id":session.project_id}))))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao abrir o terminal"))?
+}
+
+/// Teclas mandadas pelo terminal da página — o mesmo que digitar no terminal do PC (Esc para
+/// interromper, setas e Enter num menu da CLI). Limite pequeno: é teclado, não colagem de arquivo.
+#[derive(Deserialize)] struct TeclasBody { dados: String }
+const TECLAS_MAX: usize = 8 * 1024;
+async fn teclas(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, Json(body): Json<TeclasBody>) -> Result<Json<Value>, ApiError> {
+    if body.dados.is_empty() || body.dados.len() > TECLAS_MAX {
+        return Err(error(StatusCode::BAD_REQUEST,"Entrada vazia ou grande demais"));
+    }
+    tokio::task::spawn_blocking(move || {
+        let (_, sessao) = current(&state,&id)?;
+        let sessao = sessao.ok_or_else(||error(StatusCode::CONFLICT,"Sessão não está aberta no PC"))?;
+        let sessao_id = sessao.meta.lock().map(|meta| meta.id.clone()).map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Sessão indisponível"))?;
+        write_terminal(&state,&sessao_id,&body.dados).map_err(|erro|error(StatusCode::CONFLICT,&erro.to_string()))?;
+        Ok(Json(json!({"ok":true})))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao enviar teclas"))?
 }
 /// Renomear a conversa. Vale para o celular e para a web de computador; o desktop chega aqui pelo
 /// `EngineRequest::RenameConversation`, para o índice ter **um** escritor só.
@@ -961,10 +1260,12 @@ fn enqueue(state:&Arc<EngineState>,id:&str,headers:&HeaderMap,kind:ActionKind) -
     }
     // Spawn não tem tela viva para ficar obsoleta: pula `capabilities` e `If-Match`, mas mantém
     // idempotência, limite de fila e expiração — o que impede um toque repetido de abrir duas PTYs.
-    if let ActionKind::Spawn(plan) = &kind {
-        let action = Action { id: state.next_id(),conversation_id:String::new(),session_id:String::new(),
+    if matches!(kind, ActionKind::Spawn(_) | ActionKind::Retomar(_)) {
+        // Retomar devolve a conversa que vai nascer (ou voltar): a tela navega para ela.
+        let conversation_id = if matches!(kind, ActionKind::Retomar(_)) { id.to_string() } else { String::new() };
+        let action = Action { id: state.next_id(),conversation_id,session_id:String::new(),
             state:"queued".into(),created_at_ms:now_ms(),error:None,key:key.into(),revision:String::new(),
-            kind:ActionKind::Spawn(plan.clone()) };
+            kind:kind.clone() };
         let response = json!(action); actions.push_back(action); drop(actions);
         state.mobile.pending.notify_one();
         return Ok((StatusCode::ACCEPTED,Json(response)));
@@ -975,9 +1276,10 @@ fn enqueue(state:&Arc<EngineState>,id:&str,headers:&HeaderMap,kind:ActionKind) -
     let supported = match kind {
         // Trocar de modo é tecla no composer: vale a mesma porta do prompt (CLI ocioso e tela
         // reconhecida). Com o agente no meio de um turno, o shift+tab não é para ele.
-        ActionKind::Prompt(_) | ActionKind::Modo(_) => capability.prompt,
+        // Reabrir no meio de um turno mataria o trabalho em andamento.
+        ActionKind::Prompt(_) | ActionKind::Modo(_) | ActionKind::Ajustes(_) => capability.prompt,
         ActionKind::Approval(_) => capability.approve,
-        ActionKind::Spawn(_) => false,
+        ActionKind::Spawn(_) | ActionKind::Retomar(_) => false,
     };
     if !supported { return Err(error(StatusCode::CONFLICT,"Sessão ocupada ou tela não reconhecida; atualize o status")); }
     if headers.get("if-match").and_then(|h|h.to_str().ok()) != Some(capability.revision.as_str()) {
@@ -1000,8 +1302,312 @@ fn execute(state:&Arc<EngineState>, action:&Action) -> Result<()> {
             let session = session.ok_or_else(||anyhow!("Sessão encerrada"))?;
             interaction::alternar_modo(state,&session,alvo).map(|_|())
         }
+        ActionKind::Ajustes(ajustes) => reabrir_com(state,&action.conversation_id,ajustes),
+        ActionKind::Retomar(plano) => retomar(state,action,plano),
         _ => execute_checked(state,action,interaction::provider_running),
     }
+}
+
+/* ── Conta, modelo e esforço ─────────────────────────────────────────────────────────────────
+   Trocar qualquer um dos três é a mesma operação: reabrir a **mesma** sessão (mesmo id — a aba do
+   PC continua ligada nela) com `--resume` e os parâmetros novos. As duas CLIs aceitam modelo e
+   esforço na linha de comando; trocar por comando interno (`/model`) muda de versão para versão.
+   Trocar de conta leva o transcript junto para o config dir da conta nova, como o failover. */
+
+const MODELOS_CLAUDE: [(&str, &str); 4] = [("fable","Fable"),("opus","Opus"),("sonnet","Sonnet"),("haiku","Haiku")];
+const ESFORCOS_CLAUDE: [&str; 5] = ["low","medium","high","xhigh","max"];
+
+/// Só letras, números e `._-[]`: o valor vira argumento de um comando digitado num shell.
+fn valor_seguro(valor: &str) -> bool {
+    !valor.is_empty() && valor.len() <= 64 && valor.chars().all(|c| c.is_ascii_alphanumeric() || "._-[]".contains(c))
+}
+
+/// Modelos do Codex que a conta enxerga (`models_cache.json` do CODEX_HOME), com os esforços de cada um.
+fn modelos_codex(config_dir: &Path) -> Vec<Value> {
+    let Ok(bytes) = std::fs::read(config_dir.join("models_cache.json")) else { return Vec::new() };
+    let Ok(cache) = serde_json::from_slice::<Value>(&bytes) else { return Vec::new() };
+    cache["models"].as_array().into_iter().flatten()
+        .filter(|modelo| modelo["visibility"].as_str() != Some("hide"))
+        .filter_map(|modelo| {
+            let id = modelo["slug"].as_str()?;
+            let esforcos: Vec<&str> = modelo["supported_reasoning_levels"].as_array().into_iter().flatten()
+                .filter_map(|nivel| nivel["effort"].as_str().or_else(|| nivel.as_str())).collect();
+            Some(json!({"id":id,"label":modelo["display_name"].as_str().unwrap_or(id),"efforts":esforcos}))
+        }).collect()
+}
+
+/// Agente, conta, pasta e id nativo da última sessão — do índice do OMNI ou do histórico da CLI.
+fn ultima_sessao(state: &EngineState, id: &str) -> Result<omni_core::conversations::Segment, ApiError> {
+    if let Ok((conversa,_)) = current(state,id) {
+        return conversa.segments.last().cloned().ok_or_else(||error(StatusCode::CONFLICT,"Conversa sem sessão"));
+    }
+    let entrada = historical_entries(state).into_iter().find(|entrada| history_id(entrada) == id)
+        .ok_or_else(||error(StatusCode::NOT_FOUND,"Conversa não encontrada"))?;
+    Ok(omni_core::conversations::Segment {
+        provider: entrada.provider, profile_id: Some(entrada.profile_id), external_session_id: Some(entrada.session_id),
+        transcript_path: Some(entrada.path), terminal_session_id: None, started_at_ms: 0, ended_at_ms: None,
+    })
+}
+
+fn pasta_da_conversa(state: &EngineState, id: &str) -> Option<String> {
+    current(state,id).map(|(c,_)| c.cwd).ok()
+        .or_else(|| historical_entries(state).into_iter().find(|e| history_id(e) == id).and_then(|e| e.cwd))
+}
+
+fn opcoes_da_conversa(state: &EngineState, id: &str) -> Result<Value, ApiError> {
+    let dir = state.state_file.parent().unwrap();
+    let segmento = ultima_sessao(state,id)?;
+    let cwd = pasta_da_conversa(state,id).unwrap_or_default();
+    let segmento = &segmento;
+    let perfis: Vec<_> = omni_core::profiles(dir).into_iter().filter(|p| p.provider == segmento.provider).collect();
+    let atual = perfis.iter().find(|p| Some(&p.id) == segmento.profile_id.as_ref());
+    let runtime = match (segmento.provider.as_str(), atual) {
+        ("claude", Some(perfil)) => segmento.external_session_id.as_deref()
+            .and_then(|sid| omni_core::runtime::claude_runtime(Path::new(&perfil.config_dir),&cwd,sid)),
+        ("codex", Some(perfil)) => omni_core::runtime::codex_runtime(Path::new(&perfil.config_dir),&cwd),
+        _ => None,
+    };
+    let modelos: Vec<Value> = match segmento.provider.as_str() {
+        "claude" => MODELOS_CLAUDE.iter().map(|(id,label)| json!({"id":id,"label":label,"efforts":ESFORCOS_CLAUDE})).collect(),
+        "codex" => atual.map(|perfil| modelos_codex(Path::new(&perfil.config_dir))).unwrap_or_default(),
+        _ => Vec::new(),
+    };
+    Ok(json!({
+        "provider": segmento.provider,
+        "profile_id": segmento.profile_id,
+        "model": runtime.as_ref().and_then(|r| r.model.clone()),
+        "effort": runtime.as_ref().and_then(|r| r.effort.clone()),
+        "profiles": perfis.iter().map(|p| json!({"id":p.id,"name":p.name})).collect::<Vec<_>>(),
+        "models": modelos,
+        "can_resume": segmento.external_session_id.is_some(),
+    }))
+}
+
+async fn opcoes(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || opcoes_da_conversa(&state,&id).map(Json))
+        .await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ler as opções"))?
+}
+
+async fn ajustar(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<Ajustes>) -> Result<(StatusCode,Json<Value>),ApiError> {
+    for valor in [&body.model, &body.effort, &body.profile_id].into_iter().flatten() {
+        if !valor_seguro(valor) { return Err(error(StatusCode::BAD_REQUEST,"Valor inválido")); }
+    }
+    enqueue_async(state,id,headers,ActionKind::Ajustes(body)).await
+}
+
+/// Uso das contas como o rodapé do PC mostra (janela de 5 h e semanal). Só o que já foi lido —
+/// consultar de novo digitaria `/usage` num agente, e isso fica com o PC.
+async fn contas(State(state): State<Arc<EngineState>>) -> Json<Value> {
+    Json(tokio::task::spawn_blocking(move || {
+        let dir = state.state_file.parent().unwrap().to_path_buf();
+        let agora = now_ms();
+        let lista: Vec<Value> = omni_core::profiles(&dir).into_iter().map(|perfil| {
+            let uso = match perfil.provider.as_str() {
+                "codex" => Some(omni_core::usage::read_codex(&perfil.id,Path::new(&perfil.config_dir),agora)),
+                "claude" => omni_core::usage::read_claude_cache(&perfil.id,&omni_core::usage::claude_state_path(&perfil),agora),
+                _ => None,
+            };
+            json!({"id":perfil.id,"provider":perfil.provider,"name":perfil.name,"usage":uso})
+        }).collect();
+        json!(lista)
+    }).await.unwrap_or(json!([])))
+}
+
+/// O comando da CLI como o desktop publicou (`claude`, `codex`, ou um caminho), ou o id do agente.
+pub(crate) fn comando_do_agente(state: &EngineState, provider: &str) -> String {
+    state.mobile.workspace.lock().ok()
+        .and_then(|w| w.agents.iter().find(|agente| agente.id == provider).map(|agente| agente.command.clone()))
+        .unwrap_or_else(|| provider.to_string())
+}
+
+/// Linha de comando que retoma a conversa com o modelo e o esforço pedidos.
+fn comando_de_retomada(base: &str, provider: &str, sessao: &str, ajustes: &Ajustes) -> Result<String> {
+    let mut comando = match provider {
+        "claude" => format!("{base} --resume {sessao}"),
+        "codex" => format!("{base} resume {sessao}"),
+        _ => return Err(anyhow!("Este agente não permite trocar conta, modelo ou esforço")),
+    };
+    if let Some(modelo) = &ajustes.model {
+        comando += &if provider == "claude" { format!(" --model {modelo}") } else { format!(" -m {modelo}") };
+    }
+    if let Some(esforco) = &ajustes.effort {
+        // Sem aspas de propósito: o `-c` do Codex lê o valor como TOML e, se não for TOML válido,
+        // usa o texto cru — e aspas mudariam de sentido entre bash e PowerShell.
+        comando += &if provider == "claude" { format!(" --effort {esforco}") } else { format!(" -c model_reasoning_effort={esforco}") };
+    }
+    Ok(comando)
+}
+
+/// Copia o arquivo da conversa para onde a CLI da conta de destino procura: Claude por pasta do
+/// projeto + id; Codex na mesma posição relativa dentro do CODEX_HOME. Devolve o caminho novo.
+fn levar_transcript(perfis: &[omni_core::Profile], provider: &str, conta_origem: Option<&str>, origem: &Path,
+    alvo: &omni_core::Profile, cwd: &str, sessao: &str) -> Result<String> {
+    let destino = match provider {
+        "claude" => omni_core::conversations::claude_transcript_path(Path::new(&alvo.config_dir),cwd,sessao),
+        _ => {
+            let raiz = perfis.iter().find(|p| Some(p.id.as_str()) == conta_origem)
+                .and_then(|p| Path::new(&p.config_dir).canonicalize().ok()).ok_or_else(||anyhow!("Conta de origem não encontrada"))?;
+            let relativo = origem.canonicalize()?.strip_prefix(&raiz).map(Path::to_path_buf)
+                .map_err(|_|anyhow!("Transcript fora da conta de origem"))?;
+            Path::new(&alvo.config_dir).join(relativo)
+        }
+    };
+    if destino != origem {
+        if let Some(pasta) = destino.parent() { std::fs::create_dir_all(pasta)?; }
+        std::fs::copy(origem,&destino)?;
+    }
+    Ok(destino.to_string_lossy().into_owned())
+}
+
+/* ── Retomar uma conversa sem sessão aberta ──────────────────────────────────────────────────
+   Conversa do histórico (ou do OMNI, com a sessão já fechada) não tem o que "reabrir": abre uma
+   sessão nova na pasta do projeto com `--resume`, já com a conta, o modelo e o esforço escolhidos. */
+
+fn plano_de_retomada(state: &EngineState, id: &str, ajustes: Ajustes) -> Result<Retomada, ApiError> {
+    let dir = state.state_file.parent().unwrap();
+    if let Ok((conversa, viva)) = current(state,id) {
+        if viva.is_some() { return Err(error(StatusCode::CONFLICT,"Esta conversa já está aberta no PC")); }
+        let segmento = conversa.segments.last().ok_or_else(||error(StatusCode::CONFLICT,"Conversa sem sessão"))?;
+        let session_id = segmento.external_session_id.clone().ok_or_else(||error(StatusCode::CONFLICT,"Esta conversa não chegou a ter mensagens para retomar"))?;
+        let transcript = omni_core::conversations::resolve_transcript(segmento,&conversa,&omni_core::profiles(dir))
+            .map(|p| p.to_string_lossy().into_owned()).or(segmento.transcript_path.clone());
+        return Ok(Retomada { conversation_id: conversa.id.clone(), project_id: conversa.project_id.clone(), cwd: conversa.cwd.clone(),
+            title: omni_core::conversations::display_title(&conversa), provider: segmento.provider.clone(),
+            profile_id: segmento.profile_id.clone(), session_id, transcript, ajustes });
+    }
+    let entrada = historical_entries(state).into_iter().find(|entrada| history_id(entrada) == id)
+        .ok_or_else(||error(StatusCode::NOT_FOUND,"Conversa não encontrada"))?;
+    let cwd = entrada.cwd.clone().filter(|cwd| Path::new(cwd).is_dir())
+        .ok_or_else(||error(StatusCode::CONFLICT,"A pasta desta conversa não existe mais neste PC"))?;
+    let project_id = known_projects(state).into_iter().find(|p| same_path(&p.path,&cwd)).map(|p| p.id)
+        .unwrap_or_else(|| history_project_id(&cwd));
+    Ok(Retomada {
+        // Id estável: um segundo toque (mesma chave) acha a mesma conversa em vez de criar outra.
+        conversation_id: stable_id("conv",&[id]), project_id, cwd,
+        title: entrada.title.clone().or(entrada.first_prompt.clone()).unwrap_or_else(||"Conversa retomada".into()),
+        provider: entrada.provider.clone(), profile_id: Some(entrada.profile_id.clone()), session_id: entrada.session_id.clone(),
+        transcript: Some(entrada.path.clone()), ajustes,
+    })
+}
+
+async fn retomar_rota(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<Ajustes>) -> Result<(StatusCode,Json<Value>),ApiError> {
+    for valor in [&body.model, &body.effort, &body.profile_id].into_iter().flatten() {
+        if !valor_seguro(valor) { return Err(error(StatusCode::BAD_REQUEST,"Valor inválido")); }
+    }
+    tokio::task::spawn_blocking(move || {
+        if state.sessions.lock().expect("sessions poisoned").values()
+            .filter(|entry| matches!(entry,SessionEntry::Live(_))).count() >= MAX_SESSOES {
+            return Err(error(StatusCode::TOO_MANY_REQUESTS,"Muitas sessões abertas neste PC; feche alguma antes"));
+        }
+        let plano = plano_de_retomada(&state,&id,body)?;
+        let conversa = plano.conversation_id.clone();
+        enqueue(&state,&conversa,&headers,ActionKind::Retomar(plano))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha na fila"))?
+}
+
+fn retomar(state: &Arc<EngineState>, action: &Action, plano: &Retomada) -> Result<()> {
+    if now_ms().saturating_sub(action.created_at_ms) >= 60_000 { return Err(anyhow!("Ação expirada")); }
+    let dir = state.state_file.parent().unwrap().to_path_buf();
+    let perfis = omni_core::profiles(&dir);
+    let alvo_id = plano.ajustes.profile_id.clone().or(plano.profile_id.clone());
+    let alvo = perfis.iter().find(|p| Some(&p.id) == alvo_id.as_ref() && p.provider == plano.provider);
+    if alvo_id.is_some() && alvo.is_none() { return Err(anyhow!("Conta não encontrada para este agente")); }
+
+    let mut transcript = plano.transcript.clone();
+    if alvo_id != plano.profile_id {
+        let alvo = alvo.ok_or_else(||anyhow!("Conta não encontrada"))?;
+        let origem = plano.transcript.as_deref().map(PathBuf::from).filter(|p| p.is_file())
+            .ok_or_else(||anyhow!("Não achei o transcript desta conversa para levar à outra conta"))?;
+        transcript = Some(levar_transcript(&perfis,&plano.provider,plano.profile_id.as_deref(),&origem,alvo,&plano.cwd,&plano.session_id)?);
+    }
+    let base = state.mobile.workspace.lock().map_err(|_|anyhow!("workspace poisoned"))?.agents.iter()
+        .find(|agente| agente.id == plano.provider).map(|agente| agente.command.clone())
+        .unwrap_or_else(|| plano.provider.clone());
+    let comando = comando_de_retomada(&base,&plano.provider,&plano.session_id,&plano.ajustes)?;
+
+    let agora = now_ms();
+    let sessao = spawn_terminal_inner(state, state.next_id(), plano.project_id.clone(), plano.title.clone(), plano.cwd.clone(),
+        None, Some(comando), 30, 120, agora,
+        SessionOrigin {
+            headless: true,
+            env: alvo.map(omni_core::env_for).unwrap_or_default(),
+            provider: Some(plano.provider.clone()),
+            profile_id: alvo_id.clone(),
+            conversation_id: Some(plano.conversation_id.clone()),
+            external_session_id: Some(plano.session_id.clone()),
+        })?;
+    let segmento = omni_core::conversations::Segment {
+        provider: plano.provider.clone(), profile_id: alvo_id, external_session_id: Some(plano.session_id.clone()),
+        transcript_path: transcript, terminal_session_id: Some(sessao.id.clone()), started_at_ms: agora, ended_at_ms: None,
+    };
+    let mut indice = omni_core::conversations::read_index(&dir);
+    match indice.iter_mut().find(|c| c.id == plano.conversation_id) {
+        Some(conversa) => {
+            if let Some(ultimo) = conversa.segments.last_mut() { ultimo.ended_at_ms.get_or_insert(agora); }
+            conversa.segments.push(segmento);
+        }
+        None => indice.push(omni_core::conversations::Conversation {
+            id: plano.conversation_id.clone(), project_id: plano.project_id.clone(), cwd: plano.cwd.clone(),
+            title: plano.title.clone(), title_source: omni_core::conversations::TitleSource::Auto,
+            created_at_ms: agora, segments: vec![segmento],
+        }),
+    }
+    omni_core::conversations::write_index(&dir,&indice)?;
+    if plano.provider == "claude" { passar_pela_confianca(state,&sessao.id); }
+    Ok(())
+}
+
+fn reabrir_com(state: &Arc<EngineState>, conversation_id: &str, ajustes: &Ajustes) -> Result<()> {
+    let dir = state.state_file.parent().unwrap().to_path_buf();
+    let (_, sessao) = current(state,conversation_id).map_err(|_|anyhow!("Conversa removida"))?;
+    let sessao = sessao.ok_or_else(||anyhow!("Sessão encerrada"))?;
+    let mut indice = omni_core::conversations::read_index(&dir);
+    let conversa = indice.iter_mut().find(|c| c.id == conversation_id).ok_or_else(||anyhow!("Conversa removida"))?;
+    let segmento = conversa.segments.last().cloned().ok_or_else(||anyhow!("Conversa sem sessão"))?;
+    let sessao_externa = segmento.external_session_id.clone()
+        .ok_or_else(||anyhow!("Mande a primeira mensagem antes: ainda não há conversa para retomar"))?;
+    let perfis = omni_core::profiles(&dir);
+    let alvo_id = ajustes.profile_id.clone().or(segmento.profile_id.clone());
+    let alvo = perfis.iter().find(|p| Some(&p.id) == alvo_id.as_ref() && p.provider == segmento.provider);
+    if alvo_id.is_some() && alvo.is_none() { return Err(anyhow!("Conta não encontrada para este agente")); }
+
+    // Outra conta: o transcript vai junto, no lugar onde a CLI da conta nova procura.
+    let trocou_conta = alvo_id != segmento.profile_id;
+    let mut transcript = segmento.transcript_path.clone();
+    if trocou_conta {
+        let alvo = alvo.ok_or_else(||anyhow!("Conta não encontrada"))?;
+        let origem = omni_core::conversations::resolve_transcript(&segmento,conversa,&perfis)
+            .ok_or_else(||anyhow!("Não achei o transcript desta conversa para levar à outra conta"))?;
+        transcript = Some(levar_transcript(&perfis,&segmento.provider,segmento.profile_id.as_deref(),&origem,alvo,&conversa.cwd,&sessao_externa)?);
+    }
+
+    let base = state.mobile.workspace.lock().map_err(|_|anyhow!("workspace poisoned"))?.agents.iter()
+        .find(|agente| agente.id == segmento.provider).map(|agente| agente.command.clone())
+        .unwrap_or_else(|| segmento.provider.clone());
+    let comando = comando_de_retomada(&base,&segmento.provider,&sessao_externa,ajustes)?;
+    let sessao_id = {
+        let mut meta = sessao.meta.lock().map_err(|_|anyhow!("metadata poisoned"))?;
+        // Só as variáveis de conta mudam; o resto do ambiente da sessão fica como estava.
+        meta.env.retain(|(chave,_)| chave != "CLAUDE_CONFIG_DIR" && chave != "CODEX_HOME");
+        if let Some(alvo) = alvo { meta.env.extend(omni_core::env_for(alvo)); }
+        meta.profile_id = alvo_id.clone();
+        meta.initial_command = Some(comando);
+        meta.external_session_id = Some(sessao_externa.clone());
+        meta.id.clone()
+    };
+    if trocou_conta {
+        let agora = now_ms();
+        if let Some(ultimo) = conversa.segments.last_mut() { ultimo.ended_at_ms = Some(agora); }
+        conversa.segments.push(omni_core::conversations::Segment {
+            provider: segmento.provider.clone(), profile_id: alvo_id, external_session_id: Some(sessao_externa),
+            transcript_path: transcript, terminal_session_id: Some(sessao_id.clone()), started_at_ms: agora, ended_at_ms: None,
+        });
+        omni_core::conversations::write_index(&dir,&indice)?;
+    }
+    restart_session(state,&sessao_id)?;
+    // Conta nova numa pasta que ela nunca abriu: o Claude pergunta se confia nela.
+    if segmento.provider == "claude" { passar_pela_confianca(state,&sessao_id); }
+    Ok(())
 }
 
 /// Abre a sessão que o celular pediu e registra a conversa que vai dar a timeline dela.
@@ -1066,7 +1672,21 @@ fn spawn_from_mobile(state:&Arc<EngineState>, action:&Action, plan:&SpawnPlan) -
     conversation.segments[0].terminal_session_id = Some(session.id.clone());
     index.push(conversation);
     omni_core::conversations::write_index(&dir,&index)?;
+    if plan.provider == "claude" { passar_pela_confianca(state,&session.id); }
     Ok(())
+}
+
+/// Pasta que a conta nunca abriu: o Claude para no "confiar nesta pasta?" e o celular só via
+/// "entrada não reconhecida", sem saída. A pasta é um projeto da lista do usuário — o mesmo que o app
+/// do PC pré-aprova (`ensure_agent_trust`). Em thread à parte: a fila de ações não espera o Claude subir.
+fn passar_pela_confianca(state: &Arc<EngineState>, session_id: &str) {
+    let viva = state.sessions.lock().ok().and_then(|sessoes| match sessoes.get(session_id) {
+        Some(SessionEntry::Live(sessao)) => Some(sessao.clone()),
+        _ => None,
+    });
+    if let Some(viva) = viva {
+        std::thread::spawn(move || { interaction::wait_claude_ready(&viva,std::time::Duration::from_secs(45)); });
+    }
 }
 
 fn execute_checked(state:&Arc<EngineState>, action:&Action, is_running: impl Fn(Option<u32>, &str) -> bool) -> Result<()> {
@@ -1216,6 +1836,84 @@ mod tests {
     fn req(method:&str, uri:&str, origin:&str, body:&str) -> Request {
         Request::builder().method(method).uri(uri).header("host","127.0.0.1:47322").header("origin",origin)
             .header("content-type","application/json").header("idempotency-key","test-key").body(Body::from(body.to_owned())).unwrap()
+    }
+
+    /// `/painel` junta lista e catálogo; com o `ETag` de volta e nada mudado, responde 304 sem corpo.
+    /// A visão Conversa do desktop chama as rotas do celular pelo protocolo local: sem token de
+    /// dispositivo nem `Origin`, que lá não existem — quem chega já mostrou o token do engine.
+    #[tokio::test] async fn desktop_chama_a_api_pelo_protocolo_local() {
+        let (_dir,state) = fixture();
+        state.mobile.config.lock().unwrap().token = "token-do-celular".into();
+        let EngineResponse::Api { status, body } = local(state.clone(),"GET","/conversas/c/timeline",None,None,vec![]).await else { panic!("não é Api") };
+        assert_eq!(status,200);
+        assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["conversation"]["id"],"c");
+        let EngineResponse::Api { status, .. } = local(state,"POST","/conversas/c/nome",Some(r#"{"nome":"Novo"}"#.into()),None,vec![]).await else { panic!("não é Api") };
+        assert!(status != 401 && status != 403, "barrado como se fosse o celular: {status}");
+    }
+
+    #[test] fn base64_decode_confere_com_os_casos_do_rfc() {
+        for (texto, esperado) in [("", ""), ("Zg==", "f"), ("Zm8=", "fo"), ("Zm9v", "foo"), ("Zm9vYg==", "foob"), ("Zm9vYmFy", "foobar")] {
+            assert_eq!(base64_decode(texto).unwrap(), esperado.as_bytes(), "{texto}");
+        }
+        assert_eq!(base64_decode("/+8A").unwrap(), vec![0xff, 0xef, 0x00]);
+        assert!(base64_decode("Z").is_none());
+        assert!(base64_decode("Zm9*").is_none());
+    }
+
+    /// Imagem colada no chat do PC: binário em base64 e o nome no cabeçalho, como o celular manda.
+    #[tokio::test] async fn anexo_colado_no_pc_chega_pelo_protocolo_local() {
+        let (dir,state) = fixture();
+        let projeto = dir.path().join("projeto");
+        std::fs::create_dir_all(&projeto).unwrap();
+        atomic_write_json(&dir.path().join("conversations.json"),&json!({"version":1,"conversations":[{
+            "id":"c","project_id":"p","cwd":projeto.to_string_lossy(),"title":"Teste","created_at_ms":1,"segments":[]
+        }]})).unwrap();
+        let EngineResponse::Api { status, body } = local(state,"POST","/conversas/c/anexos",None,Some("iVBORw0KGgo=".into()),
+            vec![("x-omni-nome".into(),"print.png".into()),("content-type".into(),"image/png".into())]).await else { panic!("não é Api") };
+        assert_eq!(status,200,"{body}");
+        let caminho = serde_json::from_str::<Value>(&body).unwrap()["caminho"].as_str().unwrap().to_string();
+        assert_eq!(std::fs::read(&caminho).unwrap(), b"\x89PNG\r\n\x1a\n");
+        assert!(caminho.ends_with("print.png"));
+    }
+    #[tokio::test] async fn painel_junta_lista_e_catalogo_e_responde_304_sem_mudanca() {
+        let (_dir,state) = fixture();
+        let app = router(state);
+        let primeira = app.clone().oneshot(req("GET","/painel","","")).await.unwrap();
+        assert_eq!(primeira.status(),StatusCode::OK);
+        let etag = primeira.headers().get("etag").unwrap().to_str().unwrap().to_owned();
+        let corpo: Value = serde_json::from_slice(&axum::body::to_bytes(primeira.into_body(),usize::MAX).await.unwrap()).unwrap();
+        assert_eq!(corpo["conversations"][0]["id"],"c");
+        assert!(corpo["catalog"]["projects"].is_array());
+
+        let mut repetida = req("GET","/painel","","");
+        repetida.headers_mut().insert("if-none-match",etag.parse().unwrap());
+        let resposta = app.oneshot(repetida).await.unwrap();
+        assert_eq!(resposta.status(),StatusCode::NOT_MODIFIED);
+        assert!(axum::body::to_bytes(resposta.into_body(),usize::MAX).await.unwrap().is_empty());
+    }
+
+    /// A timeline traz o estado da própria conversa, para o chat não precisar recarregar a lista.
+    #[tokio::test] async fn timeline_traz_o_estado_da_conversa() {
+        let (_dir,state) = fixture();
+        let resposta = router(state).oneshot(req("GET","/conversas/c/timeline","","")).await.unwrap();
+        assert_eq!(resposta.status(),StatusCode::OK);
+        let corpo: Value = serde_json::from_slice(&axum::body::to_bytes(resposta.into_body(),usize::MAX).await.unwrap()).unwrap();
+        assert_eq!(corpo["conversation"]["id"],"c");
+        assert_eq!(corpo["conversation"]["live"],false);
+        assert!(corpo["timeline"]["messages"].as_array().unwrap().is_empty());
+    }
+
+    /// Sem sessão aberta no PC não há terminal para espelhar nem para receber teclas.
+    #[tokio::test] async fn terminal_e_teclas_exigem_sessao_viva() {
+        let (_dir,state) = fixture();
+        let app = router(state);
+        let resposta = app.clone().oneshot(req("GET","/conversas/c/terminal","","")).await.unwrap();
+        let corpo: Value = serde_json::from_slice(&axum::body::to_bytes(resposta.into_body(),usize::MAX).await.unwrap()).unwrap();
+        assert_eq!(corpo["live"],false);
+        let origem = "http://127.0.0.1:47322";
+        assert_eq!(app.clone().oneshot(req("POST","/conversas/c/teclas",origem,r#"{"dados":"\u001b"}"#)).await.unwrap().status(),StatusCode::CONFLICT);
+        assert_eq!(app.clone().oneshot(req("POST","/conversas/c/teclas",origem,r#"{"dados":""}"#)).await.unwrap().status(),StatusCode::BAD_REQUEST);
+        assert_eq!(app.oneshot(req("GET","/conversas/nao-existe/terminal","","")).await.unwrap().status(),StatusCode::NOT_FOUND);
     }
 
     /// Renomear vale para celular e para a web de computador, e é o engine que grava — o índice de
@@ -1797,6 +2495,172 @@ quebra"}"#] {
             assert!(comeco.elapsed() >= std::time::Duration::from_secs(1), "não esperou o eco");
             assert!(bytes.lock().unwrap().ends_with(b"\r"));
         }
+        /// A TUI redesenha o diálogo de aprovação em pedaços. Um quadro parcial não pode virar
+        /// "pedido novo" — era o aviso já visto voltando sozinho.
+        #[test] fn aprovacao_redesenhada_conta_um_aviso_so() {
+            let (_dir,state) = fixture(); let (session,_,_) = fake_session(&state,"Claude Code\r\n❯ ");
+            let dialogo = "\x1b[2J\x1b[HDo you want to proceed?\r\n❯ 1. Yes\r\n2. Yes, always\r\n3. No";
+            let seq = || session.meta.lock().unwrap().attention_seq;
+            crate::append_output(&session,dialogo.as_bytes(),Some(42));
+            assert_eq!(seq(),1);
+            crate::append_output(&session,b"\x1b[2J\x1b[HDo you want",Some(42));
+            crate::append_output(&session,dialogo.as_bytes(),Some(42));
+            assert_eq!(seq(),1,"redesenho contou como pedido novo");
+            // Aprovado, o agente volta a trabalhar: o próximo diálogo é outro pedido.
+            crate::append_output(&session,b"\x1b[2J\x1b[H* Running (esc to interrupt)",Some(42));
+            crate::append_output(&session,dialogo.as_bytes(),Some(42));
+            assert_eq!(seq(),2);
+            assert_eq!(summaries(&state)[0]["attention"],"s:2");
+        }
+        /// Failover reabre a conversa com `--resume`, que reexibe o aviso que fez a conta trocar.
+        /// Isso é histórico: a conversa não pode aparecer "interrompida" (nem disparar outro
+        /// failover) antes de um turno novo. Depois de um turno, o aviso volta a valer.
+        #[test] fn aviso_reexibido_pelo_resume_nao_conta_antes_do_primeiro_turno() {
+            let (_dir,state) = fixture(); let (session,_,_) = fake_session(&state,"");
+            let aviso = "[2J[H> opa
+  ⎿  You've hit your session limit · resets 8:10pm
+";
+            let notice = || session.meta.lock().unwrap().notice.clone();
+            crate::append_output(&session,aviso.as_bytes(),Some(42));
+            assert_eq!(notice(),None,"histórico do resume virou aviso");
+            crate::append_output(&session,b"[2J[H* Working (esc to interrupt)",Some(42));
+            crate::append_output(&session,aviso.as_bytes(),Some(42));
+            assert_eq!(notice().as_deref(),Some("usage_limit"));
+        }
+        /// "Toda vez que entro na conversa ele começa a pensar": abrir a aba redesenha a TUI, e
+        /// qualquer saída virava "trabalhando". Com o agente parado, redesenho não muda o estado.
+        #[test] fn redesenho_com_o_agente_parado_nao_vira_trabalhando() {
+            let (_dir,state) = fixture(); let (session,_,_) = fake_session(&state,"Claude Code\r\n❯ ");
+            let estado = || session.meta.lock().unwrap().state.clone();
+            crate::append_output(&session,b"\x1b[2J\x1b[HClaude Code\r\n> ",Some(42));
+            assert_eq!(estado(),SessionState::Answered,"redesenho virou trabalho");
+            crate::append_output(&session,b"\x1b[2J\x1b[H* Pensando (esc to interrupt)",Some(42));
+            assert_eq!(estado(),SessionState::Working);
+        }
+
+        /// Plano/Auto pelo chat do PC: o `Idempotency-Key` tem de atravessar o protocolo local.
+        #[tokio::test] async fn modo_pelo_pc_leva_o_idempotency_key() {
+            let (_dir,state) = fixture(); let (_session,_,_) = fake_session(&state,"Claude Code\r\n❯ ");
+            let EngineResponse::Api { body, .. } = local(state,"POST","/conversas/c/modo",Some(r#"{"modo":"plan"}"#.into()),None,
+                vec![("Idempotency-Key".into(),"chave-1".into())]).await else { panic!("não é Api") };
+            assert!(!body.contains("Idempotency-Key"), "cabeçalho se perdeu: {body}");
+        }
+        /// "Na web devo conseguir acessar os terminais sem agentes": a lista traz só shells, e as
+        /// teclas/saída de um id de agente são recusadas — agente se usa pela conversa.
+        #[tokio::test] async fn terminais_sem_agente_listam_e_recusam_sessao_de_agente() {
+            let (_dir,state) = fixture(); let (_agente,_,_) = fake_session(&state,"Claude Code\r\n❯ ");
+            let lista = |state| async move {
+                let EngineResponse::Api { body, .. } = local(state,"GET","/terminais",None,None,vec![]).await else { panic!("não é Api") };
+                serde_json::from_str::<Value>(&body).unwrap()
+            };
+            assert_eq!(lista(state.clone()).await, json!([]), "sessão de agente apareceu como terminal");
+            let EngineResponse::Api { status, .. } = local(state.clone(),"POST","/terminais/s/teclas",Some(r#"{"dados":"ls\r"}"#.into()),None,vec![]).await else { panic!() };
+            assert_eq!(status,404);
+            let EngineResponse::Api { status, .. } = local(state,"POST","/terminais",Some(r#"{"project_id":"nao-existe"}"#.into()),None,vec![]).await else { panic!() };
+            assert_eq!(status,404);
+        }
+
+        /// Ponta a ponta: abrir um shell no projeto pela web, digitar, ler a saída e fechar.
+        #[tokio::test(flavor = "multi_thread")] async fn web_abre_shell_no_projeto_roda_e_fecha() {
+            let (dir,state) = fixture();
+            let projeto = dir.path().join("projeto");
+            std::fs::create_dir_all(&projeto).unwrap();
+            atomic_write_json(&dir.path().join("conversations.json"),&json!({"version":1,"conversations":[{
+                "id":"c","project_id":"p","cwd":projeto.to_string_lossy(),"title":"Teste","created_at_ms":1,"segments":[]
+            }]})).unwrap();
+            let chamar = |metodo: &'static str, caminho: String, corpo: Option<&'static str>| {
+                let state = state.clone();
+                async move {
+                    let EngineResponse::Api { status, body } = local(state,metodo,&caminho,corpo.map(String::from),None,vec![]).await else { panic!("não é Api") };
+                    (status, serde_json::from_str::<Value>(&body).unwrap_or(Value::Null))
+                }
+            };
+            let (status, aberto) = chamar("POST","/terminais".into(),Some(r#"{"project_id":"p"}"#)).await;
+            assert_eq!(status,201,"{aberto}");
+            let id = aberto["id"].as_str().unwrap().to_string();
+            assert_eq!(chamar("GET","/terminais".into(),None).await.1[0]["id"],id.as_str());
+
+            let (status, _) = chamar("POST",format!("/terminais/{id}/teclas"),Some(r#"{"dados":"echo OMNI_WEB_OK\r"}"#)).await;
+            assert_eq!(status,200);
+            let mut saida = String::new();
+            for _ in 0..150 {
+                saida = chamar("GET",format!("/terminais/{id}/saida"),None).await.1["data"].as_str().unwrap_or("").to_string();
+                if saida.matches("OMNI_WEB_OK").count() >= 2 { break; }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+            assert!(saida.matches("OMNI_WEB_OK").count() >= 2, "o shell não rodou o comando: {saida:?}");
+
+            assert_eq!(chamar("POST",format!("/terminais/{id}/fechar"),None).await.0,200);
+            assert_eq!(chamar("GET","/terminais".into(),None).await.1,json!([]));
+        }
+
+        /// Conta, modelo e esforço viram argumentos da linha que retoma a conversa — cada CLI com a
+        /// sua sintaxe.
+        #[test] fn comando_de_retomada_por_cli() {
+            let ajustes = |model: Option<&str>, effort: Option<&str>| Ajustes { profile_id: None, model: model.map(String::from), effort: effort.map(String::from) };
+            assert_eq!(comando_de_retomada("claude","claude","abc",&ajustes(Some("opus"),Some("high"))).unwrap(),
+                "claude --resume abc --model opus --effort high");
+            assert_eq!(comando_de_retomada("codex","codex","xyz",&ajustes(Some("gpt-5.6-sol"),Some("xhigh"))).unwrap(),
+                "codex resume xyz -m gpt-5.6-sol -c model_reasoning_effort=xhigh");
+            assert_eq!(comando_de_retomada("claude","claude","abc",&ajustes(None,None)).unwrap(), "claude --resume abc");
+            assert!(comando_de_retomada("cursor-agent","cursor","abc",&ajustes(None,None)).is_err());
+        }
+
+        /// O valor vira argumento de um comando digitado num shell: nada de `;`, espaço ou aspas.
+        #[tokio::test] async fn ajustes_recusam_valor_que_vira_comando() {
+            let (_dir,state) = fixture(); let (_session,_,_) = fake_session(&state,"Claude Code\r\n❯ ");
+            for corpo in [r#"{"profile_id":null,"model":"opus; rm -rf ~","effort":null}"#, r#"{"profile_id":null,"model":null,"effort":"high && calc"}"#] {
+                let EngineResponse::Api { status, .. } = local(state.clone(),"POST","/conversas/c/ajustes",Some(corpo.into()),None,
+                    vec![("Idempotency-Key".into(),"k".into())]).await else { panic!("não é Api") };
+                assert_eq!(status,400,"{corpo}");
+            }
+            assert!(valor_seguro("claude-opus-5-5[1m]"));
+            assert!(!valor_seguro("a b"));
+        }
+
+        #[tokio::test] async fn opcoes_listam_modelos_e_contas_do_mesmo_agente() {
+            let (dir,state) = fixture(); let (_session,_,_) = fake_session(&state,"Claude Code\r\n❯ ");
+            atomic_write_json(&dir.path().join("profiles.json"),&json!({"profiles":[
+                {"id":"profile","provider":"claude","name":"Padrão","config_dir":dir.path().join("a").to_string_lossy(),"builtin":false,"created_at_ms":1},
+                {"id":"outra","provider":"claude","name":"Trabalho","config_dir":dir.path().join("b").to_string_lossy(),"builtin":false,"created_at_ms":1},
+                {"id":"cdx","provider":"codex","name":"Codex","config_dir":dir.path().join("c").to_string_lossy(),"builtin":false,"created_at_ms":1}
+            ]})).unwrap();
+            let EngineResponse::Api { status, body } = local(state,"GET","/conversas/c/opcoes",None,None,vec![]).await else { panic!("não é Api") };
+            assert_eq!(status,200,"{body}");
+            let opcoes: Value = serde_json::from_str(&body).unwrap();
+            assert_eq!(opcoes["provider"],"claude");
+            let contas: Vec<&str> = opcoes["profiles"].as_array().unwrap().iter().map(|p| p["name"].as_str().unwrap()).collect();
+            assert_eq!(contas, ["Padrão","Trabalho"], "conta de outro agente apareceu");
+            assert!(opcoes["models"].as_array().unwrap().iter().any(|m| m["id"] == "opus"));
+        }
+
+        /// Conversa sem sessão aberta (o caso do print: "Histórico") se retoma com conta, modelo e
+        /// esforço; uma que já está aberta não — ali o caminho é "ajustes".
+        #[tokio::test] async fn retomar_conversa_sem_sessao_e_recusar_a_aberta() {
+            let (dir,state) = fixture();
+            let projeto = dir.path().join("projeto");
+            std::fs::create_dir_all(&projeto).unwrap();
+            atomic_write_json(&dir.path().join("conversations.json"),&json!({"version":1,"conversations":[{
+                "id":"c","project_id":"p","cwd":projeto.to_string_lossy(),"title":"Teste","created_at_ms":1,
+                "segments":[{"provider":"claude","profile_id":null,"external_session_id":"abc","transcript_path":null,"terminal_session_id":null,"started_at_ms":1}]
+            }]})).unwrap();
+            let pedir = |state: Arc<EngineState>, chave: &'static str| async move {
+                let EngineResponse::Api { status, body } = local(state,"POST","/conversas/c/retomar",
+                    Some(r#"{"profile_id":null,"model":"opus","effort":"high"}"#.into()),None,
+                    vec![("Idempotency-Key".into(),chave.into())]).await else { panic!("não é Api") };
+                (status, serde_json::from_str::<Value>(&body).unwrap_or(Value::Null))
+            };
+            let (status, corpo) = pedir(state.clone(),"k1").await;
+            assert_eq!(status,202,"{corpo}");
+            assert_eq!(corpo["conversation_id"],"c");
+            let EngineResponse::Api { status, .. } = local(state.clone(),"POST","/conversas/c/retomar",
+                Some(r#"{"profile_id":null,"model":"opus; calc","effort":null}"#.into()),None,vec![("Idempotency-Key".into(),"k2".into())]).await else { panic!() };
+            assert_eq!(status,400,"valor perigoso passou");
+
+            let (_sessao,_,_) = fake_session(&state,"Claude Code\r\n❯ ");
+            assert_eq!(pedir(state,"k3").await.0,409,"retomou uma conversa que já está aberta");
+        }
+
         #[test] fn rejects_desktop_input_closed_cli_and_stale_dialog_without_writing() {
             let (_dir,state) = fixture(); let (session,bytes,mut action) = fake_session(&state,"Claude Code\r\nDo you want to proceed?\r\n❯ 1. Yes\r\n2. Yes, always\r\n3. No");
             action.kind = ActionKind::Approval(true);

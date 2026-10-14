@@ -1,9 +1,7 @@
 import {
-  AlertIcon,
   BookIcon,
   ChatIcon,
   ChevronDownIcon,
-  CircleIcon,
   CloseIcon,
   CopyIcon,
   DockerIcon,
@@ -12,13 +10,12 @@ import {
   GitBranchIcon,
   KanbanIcon,
   ListIcon,
-  PlayIcon,
   ReloadIcon,
   SlidersIcon as Sliders,
   TerminalIcon,
-  WarningIcon,
-  ZapOffIcon,
 } from "./ui/PixelIcon";
+import { EtiquetaDoStatus, IconeDoStatus, rotuloDoStatus, statusDaConversa } from "./ConversaStatus";
+import { conversationKey } from "../features/terminal/useAttention";
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ProjectPicker } from "../features/projects/ProjectPicker";
@@ -46,10 +43,10 @@ import { SkillsList } from "./SkillsList";
 
 /** Seções do spec 7.3. Vazias por enquanto — Workspace/Project/Pane/Session
  * (Fase 1) é quem vai preencher cada uma com dados de verdade. */
-const SECTIONS = ["AGENTS", "TERMINALS", "COMMANDS", "DOCKER", "FILES", "SKILLS", "GIT", "KANBAN"] as const;
+const SECTIONS = ["CHATS", "TERMINALS", "COMMANDS", "DOCKER", "FILES", "SKILLS", "GIT", "KANBAN"] as const;
 
 const SECTION_ICON: Record<(typeof SECTIONS)[number], React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = {
-  AGENTS: ChatIcon,
+  CHATS: ChatIcon,
   TERMINALS: TerminalIcon,
   COMMANDS: ListIcon,
   DOCKER: DockerIcon,
@@ -134,6 +131,7 @@ export function Sidebar({
   onOpenKanban,
 }: SidebarProps) {
   const navRef = useStagger<HTMLElement>("[data-nav-item]");
+  const naoVistas = new Set(attention.map((item) => item.conversationKey));
 
   const [pickerAberto, setPickerAberto] = useState(false);
 
@@ -156,7 +154,7 @@ export function Sidebar({
       </div>
 
       {/* Nav */}
-      <nav ref={navRef} className="px-2 py-3 flex-1 min-h-0 overflow-y-auto space-y-3">
+      <nav ref={navRef} className="px-2 py-3 flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-3">
         <AttentionPanel items={attention} onFocusSession={onFocusSession} onDismiss={onDismissAttention} />
 
         <WorkspaceList
@@ -220,25 +218,35 @@ export function Sidebar({
 
         {SECTIONS.map((section) => (
           <SidebarSection key={section} label={section} icon={SECTION_ICON[section]} disabled={!activeProjectId}>
-            {section === "TERMINALS" && terminalSessions.length > 0
-              ? terminalSessions.map((session) => (
+            {/* CHATS = conversas com um agente de IA; TERMINALS = shells (npm run dev, git…). */}
+            {(section === "CHATS" || section === "TERMINALS")
+              && terminalSessions.some((session) => Boolean(session.provider) === (section === "CHATS"))
+              ? terminalSessions.filter((session) => Boolean(session.provider) === (section === "CHATS")).map((session) => (
                   <div key={session.id} className="group flex items-stretch pl-6">
-                    <SessionLabel session={session} onAttach={onAttachTerminal} />
+                    <SessionLabel
+                      session={session}
+                      naoVista={naoVistas.has(conversationKey(session))}
+                      onAttach={onAttachTerminal}
+                    />
+                    {/* Ações só no hover/foco: fora dele o espaço é do status da conversa. */}
+                    <div className="hidden shrink-0 items-stretch group-focus-within:flex group-hover:flex">
                     <button
                       type="button"
-                      aria-label={`Duplicar agente ${session.name}`}
-                      title="Duplicar sessão"
+                      aria-label={session.provider ? `Bifurcar conversa ${session.name}` : `Duplicar terminal ${session.name}`}
+                      title={session.provider
+                        ? "Bifurcar: abre uma conversa nova com todo o histórico desta, que segue independente"
+                        : "Duplicar: abre outro terminal na mesma pasta"}
                       onClick={() => onDuplicateTerminal(session.id)}
-                      className="grid w-8 shrink-0 place-items-center text-text-muted opacity-60 hover:text-text-primary hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                      className="grid w-6 shrink-0 place-items-center text-text-muted opacity-60 hover:text-text-primary hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                     >
-                      <CopyIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                      {session.provider ? <GitBranchIcon className="h-3.5 w-3.5" aria-hidden="true" /> : <CopyIcon className="h-3.5 w-3.5" aria-hidden="true" />}
                     </button>
                     <button
                       type="button"
                       aria-label={`Reiniciar agente ${session.name}`}
                       title="Reiniciar sessão"
                       onClick={() => onRestartTerminal(session.id)}
-                      className="grid w-8 shrink-0 place-items-center text-text-muted opacity-60 hover:text-text-primary hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                      className="grid w-6 shrink-0 place-items-center text-text-muted opacity-60 hover:text-text-primary hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                     >
                       <ReloadIcon className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
@@ -247,10 +255,11 @@ export function Sidebar({
                       aria-label={`Fechar agente ${session.name}`}
                       title="Encerrar e remover agente"
                       onClick={() => onCloseTerminal(session.id)}
-                      className="grid w-8 shrink-0 place-items-center text-text-muted opacity-60 hover:text-danger hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                      className="grid w-6 shrink-0 place-items-center text-text-muted opacity-60 hover:text-danger hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                     >
                       <CloseIcon className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
+                    </div>
                   </div>
                 ))
               : section === "FILES"
@@ -308,11 +317,15 @@ export function Sidebar({
  *  o celular mostram. */
 function SessionLabel({
   session,
+  naoVista,
   onAttach,
 }: {
   session: TerminalSession;
+  /** Há um aviso desta conversa que você ainda não viu — é o que separa "finalizado" de neutro. */
+  naoVista: boolean;
   onAttach: (sessionId: string, title: string) => void;
 }) {
+  const status = statusDaConversa(session, naoVista);
   const [editando, setEditando] = useState(false);
 
   if (editando) {
@@ -336,12 +349,15 @@ function SessionLabel({
       type="button"
       onClick={() => onAttach(session.id, session.name)}
       onDoubleClick={() => setEditando(true)}
-      className="min-w-0 flex-1 py-1.5 text-left text-xs text-text-secondary hover:text-text-primary truncate"
-      title={`${session.name} · ${session.state} — duplo clique renomeia`}
+      className={`flex min-w-0 flex-1 items-center gap-1.5 py-1.5 pr-1 text-left text-xs hover:text-text-primary ${
+        status === "neutro" ? "text-text-muted" : "text-text-secondary"
+      }`}
+      title={`${session.name}${rotuloDoStatus(status) ? ` · ${rotuloDoStatus(status)}` : ""} — duplo clique renomeia`}
     >
-      <SessionStateIcon state={session.state} />
-      <AgentIcon provider={session.provider} size={12} className="mr-1 inline-block align-[-2px]" />
-      {session.name}
+      <IconeDoStatus status={status} />
+      <AgentIcon provider={session.provider} size={12} className="shrink-0" />
+      <span className="min-w-0 flex-1 truncate">{session.name}</span>
+      <EtiquetaDoStatus status={status} />
     </button>
   );
 }
@@ -378,25 +394,6 @@ function SidebarSection({
       {open && !disabled && (children ?? <p data-nav-item className="text-text-muted text-xs px-6 py-1.5">Vazio</p>)}
     </div>
   );
-}
-
-/** Estado da sessão como ícone. `working` e `approval_required` ganham cor porque são os dois
- *  estados que pedem alguma coisa de quem está olhando; o resto fica no tom do texto. */
-const SESSION_STATE_ICON: Record<
-  TerminalSession["state"],
-  { icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; className: string }
-> = {
-  working: { icon: PlayIcon, className: "text-success" },
-  approval_required: { icon: AlertIcon, className: "text-warning" },
-  crashed: { icon: ZapOffIcon, className: "text-danger" },
-  orphan: { icon: WarningIcon, className: "text-text-muted" },
-  answered: { icon: CircleIcon, className: "text-accent" },
-  stopped: { icon: CircleIcon, className: "text-text-muted" },
-};
-
-function SessionStateIcon({ state }: { state: TerminalSession["state"] }) {
-  const { icon: Icon, className } = SESSION_STATE_ICON[state];
-  return <Icon className={`mr-2 inline h-3 w-3 shrink-0 ${className}`} aria-hidden />;
 }
 
 function NavItem({

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   dockerContainerAction,
   dockerContainers,
+  dockerIndisponivel,
   groupByCompose,
   type DockerAction,
   type DockerContainer,
@@ -41,12 +42,15 @@ export function DockerPanel({ onRunInTerminal }: DockerPanelProps) {
       });
   }, []);
 
+  const indisponivel = error ? dockerIndisponivel(error) : null;
+
   // ponytail: poll de 5s; trocar por `docker events` em stream se o painel precisar ser instantâneo.
+  // Com o Docker fechado, 30s: cada tentativa sobe um processo `docker` que demora a desistir.
   useEffect(() => {
     refresh();
-    const timer = window.setInterval(refresh, 5_000);
+    const timer = window.setInterval(refresh, indisponivel ? 30_000 : 5_000);
     return () => window.clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, indisponivel]);
 
   async function act(container: DockerContainer, action: DockerAction) {
     setBusy(container.id);
@@ -65,8 +69,25 @@ export function DockerPanel({ onRunInTerminal }: DockerPanelProps) {
 
   return (
     <div className="space-y-1">
-      {error && (
-        <p role="alert" className="mx-3 border-l-2 border-danger pl-2 text-[11px] text-danger" title={error}>
+      {indisponivel ? (
+        <p className="flex items-center gap-2 px-6 py-1.5 text-xs text-text-muted" title={error ?? undefined}>
+          <span className="min-w-0 flex-1 truncate">
+            {indisponivel === "fechado" ? "Docker fechado" : "Docker não instalado"}
+          </span>
+          {indisponivel === "fechado" && (
+            <button type="button" className="shrink-0 text-[10px] underline hover:text-text-primary" onClick={refresh}>
+              Verificar
+            </button>
+          )}
+        </p>
+      ) : error && (
+        // `break-words` + `anywhere`: o stderr do docker tem URLs sem espaço que, sem isso, abriam
+        // rolagem horizontal na lateral inteira.
+        <p
+          role="alert"
+          className="mx-3 border-l-2 border-danger pl-2 text-[11px] text-danger break-words [overflow-wrap:anywhere]"
+          title={error}
+        >
           {error.length > 160 ? `${error.slice(0, 160)}…` : error}
         </p>
       )}

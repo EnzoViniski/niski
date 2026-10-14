@@ -5,7 +5,30 @@ import { request } from "./api";
  * os arquivos com as próprias ferramentas — é assim que as CLIs recebem arquivo. O desktop cola
  * imagem pelo clipboard do PC, que o celular não alcança.
  */
-export const MARCADOR_ANEXOS = "[Anexos enviados pelo celular]";
+export const MARCADOR_ANEXOS = "[Anexos enviados pelo OMNI]";
+/** O marcador das versões anteriores — mensagens antigas continuam virando cartões. */
+const MARCADORES_ANTIGOS = ["[Anexos enviados pelo celular]"];
+
+/** Evento que entrega arquivos a uma conversa aberta (`detail: File[]`). O app do PC usa: o arrastar
+ *  do Windows chega pelo Tauri como caminhos, fora dos eventos de soltar do navegador. */
+export const EVENTO_ANEXAR = "omni:anexar";
+/** `detail: boolean` — arquivo sendo arrastado por cima da conversa (mostra "Solte para anexar"). */
+export const EVENTO_ARRASTANDO = "omni:arrastando";
+
+/** Tipo pelo nome do arquivo, para quem só tem o caminho (o arrastar do app do PC). */
+export function tipoPelaExtensao(nome: string): string {
+  const ext = nome.split(".").pop()?.toLowerCase() ?? "";
+  const tipos: Record<string, string> = {
+    pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp",
+    svg: "image/svg+xml", bmp: "image/bmp", csv: "text/csv", tsv: "text/tab-separated-values", txt: "text/plain",
+    md: "text/markdown", json: "application/json", xml: "application/xml", html: "text/html", yaml: "text/yaml", yml: "text/yaml",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", xls: "application/vnd.ms-excel",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", doc: "application/msword",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", odt: "application/vnd.oasis.opendocument.text",
+    ods: "application/vnd.oasis.opendocument.spreadsheet", zip: "application/zip",
+  };
+  return tipos[ext] ?? "application/octet-stream";
+}
 
 /** Espelha `ANEXO_MAX_BYTES` do engine: recusar aqui evita subir 40 MB no 4G para levar um 413. */
 export const ANEXO_MAX_BYTES = 25 * 1024 * 1024;
@@ -63,9 +86,10 @@ export function montarPrompt(texto: string, caminhos: string[]): string {
 /** O inverso de `montarPrompt`, para o chat mostrar o texto e os anexos como cartões. Mensagem que
  *  só por acaso contém o marcador, sem a lista logo depois, fica intacta. */
 export function separarAnexos(texto: string): { texto: string; anexos: string[] } {
-  const inicio = texto.lastIndexOf(MARCADOR_ANEXOS);
-  if (inicio < 0) return { texto, anexos: [] };
-  const linhas = texto.slice(inicio + MARCADOR_ANEXOS.length).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const marcador = [MARCADOR_ANEXOS, ...MARCADORES_ANTIGOS].find((m) => texto.includes(m));
+  if (!marcador) return { texto, anexos: [] };
+  const inicio = texto.lastIndexOf(marcador);
+  const linhas = texto.slice(inicio + marcador.length).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (linhas.length === 0 || !linhas.every((l) => l.startsWith("- "))) return { texto, anexos: [] };
   return { texto: texto.slice(0, inicio).trimEnd(), anexos: linhas.map((l) => l.slice(2)) };
 }

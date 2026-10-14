@@ -34,6 +34,8 @@ export interface TerminalSession {
   /** Sobe a cada evento que merece aviso: Claude/Codex terminou um turno de verdade ou abriu
    *  diálogo de aprovação. O toast dispara quando ele muda — nunca pelo `state` sozinho. */
   attention_seq?: number;
+  /** Quando a sessão foi criada. Desempata qual sessão representa a conversa (ver `useAttention`). */
+  created_at_ms?: number;
 }
 
 export type AgentCliId = "cursor" | "claude" | "codex";
@@ -61,6 +63,7 @@ type EngineResponse =
       next_seq: number;
       data: string;
     }
+  | { type: "api"; status: number; body: string }
   | { type: "ok" }
   | { type: "error"; code: string; message: string };
 
@@ -72,6 +75,19 @@ function expect<T extends EngineResponse["type"]>(response: EngineResponse, type
 
 export async function ensureEngine() {
   return expect(await invoke<EngineResponse>("ensure_engine"), "pong");
+}
+
+/** Uma rota da API de conversas (a mesma do celular) pelo protocolo local do engine. */
+export async function engineApi(
+  method: string,
+  path: string,
+  body: string | null,
+  extra: { bodyBase64?: string; headers?: [string, string][] } = {},
+) {
+  return expect(
+    await invoke<EngineResponse>("engine_api", { method, path, body, bodyBase64: extra.bodyBase64 ?? null, headers: extra.headers ?? null }),
+    "api",
+  );
 }
 
 export async function listTerminalSessions() {

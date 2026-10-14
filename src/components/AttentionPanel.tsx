@@ -1,17 +1,25 @@
-import { AlertIcon, CircleIcon, CloseIcon, WarningIcon, ZapOffIcon } from "./ui/PixelIcon";
+import { CloseIcon } from "./ui/PixelIcon";
 import { ATTENTION_LABEL, type AttentionItem, type AttentionReason } from "../features/terminal/useAttention";
+import { EtiquetaDoStatus, IconeDoStatus, type ConversaStatus } from "./ConversaStatus";
 
-const REASON_ICON: Record<
-  AttentionReason,
-  { icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; className: string }
-> = {
-  approval_required: { icon: AlertIcon, className: "text-warning" },
-  usage_limit: { icon: WarningIcon, className: "text-warning" },
-  api_error: { icon: ZapOffIcon, className: "text-danger" },
-  crashed: { icon: ZapOffIcon, className: "text-danger" },
-  orphan: { icon: WarningIcon, className: "text-text-muted" },
-  answered: { icon: CircleIcon, className: "text-accent" },
-  stopped: { icon: CircleIcon, className: "text-text-muted" },
+/** Motivo do engine → status da conversa, o mesmo vocabulário da lista de agentes. */
+const STATUS: Record<AttentionReason, ConversaStatus> = {
+  approval_required: "aprovacao",
+  usage_limit: "interrompido",
+  api_error: "interrompido",
+  crashed: "interrompido",
+  orphan: "neutro",
+  answered: "finalizado",
+  stopped: "neutro",
+};
+
+/** O detalhe que o status não diz: por que foi interrompido. */
+const DETALHE: Partial<Record<AttentionReason, string>> = {
+  usage_limit: "limite de uso",
+  api_error: "erro de API",
+  crashed: "travou",
+  orphan: "sessão anterior",
+  stopped: "encerrado",
 };
 
 /**
@@ -43,7 +51,8 @@ export function AttentionPanel({
         </span>
       </div>
       {items.map((item) => {
-        const { icon: Icon, className } = REASON_ICON[item.reason];
+        const status = STATUS[item.reason];
+        const detalhe = DETALHE[item.reason];
         return (
           <div key={item.sessionId} className="group relative">
           <button
@@ -54,11 +63,13 @@ export function AttentionPanel({
             className="glass-hover w-full py-1.5 pl-3 pr-7 text-left rounded-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           >
             <span className="flex min-w-0 items-center gap-2">
-              <Icon className={`h-3 w-3 shrink-0 ${className}`} aria-hidden />
+              <IconeDoStatus status={status} />
               <span className="min-w-0 flex-1 truncate text-xs text-text-secondary">{item.sessionName}</span>
+              {/* O X de dispensar aparece no mesmo canto no hover. */}
+              <EtiquetaDoStatus status={status} className="group-hover:invisible" />
             </span>
             <span className="mt-0.5 block truncate pl-5 text-[10px] text-text-muted">
-              {item.workspaceName} · {item.projectName} · {ATTENTION_LABEL[item.reason]}
+              {item.workspaceName} · {item.projectName}{detalhe ? ` · ${detalhe}` : ""}
             </span>
           </button>
           <button

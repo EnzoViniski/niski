@@ -14,6 +14,32 @@ export interface DockerContainer {
 
 export type DockerAction = "start" | "stop" | "restart" | "remove";
 
+/**
+ * Docker indisponível por um motivo que não é erro de verdade: o Docker Desktop está fechado (ou o
+ * daemon parado) ou o docker nem está instalado. Nesses casos o painel mostra uma linha neutra e
+ * não o stderr do docker — que é uma URL de pipe de 200 caracteres sem espaço, alarmante e que
+ * esticava a lateral com rolagem horizontal.
+ */
+export function dockerIndisponivel(erro: string): "fechado" | "ausente" | null {
+  const texto = erro.toLowerCase();
+  if (texto.includes("não encontrado no path") || texto.includes("not recognized") || texto.includes("program not found")) {
+    return "ausente";
+  }
+  if (
+    texto.includes("error during connect")
+    || texto.includes("cannot connect to the docker daemon")
+    || texto.includes("is the docker daemon running")
+    || texto.includes("dockerdesktoplinuxengine")
+    || texto.includes("docker_engine")
+    || texto.includes("pipe/docker")
+    || texto.includes("docker desktop is not running")
+    || texto.includes("docker.sock")
+  ) {
+    return "fechado";
+  }
+  return null;
+}
+
 export function dockerContainers(): Promise<DockerContainer[]> {
   return invoke<DockerContainer[]>("docker_containers");
 }

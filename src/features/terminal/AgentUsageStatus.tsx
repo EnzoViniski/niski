@@ -4,6 +4,9 @@ import { ReloadIcon } from "../../components/ui/PixelIcon";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { nomeCurtoDoModelo, rotuloDoEsforco, type AgentRuntime } from "./AgentRuntimeBadge";
 import type { Usage, UsageWindow } from "./AccountUsage";
+import { resetShort, usageTone } from "../../lib/uso";
+
+export { resetShort, usageTone };
 import { useSession } from "./sessionProviders";
 import { listProfiles, type Profile } from "./terminalService";
 
@@ -16,16 +19,6 @@ export function timeAgo(ms: number, now: number) {
 }
 
 const percent = (window: UsageWindow | null) => (window ? `${window.used_percent.toLocaleString("pt-BR")}%` : "—");
-
-/**
- * Faixas de consumo pedidas: verde até 60%, amarelo até 85%, vermelho de 86% em diante.
- * O corte é por valor, não por arredondamento — 85,4% já é vermelho.
- */
-export function usageTone(used: number): { bar: string; text: string } {
-  if (used <= 60) return { bar: "bg-success", text: "text-success" };
-  if (used <= 85) return { bar: "bg-warning", text: "text-warning" };
-  return { bar: "bg-danger", text: "text-danger" };
-}
 
 function UsageBar({ used, label }: { used: number; label: string }) {
   const preenchido = Math.min(100, Math.max(0, used));
@@ -41,20 +34,6 @@ function UsageBar({ used, label }: { used: number; label: string }) {
       <span className={`absolute inset-y-0 left-0 ${usageTone(used).bar}`} style={{ width: `${preenchido}%` }} />
     </span>
   );
-}
-
-/** Reset curto para o rodapé: data do Codex formatada, ou o texto da TUI sem "Resets" e sem o fuso. */
-export const resetShort = (window: UsageWindow | null) =>
-  !window ? null
-    : window.resets_at ? shortDate(window.resets_at * 1000)
-    : window.reset_label?.replace(/^Resets\s+/, "").replace(/\s*\(.*\)\s*$/, "") ?? null;
-/** Hoje: só a hora ("11:40"). Outro dia: "17/09 14:00". */
-function shortDate(ms: number) {
-  const date = new Date(ms);
-  const time = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  return date.toDateString() === new Date().toDateString()
-    ? time
-    : `${date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} ${time}`;
 }
 
 const resets = (label: string, window: UsageWindow | null) =>

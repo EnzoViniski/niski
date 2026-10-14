@@ -233,7 +233,17 @@ pub fn discover_codex_transcripts(
 }
 
 #[derive(Serialize)]
-pub struct Message { pub id: String, pub role: String, pub text: String, pub provider: String, pub timestamp: Option<String> }
+pub struct Message {
+    pub id: String,
+    pub role: String,
+    pub text: String,
+    pub provider: String,
+    pub timestamp: Option<String>,
+    /// `text`, `tool` (ação do agente), `command` (`/comando` do usuário) ou `notice`.
+    pub kind: crate::feed::Kind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool: Option<String>,
+}
 #[derive(Serialize)]
 pub struct Timeline {
     pub messages: Vec<Message>,
@@ -254,7 +264,8 @@ pub(crate) fn text_message(value: &Value, provider: &str) -> Option<(String, Str
     if role != "user" && role != "assistant" { return None; }
     let text = if let Some(s) = message["content"].as_str() { s.to_owned() } else {
         message["content"].as_array()?.iter().filter(|b| matches!(b["type"].as_str(),Some("text" | "input_text" | "output_text")))
-            .filter_map(|b| b["text"].as_str()).collect::<Vec<_>>().join("\n")
+            .filter_map(|b| b["text"].as_str()).collect::<Vec<_>>().join("
+")
     };
     (!text.trim().is_empty()).then_some((role.into(), text))
 }
@@ -262,48 +273,67 @@ pub(crate) fn text_message(value: &Value, provider: &str) -> Option<(String, Str
 /// Uma página da conversa. `cursor: None` devolve as **últimas** `limit` mensagens — é o que um chat
 /// abre mostrando. Antes só existia a leitura a partir do início, e numa conversa com mais de 100
 /// mensagens a resposta nova nunca aparecia na tela sem paginar até o fim.
+///
+/// Sem cache: lê os transcripts inteiros. Quem consulta a mesma conversa várias vezes (o servidor do
+/// celular) usa [`timeline_cached`].
 pub fn timeline(conversation: &Conversation, profiles: &[crate::Profile], cursor: Option<usize>, limit: usize) -> Timeline {
-    let limit = limit.clamp(1,100);
-    let mut result = Timeline { messages: Vec::new(), next_cursor: None, prev_cursor: None, unavailable_segments: Vec::new() };
-    let mut fim: std::collections::VecDeque<Message> = std::collections::VecDeque::with_capacity(limit + 1);
+    timeline_cached(conversation, profiles, cursor, limit, &mut crate::feed::FeedCache::default())
+}
+
+/// Maior página aceita. Ações do agente contam como item, então a página é maior que a de texto puro.
+pub const PAGE_MAX: usize = 200;
+
+pub fn timeline_cached(
+    conversation: &Conversation,
+    profiles: &[crate::Profile],
+    cursor: Option<usize>,
+    limit: usize,
+    cache: &mut crate::feed::FeedCache,
+) -> Timeline {
+    let mut unavailable = Vec::new();
+    let mut itens: Vec<(String, crate::feed::Item)> = Vec::new();
     let mut seen = HashSet::new();
-    let mut count = 0;
-    'segmentos: for (segment_index, segment) in conversation.segments.iter().enumerate() {
+    for (segment_index, segment) in conversation.segments.iter().enumerate() {
         // O Claude só grava o `.jsonl` depois da primeira mensagem. Conversa recém-aberta tem o
         // caminho já fixado (`--session-id`) mas nenhum arquivo: isso é "vazia", não "indisponível".
         // Antes caía no aviso de histórico perdido logo na primeira abertura. Nada é lido aqui, então
         // pular não abre brecha na checagem de caminho feita em `resolve_transcript`.
         if segment.transcript_path.as_deref().is_some_and(|path| !Path::new(path).exists()) { continue }
-        let Some(path) = resolve_transcript(segment, conversation, profiles) else { result.unavailable_segments.push(segment_index); continue };
-        let Ok(file) = File::open(path) else { result.unavailable_segments.push(segment_index); continue };
-        for line in BufReader::new(file).lines().map_while(Result::ok) {
-            let Ok(value) = serde_json::from_str::<Value>(&line) else { continue };
-            let Some((role,text)) = text_message(&value,&segment.provider) else { continue };
+        let Some(path) = resolve_transcript(segment, conversation, profiles) else { unavailable.push(segment_index); continue };
+        let Ok(entries) = cache.read(&path, &segment.provider) else { unavailable.push(segment_index); continue };
+        for entry in entries {
             // Claude UUIDs survive profile copies. Codex records preserve timestamp/content.
-            let identity = value["uuid"].as_str().map(str::to_owned).unwrap_or_else(|| line.clone());
-            if !seen.insert(format!("{}:{identity}",segment.provider)) { continue; }
-            let mensagem = |role,text| Message { id: format!("{}:{count}",conversation.id),role,text,
-                provider:segment.provider.clone(),timestamp:value["timestamp"].as_str().map(str::to_owned) };
-            match cursor {
-                Some(inicio) if count >= inicio => {
-                    if result.messages.len() >= limit { result.next_cursor = Some(count); break 'segmentos; }
-                    result.messages.push(mensagem(role,text));
-                }
-                Some(_) => {}
-                None => {
-                    fim.push_back(mensagem(role,text));
-                    if fim.len() > limit { fim.pop_front(); }
-                }
-            }
-            count += 1;
+            if !seen.insert(entry.identity.clone()) { continue; }
+            itens.push((segment.provider.clone(), entry.item.clone()));
         }
     }
-    let inicio = match cursor {
-        Some(inicio) => inicio,
-        None => { result.messages = fim.into(); count - result.messages.len() }
-    };
-    result.prev_cursor = (inicio > 0).then(|| inicio.saturating_sub(limit));
+    let mut result = page(&conversation.id, itens, cursor, limit);
+    result.unavailable_segments = unavailable;
     result
+}
+
+/// Recorta uma página de itens já em ordem e numera as mensagens `<conversa>:<n>` pela posição na
+/// conversa inteira — a numeração é o que o cliente usa para saber se algo novo chegou.
+pub fn page(conversation_id: &str, itens: Vec<(String, crate::feed::Item)>, cursor: Option<usize>, limit: usize) -> Timeline {
+    let limit = limit.clamp(1, PAGE_MAX);
+    let total = itens.len();
+    let inicio = match cursor { Some(inicio) => inicio.min(total), None => total.saturating_sub(limit) };
+    let fim = (inicio + limit).min(total);
+    let messages = itens.into_iter().enumerate().skip(inicio).take(fim - inicio).map(|(n, (provider, item))| Message {
+        id: format!("{conversation_id}:{n}"),
+        role: item.role,
+        text: item.text,
+        provider,
+        timestamp: item.timestamp,
+        kind: item.kind,
+        tool: item.tool,
+    }).collect();
+    Timeline {
+        messages,
+        next_cursor: (cursor.is_some() && fim < total).then_some(fim),
+        prev_cursor: (inicio > 0).then(|| inicio.saturating_sub(limit)),
+        unavailable_segments: Vec::new(),
+    }
 }
 
 #[cfg(test)]
@@ -448,7 +478,7 @@ com quebra").is_err());
 
         // Conversa curta: tudo numa página, sem nada antes.
         let curta = timeline(&conversation,std::slice::from_ref(&profile),None,500);
-        assert_eq!(curta.messages.len(),100, "limite continua travado em 100");
+        assert_eq!(curta.messages.len(),PAGE_MAX, "limite continua travado em PAGE_MAX");
     }
 
     /// Conversa recém-aberta: caminho do transcript já fixado, arquivo ainda não gravado. Isso é

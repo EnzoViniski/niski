@@ -57,9 +57,33 @@ describe("DockerPanel", () => {
     expect(onRunInTerminal).toHaveBeenCalledWith("logs · web-1", "docker logs -f --tail 200 web-1");
   });
 
-  it("mostra o erro do docker quando o daemon não responde", async () => {
+  /** Docker Desktop fechado não é erro: uma linha neutra, sem o stderr de 200 caracteres sem
+   *  espaço que abria rolagem horizontal na lateral. */
+  it("Docker fechado vira uma linha neutra, não alerta", async () => {
+    dockerContainers.mockRejectedValue(new Error(
+      'error during connect: Get "http://%2F%2F.%2Fpipe%2FdockerDesktopLinuxEngine/v1.47/containers/json": open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.'
+    ));
+    render(<DockerPanel onRunInTerminal={vi.fn()} />);
+    expect(await screen.findByText("Docker fechado")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    dockerContainers.mockResolvedValue([container({ id: "1", name: "web-1" })]);
+    await userEvent.click(screen.getByRole("button", { name: "Verificar" }));
+    expect(await screen.findByText("web-1")).toBeInTheDocument();
+  });
+
+  it("Docker não instalado também não alarma", async () => {
     dockerContainers.mockRejectedValue(new Error("Docker não encontrado no PATH."));
     render(<DockerPanel onRunInTerminal={vi.fn()} />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Docker não encontrado");
+    expect(await screen.findByText("Docker não instalado")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("erro de verdade continua aparecendo, quebrando a linha", async () => {
+    dockerContainers.mockRejectedValue(new Error("permission denied while trying to list containers"));
+    render(<DockerPanel onRunInTerminal={vi.fn()} />);
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent("permission denied");
+    expect(alerta.className).toContain("break-words");
   });
 });

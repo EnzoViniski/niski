@@ -2,6 +2,7 @@
 pub mod cli_path;
 pub mod usage;
 pub mod conversations;
+pub mod feed;
 pub mod history;
 pub mod runtime;
 pub mod targets;
