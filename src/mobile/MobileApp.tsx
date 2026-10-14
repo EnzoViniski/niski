@@ -599,6 +599,13 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     finally { setBusy(false); }
   }
 
+  // `@` no campo: arquivos da pasta do projeto, filtrados pelo engine.
+  const buscarArquivos = useCallback(async (busca: string) => {
+    const resposta = await request<{ arquivos: string[] }>(
+      `/conversas/${encodeURIComponent(conversation.id)}/arquivos?q=${encodeURIComponent(busca)}`);
+    return Array.isArray(resposta?.arquivos) ? resposta.arquivos : [];
+  }, [conversation.id]);
+
   /** O Esc do terminal: para o agente no meio do turno, como no PC. */
   async function interromper() {
     setError(null);
@@ -770,7 +777,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
       // Sessão ligada = há `capabilities` (engine antigo não manda `live`).
       direita={conversation.capabilities && <ModoDoAgente modo={conversation.mode} pronto={Boolean(conversation.capabilities?.prompt) && !busy} onModo={trocarModo} />}
       onParar={trabalhando && conversation.live ? () => { setParando(true); void interromper().finally(() => setParando(false)); } : undefined}
-      parando={parando} />
+      parando={parando}
+      buscarArquivos={buscarArquivos} />
   </section>;
 }
 

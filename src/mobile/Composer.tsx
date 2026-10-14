@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ClipboardEvent, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { AttachmentIcon, CloseIcon, LoaderIcon, SendIcon, StopIcon, WarningIcon } from "../components/ui/PixelIcon";
 import { iconForPath } from "../features/files/fileIcons";
 import { tamanhoLegivel, type Anexo } from "./anexos";
@@ -22,6 +22,21 @@ interface ComposerProps {
   /** Agente trabalhando: o botão principal vira "Parar" (o Esc do terminal). */
   onParar?: () => void;
   parando?: boolean;
+  /** Arquivos do projeto para o `@` (como no terminal). Sem isto, `@` é só texto. */
+  buscarArquivos?: (busca: string) => Promise<string[]>;
+}
+
+/** O `@algo` que está sendo digitado logo antes do cursor (precisa vir no começo ou após espaço). */
+export function mencaoNoCursor(texto: string, cursor: number): { inicio: number; busca: string } | null {
+  const antes = texto.slice(0, cursor);
+  const achado = /(^|\s)@([^\s@"]*)$/.exec(antes);
+  if (!achado) return null;
+  return { inicio: antes.length - achado[2].length - 1, busca: achado[2] };
+}
+
+/** Caminho com espaço vai entre aspas, como a CLI aceita. */
+export function textoDaMencao(caminho: string): string {
+  return /\s/.test(caminho) ? `@"${caminho}" ` : `@${caminho} `;
 }
 
 const ALTURA_MAXIMA_PX = 160;
@@ -66,8 +81,51 @@ function ChipAnexo({ anexo, onRemover, travado }: { anexo: Anexo; onRemover: () 
  * é o único jeito que abre o seletor em todo navegador de celular, inclusive o Safari antigo, que
  * ignora clique programático em input escondido. Sem `accept`: qualquer tipo de arquivo vale.
  */
-export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnviar, podeEnviar, ocupado, placeholder, toolbar, chips, direita, onParar, parando }: ComposerProps) {
+export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnviar, podeEnviar, ocupado, placeholder, toolbar, chips, direita, onParar, parando, buscarArquivos }: ComposerProps) {
   const campo = useRef<HTMLTextAreaElement>(null);
+  // Menção aberta: onde começa o `@`, o que foi digitado depois dele e o que achou.
+  const [mencao, setMencao] = useState<{ inicio: number; busca: string } | null>(null);
+  const [sugestoes, setSugestoes] = useState<string[]>([]);
+  const [escolhida, setEscolhida] = useState(0);
+  const ultimaLista = useRef<string[]>([]);
+
+  // Busca com um respiro curto: digitar "@src/comp" não dispara uma consulta por letra.
+  useEffect(() => {
+    if (!mencao || !buscarArquivos) { ultimaLista.current = []; setSugestoes([]); return; }
+    let cancelado = false;
+    const espera = window.setTimeout(() => {
+      buscarArquivos(mencao.busca).then((lista) => {
+        if (cancelado) return;
+        // Mesma lista de antes (resposta repetida ou atrasada): mantém a escolha feita nas setas.
+        const atual = ultimaLista.current;
+        if (atual.length === lista.length && atual.every((item, i) => item === lista[i])) return;
+        ultimaLista.current = lista;
+        setSugestoes(lista);
+        setEscolhida(0);
+      }).catch(() => { if (!cancelado) setSugestoes([]); });
+    }, 120);
+    return () => { cancelado = true; window.clearTimeout(espera); };
+  }, [mencao, buscarArquivos]);
+
+  function acompanharMencao(valor: string, cursor: number) {
+    const achada = buscarArquivos ? mencaoNoCursor(valor, cursor) : null;
+    setMencao((atual) => (atual?.inicio === achada?.inicio && atual?.busca === achada?.busca ? atual : achada));
+  }
+
+  function escolher(caminho: string) {
+    if (!mencao) return;
+    const fim = mencao.inicio + 1 + mencao.busca.length;
+    const inserido = textoDaMencao(caminho);
+    const novo = texto.slice(0, mencao.inicio) + inserido + texto.slice(fim);
+    onTexto(novo);
+    setMencao(null);
+    setSugestoes([]);
+    const cursor = mencao.inicio + inserido.length;
+    requestAnimationFrame(() => {
+      campo.current?.focus();
+      campo.current?.setSelectionRange(cursor, cursor);
+    });
+  }
 
   // Cresce com o texto até um limite, como nos apps de mensagem.
   useEffect(() => {
@@ -93,6 +151,25 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
   }
 
   function tecla(event: KeyboardEvent<HTMLTextAreaElement>) {
+    // Lista de arquivos aberta: setas escolhem, Enter/Tab inserem, Esc fecha — nada disso envia.
+    if (mencao && sugestoes.length > 0) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const passo = event.key === "ArrowDown" ? 1 : -1;
+        setEscolhida((atual) => (atual + passo + sugestoes.length) % sugestoes.length);
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        escolher(sugestoes[escolhida]);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMencao(null);
+        return;
+      }
+    }
     // `isComposing`: Enter que confirma acento/IME não pode disparar o envio.
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || !enterEnvia()) return;
     event.preventDefault();
@@ -115,7 +192,29 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
         )}
         <label htmlFor="reply" className="sr-only">Sua resposta</label>
         <textarea id="reply" ref={campo} rows={1} value={texto} maxLength={16000} placeholder={placeholder}
-          className="composer-campo" onPaste={colar} onKeyDown={tecla} onChange={(event) => onTexto(event.target.value)} />
+          className="composer-campo" onPaste={colar} onKeyDown={tecla}
+          onChange={(event) => { onTexto(event.target.value); acompanharMencao(event.target.value, event.target.selectionStart ?? event.target.value.length); }}
+          onClick={(event) => acompanharMencao(event.currentTarget.value, event.currentTarget.selectionStart ?? 0)}
+          onBlur={() => window.setTimeout(() => setMencao(null), 150)}
+          aria-autocomplete="list" aria-expanded={Boolean(mencao && sugestoes.length)} aria-controls="mencoes" />
+        {mencao && sugestoes.length > 0 && (
+          <ul id="mencoes" role="listbox" aria-label="Arquivos do projeto" className="composer-mencoes">
+            {sugestoes.map((caminho, indice) => {
+              const barra = caminho.lastIndexOf("/");
+              const Icone = iconForPath(caminho);
+              return (
+                <li key={caminho} role="option" aria-selected={indice === escolhida}
+                  className={`composer-mencao${indice === escolhida ? " is-ativa" : ""}`}
+                  onMouseDown={(event) => { event.preventDefault(); escolher(caminho); }}
+                  onMouseEnter={() => setEscolhida(indice)}>
+                  <Icone aria-hidden className="h-3.5 w-3.5 shrink-0" />
+                  <span className="composer-mencao-nome">{caminho.slice(barra + 1)}</span>
+                  {barra > 0 && <span className="composer-mencao-pasta">{caminho.slice(0, barra)}</span>}
+                </li>
+              );
+            })}
+          </ul>
+        )}
         <div className="composer-rodape">
           <label className={`composer-botao${ocupado ? " is-disabled" : ""}`} title="Anexar arquivo">
             <AttachmentIcon aria-hidden className="h-4 w-4" />

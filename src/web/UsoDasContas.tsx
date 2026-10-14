@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AgentIcon } from "../components/ui/AgentIcon";
+import { ReloadIcon } from "../components/ui/PixelIcon";
 import { request } from "../mobile/api";
 import { usePoll } from "../mobile/usePoll";
 import { resetShort, usageTone, type UsageWindow } from "../lib/uso";
@@ -39,6 +40,27 @@ function Janela({ rotulo, janela }: { rotulo: string; janela: UsageWindow | null
  */
 export function UsoDasContas({ contaAtiva }: { contaAtiva: string | null }) {
   const [contas, setContas] = useState<Conta[]>([]);
+  const [atualizando, setAtualizando] = useState<Set<string>>(new Set());
+  const [erros, setErros] = useState<Record<string, string>>({});
+
+  /** Pede ao PC uma leitura nova. No Claude o PC consulta o `/usage` — leva alguns segundos. */
+  async function atualizar(id: string) {
+    setAtualizando((atual) => new Set(atual).add(id));
+    setErros(({ [id]: _, ...resto }) => resto);
+    try {
+      const nova = await request<Conta>(`/contas/${encodeURIComponent(id)}/uso`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+        signal: AbortSignal.timeout(90_000),
+      });
+      setContas((lista) => lista.map((conta) => (conta.id === id ? { ...conta, usage: nova.usage } : conta)));
+    } catch (motivo) {
+      setErros((atual) => ({ ...atual, [id]: motivo instanceof Error ? motivo.message : String(motivo) }));
+    } finally {
+      setAtualizando((atual) => { const novo = new Set(atual); novo.delete(id); return novo; });
+    }
+  }
   usePoll(async () => {
     const lista = await request<Conta[]>("/contas");
     setContas(Array.isArray(lista) ? lista : []);
@@ -55,7 +77,15 @@ export function UsoDasContas({ contaAtiva }: { contaAtiva: string | null }) {
               <AgentIcon provider={conta.provider} size={12} className="shrink-0" />
               <span className="w-atencao-texto">{conta.name}</span>
               <span className="w-uso-agente">{AGENTE[conta.provider] ?? conta.provider}</span>
+              {(conta.provider === "claude" || conta.provider === "codex") && (
+                <button type="button" className="w-uso-atualizar" disabled={atualizando.has(conta.id)}
+                  aria-label={`Atualizar uso de ${conta.name}`} title="Buscar o uso de novo"
+                  onClick={() => void atualizar(conta.id)}>
+                  <ReloadIcon aria-hidden className={`h-3 w-3${atualizando.has(conta.id) ? " anexo-girando" : ""}`} />
+                </button>
+              )}
             </span>
+            {erros[conta.id] && <span className="w-uso-vazio w-uso-erro" role="alert">{erros[conta.id]}</span>}
             {conta.usage && conta.usage.status !== "unavailable" ? (
               <>
                 <Janela rotulo="5H" janela={conta.usage.primary} />

@@ -35,6 +35,8 @@ pub struct MobileRuntime {
     /// Última busca por rollouts do Codex ainda sem caminho. Abre o começo de cada rollout da conta,
     /// então não pode rodar a cada leitura da lista.
     codex_descoberto_em: Mutex<u64>,
+    /// Arquivos de cada pasta de projeto para o `@` do composer: (lido em, lista). Ver `arquivos_da_conversa`.
+    arquivos: Mutex<HashMap<String, (u64, Arc<Vec<String>>)>>,
 }
 
 #[derive(Default)]
@@ -106,7 +108,7 @@ impl MobileRuntime {
             status: Mutex::new((None,None)),changed: Notify::new(),actions: Mutex::new(VecDeque::new()),pending: Notify::new(),
             history: Mutex::new(MobileHistory::default()),
             feeds: Mutex::new(omni_core::feed::FeedCache::default()),
-            codex_descoberto_em: Mutex::new(0) }
+            codex_descoberto_em: Mutex::new(0), arquivos: Mutex::new(HashMap::new()) }
     }
 }
 
@@ -554,6 +556,8 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/conversas/{id}/ajustes",post(ajustar))
         .route("/conversas/{id}/retomar",post(retomar_rota))
         .route("/contas",get(contas))
+        .route("/contas/{id}/uso",post(atualizar_uso))
+        .route("/conversas/{id}/arquivos",get(arquivos_da_conversa))
         .route("/terminais",get(listar_terminais).post(abrir_terminal))
         .route("/terminais/{id}/saida",get(saida_do_terminal))
         .route("/terminais/{id}/teclas",post(teclas_do_terminal))
@@ -1418,6 +1422,99 @@ pub(crate) fn comando_do_agente(state: &EngineState, provider: &str) -> String {
     state.mobile.workspace.lock().ok()
         .and_then(|w| w.agents.iter().find(|agente| agente.id == provider).map(|agente| agente.command.clone()))
         .unwrap_or_else(|| provider.to_string())
+}
+
+/// Busca o uso da conta de novo, como o botão de atualizar do rodapé do PC. Claude: o engine digita
+/// `/usage` num Claude ocioso da conta (ou num oculto) — leva alguns segundos. Codex: relê o rollout.
+async fn atualizar_uso(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let dir = state.state_file.parent().unwrap().to_path_buf();
+        let perfil = omni_core::profiles(&dir).into_iter().find(|p| p.id == id)
+            .ok_or_else(||error(StatusCode::NOT_FOUND,"Conta não encontrada"))?;
+        let uso = match perfil.provider.as_str() {
+            "claude" => match interaction::account_usage(&state,&perfil.id,true) {
+                Ok(EngineResponse::AccountUsage { usage }) => usage,
+                Ok(EngineResponse::Error { message, .. }) => return Err(error(StatusCode::CONFLICT,&message)),
+                Ok(_) => return Err(error(StatusCode::INTERNAL_SERVER_ERROR,"Resposta inesperada da consulta de uso")),
+                Err(erro) => return Err(error(StatusCode::CONFLICT,&erro.to_string())),
+            },
+            "codex" => omni_core::usage::read_codex(&perfil.id,Path::new(&perfil.config_dir),now_ms()),
+            _ => return Err(error(StatusCode::BAD_REQUEST,"Este agente não informa uso")),
+        };
+        Ok(Json(json!({"id":perfil.id,"provider":perfil.provider,"name":perfil.name,"usage":uso})))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao consultar o uso"))?
+}
+
+/* ── Menção de arquivos (@) ───────────────────────────────────────────────────────────────────
+   O `@` do composer: a lista sai da pasta do projeto da conversa. Varredura própria, sem depender
+   de `rg` (o celular pede ao PC, e o PC pode não ter), com cache curto por pasta. */
+
+/// Pastas que nunca valem uma menção e custam caro de varrer.
+const PASTAS_IGNORADAS: [&str; 14] = [".git","node_modules","target","target-engine","dist","dist-mobile","build",".next",
+    ".turbo",".venv","venv","__pycache__",".omni-agents",".cache"];
+const ARQUIVOS_MAX: usize = 20_000;
+const ARQUIVOS_CACHE_MS: u64 = 30_000;
+
+/// Caminhos relativos (com `/`) de tudo que é arquivo na pasta, até `ARQUIVOS_MAX`.
+fn varrer_arquivos(raiz: &Path) -> Vec<String> {
+    let mut saida = Vec::new();
+    let mut pilha = vec![(raiz.to_path_buf(), 0_usize)];
+    while let Some((pasta, profundidade)) = pilha.pop() {
+        let Ok(entradas) = std::fs::read_dir(&pasta) else { continue };
+        for entrada in entradas.flatten() {
+            let nome = entrada.file_name().to_string_lossy().into_owned();
+            let Ok(tipo) = entrada.file_type() else { continue };
+            if tipo.is_dir() {
+                if profundidade < 12 && !PASTAS_IGNORADAS.contains(&nome.as_str()) { pilha.push((entrada.path(), profundidade + 1)); }
+            } else if tipo.is_file() {
+                if let Ok(relativo) = entrada.path().strip_prefix(raiz) {
+                    saida.push(relativo.to_string_lossy().replace('\\', "/"));
+                    if saida.len() >= ARQUIVOS_MAX { return saida; }
+                }
+            }
+        }
+    }
+    saida.sort();
+    saida
+}
+
+/// Melhores correspondências para o que foi digitado depois do `@`: nome do arquivo que começa com a
+/// busca, depois nome que contém, depois caminho que contém; empate fica com o caminho mais curto.
+fn melhores_arquivos(lista: &[String], busca: &str, quantos: usize) -> Vec<String> {
+    let busca = busca.to_lowercase().replace('\\', "/");
+    let mut pontuados: Vec<(u8, usize, &String)> = lista.iter().filter_map(|caminho| {
+        let minusculo = caminho.to_lowercase();
+        let nome = minusculo.rsplit('/').next().unwrap_or(&minusculo);
+        let nota = if busca.is_empty() { 3 }
+            else if nome.starts_with(&busca) { 0 }
+            else if nome.contains(&busca) { 1 }
+            else if minusculo.contains(&busca) { 2 }
+            else { return None };
+        Some((nota, caminho.len(), caminho))
+    }).collect();
+    pontuados.sort();
+    pontuados.into_iter().take(quantos).map(|(_,_,caminho)| caminho.clone()).collect()
+}
+
+#[derive(Deserialize)] struct BuscaArquivos { #[serde(default)] q: String }
+async fn arquivos_da_conversa(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, Query(busca): Query<BuscaArquivos>) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let pasta = pasta_da_conversa(&state,&id).filter(|p| Path::new(p).is_dir())
+            .ok_or_else(||error(StatusCode::NOT_FOUND,"A pasta desta conversa não existe neste PC"))?;
+        let lista = {
+            let mut cache = state.mobile.arquivos.lock().map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Cache indisponível"))?;
+            match cache.get(&pasta) {
+                Some((quando, lista)) if now_ms().saturating_sub(*quando) < ARQUIVOS_CACHE_MS => lista.clone(),
+                _ => {
+                    let lista = Arc::new(varrer_arquivos(Path::new(&pasta)));
+                    if cache.len() > 16 { cache.clear(); }
+                    cache.insert(pasta.clone(), (now_ms(), lista.clone()));
+                    lista
+                }
+            }
+        };
+        Ok(Json(json!({"arquivos":melhores_arquivos(&lista,&busca.q,40),"total":lista.len()})))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao listar arquivos"))?
 }
 
 /// Linha de comando que retoma a conversa com o modelo e o esforço pedidos.
@@ -2659,6 +2756,41 @@ quebra"}"#] {
 
             let (_sessao,_,_) = fake_session(&state,"Claude Code\r\n❯ ");
             assert_eq!(pedir(state,"k3").await.0,409,"retomou uma conversa que já está aberta");
+        }
+
+        #[test] fn melhores_arquivos_priorizam_o_nome() {
+            let lista: Vec<String> = ["src/app/page.tsx","src/components/AppShell.tsx","docs/app.md","README.md"].map(String::from).to_vec();
+            assert_eq!(melhores_arquivos(&lista,"app",3), ["docs/app.md","src/components/AppShell.tsx","src/app/page.tsx"]);
+            assert_eq!(melhores_arquivos(&lista,"readme",5), ["README.md"]);
+            assert_eq!(melhores_arquivos(&lista,"zzz",5), Vec::<String>::new());
+        }
+
+        /// O `@` da visão Conversa do app: a busca chega pelo protocolo local (`engine_api`), com a
+        /// busca na query string — o mesmo caminho do Tauri, sem navegador.
+        #[tokio::test] async fn app_busca_arquivos_pelo_protocolo_local() {
+            let (dir,state) = fixture();
+            let projeto = dir.path().join("projeto");
+            for caminho in ["src/landing-page.ts","src/outro.ts","node_modules/x/landing.js"] {
+                let alvo = projeto.join(caminho);
+                std::fs::create_dir_all(alvo.parent().unwrap()).unwrap();
+                std::fs::write(alvo,"x").unwrap();
+            }
+            atomic_write_json(&dir.path().join("conversations.json"),&json!({"version":1,"conversations":[{
+                "id":"c","project_id":"p","cwd":projeto.to_string_lossy(),"title":"Teste","created_at_ms":1,"segments":[]
+            }]})).unwrap();
+            let EngineResponse::Api { status, body } = local(state,"GET","/conversas/c/arquivos?q=landing",None,None,vec![]).await else { panic!("não é Api") };
+            assert_eq!(status,200,"{body}");
+            assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["arquivos"], json!(["src/landing-page.ts"]));
+        }
+
+        #[test] fn varredura_pula_pastas_pesadas() {
+            let pasta = tempfile::tempdir().unwrap();
+            for caminho in ["src/a.ts","node_modules/x/b.js",".git/HEAD","docs/c.md"] {
+                let alvo = pasta.path().join(caminho);
+                std::fs::create_dir_all(alvo.parent().unwrap()).unwrap();
+                std::fs::write(alvo,"x").unwrap();
+            }
+            assert_eq!(varrer_arquivos(pasta.path()), ["docs/c.md","src/a.ts"]);
         }
 
         #[test] fn rejects_desktop_input_closed_cli_and_stale_dialog_without_writing() {

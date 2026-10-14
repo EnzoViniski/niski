@@ -306,3 +306,7 @@
 /* O secundário com contorno: fantasma puro parecia desabilitado ao lado do azul. */
 .w-rodape-botao.btn-ghost { color: rgb(var(--c-text-primary)); border: 2px solid rgb(var(--c-outline)); background: rgb(var(--c-overlay) / 0.04); }
 .w-rodape-botao.btn-ghost:hover:not(:disabled) { border-color: rgb(var(--c-accent) / 0.7); }
+.w-uso-atualizar { display: grid; place-items: center; width: 1.25rem; height: 1.25rem; flex-shrink: 0; color: rgb(var(--c-text-muted)); background: none; border: 1px solid transparent; cursor: pointer; }
+.w-uso-atualizar:hover:not(:disabled) { color: rgb(var(--c-text-primary)); border-color: rgb(var(--c-outline)); }
+.w-uso-atualizar:disabled { cursor: default; }
+.w-uso-erro { color: rgb(var(--c-danger)); }

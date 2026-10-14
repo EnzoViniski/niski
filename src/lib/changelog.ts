@@ -14,6 +14,14 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.6.1",
+    date: "2026-10-14",
+    changes: [
+      "Mencione arquivos do projeto na conversa digitando @ e o começo do nome, como no terminal. Escolha com as setas e Enter, ou com um clique — no app, no navegador e no celular.",
+      "No navegador, cada conta em Uso das contas ganhou um botão para buscar o uso de novo na hora.",
+    ],
+  },
+  {
     version: "0.6.0",
     date: "2026-10-14",
     changes: [
