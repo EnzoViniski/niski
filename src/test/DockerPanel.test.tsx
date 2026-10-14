@@ -86,4 +86,11 @@ describe("DockerPanel", () => {
     expect(alerta).toHaveTextContent("permission denied");
     expect(alerta.className).toContain("break-words");
   });
+
+  /** CI no Ubuntu: uma resposta sem `name` derrubava a barra lateral inteira ao ordenar. */
+  it("resposta estranha do docker não derruba o painel", async () => {
+    dockerContainers.mockResolvedValue([{ id: "x" } as unknown as DockerContainer]);
+    render(<DockerPanel onRunInTerminal={vi.fn()} />);
+    expect(await screen.findByRole("button", { name: /Remover/ })).toBeInTheDocument();
+  });
 });

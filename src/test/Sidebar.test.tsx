@@ -10,6 +10,7 @@ vi.mock("../components/FileTree", () => ({ FileTree: () => null }));
 vi.mock("../components/GitPanel", () => ({ GitPanel: () => null }));
 vi.mock("../components/SkillsList", () => ({ SkillsList: () => null }));
 vi.mock("../components/KanbanPanel", () => ({ KanbanPanel: () => null }));
+vi.mock("../components/DockerPanel", () => ({ DockerPanel: () => null }));
 vi.mock("../hooks/useNotifications", () => ({ useNotifications: () => [] }));
 
 function workspace(id: string, name: string): WorkspaceState {

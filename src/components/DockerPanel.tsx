@@ -33,7 +33,7 @@ export function DockerPanel({ onRunInTerminal }: DockerPanelProps) {
   const refresh = useCallback(() => {
     dockerContainers()
       .then((list) => {
-        setContainers(list);
+        setContainers(Array.isArray(list) ? list : []);
         setError(null);
       })
       .catch((reason) => {

@@ -51,10 +51,12 @@ export function dockerContainerAction(id: string, action: DockerAction): Promise
 /** Agrupa como a extensão Containers: um grupo por projeto do Compose, soltos por último. */
 export function groupByCompose(containers: DockerContainer[]): { project: string; containers: DockerContainer[] }[] {
   const groups = new Map<string, DockerContainer[]>();
-  for (const container of [...containers].sort((a, b) => a.name.localeCompare(b.name))) {
-    const list = groups.get(container.compose_project) ?? [];
+  // Item sem nome ou sem projeto (resposta estranha do docker) não pode derrubar a barra lateral.
+  for (const container of [...containers].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""))) {
+    const projeto = container.compose_project ?? "";
+    const list = groups.get(projeto) ?? [];
     list.push(container);
-    groups.set(container.compose_project, list);
+    groups.set(projeto, list);
   }
   return [...groups.entries()]
     .sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)))
