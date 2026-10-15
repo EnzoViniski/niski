@@ -1,6 +1,6 @@
+import { GlifoFechar, GlifoMais } from "../../components/ui/PixelGlyph";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Button } from "../../components/ui";
 import { ChatIcon, KanbanIcon, ListIcon, TerminalIcon, GitBranchIcon } from "../../components/ui/PixelIcon";
 import { AGENT_ICON } from "../../components/ui/AgentIcon";
 import { useSession, useSessionProvider } from "../terminal/sessionProviders";
@@ -41,7 +41,8 @@ export function WorkspaceTabBar({ pane, dispatch, onCloseTab, dirtyTabIds }: Wor
           }}
           className={[
             "group flex shrink-0 items-stretch border-r-2 border-border-subtle max-w-64 select-none touch-none cursor-grab active:cursor-grabbing",
-            item.id === pane.activeTabId ? "bg-bg-surface" : "hover:bg-overlay/[0.04]",
+            // Aba ativa: fundo do conteúdo e um filete do acento no topo, como aba "aberta".
+            item.id === pane.activeTabId ? "bg-bg-surface shadow-[inset_0_2px_0_rgb(var(--c-accent))]" : "hover:bg-overlay/[0.04]",
           ].join(" ")}
         >
           <TabLabel item={item} pane={pane} dispatch={dispatch} dirtyTabIds={dirtyTabIds} />
@@ -50,9 +51,11 @@ export function WorkspaceTabBar({ pane, dispatch, onCloseTab, dirtyTabIds }: Wor
             aria-label={`Fechar tab ${item.title}`}
             title="Fechar tab"
             onClick={() => onCloseTab(item)}
-            className="w-7 text-text-muted hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className={`grid w-7 place-items-center text-text-muted hover:bg-danger/10 hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
+              item.id === pane.activeTabId ? "" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+            }`}
           >
-            ×
+            <GlifoFechar />
           </button>
         </div>
       ))}
@@ -167,11 +170,10 @@ function NewTabMenu({ onCreate }: { onCreate: (kind: PaneKind, title: string) =>
 
   return (
     <>
-      <Button
+      <button
+        type="button"
         ref={buttonRef}
-        variant="ghost"
-        size="sm"
-        className="!px-2 !py-1 shrink-0"
+        className={`pane-acao shrink-0${open ? " text-text-primary" : ""}`}
         aria-label="Nova tab"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -184,8 +186,8 @@ function NewTabMenu({ onCreate }: { onCreate: (kind: PaneKind, title: string) =>
           setOpen((value) => !value);
         }}
       >
-        +
-      </Button>
+        <GlifoMais />
+      </button>
       {open && pos && createPortal(
         <div
           ref={menuRef}

@@ -188,12 +188,13 @@ pub fn agent_cli_statuses(project_path: Option<String>) -> Vec<AgentCliStatus> {
             let resolved = candidates
                 .iter()
                 .find_map(|candidate| resolve_on_path(candidate).map(|path| (*candidate, path)));
+            let binario = resolved
+                .as_ref()
+                .map_or_else(|| candidates[0].to_owned(), |(name, _)| (*name).to_owned());
             AgentCliStatus {
                 id,
                 label,
-                command: resolved
-                    .as_ref()
-                    .map_or_else(|| candidates[0].to_owned(), |(name, _)| (*name).to_owned()),
+                command: comando_do_agente(id, binario),
                 path: resolved.as_ref().map(|(_, path)| path.display().to_string()),
                 available: resolved.is_some(),
                 // "Conectado" = existe ao menos uma conta logada neste provider. O detalhe por
@@ -204,6 +205,18 @@ pub fn agent_cli_statuses(project_path: Option<String>) -> Vec<AgentCliStatus> {
             }
         })
         .collect()
+}
+
+/// Linha que abre o agente. O Cursor para num "Workspace Trust Required" em toda pasta nova, e na
+/// visão Conversa (ou pela web) esse diálogo fica escondido: a aba parecia não funcionar. A pasta é
+/// sempre um projeto que o usuário abriu no OMNI — o mesmo critério do `ensure_agent_trust` do
+/// Claude —, então o Cursor abre com `--trust`. Vale para tudo que usa este `command`: o novo
+/// agente do app, o kanban e as sessões abertas pela web (a lista publicada no engine).
+fn comando_do_agente(id: &str, binario: String) -> String {
+    match id {
+        "cursor" => format!("{binario} --trust"),
+        _ => binario,
+    }
 }
 
 #[tauri::command(async)]
@@ -290,7 +303,7 @@ pub fn ensure_agent_trust(agent_id: String, cwd: String, profile_id: Option<Stri
 
 /// Onde o Claude Code guarda o `.claude.json`. Com `CLAUDE_CONFIG_DIR` setado ele vai para dentro
 /// do config dir; sem ele, fica na raiz do perfil do usuário.
-fn claude_state_file(profile_id: Option<&str>) -> Result<PathBuf, String> {
+pub(crate) fn claude_state_file(profile_id: Option<&str>) -> Result<PathBuf, String> {
     if let Some(profile) = profile_id.and_then(crate::profiles::find) {
         if !profile.builtin && crate::profiles::config_dir_var(&profile.provider).is_some() {
             return Ok(PathBuf::from(profile.config_dir).join(".claude.json"));
@@ -660,6 +673,13 @@ pub(crate) fn engine_dir() -> Result<PathBuf, String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn cursor_abre_confiando_na_pasta_e_os_outros_ficam_iguais() {
+        assert_eq!(super::comando_do_agente("cursor", "agent".into()), "agent --trust");
+        assert_eq!(super::comando_do_agente("claude", "claude".into()), "claude");
+        assert_eq!(super::comando_do_agente("codex", "codex".into()), "codex");
+    }
+
     use super::*;
 
     /// O engine velho recusa comandos novos com `unknown variant`. Sem a tradução, a tela de

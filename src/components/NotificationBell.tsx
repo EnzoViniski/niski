@@ -33,7 +33,8 @@ export function NotificationBell({
 
   const medir = useCallback(() => {
     const r = botaoRef.current?.getBoundingClientRect();
-    if (r) setPos({ top: r.bottom + 8, left: r.left });
+    // Mantém a lista (w-64) dentro da janela: na barra superior o sino fica no canto direito.
+    if (r) setPos({ top: r.bottom + 8, left: Math.max(8, Math.min(r.left, window.innerWidth - 256 - 8)) });
   }, []);
 
   // `useLayoutEffect` e não `useEffect`: medir depois da pintura mostraria a

@@ -14,7 +14,7 @@ import {
   SlidersIcon as Sliders,
   TerminalIcon,
 } from "./ui/PixelIcon";
-import { EtiquetaDoStatus, IconeDoStatus, rotuloDoStatus, statusDaConversa } from "./ConversaStatus";
+import { destaqueDaLinha, EtiquetaDoStatus, IconeDoStatus, rotuloDoStatus, statusDaConversa } from "./ConversaStatus";
 import { conversationKey } from "../features/terminal/useAttention";
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
@@ -23,8 +23,6 @@ import { EditableLabel } from "./ui/EditableLabel";
 import { renameConversation } from "../features/terminal/terminalService";
 import { useStagger } from "../lib/motion";
 import { AgentIcon } from "./ui/AgentIcon";
-import { OmniLogo } from "./ui/OmniLogo";
-import { NotificationBell } from "./NotificationBell";
 import type { SettingsSection } from "../hooks/useNotifications";
 import type { KanbanState } from "../types/kanban";
 import type { Project, WorkspaceState } from "../types/workspace";
@@ -79,7 +77,8 @@ interface SidebarProps {
   showSettings: boolean;
   showHistory: boolean;
   onOpenHistory: () => void;
-  onHome: () => void;
+  /** Antigo clique no logo: o logo mudou para a barra superior (`TitleBar`). */
+  onHome?: () => void;
   onAddProject: (path: string) => void;
   onSelectProject: (projectId: string) => void;
   onCloseProject: (projectId: string) => void;
@@ -116,7 +115,6 @@ export function Sidebar({
   showSettings,
   showHistory,
   onOpenHistory,
-  onHome,
   onAddProject,
   onSelectProject,
   onCloseProject,
@@ -136,22 +134,8 @@ export function Sidebar({
   const [pickerAberto, setPickerAberto] = useState(false);
 
   return (
-    <aside className="glass glass-strong w-64 shrink-0 flex flex-col h-screen sticky top-0 rounded-none border-y-0 border-l-0">
-      {/* Logo + sino. O sino é irmão do botão, não filho: <button> dentro de
-          <button> é HTML inválido e o clique de um engole o do outro. */}
-      <div className="px-4 py-5 border-b border-border-subtle/60 flex items-center gap-2">
-        <button
-          onClick={onHome}
-          className="flex items-center gap-2.5 text-left min-w-0 flex-1 rounded-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-        >
-          <OmniLogo className="neon-glow w-7 h-7 shrink-0" />
-          <div className="min-w-0">
-            <p className="pixel-text text-text-primary text-xs leading-tight truncate">OMNI AGENTS</p>
-          </div>
-        </button>
-
-        <NotificationBell onOpenSettings={onOpenSettings} />
-      </div>
+    // Logo e sino moram na barra superior (`TitleBar`): a lateral começa direto na navegação.
+    <aside className="glass glass-strong w-64 shrink-0 flex flex-col h-full rounded-none border-y-0 border-l-0">
 
       {/* Nav */}
       <nav ref={navRef} className="px-2 py-3 flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-3">
@@ -222,7 +206,10 @@ export function Sidebar({
             {(section === "CHATS" || section === "TERMINALS")
               && terminalSessions.some((session) => Boolean(session.provider) === (section === "CHATS"))
               ? terminalSessions.filter((session) => Boolean(session.provider) === (section === "CHATS")).map((session) => (
-                  <div key={session.id} className="group flex items-stretch pl-6">
+                  <div key={session.id}
+                    className={`group flex items-stretch border-l-2 pl-[22px] ${
+                      session.provider ? destaqueDaLinha(statusDaConversa(session, naoVistas.has(conversationKey(session)))) : "border-transparent"
+                    }`}>
                     <SessionLabel
                       session={session}
                       naoVista={naoVistas.has(conversationKey(session))}
@@ -350,7 +337,7 @@ function SessionLabel({
       onClick={() => onAttach(session.id, session.name)}
       onDoubleClick={() => setEditando(true)}
       className={`flex min-w-0 flex-1 items-center gap-1.5 py-1.5 pr-1 text-left text-xs hover:text-text-primary ${
-        status === "neutro" ? "text-text-muted" : "text-text-secondary"
+        status === "neutro" ? "text-text-muted" : "font-semibold text-text-primary"
       }`}
       title={`${session.name}${rotuloDoStatus(status) ? ` · ${rotuloDoStatus(status)}` : ""} — duplo clique renomeia`}
     >

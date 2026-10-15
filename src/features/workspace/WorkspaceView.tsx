@@ -5,7 +5,6 @@ import type { AttentionItem } from "../terminal/useAttention";
 import { AgentUsageStatus } from "../terminal/AgentUsageStatus";
 import { GitBranchStatus } from "../git/GitBranchStatus";
 import { findPane } from "./workspaceReducer";
-import { LayoutPresetPicker } from "./LayoutPresetPicker";
 import { PaneTree } from "./PaneTree";
 import { useWorkspaceKeymap } from "./useWorkspaceKeymap";
 
@@ -52,17 +51,8 @@ export function WorkspaceView({
 
   return (
     <div className="h-full min-h-0 flex flex-col">
-      <div className="h-11 shrink-0 px-4 flex items-center justify-between border-b-2 border-border-subtle bg-bg-primary/80">
-        <div className="min-w-0">
-          <h1 className="pixel-text text-text-primary text-xs truncate">{project.name}</h1>
-          <p className="text-text-muted text-[10px] truncate" title={project.path}>{project.path}</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] text-text-muted uppercase">{paneCount} {paneCount === 1 ? "painel" : "painéis"}</span>
-          <LayoutPresetPicker dispatch={dispatch} />
-        </div>
-      </div>
-
+      {/* Nome, caminho e layouts do projeto ficam na barra superior (`TitleBar`). */}
+      <h1 className="sr-only">{project.name}</h1>
       <div className="flex flex-1 min-h-0 p-2">
         <PaneTree
           node={project.layout}

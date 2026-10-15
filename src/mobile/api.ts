@@ -4,7 +4,11 @@ export interface Conversation {
   id: string; title: string; project_id: string; provider: string | null; profile_id: string | null; state: string | null;
   /** Modo de permissão lido do rodapé do CLI: `plan`, `auto`, `acceptEdits` ou `null` (não visível). */
   mode?: string | null;
-  capabilities: { prompt: boolean; approve: boolean; revision: string; approval_text: string | null; reason: string | null } | null;
+  capabilities: {
+    prompt: boolean; approve: boolean; revision: string; approval_text: string | null; reason: string | null;
+    /** Agente no meio do turno com o campo livre: mensagem mandada agora entra na fila da CLI. */
+    enfileirar?: boolean;
+  } | null;
   /** Há uma sessão aberta no PC ligada a esta conversa (dá para ver o terminal e mandar teclas). */
   live?: boolean;
   /** Última atividade (terminal ou transcript), em ms. Ordena a lista e vira o "há 5 min". */
@@ -14,6 +18,10 @@ export interface Conversation {
   /** Identidade do último evento de atenção (`sessão:contador`). Muda só quando o agente termina
    *  um turno ou pede aprovação — redesenho da tela não mexe. Engine antigo não manda. */
   attention?: string | null;
+  /** Tokens do turno em andamento, como o terminal mostra ("113", "1.2k"). Só com o agente trabalhando. */
+  tokens?: string | null;
+  /** Por que a sessão parou sem terminar (`usage_limit`, `api_error`). Engine antigo não manda. */
+  notice?: string | null;
 }
 
 /** `text` é fala; `tool` é uma ação do agente (ler, rodar, editar); `command` é um `/comando`
@@ -52,6 +60,13 @@ export interface Painel { conversations: Conversation[]; catalog: Projects }
 
 /** Precisa de você: aprovação pendente ou agente parado esperando a próxima mensagem. Mesma regra
  *  que o servidor usava no `/atencao`. */
+/** Agentes que a visão Conversa entende: o OMNI lê o transcript e reconhece a tela deles. O Cursor
+ *  não grava transcript legível, então a aba dele fica no terminal (que funciona normalmente). */
+export const AGENTES_COM_CONVERSA = ["claude", "codex"];
+export function temConversa(provider: string | null | undefined): boolean {
+  return !provider || AGENTES_COM_CONVERSA.includes(provider);
+}
+
 export function precisaDeVoce(conversa: Conversation): boolean {
   return Boolean(conversa.capabilities?.approve || conversa.capabilities?.prompt || conversa.state === "approval_required");
 }

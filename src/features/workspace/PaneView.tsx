@@ -1,3 +1,4 @@
+import { GlifoColunas, GlifoExpandir, GlifoFechar, GlifoLinhas, GlifoRecolher } from "../../components/ui/PixelGlyph";
 import { Button } from "../../components/ui";
 import type { AgentView } from "../../types/settings";
 import { Component, useCallback, useEffect, useState } from "react";
@@ -108,7 +109,8 @@ export function PaneView({
         // cobriria o fundo do app mesmo com o terminal transparente.
         "relative flex-1 min-w-0 min-h-0 flex flex-col border-2",
         tab?.kind === "terminal" || tab?.kind === "agent" ? "" : "bg-bg-surface/90",
-        active ? "border-accent" : "border-border-subtle",
+        // Com um painel só, a moldura de foco não informa nada e só pesava a tela.
+        active && !onlyPane ? "border-accent/80" : "border-border-subtle",
       ].join(" ")}
       aria-label={`Painel ${tab?.title ?? pane.id}`}
       data-drop-pane={pane.id}
@@ -137,20 +139,19 @@ export function PaneView({
       >
         <WorkspaceTabBar pane={pane} dispatch={dispatch} onCloseTab={closeTab} dirtyTabIds={dirtyTabIds} />
 
-        <div className="flex items-center gap-1 px-1" aria-label="Ações do painel">
-          <PaneAction label="Dividir lado a lado" glyph="▥" onClick={() => split("horizontal")} />
-          <PaneAction label="Dividir em cima e embaixo" glyph="▤" onClick={() => split("vertical")} />
-          <PaneAction
-            label={maximized ? "Restaurar painel" : "Maximizar painel"}
-            glyph={maximized ? "↙" : "□"}
-            onClick={() => dispatch({ type: "TOGGLE_MAXIMIZE", paneId: pane.id })}
-          />
-          <PaneAction
-            label="Fechar painel"
-            glyph="×"
-            disabled={onlyPane}
-            onClick={closePane}
-          />
+        <div className="pane-acoes" aria-label="Ações do painel">
+          <PaneAction label="Dividir lado a lado" glyph={<GlifoColunas />} onClick={() => split("horizontal")} />
+          <PaneAction label="Dividir em cima e embaixo" glyph={<GlifoLinhas />} onClick={() => split("vertical")} />
+          {!onlyPane && (
+            <>
+              <PaneAction
+                label={maximized ? "Restaurar painel" : "Maximizar painel"}
+                glyph={maximized ? <GlifoRecolher /> : <GlifoExpandir />}
+                onClick={() => dispatch({ type: "TOGGLE_MAXIMIZE", paneId: pane.id })}
+              />
+              <PaneAction label="Fechar painel" glyph={<GlifoFechar />} perigo onClick={closePane} />
+            </>
+          )}
         </div>
       </header>
 
@@ -241,29 +242,27 @@ const DROP_PREVIEW: Record<DropZone, { box: string; label: string }> = {
 function PaneAction({
   label,
   glyph,
-  disabled,
+  perigo,
   onClick,
 }: {
   label: string;
-  glyph: string;
-  disabled?: boolean;
+  glyph: React.ReactNode;
+  perigo?: boolean;
   onClick: () => void;
 }) {
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="!px-1.5 !py-1 min-w-7 font-mono"
+    <button
+      type="button"
+      className={`pane-acao${perigo ? " pane-acao-perigo" : ""}`}
       aria-label={label}
       title={label}
-      disabled={disabled}
       onClick={(event) => {
         event.stopPropagation();
         onClick();
       }}
     >
       {glyph}
-    </Button>
+    </button>
   );
 }
 

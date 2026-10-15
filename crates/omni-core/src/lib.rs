@@ -6,6 +6,8 @@ pub mod feed;
 pub mod history;
 pub mod runtime;
 pub mod targets;
+pub mod compartilhar;
+pub mod extensoes;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};

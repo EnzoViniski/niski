@@ -1,3 +1,5 @@
+import { EtiquetaDoStatus, statusDaConversa } from "../components/ConversaStatus";
+import type { TerminalSession } from "../features/terminal/terminalService";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -154,21 +156,28 @@ export function ProjectList({ projects, conversations, abrir }: {
   })}</ul>;
 }
 
-export function ConversationList({ conversations, perfis, projetos = [], mostrarProjeto = false, abrir, vazio, ativa = null }: {
+export function ConversationList({ conversations, perfis, projetos = [], mostrarProjeto = false, abrir, vazio, ativa = null, naoVistas }: {
   conversations: Conversation[]; perfis: Projects["profiles"]; projetos?: Projects["projects"];
   mostrarProjeto?: boolean; abrir: (id: string) => void; vazio: string;
   /** Conversa aberta ao lado (web): fica marcada na lista. */
   ativa?: string | null;
+  /** Conversas com aviso que você ainda não viu — o que separa "finalizado" do neutro, como no PC. */
+  naoVistas?: ReadonlySet<string>;
 }) {
   if (conversations.length === 0) return <Vazio>{vazio}</Vazio>;
   return <ul className="m-lista">{conversations.map(c => {
     const aprovar = Boolean(c.capabilities?.approve);
+    // Mesmo status da lateral do PC (trabalhando, aprovar, interrompido, finalizado) e mesmo selo.
+    const status = statusDaConversa(
+      { state: (aprovar ? "approval_required" : c.state) as TerminalSession["state"], notice: (c.notice ?? undefined) as TerminalSession["notice"] },
+      Boolean(naoVistas?.has(c.id)),
+    );
     const conta = perfis.find(p => p.id === c.profile_id)?.name;
     const projeto = mostrarProjeto ? projetos.find(p => p.id === c.project_id)?.name : null;
     const detalhe = [STATES[c.state ?? ""] ?? "Histórico", NOME_DO_AGENTE[c.provider ?? ""] ?? c.provider, conta, projeto]
       .filter(Boolean).join(" · ");
     return <li key={c.id}>
-      <button type="button" className={`m-card glass glass-hover${c.id === ativa ? " m-card-ativo" : ""}`} onClick={() => abrir(c.id)}
+      <button type="button" className={`m-card glass glass-hover${c.id === ativa ? " m-card-ativo" : ""}`} data-status={status} onClick={() => abrir(c.id)}
         aria-label={`Abrir conversa ${c.title}`} aria-current={c.id === ativa ? "true" : undefined}>
         <span className="m-card-icone">
           {c.provider ? <AgentIcon provider={c.provider} size={20} /> : <PlayIcon aria-hidden className="h-5 w-5" />}
@@ -181,7 +190,7 @@ export function ConversationList({ conversations, perfis, projetos = [], mostrar
           </span>
         </span>
         <span className="m-card-lado">
-          {aprovar && <span className="m-badge m-badge-alerta">Aprovar</span>}
+          <EtiquetaDoStatus status={status} />
           {haQuanto(c.updated_at_ms) && <time className="m-card-tempo">{haQuanto(c.updated_at_ms)}</time>}
         </span>
       </button>
@@ -339,6 +348,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   // `null` = fim da conversa, como um chat abre. Número = lendo uma página antiga.
   const [cursor, setCursor] = useState<number | null>(null);
   const [enviado, setEnviado] = useState<Enviado | null>(null);
+  // Mensagens mandadas com o agente trabalhando: estão na fila da CLI e entram quando o turno acabar.
+  const [fila, setFila] = useState<Enviado[]>([]);
   const [novidades, setNovidades] = useState(false);
   const pending = useRef<{ signature: string; key: string; revision: string } | null>(null);
   const trabalhandoDesde = useRef<number | null>(null);
@@ -445,6 +456,20 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     if (acao?.state === "rejected") descartarEnviado(`Não foi enviado: ${acao.error ?? "o agente recusou a entrada"}`);
   }, [data, enviado, mensagens, descartarEnviado]);
 
+  // Item da fila sai quando a mensagem aparece no transcript (a CLI a consumiu) ou é recusado.
+  useEffect(() => {
+    if (fila.length === 0) return;
+    const restantes = fila.filter((item) => {
+      const chegou = mensagens.some(m => m.role === "user" && (m.kind ?? "text") === "text"
+        && indiceDaMensagem(m.id) > item.base && m.text.trim() === item.texto.trim());
+      const acao = data?.actions.find(a => a.id === item.acao);
+      if (acao?.state === "rejected") setFalhaEnvio(`Não entrou na fila: ${acao.error ?? "o agente recusou a entrada"}`);
+      // Fila parada há muito tempo (o turno caiu, a sessão fechou): some em vez de mentir.
+      return !chegou && acao?.state !== "rejected" && Date.now() - item.em < 30 * 60_000;
+    });
+    if (restantes.length !== fila.length) setFila(restantes);
+  }, [data, fila, mensagens]);
+
   // Rede de segurança com relógio próprio: sem rede não há polling, e era justamente aí que o
   // "trabalhando" ficava girando para sempre.
   useEffect(() => {
@@ -535,11 +560,26 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     const capability = conversation.capabilities!;
     const signature = JSON.stringify([kind, body]);
     if (pending.current?.signature !== signature) pending.current = { signature, key: actionKey(), revision: capability.revision };
-    const acao = await request<{ id?: string }>(`/conversas/${encodeURIComponent(conversation.id)}/${kind}`, {
+    const enviar = () => request<{ id?: string }>(`/conversas/${encodeURIComponent(conversation.id)}/${kind}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Idempotency-Key": pending.current.key, "If-Match": pending.current.revision },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": pending.current!.key, "If-Match": pending.current!.revision },
       body: JSON.stringify(body),
     });
+    let acao: { id?: string };
+    try {
+      acao = await enviar();
+    } catch (reason) {
+      // Modo e ajustes levam a um estado absoluto ("fique em plano"), não respondem a um diálogo:
+      // tela redesenhada desde a última leitura (o próprio rodapé do modo muda a cada troca) não
+      // os torna perigosos. Relê a versão da tela e tenta uma vez — antes isso virava erro e
+      // exigia um segundo clique. Prompt e aprovação continuam recusando: ali o If-Match protege.
+      if (!(reason instanceof ApiError && reason.status === 412 && (kind === "modo" || kind === "ajustes"))) throw reason;
+      const atual = await request<Timeline>(`/conversas/${encodeURIComponent(conversation.id)}/timeline`);
+      const revisao = atual.conversation?.capabilities?.revision;
+      if (!revisao) throw reason;
+      pending.current = { signature, key: actionKey(), revision: revisao };
+      acao = await enviar();
+    }
     pending.current = null;
     return acao;
   }
@@ -628,6 +668,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
 
   async function enviarPrompt() {
     if (!conversation.capabilities || busy) return;
+    // Agente no meio do turno: a mensagem vai para a fila da CLI, como digitar no terminal.
+    const paraFila = !conversation.capabilities.prompt && Boolean(conversation.capabilities.enfileirar);
     setBusy(true); setError(null); setFalhaEnvio(null);
     const lista = anexosVivos.current;
     try {
@@ -648,13 +690,14 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
         }
       }
       const texto = montarPrompt(text, caminhos);
-      const acao = await post("prompt", { texto });
-      setEnviado({
+      const acao = await post("prompt", paraFila ? { texto, fila: true } : { texto });
+      const item: Enviado = {
         texto, em: Date.now(), acao: acao?.id ?? null,
         base: Math.max(-1, ...mensagens.map(m => indiceDaMensagem(m.id))),
         // As prévias passam para o balão otimista; quem revoga é ele, quando o transcript chegar.
         anexos: lista.map(a => ({ nome: a.arquivo.name || "anexo", previa: a.previa })),
-      });
+      };
+      if (paraFila) setFila((atual) => [...atual, item]); else setEnviado(item);
       setText("");
       setAnexos([]);
       setCursor(null);
@@ -668,7 +711,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const capability = conversation.capabilities;
   const temConteudo = text.trim().length > 0 || anexos.length > 0;
   const anexoGrande = anexos.some(a => a.arquivo.size > ANEXO_MAX_BYTES);
-  const podeEnviar = Boolean(capability?.prompt) && !busy && temConteudo && !anexoGrande;
+  const podeEnviar = Boolean(capability?.prompt || capability?.enfileirar) && !busy && temConteudo && !anexoGrande;
   const timeline = data?.timeline;
   const ultimoBloco = blocos[blocos.length - 1];
 
@@ -735,7 +778,16 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
         </div>
       </div>}
       {ativo && !capability?.approve && cursor === null &&
-        <AgentWorking desde={trabalhandoDesde.current ?? Date.now()} provider={conversation.provider} />}
+        <AgentWorking desde={trabalhandoDesde.current ?? Date.now()} provider={conversation.provider} tokens={conversation.tokens ?? null} />}
+      {fila.length > 0 && cursor === null && (
+        <div className="chat-fila" aria-label="Mensagens na fila">
+          <p className="chat-fila-rotulo">Na fila · entram quando o agente terminar</p>
+          {fila.map((item) => (
+            <MessageBubble key={item.em} lado="user" pendente="na fila" texto={item.texto}
+              anexosLocais={item.anexos.length ? item.anexos : undefined} />
+          ))}
+        </div>
+      )}
       <div ref={fim} />
     </div>
 
@@ -758,7 +810,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
 
     <Composer texto={text} onTexto={setText} anexos={anexos} onAdicionar={adicionar} onRemover={remover}
       onEnviar={() => void enviarPrompt()} podeEnviar={podeEnviar} ocupado={busy}
-      placeholder={!capability?.prompt ? (trabalhando ? "Agente trabalhando… escreva a próxima mensagem"
+      placeholder={!capability?.prompt ? (capability?.enfileirar ? "Agente trabalhando… sua mensagem entra na fila"
+        : trabalhando ? "Agente trabalhando… escreva a próxima mensagem"
         : conversation.capabilities ? "Sem sessão ativa" : "Conversa fechada — escolha conta, modelo e esforço e retome abaixo") : "Mensagem para o agente…"}
       toolbar={editandoNome ? <RenomearConversa nome={conversation.title} onFechar={() => setEditandoNome(false)}
         onSalvar={(nome) => { setEditandoNome(false); void renomear(nome); }} /> : null}
@@ -790,10 +843,20 @@ function temArquivos(dados: DataTransfer | null): boolean {
 /** Plano e automático — o que o `shift+tab` alterna no terminal; os dois do dia a dia. Travado sem
  *  tela reconhecida: tecla no meio de um turno não é para o agente. */
 export function ModoDoAgente({ modo, pronto, onModo }: { modo?: string | null; pronto: boolean; onModo: (alvo: "plan" | "auto") => Promise<void> }) {
-  return <div className="composer-modos" role="group" aria-label="Modo do agente">
+  // O terminal leva um instante para confirmar a troca: o botão escolhido acende na hora (e pulsa
+  // até a confirmação), em vez de o clique parecer ignorado.
+  const [pedido, setPedido] = useState<"plan" | "auto" | null>(null);
+  const ativo = pedido ?? modo;
+  return <div className="composer-modos" role="group" aria-label="Modo do agente" data-ativo={ativo ?? undefined}>
     {(["plan", "auto"] as const).map((alvo) => (
-      <button key={alvo} type="button" className={`composer-modo${modo === alvo ? " is-ativo" : ""}`} aria-pressed={modo === alvo}
-        disabled={!pronto} onClick={() => void onModo(alvo)}
+      <button key={alvo} type="button" className={`composer-modo${ativo === alvo ? " is-ativo" : ""}${pedido === alvo ? " is-pedido" : ""}`}
+        aria-pressed={ativo === alvo}
+        disabled={!pronto && pedido === null}
+        onClick={() => {
+          if (pedido || alvo === modo) return;
+          setPedido(alvo);
+          void onModo(alvo).finally(() => setPedido(null));
+        }}
         title={alvo === "plan" ? "Plano: o agente planeja e pergunta antes de mexer" : "Auto: o agente executa sem pedir aprovação"}>
         {alvo === "plan" ? <NotesIcon aria-hidden className="h-3.5 w-3.5" /> : <PlayIcon aria-hidden className="h-3.5 w-3.5" />}
         <span>{alvo === "plan" ? "Plano" : "Auto"}</span>
@@ -823,6 +886,7 @@ const CHAVE_FILTRO = "omni-filtro";
 export function MobileApp() {
   const { rota, ir, voltar } = useRota();
   const { conversations, attention, catalog, carregado, error, semAcesso, refresh, atualizar, parear } = useDados(rota.tela === "conversa" ? rota.conversa : null);
+  const naoVistas = useMemo(() => new Set(attention.map((item) => item.id)), [attention]);
   const [onlyAttention, setOnlyAttention] = useState(() => lerSessao(CHAVE_FILTRO) === "atencao");
   const [query, setQuery] = useState("");
 
@@ -876,7 +940,7 @@ export function MobileApp() {
             options={[{ value: "todas", label: "Todas" }, { value: "atencao", label: `Atenção (${aguardando})` }]} />
           <Input type="search" value={query} onChange={event => setQuery(event.target.value)}
             placeholder="Pesquisar conversas" aria-label="Pesquisar conversas" className="m-busca" />
-          <ConversationList conversations={daLista} perfis={perfis} abrir={abrirConversa}
+          <ConversationList conversations={daLista} perfis={perfis} abrir={abrirConversa} naoVistas={naoVistas}
             vazio={query ? "Nenhuma conversa encontrada neste projeto." : onlyAttention ? "Nada esperando por você neste projeto." : "Nenhuma conversa neste projeto ainda."} />
         </Secao>
       </>;
@@ -896,9 +960,9 @@ export function MobileApp() {
         placeholder="Pesquisar conversas" aria-label="Pesquisar conversas" className="m-busca" />
       {query
         ? <ConversationList conversations={resultadoDaBusca} perfis={perfis} projetos={catalog?.projects}
-            mostrarProjeto abrir={abrirConversa} vazio="Nenhuma conversa encontrada." />
+            mostrarProjeto abrir={abrirConversa} naoVistas={naoVistas} vazio="Nenhuma conversa encontrada." />
         : onlyAttention
-        ? <ConversationList conversations={attention} perfis={perfis} abrir={abrirConversa} vazio="Nada esperando por você agora." />
+        ? <ConversationList conversations={attention} perfis={perfis} abrir={abrirConversa} naoVistas={naoVistas} vazio="Nada esperando por você agora." />
         : <ProjectList projects={catalog?.projects ?? []} conversations={conversations} abrir={id => ir({ tela: "projeto", projeto: id })} />}
     </>;
   }

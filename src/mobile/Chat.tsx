@@ -91,7 +91,8 @@ interface MessageBubbleProps {
   texto: string;
   horario?: string | null;
   /** Mensagem mandada daqui e ainda não confirmada no transcript. */
-  pendente?: boolean;
+  /** `true` mostra "enviando…"; um texto troca o rótulo ("na fila"). */
+  pendente?: boolean | string;
   /** Anexos com prévia local — só no balão otimista, antes de o transcript chegar. */
   anexosLocais?: AnexoVisivel[];
   /** Mais uma fala do agente no mesmo turno: sem cabeçalho, colada na anterior. */
@@ -119,7 +120,7 @@ export const MessageBubble = memo(function MessageBubble({ lado, provider, texto
       )}
       <header className="bubble-author">
         <span>{autor}</span>
-        {pendente ? <span className="bubble-time">enviando…</span> : hora && <time className="bubble-time">{hora}</time>}
+        {pendente ? <span className="bubble-time">{typeof pendente === "string" ? pendente : "enviando…"}</span> : hora && <time className="bubble-time">{hora}</time>}
       </header>
       {corpo && (doUsuario
         ? <div className="mobile-message">{corpo}</div>
@@ -256,6 +257,8 @@ interface AgentWorkingProps {
   /** Quando o trabalho começou (ms). Vira o contador "(12s)" igual ao do Claude Code. */
   desde: number;
   provider?: string | null;
+  /** Tokens do turno lidos da linha de status da CLI ("113", "1.2k"). */
+  tokens?: string | null;
 }
 
 /** "1min 05s" depois do primeiro minuto, como o Claude Code conta. */
@@ -270,7 +273,7 @@ function duracao(segundos: number): string {
  * O texto que muda fica `aria-hidden`: anunciar cada frase nova num leitor de tela seria barulho
  * a cada poucos segundos. Quem usa leitor recebe uma única mensagem estável.
  */
-export function AgentWorking({ desde, provider }: AgentWorkingProps) {
+export function AgentWorking({ desde, provider, tokens }: AgentWorkingProps) {
   const [quadro, setQuadro] = useState(0);
   const [frase, setFrase] = useState(() => sortearOutra(""));
   const [agora, setAgora] = useState(() => Date.now());
@@ -291,7 +294,7 @@ export function AgentWorking({ desde, provider }: AgentWorkingProps) {
         {provider && <AgentIcon provider={provider} size={12} className="shrink-0 self-center" />}
         <span className="working-glyph">{reduzirMovimento() ? "✻" : QUADROS[quadro]}</span>
         <span className="working-verb">{frase}…</span>
-        <span className="working-time">({duracao(segundos)})</span>
+        <span className="working-time">({duracao(segundos)}{tokens ? <> · <span className="working-tokens">↓ {tokens} tokens</span></> : null})</span>
       </span>
     </div>
   );

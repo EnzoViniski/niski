@@ -177,7 +177,10 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
   }
 
   // Com texto escrito, o principal continua sendo enviar (a mensagem entra na fila do agente).
-  const parar = onParar && !texto.trim();
+  // Agente trabalhando: o Parar fica sempre à mão, e o Enviar aparece ao lado assim que há algo
+  // escrito — a mensagem entra na fila da CLI, como digitar no terminal durante o turno.
+  const parar = Boolean(onParar);
+  const enviarJunto = !parar || texto.trim().length > 0 || anexos.length > 0;
 
   return (
     <div className="composer-faixa">
@@ -228,13 +231,18 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
           <div className="composer-chips">{chips}</div>
           <div className="composer-direita">
             {direita}
-            {parar ? (
-              <button type="button" className="composer-enviar composer-parar" aria-label="Parar" title="Parar o agente (Esc no terminal)"
+            {parar && (
+              <button type="button" className="composer-parar" aria-label="Parar" title="Parar o agente (Esc no terminal)"
                 disabled={parando} onClick={onParar}>
-                {parando ? <LoaderIcon aria-hidden className="anexo-girando h-4 w-4" /> : <StopIcon aria-hidden className="h-4 w-4" />}
+                <span className="composer-parar-icone" aria-hidden>
+                  {parando ? <LoaderIcon className="anexo-girando h-3.5 w-3.5" /> : <StopIcon className="h-3.5 w-3.5" />}
+                </span>
+                <span className="composer-parar-texto">{parando ? "Parando…" : "Parar"}</span>
               </button>
-            ) : (
-              <button type="submit" className="composer-enviar" aria-label="Enviar resposta" title="Enviar (Enter)" disabled={!podeEnviar}>
+            )}
+            {enviarJunto && (
+              <button type="submit" className="composer-enviar" aria-label={parar ? "Enviar para a fila" : "Enviar resposta"}
+                title={parar ? "Entra na fila e o agente lê quando terminar (Enter)" : "Enviar (Enter)"} disabled={!podeEnviar}>
                 {ocupado ? <LoaderIcon aria-hidden className="anexo-girando h-4 w-4" /> : <SendIcon aria-hidden className="h-4 w-4" />}
               </button>
             )}

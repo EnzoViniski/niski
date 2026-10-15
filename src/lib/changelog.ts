@@ -14,6 +14,28 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.6.2",
+    date: "2026-10-15",
+    changes: [
+      "Barra superior nova, no estilo do app: nome do projeto, layouts, avisos e os botões de minimizar, maximizar e fechar desenhados em pixel.",
+      "Mande mensagens com o agente trabalhando: elas entram na fila e o agente lê quando terminar, como no terminal. O botão Parar ficou maior e mais claro.",
+      "A conversa mostra quantos tokens o agente está gastando no turno, junto com o tempo.",
+      "Configurações mais largas e organizadas, com uma seção Geral nova e o menu em cartões.",
+      "Nova aba Extensões nas Configurações e no navegador: veja os MCPs, plugins e conectores de cada IA e de cada conta, onde cada um vale e em qual arquivo mora.",
+      "Contas extras do Claude e do Codex agora recebem os MCPs, plugins e skills da conta principal ao abrir uma conversa. Dá para desligar na aba Extensões.",
+      "Ao retomar uma conversa do histórico, escolha em qual conta ela abre.",
+      "Novo agente redesenhado: escolha a IA em cartões que mostram se ela está conectada. Histórico de conversas com visual novo e mensagens em balões.",
+      "O Cursor agora funciona: ele abre sem travar na pergunta de confiar na pasta e fica no terminal, já que a conversa dele ainda não aparece no chat.",
+      "Arrastar arquivos do Explorer para a lista de arquivos mostra a pasta de destino antes de soltar.",
+      "Ao renomear um arquivo, só o nome vem selecionado, sem a extensão.",
+      "Status das conversas mais destacado na lateral e no navegador: trabalhando, aprovar, interrompido e finalizado.",
+      "Botão no rodapé para ver o uso de todas as contas de uma vez.",
+      "Corrigido: trocar entre Plano e Auto às vezes dava erro e precisava de dois cliques.",
+      "Corrigido: trocar o modelo de uma conversa nova antes da primeira mensagem fechava a conversa.",
+      "Animações mais suaves ao abrir listas e menus e ao trocar de conversa.",
+    ],
+  },
+  {
     version: "0.6.1",
     date: "2026-10-14",
     changes: [

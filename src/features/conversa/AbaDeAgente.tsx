@@ -6,6 +6,8 @@ import { ChatIcon } from "../../components/ui/PixelIcon";
 import { EVENTO_ANEXAR, EVENTO_ARRASTANDO, tipoPelaExtensao } from "../../mobile/anexos";
 import { ConversationDetail } from "../../mobile/MobileApp";
 import { listTerminalSessions } from "../terminal/terminalService";
+import { useSessionProvider } from "../terminal/sessionProviders";
+import { temConversa } from "../../mobile/api";
 import type { AgentView } from "../../types/settings";
 import "../../mobile/mobile.css";
 import "../../web/web.css";
@@ -30,8 +32,10 @@ export function AbaDeAgente({
   const [verTerminal, setVerTerminal] = useState(agentView === "terminal");
   useEffect(() => setVerTerminal(agentView === "terminal"), [agentView]);
 
-  // Sem sessão ainda (escolhendo o agente, abrindo): o terminal mostra o lançador.
-  const conversa = agentView === "conversa" && sessionId !== null;
+  // Sem sessão ainda (escolhendo o agente, abrindo): o terminal mostra o lançador. Agente sem
+  // visão de conversa (Cursor) fica sempre no terminal — antes a aba parecia vazia e travada.
+  const provider = useSessionProvider(sessionId ?? undefined);
+  const conversa = agentView === "conversa" && sessionId !== null && temConversa(provider);
   const chatNaTela = conversa && !verTerminal;
 
   return (

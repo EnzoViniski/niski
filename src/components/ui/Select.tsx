@@ -222,9 +222,10 @@ export function Select<T extends string | number>({
 
       {aberto && (
         <div
+          data-lado={paraCima ? "cima" : "baixo"}
           className={[
-            "popover absolute left-0 right-0 z-50 p-1",
-            paraCima ? "bottom-full mb-1" : "top-full mt-1",
+            "popover select-pop absolute left-0 right-0 z-50 p-1",
+            paraCima ? "bottom-full mb-1.5" : "top-full mt-1.5",
           ].join(" ")}
         >
           {searchable && (
@@ -272,10 +273,10 @@ export function Select<T extends string | number>({
                 onPointerEnter={() => !o.disabled && setAtivo(i)}
                 onClick={() => escolher(i)}
                 className={[
-                  "flex items-start gap-2 px-2.5 py-1.5 rounded-none cursor-pointer transition-colors",
+                  "select-opcao",
                   o.disabled ? "opacity-50 cursor-not-allowed" : "",
-                  i === ativo && !o.disabled ? "bg-selected/20" : "",
-                  marcado ? "text-text-primary" : "text-text-secondary",
+                  i === ativo && !o.disabled ? "is-ativa" : "",
+                  marcado ? "is-marcada" : "",
                 ].join(" ")}
               >
                 <Check
@@ -286,7 +287,7 @@ export function Select<T extends string | number>({
                   ].join(" ")}
                 />
                 <span className="min-w-0">
-                  <span className="flex items-center gap-1.5 text-xs leading-snug">
+                  <span className="flex items-center gap-1.5 text-xs font-medium leading-snug">
                     {o.icon}
                     {o.label}
                   </span>

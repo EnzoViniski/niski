@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { engineApi } from "../terminal/terminalService";
 
 export type HistoryProvider = "claude" | "codex";
 
@@ -38,6 +39,22 @@ export async function readTranscript(entry: HistoryEntry) {
 }
 
 /** Comando que reabre a conversa exata no CLI, na conta dela (o env da conta vem do `profileId`). */
+/**
+ * Retomar noutra conta: o PC copia o transcript para a pasta da conta escolhida, porque o
+ * `--resume` só acha conversas da própria conta. Mesma conta não faz nada.
+ */
+export async function levarParaConta(entry: HistoryEntry, destino: string): Promise<void> {
+  if (!destino || destino === entry.profile_id) return;
+  const resposta = await engineApi("POST", "/historico/levar", JSON.stringify({
+    provider: entry.provider, profile_id: entry.profile_id, session_id: entry.session_id, destino,
+  }));
+  if (resposta.status >= 400) {
+    let motivo = `Falha ao levar a conversa para a outra conta (${resposta.status})`;
+    try { motivo = (JSON.parse(resposta.body) as { error?: string }).error ?? motivo; } catch { /* corpo não-JSON */ }
+    throw new Error(motivo);
+  }
+}
+
 export function resumeCommand(cliCommand: string, entry: HistoryEntry): string {
   return entry.provider === "claude"
     ? `${cliCommand} --resume ${entry.session_id}`

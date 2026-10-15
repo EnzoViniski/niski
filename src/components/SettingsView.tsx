@@ -8,20 +8,27 @@ import { CHANGELOG } from "../lib/changelog";
 import { Button, Card, Field, Input, SegmentedControl, Slider } from "./ui";
 import { AgentConnections } from "../features/terminal/AgentConnections";
 import { SkillsManager } from "../features/skills/SkillsManager";
+import { ExtensoesSettings } from "../features/extensoes/ExtensoesSettings";
 import { MobileSettings } from "../features/mobile/MobileSettings";
 import { testarAviso } from "../features/terminal/useAttentionNotifier";
-import { CloseIcon } from "./ui/PixelIcon";
+import { BlocksIcon, BookIcon, BrushIcon, CloseIcon, GearIcon, GlobeIcon, KeyboardIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
 import { SHORTCUTS, comboFromEvent, setRecordingShortcut, shortcutFor, type ShortcutId } from "../lib/shortcuts";
 
-type SectionId = "aparencia" | "agentes" | "skills" | "mobile" | "atalhos" | "sobre";
+type SectionId = "geral" | "aparencia" | "agentes" | "extensoes" | "skills" | "mobile" | "atalhos" | "sobre";
 
-const SECTIONS: { id: SectionId; label: string }[] = [
-  { id: "agentes", label: "Agentes" },
-  { id: "skills", label: "Skills" },
-  { id: "mobile", label: "Acesso remoto" },
-  { id: "aparencia", label: "Aparência" },
-  { id: "atalhos", label: "Atalhos" },
-  { id: "sobre", label: "Sobre" },
+type Icone = React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+
+/** Cada seção com ícone e uma linha do que tem dentro: o menu diz onde está cada coisa sem precisar
+ *  abrir uma por uma. "Geral" saiu de "Aparência", que juntava sete cartões de assuntos diferentes. */
+const SECTIONS: { id: SectionId; label: string; desc: string; icon: Icone }[] = [
+  { id: "geral", label: "Geral", desc: "Conversa ou terminal, arquivos e avisos", icon: GearIcon },
+  { id: "aparencia", label: "Aparência", desc: "Tema, cor, fundo e animações", icon: BrushIcon },
+  { id: "agentes", label: "Agentes", desc: "CLIs instaladas e contas", icon: RobotIcon },
+  { id: "extensoes", label: "Extensões", desc: "MCPs, plugins e conectores por IA", icon: BlocksIcon },
+  { id: "skills", label: "Skills", desc: "Skills do Claude e do projeto", icon: BookIcon },
+  { id: "mobile", label: "Acesso remoto", desc: "Celular e outro computador", icon: GlobeIcon },
+  { id: "atalhos", label: "Atalhos", desc: "Teclas do app", icon: KeyboardIcon },
+  { id: "sobre", label: "Sobre", desc: "Versão, novidades e atualização", icon: StarIcon },
 ];
 
 const THEMES: { value: Theme; label: string }[] = [
@@ -66,7 +73,8 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ settings, onChange, onReset, initialSection, projectPath, onClose }: SettingsViewProps) {
-  const [section, setSection] = useState<SectionId>(initialSection ?? "aparencia");
+  const [section, setSection] = useState<SectionId>(initialSection ?? "geral");
+  const atual = SECTIONS.find((item) => item.id === section) ?? SECTIONS[0];
 
   // Reabrir pelo sino noutra pendência tem de pular de seção mesmo com a
   // tela já montada — o estado inicial sozinho não faria nada.
@@ -75,11 +83,14 @@ export function SettingsView({ settings, onChange, onReset, initialSection, proj
   }, [initialSection]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="pixel-text text-text-primary text-lg">Configurações</h1>
-          <p className="text-text-muted text-xs">Preferências do workspace. Salvam na hora.</p>
+    <div className="settings">
+      <header className="settings-topo glass">
+        <span className="settings-topo-icone" aria-hidden>
+          <SlidersIcon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h1 className="pixel-text text-text-primary text-base">Configurações</h1>
+          <p className="text-text-secondary text-xs">Preferências do OMNI neste computador. Tudo salva na hora.</p>
         </div>
         <Button
           size="sm"
@@ -91,30 +102,40 @@ export function SettingsView({ settings, onChange, onReset, initialSection, proj
           <CloseIcon className="h-3.5 w-3.5" aria-hidden="true" />
           Fechar
         </Button>
-      </div>
+      </header>
 
-      <div className="flex gap-5 items-start">
-        <nav aria-label="Seções de configurações" className="w-40 shrink-0 space-y-0.5 sticky top-0">
-          {SECTIONS.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setSection(s.id)}
-              aria-current={section === s.id ? "page" : undefined}
-              className={[
-                "w-full text-left px-3 py-2 rounded-none text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-                section === s.id
-                  ? "glass text-text-primary font-medium"
-                  : "text-text-secondary hover:text-text-primary hover:bg-overlay/[0.07]",
-              ].join(" ")}
-            >
-              {s.label}
-            </button>
-          ))}
+      <div className="settings-corpo">
+        <nav aria-label="Seções de configurações" className="settings-menu glass">
+          {SECTIONS.map((s) => {
+            const Icon = s.icon;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setSection(s.id)}
+                aria-current={section === s.id ? "page" : undefined}
+                className="settings-menu-item"
+              >
+                <span className="settings-menu-icone" aria-hidden><Icon className="h-4 w-4" /></span>
+                <span className="min-w-0">
+                  <span className="settings-menu-nome">{s.label}</span>
+                  <span className="settings-menu-desc">{s.desc}</span>
+                </span>
+              </button>
+            );
+          })}
         </nav>
 
-        <div className="flex-1 min-w-0 space-y-4">
+        {/* `key`: trocar de seção remonta o conteúdo, e a entrada anima de novo. */}
+        <div key={section} className="settings-conteudo">
+          <div className="settings-secao glass">
+            <atual.icon className="h-4 w-4 text-accent" aria-hidden />
+            <h2 className="pixel-text text-text-primary text-sm">{atual.label}</h2>
+            <span className="text-text-muted text-[11px]">{atual.desc}</span>
+          </div>
+          {section === "geral" && <GeralSection settings={settings} onChange={onChange} />}
           {section === "aparencia" && <AparenciaSection settings={settings} onChange={onChange} />}
           {section === "agentes" && <AgentConnections />}
+          {section === "extensoes" && <ExtensoesSettings projectPath={projectPath} />}
           {section === "skills" && <SkillsManager projectPath={projectPath} />}
           {section === "mobile" && <MobileSettings accent={settings.accent} />}
           {section === "atalhos" && <AtalhosSection settings={settings} onChange={onChange} />}
@@ -148,7 +169,7 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
   const efeito = isBackgroundEffect(settings.background);
 
   return (
-    <>
+    <div className="settings-grade">
       <Card title="Tema">
         <Segmented
           label="Tema"
@@ -201,11 +222,22 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
         />
       </Card>
 
-      <Card title="Fundo">
+      <Card title="Movimento">
+        <Segmented
+          label="Animações"
+          description='"Desligadas" corta todo movimento. Se o Windows estiver com "reduzir animações", isso vale sempre, independente da escolha aqui.'
+          options={MOTION_LEVELS}
+          value={settings.animations}
+          onChange={(v) => onChange({ animations: v })}
+        />
+      </Card>
+
+      <Card title="Fundo" className="settings-largo">
         <Segmented
           label="Imagem de fundo"
           description="Pixels é a grade padrão do app. Aurora, Poente e Maré são gradientes suaves. Ondas é um efeito animado em WebGL — mais bonito, mais GPU."
           options={BACKGROUNDS}
+          grow={false}
           value={settings.background}
           onChange={(v) => onChange({ background: v })}
         />
@@ -267,7 +299,15 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
         />
       </Card>
 
-      <Card title="Agentes">
+    </div>
+  );
+}
+
+/** O que muda o comportamento do app (não o visual): como os agentes aparecem, salvar e avisos. */
+function GeralSection({ settings, onChange }: SectionProps) {
+  return (
+    <div className="settings-grade">
+      <Card title="Agentes" className="settings-largo">
         <Segmented
           label="Como ver os agentes"
           description="Conversa mostra o agente como um chat, igual ao acesso pelo navegador: mensagens, o que ele está fazendo, aprovar e parar. O terminal continua a um clique em cada aba. Terminais sem IA (npm run dev, git…) são sempre terminal."
@@ -307,16 +347,7 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
         <TesteDeAviso />
       </Card>
 
-      <Card title="Movimento">
-        <Segmented
-          label="Animações"
-          description='"Desligadas" corta todo movimento. Se o Windows estiver com "reduzir animações", isso vale sempre, independente da escolha aqui.'
-          options={MOTION_LEVELS}
-          value={settings.animations}
-          onChange={(v) => onChange({ animations: v })}
-        />
-      </Card>
-    </>
+    </div>
   );
 }
 

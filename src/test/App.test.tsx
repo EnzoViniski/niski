@@ -37,7 +37,8 @@ describe("App shell", () => {
 
     expect(screen.getAllByText("meu-projeto").length).toBeGreaterThan(0);
     expect(screen.queryByText(/nenhum projeto ainda/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /escolha a cli para meu-projeto/i })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: /cli do agente/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: "meu-projeto" }).length).toBeGreaterThan(0);
   });
 
   it("divide e restaura o layout persistido", async () => {
@@ -46,11 +47,10 @@ describe("App shell", () => {
     await adicionarProjeto();
     await userEvent.click(screen.getByRole("button", { name: /dividir lado a lado/i }));
 
-    expect(screen.getByText("2 painéis")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /fechar painel/i })).toHaveLength(2);
     first.unmount();
     render(<App />);
 
-    expect(screen.getByText("2 painéis")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /fechar painel/i })).toHaveLength(2);
   });
 
@@ -99,7 +99,7 @@ describe("App shell", () => {
     await userEvent.click(screen.getByRole("button", { name: /^configurações$/i }));
     expect(screen.getByRole("heading", { name: /configurações/i })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /^agentes$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^agentes cli/i }));
     expect(screen.getByRole("heading", { name: /conexões de agentes/i })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /omni agents/i }));

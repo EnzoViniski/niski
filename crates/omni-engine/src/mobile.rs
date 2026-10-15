@@ -54,7 +54,9 @@ struct Action {
     #[serde(skip)] kind: ActionKind,
 }
 #[derive(Clone, PartialEq)]
-enum ActionKind { Prompt(String), Approval(bool), Spawn(SpawnPlan), Modo(String), Ajustes(Ajustes), Retomar(Retomada) }
+enum ActionKind { Prompt(String), Approval(bool), Spawn(SpawnPlan), Modo(String), Ajustes(Ajustes), Retomar(Retomada),
+    /// Mensagem mandada com o agente no meio de um turno: entra na fila da CLI.
+    Fila(String) }
 
 /// Uma conversa sem sessão aberta (do índice do OMNI ou só do histórico da CLI) e como reabri-la.
 /// Resolvido no servidor antes da fila, como o `SpawnPlan`: o corpo do request só escolhe conta,
@@ -557,6 +559,9 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/conversas/{id}/retomar",post(retomar_rota))
         .route("/contas",get(contas))
         .route("/contas/{id}/uso",post(atualizar_uso))
+        .route("/historico/levar",post(levar_do_historico))
+        .route("/extensoes",get(extensoes))
+        .route("/extensoes/compartilhar",post(compartilhar_extensoes))
         .route("/conversas/{id}/arquivos",get(arquivos_da_conversa))
         .route("/terminais",get(listar_terminais).post(abrir_terminal))
         .route("/terminais/{id}/saida",get(saida_do_terminal))
@@ -768,9 +773,13 @@ fn resumo(state: &EngineState, c: &omni_core::conversations::Conversation) -> Va
     let attention = meta.as_ref().map(|m| format!("{}:{}", m.id, m.attention_seq));
     // `mode` sai da tela viva (o rodapé responde na hora); sessão fechada não tem modo.
     let mode = live.as_ref().and_then(interaction::modo_da_sessao);
+    // Tokens do turno em andamento (o "↓ 113 tokens" da linha de status), para a conversa mostrar
+    // junto do tempo, como o terminal. Só com o agente trabalhando — parado, o número é velho.
+    let tokens = live.as_ref().filter(|_| status.as_ref().is_some_and(|s| matches!(s, omni_protocol::SessionState::Working)))
+        .and_then(|s| s.interaction.lock().ok().and_then(|c| interaction::tokens_do_turno(&c.parser.screen().contents())));
     json!({"id":c.id,"title":omni_core::conversations::display_title(c),"project_id":c.project_id,"provider":c.segments.last().map(|s|&s.provider),
         "profile_id":c.segments.last().and_then(|s|s.profile_id.as_ref()),"state":status,"mode":mode,"capabilities":capabilities,
-        "attention":attention,"live":live.is_some(),"updated_at_ms":atividade(c,live.as_ref())})
+        "attention":attention,"tokens":tokens,"notice":meta.as_ref().and_then(|m|m.notice.clone()),"live":live.is_some(),"updated_at_ms":atividade(c,live.as_ref())})
 }
 
 /// Último sinal de vida da conversa: saída do terminal, escrita no transcript ou a criação. É o que
@@ -1156,13 +1165,14 @@ fn percent_decode(valor: &str) -> String {
     String::from_utf8_lossy(&saida).into_owned()
 }
 
-#[derive(Deserialize)] #[serde(deny_unknown_fields)] struct PromptBody { texto: String }
+#[derive(Deserialize)] #[serde(deny_unknown_fields)] struct PromptBody { texto: String, #[serde(default)] fila: bool }
 #[derive(Deserialize)] #[serde(deny_unknown_fields)] struct ApprovalBody { permitir: bool }
 async fn prompt(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<PromptBody>) -> Result<(StatusCode,Json<Value>),ApiError> {
     if body.texto.trim().is_empty() || body.texto.len() > 16_000 || body.texto.chars().any(|c|c.is_control() && c != '\n' && c != '\t') || body.texto.trim_start().starts_with('/') {
         return Err(error(StatusCode::BAD_REQUEST,"Envie texto de até 16000 bytes, sem comandos slash ou caracteres de controle"));
     }
-    enqueue_async(state,id,headers,ActionKind::Prompt(body.texto)).await
+    let kind = if body.fila { ActionKind::Fila(body.texto) } else { ActionKind::Prompt(body.texto) };
+    enqueue_async(state,id,headers,kind).await
 }
 async fn approve(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<ApprovalBody>) -> Result<(StatusCode,Json<Value>),ApiError> {
     enqueue_async(state,id,headers,ActionKind::Approval(body.permitir)).await
@@ -1282,11 +1292,16 @@ fn enqueue(state:&Arc<EngineState>,id:&str,headers:&HeaderMap,kind:ActionKind) -
         // reconhecida). Com o agente no meio de um turno, o shift+tab não é para ele.
         // Reabrir no meio de um turno mataria o trabalho em andamento.
         ActionKind::Prompt(_) | ActionKind::Modo(_) | ActionKind::Ajustes(_) => capability.prompt,
+        // Fila vale com o agente parado (vira um prompt comum) ou trabalhando com o campo livre.
+        ActionKind::Fila(_) => capability.prompt || capability.enfileirar,
         ActionKind::Approval(_) => capability.approve,
         ActionKind::Spawn(_) | ActionKind::Retomar(_) => false,
     };
     if !supported { return Err(error(StatusCode::CONFLICT,"Sessão ocupada ou tela não reconhecida; atualize o status")); }
-    if headers.get("if-match").and_then(|h|h.to_str().ok()) != Some(capability.revision.as_str()) {
+    // Fila não confere a versão da tela: com o agente trabalhando ela muda a cada quadro do spinner,
+    // e a trava recusaria quase todo envio. O que protege a fila é o campo vazio, conferido de novo
+    // na execução — colar no meio de um rascunho continua impossível.
+    if !matches!(kind, ActionKind::Fila(_)) && headers.get("if-match").and_then(|h|h.to_str().ok()) != Some(capability.revision.as_str()) {
         return Err(error(StatusCode::PRECONDITION_FAILED,"O contexto mudou; atualize antes de responder"));
     }
     let session_id = session.meta.lock().expect("metadata poisoned").id.clone();
@@ -1556,6 +1571,52 @@ fn levar_transcript(perfis: &[omni_core::Profile], provider: &str, conta_origem:
     Ok(destino.to_string_lossy().into_owned())
 }
 
+/// Conversa do histórico que vai ser retomada noutra conta: copia o transcript para lá antes do
+/// `--resume` (a CLI só acha conversas da própria conta). O pedido nomeia a conversa pelos campos
+/// do histórico, nunca por caminho — quem acha o arquivo é a varredura do próprio engine.
+#[derive(Deserialize)] #[serde(deny_unknown_fields)]
+struct LevarBody { provider: String, profile_id: String, session_id: String, destino: String }
+async fn levar_do_historico(State(state): State<Arc<EngineState>>, Json(body): Json<LevarBody>) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let entrada = historical_entries(&state).into_iter()
+            .find(|e| e.provider == body.provider && e.profile_id == body.profile_id && e.session_id == body.session_id)
+            .ok_or_else(||error(StatusCode::NOT_FOUND,"Conversa não encontrada no histórico"))?;
+        if body.destino == entrada.profile_id { return Ok(Json(json!({"ok":true}))); }
+        let perfis = omni_core::profiles(state.state_file.parent().unwrap());
+        let alvo = perfis.iter().find(|p| p.id == body.destino && p.provider == entrada.provider)
+            .ok_or_else(||error(StatusCode::NOT_FOUND,"Conta não encontrada para este agente"))?;
+        let cwd = entrada.cwd.clone().ok_or_else(||error(StatusCode::CONFLICT,"Essa conversa não registrou a pasta onde rodou"))?;
+        levar_transcript(&perfis,&entrada.provider,Some(&entrada.profile_id),Path::new(&entrada.path),alvo,&cwd,&entrada.session_id)
+            .map_err(|e|error(StatusCode::CONFLICT,&format!("Não deu para levar a conversa para a conta {}: {e}",alvo.name)))?;
+        Ok(Json(json!({"ok":true})))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao copiar a conversa"))?
+}
+
+/// MCPs, plugins e conectores por IA e conta (a aba Extensões, na web). Já vem sem segredos (ver
+/// `omni_core::extensoes`). O projeto chega por id, nunca por caminho: o engine resolve pela lista
+/// publicada pelo desktop.
+#[derive(Deserialize)] struct ExtensoesQuery { #[serde(default)] projeto: Option<String> }
+async fn extensoes(State(state): State<Arc<EngineState>>, Query(q): Query<ExtensoesQuery>) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let dir = state.state_file.parent().unwrap().to_path_buf();
+        let pasta = q.projeto.and_then(|id| known_projects(&state).into_iter().find(|p| p.id == id)).map(|p| PathBuf::from(p.path));
+        Json(json!({
+            "contas": omni_core::extensoes::listar(&dir, pasta.as_deref()),
+            "compartilhar": omni_core::compartilhar::ativado(&dir),
+        }))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ler as extensões"))
+}
+
+#[derive(Deserialize)] #[serde(deny_unknown_fields)] struct CompartilharBody { ligado: bool }
+async fn compartilhar_extensoes(State(state): State<Arc<EngineState>>, Json(body): Json<CompartilharBody>) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let dir = state.state_file.parent().unwrap().to_path_buf();
+        omni_core::compartilhar::definir_e_levar(&dir, body.ligado)
+            .map(|levado| Json(json!({"compartilhar": body.ligado, "levado": levado})))
+            .map_err(|e| error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao salvar"))?
+}
+
 /* ── Retomar uma conversa sem sessão aberta ──────────────────────────────────────────────────
    Conversa do histórico (ou do OMNI, com a sessão já fechada) não tem o que "reabrir": abre uma
    sessão nova na pasta do projeto com `--resume`, já com a conta, o modelo e o esforço escolhidos. */
@@ -1668,10 +1729,18 @@ fn reabrir_com(state: &Arc<EngineState>, conversation_id: &str, ajustes: &Ajuste
     let alvo = perfis.iter().find(|p| Some(&p.id) == alvo_id.as_ref() && p.provider == segmento.provider);
     if alvo_id.is_some() && alvo.is_none() { return Err(anyhow!("Conta não encontrada para este agente")); }
 
+    // Conversa que ainda não teve mensagem: o Claude não gravou nada, e `--resume` respondia "No
+    // conversation found" — a sessão morria ao trocar o modelo antes de escrever. Sem transcript, o
+    // Claude reabre com o **mesmo** id via `--session-id`, já com os ajustes novos.
+    let gravada = omni_core::conversations::resolve_transcript(&segmento,conversa,&perfis).is_some_and(|p| p.is_file())
+        || perfis.iter().find(|p| Some(&p.id) == segmento.profile_id.as_ref())
+            .is_some_and(|p| omni_core::conversations::claude_transcript_path(Path::new(&p.config_dir),&conversa.cwd,&sessao_externa).is_file());
+    let nova_sem_mensagem = segmento.provider == "claude" && !gravada;
+
     // Outra conta: o transcript vai junto, no lugar onde a CLI da conta nova procura.
     let trocou_conta = alvo_id != segmento.profile_id;
     let mut transcript = segmento.transcript_path.clone();
-    if trocou_conta {
+    if trocou_conta && !nova_sem_mensagem {
         let alvo = alvo.ok_or_else(||anyhow!("Conta não encontrada"))?;
         let origem = omni_core::conversations::resolve_transcript(&segmento,conversa,&perfis)
             .ok_or_else(||anyhow!("Não achei o transcript desta conversa para levar à outra conta"))?;
@@ -1681,7 +1750,11 @@ fn reabrir_com(state: &Arc<EngineState>, conversation_id: &str, ajustes: &Ajuste
     let base = state.mobile.workspace.lock().map_err(|_|anyhow!("workspace poisoned"))?.agents.iter()
         .find(|agente| agente.id == segmento.provider).map(|agente| agente.command.clone())
         .unwrap_or_else(|| segmento.provider.clone());
-    let comando = comando_de_retomada(&base,&segmento.provider,&sessao_externa,ajustes)?;
+    let comando = if nova_sem_mensagem {
+        comando_de_retomada(&base,&segmento.provider,&sessao_externa,ajustes)?.replacen(" --resume "," --session-id ",1)
+    } else {
+        comando_de_retomada(&base,&segmento.provider,&sessao_externa,ajustes)?
+    };
     let sessao_id = {
         let mut meta = sessao.meta.lock().map_err(|_|anyhow!("metadata poisoned"))?;
         // Só as variáveis de conta mudam; o resto do ambiente da sessão fica como estava.
@@ -1794,7 +1867,8 @@ fn execute_checked(state:&Arc<EngineState>, action:&Action, is_running: impl Fn(
     let sessions = state.sessions.lock().map_err(|_|anyhow!("sessions poisoned"))?;
     if !matches!(sessions.get(&action.session_id),Some(SessionEntry::Live(s)) if Arc::ptr_eq(s,&session)) { return Err(anyhow!("Sessão trocada")); }
     let mut context = session.interaction.lock().map_err(|_|anyhow!("screen poisoned"))?;
-    if session.reserved.load(Ordering::SeqCst) || context.revision(&session) != action.revision { return Err(anyhow!("Contexto mudou antes da execução")); }
+    let fila = matches!(action.kind, ActionKind::Fila(_));
+    if session.reserved.load(Ordering::SeqCst) || (!fila && context.revision(&session) != action.revision) { return Err(anyhow!("Contexto mudou antes da execução")); }
     let meta = session.meta.lock().map_err(|_|anyhow!("metadata poisoned"))?.clone();
     let provider = meta.provider.as_deref().unwrap_or("");
     if !is_running(meta.pid,provider) { return Err(anyhow!("CLI não está mais ativo")); }
@@ -1802,6 +1876,8 @@ fn execute_checked(state:&Arc<EngineState>, action:&Action, is_running: impl Fn(
     // `interaction::submeter_colagem`). Aprovação é tecla de menu e continua num write só.
     let (data, submeter) = match &action.kind {
         ActionKind::Prompt(text) if interaction::ready(context.parser.screen(),provider) => (format!("\x1b[200~{text}\x1b[201~"), true),
+        ActionKind::Fila(text) if interaction::ready(context.parser.screen(),provider)
+            || interaction::pode_enfileirar(context.parser.screen(),provider) => (format!("\x1b[200~{text}\x1b[201~"), true),
         ActionKind::Approval(allow) => { let dialog = interaction::approval(&context.parser.screen().contents(),provider).ok_or_else(||anyhow!("Aprovação não reconhecida"))?; (if *allow { dialog.0 } else { dialog.1 }, false) },
         _ => return Err(anyhow!("Entrada não está disponível")),
     };
@@ -2555,6 +2631,31 @@ quebra"}"#] {
             let action = Action{id:"a".into(),conversation_id:"c".into(),session_id:"s".into(),state:"queued".into(),created_at_ms:now_ms(),error:None,key:"key".into(),revision,kind:ActionKind::Prompt("Olá\nmundo".into())};
             (session,bytes,action)
         }
+        /// Mensagem com o agente no meio do turno: o campo da CLI está livre ("esc to interrupt" na
+        /// tela), então ela vai para a fila da CLI — sem a trava de versão da tela, que mudaria a cada
+        /// quadro do spinner. Prompt comum continua recusado durante o turno, e rascunho no campo
+        /// continua bloqueando a fila.
+        #[test] fn mensagem_durante_o_turno_entra_na_fila_da_cli() {
+            let (_dir,state) = fixture();
+            let (session,bytes,prompt) = fake_session(&state,"✻ Pensando… (esc to interrupt)\r\n❯ ");
+            {
+                let contexto = session.interaction.lock().unwrap();
+                assert!(!interaction::ready(contexto.parser.screen(),"claude"), "prompt comum não vale no meio do turno");
+                assert!(interaction::pode_enfileirar(contexto.parser.screen(),"claude"), "turno com campo livre aceita fila");
+            }
+            // A tela anda (o spinner conta segundos) depois que a ação entrou na fila: prompt comum
+            // seria recusado pela versão; a fila cola mesmo assim, porque o campo segue livre.
+            session.interaction.lock().unwrap().parser.process("\x1b[1;1H✻ Pensando… 12s (esc to interrupt)\x1b[2;3H".as_bytes());
+            assert!(execute_checked(&state,&prompt,|_,_| true).is_err(), "prompt comum ignorou a versão da tela");
+            let fila = Action { kind: ActionKind::Fila("e depois isso".into()), ..prompt };
+            execute_checked(&state,&fila,|_,_| true).unwrap();
+            assert!(String::from_utf8_lossy(&bytes.lock().unwrap()).starts_with("\x1b[200~e depois isso\x1b[201~"));
+
+            // Rascunho digitado no PC: a fila não cola por cima.
+            let (rascunho,_,_) = fake_session(&state,"✻ Pensando… (esc to interrupt)\r\n❯ meu rascunho");
+            assert!(!interaction::pode_enfileirar(rascunho.interaction.lock().unwrap().parser.screen(),"claude"));
+        }
+
         /// O Enter só sai depois que a colagem aparece no campo. Junto com ela, no mesmo write, a CLI
         /// trata o `\r` como parte do texto colado: com anexos (prompt de várias linhas) a mensagem
         /// ficava digitada no terminal e nunca era enviada.
@@ -2756,6 +2857,35 @@ quebra"}"#] {
 
             let (_sessao,_,_) = fake_session(&state,"Claude Code\r\n❯ ");
             assert_eq!(pedir(state,"k3").await.0,409,"retomou uma conversa que já está aberta");
+        }
+
+        /// Retomar do histórico noutra conta: o transcript vai para a pasta da conta escolhida, e um
+        /// pedido que não bate com nada do histórico (ou conta de outro agente) é recusado.
+        #[tokio::test] async fn historico_leva_a_conversa_para_outra_conta() {
+            let (dir,state) = fixture();
+            let (conta_a, conta_b) = (dir.path().join("a"), dir.path().join("b"));
+            let projeto = dir.path().join("projeto");
+            std::fs::create_dir_all(&projeto).unwrap();
+            let origem = omni_core::conversations::claude_transcript_path(&conta_a,&projeto.to_string_lossy(),"sessao-1");
+            std::fs::create_dir_all(origem.parent().unwrap()).unwrap();
+            std::fs::write(&origem,json!({"type":"user","cwd":projeto.to_string_lossy(),"timestamp":"2026-10-01T10:00:00Z",
+                "message":{"role":"user","content":"oi"}}).to_string()).unwrap();
+            atomic_write_json(&dir.path().join("profiles.json"),&json!({"profiles":[
+                {"id":"a","provider":"claude","name":"Pessoal","config_dir":conta_a.to_string_lossy(),"builtin":false,"created_at_ms":1},
+                {"id":"b","provider":"claude","name":"Trabalho","config_dir":conta_b.to_string_lossy(),"builtin":false,"created_at_ms":1},
+                {"id":"x","provider":"codex","name":"Codex","config_dir":dir.path().join("x").to_string_lossy(),"builtin":false,"created_at_ms":1}
+            ]})).unwrap();
+            let pedir = |state: Arc<EngineState>, corpo: &'static str| async move {
+                let EngineResponse::Api { status, body } = local(state,"POST","/historico/levar",Some(corpo.into()),None,vec![]).await else { panic!() };
+                (status, body)
+            };
+            let (status, corpo) = pedir(state.clone(),r#"{"provider":"claude","profile_id":"a","session_id":"sessao-1","destino":"b"}"#).await;
+            assert_eq!(status,200,"{corpo}");
+            let destino = omni_core::conversations::claude_transcript_path(&conta_b,&projeto.to_string_lossy(),"sessao-1");
+            assert_eq!(std::fs::read(&destino).unwrap(), std::fs::read(&origem).unwrap());
+            assert_eq!(pedir(state.clone(),r#"{"provider":"claude","profile_id":"a","session_id":"outra","destino":"b"}"#).await.0,404);
+            assert_eq!(pedir(state.clone(),r#"{"provider":"claude","profile_id":"a","session_id":"sessao-1","destino":"x"}"#).await.0,404);
+            assert_eq!(pedir(state,r#"{"provider":"claude","profile_id":"a","session_id":"sessao-1","destino":"b","path":"C:/x"}"#).await.0,422);
         }
 
         #[test] fn melhores_arquivos_priorizam_o_nome() {

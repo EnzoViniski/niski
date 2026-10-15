@@ -27,7 +27,13 @@ impl Interaction {
 }
 
 #[derive(Clone, serde::Serialize)]
-pub struct Capabilities { pub prompt: bool, pub approve: bool, pub revision: String, pub approval_text: Option<String>, pub reason: Option<String> }
+pub struct Capabilities {
+    pub prompt: bool, pub approve: bool, pub revision: String, pub approval_text: Option<String>, pub reason: Option<String>,
+    /// O agente está no meio de um turno, mas o campo da CLI está vazio e aceita digitação: uma
+    /// mensagem mandada agora entra na fila da própria CLI, como digitar no terminal.
+    #[serde(default)]
+    pub enfileirar: bool,
+}
 
 /// Require provider chrome plus an empty composer at the actual terminal cursor.
 pub fn ready(screen: &vt100::Screen, provider: &str) -> bool {
@@ -40,6 +46,31 @@ pub fn ready(screen: &vt100::Screen, provider: &str) -> bool {
     brand && screen.bracketed_paste() && composer_vazio(screen)
         && !text.contains("Esc to cancel") && !text.contains("esc to interrupt")
         && approval(&text,provider).is_none()
+}
+
+/// Turno em andamento com o campo livre: o Claude Code (e o Codex) aceitam digitar e mandar
+/// durante o turno — a mensagem fica na fila e entra quando o turno acaba. É o mesmo campo vazio
+/// do `ready`, só que com o "esc to interrupt" na tela em vez de proibido por ele.
+pub fn pode_enfileirar(screen: &vt100::Screen, provider: &str) -> bool {
+    let text = screen.contents();
+    let brand = match provider { "claude" => true, "codex" => text.contains("OpenAI Codex"), _ => false };
+    brand && screen.bracketed_paste() && composer_vazio(screen)
+        && text.to_lowercase().contains("esc to interrupt")
+        && approval(&text,provider).is_none()
+}
+
+/// Tokens do turno em andamento, como a CLI mostra na linha de status:
+/// `· Propagating… (5s · ↓ 113 tokens · thinking with low effort)` → `"113"`; `"1.2k"` também vale.
+/// A linha mais de baixo vence (a de cima pode ser de um turno anterior que ficou na tela).
+pub fn tokens_do_turno(texto: &str) -> Option<String> {
+    texto.lines().rev().find_map(|linha| {
+        let fim = linha.find(" tokens").or_else(|| linha.find("tokens"))?;
+        let antes = linha[..fim].trim_end();
+        let seta = antes.rfind(['↓', '↑'])?;
+        let numero = antes[seta..].trim_start_matches(['↓', '↑']).trim();
+        (!numero.is_empty() && numero.chars().all(|c| c.is_ascii_digit() || c == '.' || c == ',' || c == 'k' || c == 'K'))
+            .then(|| numero.to_owned())
+    })
 }
 
 /// O campo de digitação está vazio no cursor real.
@@ -174,8 +205,9 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
     let dialog = approval(&context.parser.screen().contents(),provider);
     let approve = available && dialog.is_some();
     let prompt = available && ready(context.parser.screen(),provider);
+    let enfileirar = available && !prompt && pode_enfileirar(context.parser.screen(),provider);
     Capabilities { prompt, approve, revision: context.revision(session), approval_text: dialog.map(|d|d.2),
-        reason: (!(approve || prompt)).then(|| "Entrada do CLI não reconhecida ou sessão ocupada".into()) }
+        reason: (!(approve || prompt)).then(|| "Entrada do CLI não reconhecida ou sessão ocupada".into()), enfileirar }
 }
 
 /// Uso da conta Claude. A fonte é o `cachedUsageUtilization` que o próprio Claude Code grava no
@@ -536,6 +568,14 @@ mod tests {
         // Digitar de verdade na frente do cursor volta a bloquear.
         context.parser.process(b"abc");
         assert!(!ready(context.parser.screen(),"claude"));
+    }
+
+    #[test] fn le_os_tokens_do_turno_da_linha_de_status() {
+        assert_eq!(tokens_do_turno("· Propagating… (5s · ↓ 113 tokens · thinking with low effort)").as_deref(), Some("113"));
+        assert_eq!(tokens_do_turno("✻ Pensando… (1m 12s · ↑ 1.2k tokens · esc to interrupt)").as_deref(), Some("1.2k"));
+        assert_eq!(tokens_do_turno("antigo (↓ 5 tokens)\n✢ Agora (3s · ↓ 40 tokens)").as_deref(), Some("40"));
+        assert_eq!(tokens_do_turno("• Working (12s • esc to interrupt)"), None);
+        assert_eq!(tokens_do_turno("fala sobre tokens em geral"), None);
     }
 
     /// Exemplo em cinza depois do cursor não é rascunho; o mesmo texto sem `dim` é.

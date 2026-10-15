@@ -77,13 +77,6 @@ export function UsoDasContas({ contaAtiva }: { contaAtiva: string | null }) {
               <AgentIcon provider={conta.provider} size={12} className="shrink-0" />
               <span className="w-atencao-texto">{conta.name}</span>
               <span className="w-uso-agente">{AGENTE[conta.provider] ?? conta.provider}</span>
-              {(conta.provider === "claude" || conta.provider === "codex") && (
-                <button type="button" className="w-uso-atualizar" disabled={atualizando.has(conta.id)}
-                  aria-label={`Atualizar uso de ${conta.name}`} title="Buscar o uso de novo"
-                  onClick={() => void atualizar(conta.id)}>
-                  <ReloadIcon aria-hidden className={`h-3 w-3${atualizando.has(conta.id) ? " anexo-girando" : ""}`} />
-                </button>
-              )}
             </span>
             {erros[conta.id] && <span className="w-uso-vazio w-uso-erro" role="alert">{erros[conta.id]}</span>}
             {conta.usage && conta.usage.status !== "unavailable" ? (
@@ -93,6 +86,14 @@ export function UsoDasContas({ contaAtiva }: { contaAtiva: string | null }) {
               </>
             ) : (
               <span className="w-uso-vazio">{conta.usage?.reason ?? "Sem leitura de uso ainda"}</span>
+            )}
+            {(conta.provider === "claude" || conta.provider === "codex") && (
+              <button type="button" className="w-uso-atualizar" disabled={atualizando.has(conta.id)}
+                aria-label={`Atualizar uso de ${conta.name}`} title="Buscar o uso de novo"
+                onClick={() => void atualizar(conta.id)}>
+                <ReloadIcon aria-hidden className={`h-3 w-3${atualizando.has(conta.id) ? " anexo-girando" : ""}`} />
+                <span>{atualizando.has(conta.id) ? "Lendo…" : "Atualizar"}</span>
+              </button>
             )}
           </li>
         ))}

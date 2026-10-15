@@ -24,14 +24,31 @@ export function statusDaConversa(session: Pick<TerminalSession, "state" | "notic
 
 const VISUAL: Record<
   ConversaStatus,
-  { icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; cor: string; rotulo: string }
+  {
+    icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+    cor: string;
+    rotulo: string;
+    /** Selo da etiqueta: fundo e borda na cor do status. */
+    selo: string;
+    /** Linha da lateral: barra à esquerda e um fundo leve, para o status se ver de longe. */
+    linha: string;
+  }
 > = {
-  trabalhando: { icon: PlayIcon, cor: "text-success", rotulo: "trabalhando" },
-  aprovacao: { icon: AlertIcon, cor: "text-warning", rotulo: "aprovar" },
-  interrompido: { icon: ZapOffIcon, cor: "text-danger", rotulo: "interrompido" },
-  finalizado: { icon: CheckIcon, cor: "text-accent", rotulo: "finalizado" },
-  neutro: { icon: CircleIcon, cor: "text-text-muted", rotulo: "" },
+  trabalhando: { icon: PlayIcon, cor: "text-success", rotulo: "trabalhando",
+    selo: "bg-success/15 border-success/50", linha: "border-success bg-success/[0.07]" },
+  aprovacao: { icon: AlertIcon, cor: "text-warning", rotulo: "aprovar",
+    selo: "bg-warning/15 border-warning/50", linha: "border-warning bg-warning/[0.08]" },
+  interrompido: { icon: ZapOffIcon, cor: "text-danger", rotulo: "interrompido",
+    selo: "bg-danger/15 border-danger/50", linha: "border-danger bg-danger/[0.08]" },
+  finalizado: { icon: CheckIcon, cor: "text-accent", rotulo: "finalizado",
+    selo: "bg-accent/15 border-accent/50", linha: "border-accent bg-accent/[0.07]" },
+  neutro: { icon: CircleIcon, cor: "text-text-muted", rotulo: "", selo: "", linha: "border-transparent" },
 };
+
+/** Classes da linha inteira (use com `border-l-2`). Neutro fica sem barra nem fundo. */
+export function destaqueDaLinha(status: ConversaStatus): string {
+  return VISUAL[status].linha;
+}
 
 export function rotuloDoStatus(status: ConversaStatus): string {
   return VISUAL[status].rotulo;
@@ -41,7 +58,7 @@ export function IconeDoStatus({ status, className = "" }: { status: ConversaStat
   const { icon: Icon, cor } = VISUAL[status];
   return (
     <Icon
-      className={`h-3 w-3 shrink-0 ${cor} ${status === "trabalhando" ? "animate-pulse" : ""} ${status === "neutro" ? "opacity-50" : ""} ${className}`}
+      className={`h-3.5 w-3.5 shrink-0 ${cor} ${status === "trabalhando" ? "animate-pulse" : ""} ${status === "neutro" ? "opacity-50" : ""} ${className}`}
       aria-hidden
     />
   );
@@ -50,7 +67,11 @@ export function IconeDoStatus({ status, className = "" }: { status: ConversaStat
 /** Rótulo curto à direita do nome. Neutro não ganha texto: é o normal, e repetir "neutro" em toda
  *  linha só faria os outros estados se destacarem menos. */
 export function EtiquetaDoStatus({ status, className = "" }: { status: ConversaStatus; className?: string }) {
-  const { cor, rotulo } = VISUAL[status];
+  const { cor, rotulo, selo } = VISUAL[status];
   if (!rotulo) return null;
-  return <span className={`shrink-0 text-[9px] font-semibold uppercase tracking-wider ${cor} ${className}`}>{rotulo}</span>;
+  return (
+    <span className={`shrink-0 border px-1.5 py-px text-[9px] font-bold uppercase leading-[14px] tracking-wider ${cor} ${selo} ${className}`}>
+      {rotulo}
+    </span>
+  );
 }

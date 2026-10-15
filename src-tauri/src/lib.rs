@@ -10,6 +10,7 @@ mod target_files;
 mod history;
 mod instalacao;
 mod profiles;
+mod extensoes;
 
 pub fn run() {
     #[cfg(unix)]
@@ -27,6 +28,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             engine_client::engine_status,
             account_usage::account_usage,
+            extensoes::listar_extensoes,
+            extensoes::compartilhamento_de_extensoes,
+            extensoes::definir_compartilhamento_de_extensoes,
             agent_runtime::agent_runtime,
             mobile::mobile_settings,
             mobile::publish_workspace,

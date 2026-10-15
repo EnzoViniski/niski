@@ -1,6 +1,6 @@
 [package]
 name = "omni-agents"
-version = "0.6.1"
+version = "0.6.2"
 description = "OMNI AGENTS desktop workspace"
 authors = []
 edition = "2021"
@@ -24,6 +24,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Já vem na árvore via tauri; declarado aqui só para gerar o --session-id do Claude.
 uuid = { version = "1", features = ["v4"] }
+# Já vem na árvore via tauri; lê o `config.toml` do Codex na aba Extensões.
+toml = "0.9"
 tokio = { version = "1", features = ["full"] }
 omni-protocol = { path = "../crates/omni-protocol" }
 omni-core = { path = "../crates/omni-core" }

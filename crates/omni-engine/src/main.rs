@@ -601,6 +601,13 @@ impl SessionOrigin {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Conta extra (não a nativa) recebe os MCPs, plugins e skills da conta principal antes de a CLI
+/// abrir — ver `omni_core::compartilhar`. Desligável na aba Extensões.
+fn compartilhar_extensoes(state: &Arc<EngineState>, provider: Option<&str>, profile_id: Option<&str>) {
+    let (Some(provider), Some(profile_id), Some(dir)) = (provider, profile_id, state.state_file.parent()) else { return };
+    omni_core::compartilhar::antes_de_abrir(dir, provider, profile_id);
+}
+
 pub(crate) fn spawn_terminal_inner(
     state: &Arc<EngineState>,
     id: String,
@@ -616,6 +623,7 @@ pub(crate) fn spawn_terminal_inner(
 ) -> Result<TerminalSession> {
     let shell = shell.unwrap_or_else(default_shell);
     let headless = origin.headless;
+    compartilhar_extensoes(state, origin.provider.as_deref(), origin.profile_id.as_deref());
     let (pid, writer, master, child, reader) =
         open_pty_and_spawn(&cwd, &shell, rows, cols, &origin.env, origin.provider.is_some())?;
     let metadata = TerminalSession {
@@ -855,6 +863,9 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
             // e `list_sessions` passa por esta trava em toda sessão — a lista inteira ficava parada,
             // e o app desistia por tempo esgotado. A saída do processo velho já não conta (pid).
             drop(context);
+            // Reinício e troca de conta do failover também passam aqui: a conta nova recebe as
+            // extensões da principal antes de a CLI subir.
+            compartilhar_extensoes(state, meta.provider.as_deref(), meta.profile_id.as_deref());
             let (pid, writer, master, child, reader) =
                 open_pty_and_spawn(&meta.cwd, &meta.shell, meta.rows, meta.cols, &meta.env, meta.provider.is_some())?;
             *session.writer.lock().map_err(|_| anyhow!("terminal writer poisoned"))? = writer;

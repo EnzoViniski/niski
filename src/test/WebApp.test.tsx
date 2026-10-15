@@ -125,6 +125,67 @@ it("alterna o modo do agente pelo botão, como o shift+tab faz no terminal", asy
   expect(enviados.find((item) => item.url.endsWith("/modo"))?.body).toEqual({ modo: "plan" });
 });
 
+/** O bug do "clicar duas vezes": a troca anterior redesenha o rodapé do terminal e a versão da tela
+ *  que a conversa tinha ficou velha. O PC recusa (412); a tela relê a versão e repete sozinha. */
+it("troca de modo com a tela redesenhada relê a versão e repete, sem mostrar erro", async () => {
+  const pedidos: { url: string; ifMatch: string | null }[] = [];
+  const base = servidor([conversa()]);
+  let recusou = false;
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === "POST" && url.endsWith("/modo")) {
+      const ifMatch = new Headers(init.headers).get("If-Match");
+      pedidos.push({ url, ifMatch });
+      return ifMatch === "r2"
+        ? new Response(JSON.stringify({ id: "a" }), { status: 202 })
+        : (recusou = true, new Response(JSON.stringify({ error: "O contexto mudou; atualize antes de responder" }), { status: 412 }));
+    }
+    if (url.includes("timeline") && recusou) {
+      const nova = conversa();
+      return new Response(JSON.stringify({ ...TIMELINE, conversation: { ...nova, capabilities: { ...nova.capabilities!, revision: "r2" } } }));
+    }
+    return base(url, init);
+  }));
+  render(<WebApp />);
+  await screen.findByRole("button", { name: "Projeto" });
+  await act(async () => {
+    await userEvent.click(await screen.findByRole("button", { name: /Abrir conversa/ }));
+  });
+  await act(async () => {
+    await userEvent.click(await screen.findByRole("button", { name: "Plano" }));
+  });
+  await waitFor(() => expect(pedidos).toHaveLength(2));
+  expect(pedidos[1].ifMatch).toBe("r2");
+  expect(screen.queryByText(/contexto mudou/i)).not.toBeInTheDocument();
+});
+
+it("com o agente trabalhando, a mensagem vai para a fila e o Parar continua à mão", async () => {
+  const enviados: { url: string; body: unknown }[] = [];
+  const trabalhando = conversa({
+    state: "working", live: true, tokens: "1.2k",
+    capabilities: { prompt: false, approve: false, revision: '"r"', approval_text: null, reason: null, enfileirar: true },
+  });
+  vi.stubGlobal("fetch", servidor([trabalhando], enviados));
+  render(<WebApp />);
+  await screen.findByRole("button", { name: "Projeto" });
+  await act(async () => {
+    await userEvent.click(await screen.findByRole("button", { name: /Abrir conversa/ }));
+  });
+  expect(await screen.findByText("↓ 1.2k tokens")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Parar" })).toBeInTheDocument();
+  // Sem texto, só o Parar; com texto, o Enviar aparece ao lado e manda para a fila.
+  expect(screen.queryByRole("button", { name: "Enviar para a fila" })).not.toBeInTheDocument();
+  await act(async () => {
+    await userEvent.type(screen.getByLabelText(/mensagem|resposta/i), "e depois isso");
+  });
+  await act(async () => {
+    await userEvent.click(screen.getByRole("button", { name: "Enviar para a fila" }));
+  });
+  await waitFor(() => expect(enviados.some((item) => item.url.endsWith("/prompt"))).toBe(true));
+  expect(enviados.find((item) => item.url.endsWith("/prompt"))?.body).toEqual({ texto: "e depois isso", fila: true });
+  expect(await screen.findByText("na fila")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Parar" })).toBeInTheDocument();
+});
+
 it("renomear a conversa manda o nome novo para o PC", async () => {
   const enviados: { url: string; body: unknown }[] = [];
   vi.stubGlobal("fetch", servidor([conversa()], enviados));

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { LayoutPreset, WorkspaceAction } from "../../types/workspace";
+import { GlifoColunas, GlifoGrade, GlifoLinhas, GlifoPrincipalLateral } from "../../components/ui/PixelGlyph";
 
-const PRESETS: { id: LayoutPreset; glyph: string; label: string }[] = [
-  { id: "columns-2", glyph: "▥", label: "2 colunas" },
-  { id: "rows-2", glyph: "▤", label: "2 linhas" },
-  { id: "grid-2x2", glyph: "▦", label: "Grade 2×2" },
-  { id: "main-plus-side", glyph: "▣", label: "Principal + lateral" },
+const PRESETS: { id: LayoutPreset; Glifo: () => JSX.Element; label: string }[] = [
+  { id: "columns-2", Glifo: GlifoColunas, label: "2 colunas" },
+  { id: "rows-2", Glifo: GlifoLinhas, label: "2 linhas" },
+  { id: "grid-2x2", Glifo: GlifoGrade, label: "Grade 2×2" },
+  { id: "main-plus-side", Glifo: GlifoPrincipalLateral, label: "Principal + lateral" },
 ];
 
 interface LayoutPresetPickerProps {
@@ -57,9 +58,10 @@ export function LayoutPresetPicker({ dispatch }: LayoutPresetPickerProps) {
         aria-haspopup="dialog"
         aria-expanded={aberto}
         title="Layouts prontos"
-        className="text-[10px] text-text-muted hover:text-text-primary uppercase tracking-wider px-2 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        className={`titlebar-acao${aberto ? " is-aberto" : ""}`}
       >
-        ▦ Layouts
+        <GlifoGrade />
+        Layouts
       </button>
 
       {aberto && pos && createPortal(
@@ -80,7 +82,7 @@ export function LayoutPresetPicker({ dispatch }: LayoutPresetPickerProps) {
               }}
               className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs text-text-secondary hover:text-text-primary hover:bg-overlay/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             >
-              <span aria-hidden="true" className="text-accent">{preset.glyph}</span>
+              <span aria-hidden="true" className="text-accent"><preset.Glifo /></span>
               {preset.label}
             </button>
           ))}

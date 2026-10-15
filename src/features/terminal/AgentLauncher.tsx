@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Select } from "../../components/ui";
 import { AgentIcon } from "../../components/ui/AgentIcon";
+import { ChatIcon, FolderIcon } from "../../components/ui/PixelIcon";
 import { HistoryView } from "../history/HistoryView";
 import { targetLabel } from "../../lib/paths";
-import { resumeCommand, type HistoryEntry, type HistoryProvider } from "../history/historyService";
+import { levarParaConta, resumeCommand, type HistoryEntry, type HistoryProvider } from "../history/historyService";
 import {
   AGENT_RESUME_FLAG,
   listAgentClis,
@@ -87,18 +88,20 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
     onLaunch({ agent: command ? { ...agent, command } : agent, profile });
   }
 
-  // Reabre a conversa escolhida na conta em que ela foi gravada, não na selecionada no card.
-  function resume(entry: HistoryEntry) {
+  // Reabre na conta escolhida no histórico (por padrão, a que gravou a conversa). Outra conta
+  // recebe uma cópia do transcript antes, senão o `--resume` não acha a conversa.
+  async function resume(entry: HistoryEntry, profileId: string) {
     if (!agent) return;
+    await levarParaConta(entry, profileId);
     onLaunch({
       agent: { ...agent, command: resumeCommand(agent.command, entry) },
-      profile: profiles.find((item) => item.id === entry.profile_id) ?? profile,
+      profile: profiles.find((item) => item.id === profileId) ?? profile,
     });
   }
 
   if (picking && agent) {
     return (
-      <div className="h-full bg-bg-surface">
+      <div className="h-full overflow-hidden bg-bg-surface/80">
         <HistoryView
           lock={{ provider: agent.id as HistoryProvider, cwd: projectPath }}
           onResume={resume}
@@ -117,42 +120,63 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
     );
   }
 
-  const options = agents.map((item) => ({
-    value: item.id,
-    label: item.label,
-    icon: <AgentIcon provider={item.id} size={14} className="shrink-0" />,
-    hint: !item.available
-      ? `${item.command} · não encontrado`
+  // Status de cada CLI em uma palavra, com a cor que o cartão usa.
+  const statusDe = (item: AgentCliStatus) =>
+    !item.available
+      ? { texto: "Não instalada", tom: "off" }
       : item.authenticated
-        ? `${item.command} · conectado`
-        : `${item.command} · instalado, sem login`,
-    disabled: !item.available,
-  }));
+        ? { texto: "Conectada", tom: "ok" }
+        : { texto: "Sem login", tom: "aviso" };
 
   return (
-    <div className="grid h-full place-items-center bg-bg-surface p-6">
-      <section className="w-full max-w-md border-2 border-border-subtle bg-bg-elevated p-5 shadow-2xl">
-        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-accent">Novo agente</p>
-        <h2 className="mt-2 text-lg font-semibold text-text-primary">Escolha a CLI para {projectName}</h2>
+    <div className="launcher">
+      <section className="launcher-card" aria-labelledby="launcher-titulo">
+        <header className="launcher-topo">
+          <span className="launcher-topo-icone" aria-hidden>
+            <FolderIcon className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="launcher-sobretitulo">Novo agente</p>
+            <h2 id="launcher-titulo" className="launcher-titulo">{projectName}</h2>
+            <p className="launcher-caminho" title={projectPath}>{projectPath}</p>
+          </div>
+        </header>
+
         {alvo && (
-          <p className="mt-1 text-[11px] text-accent">
+          <p className="launcher-nota">
             O agente roda neste PC, com a sua conta; os comandos dele executam em {alvo}.
           </p>
         )}
-        <p className="mt-1 text-xs leading-5 text-text-muted">
-          O agente será iniciado no diretório do projeto e continuará ativo mesmo se esta janela fechar.
-        </p>
-        <div className="mt-5">
-          <label htmlFor="agent-cli" className="mb-2 block font-mono text-[10px] uppercase text-text-secondary">
-            CLI do agente
-          </label>
-          <Select id="agent-cli" value={selected} options={options} onChange={setSelected} disabled={loading} />
+
+        <div role="radiogroup" aria-label="CLI do agente" className="launcher-agentes">
+          {agents.map((item) => {
+            const status = statusDe(item);
+            const marcado = item.id === selected;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="radio"
+                aria-checked={marcado}
+                disabled={loading || !item.available}
+                onClick={() => setSelected(item.id)}
+                className="launcher-agente"
+                title={item.available ? `${item.command} · ${status.texto.toLowerCase()}` : `${item.command} não foi encontrado no PATH`}
+              >
+                <AgentIcon provider={item.id} size={26} className="shrink-0" />
+                <span className="launcher-agente-nome">{item.label}</span>
+                <span className={`launcher-agente-status is-${status.tom}`}>
+                  <span className="launcher-ponto" aria-hidden />
+                  {loading ? "Verificando…" : status.texto}
+                </span>
+              </button>
+            );
+          })}
         </div>
+
         {profileOptions.length > 1 && (
-          <div className="mt-4">
-            <label htmlFor="agent-profile" className="mb-2 block font-mono text-[10px] uppercase text-text-secondary">
-              Conta
-            </label>
+          <div className="launcher-campo">
+            <label htmlFor="agent-profile" className="launcher-rotulo">Conta</label>
             <Select
               id="agent-profile"
               value={selectedProfile}
@@ -163,22 +187,23 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
           </div>
         )}
         {profile && !profile.authenticated && (
-          <p className="mt-3 border-l-2 border-warning pl-3 text-xs text-warning">
+          <p className="launcher-alerta is-aviso">
             A conta “{profile.name}” ainda não tem login. O CLI vai pedir autenticação ao abrir.
           </p>
         )}
         {error && (
-          <p role="alert" className="mt-3 border-l-2 border-danger pl-3 text-xs text-danger">
+          <p role="alert" className="launcher-alerta is-erro">
             Falha ao consultar as CLIs instaladas: {error}
           </p>
         )}
         {!loading && !error && !agents.some((item) => item.available) && (
-          <p role="alert" className="mt-3 border-l-2 border-warning pl-3 text-xs text-warning">
+          <p role="alert" className="launcher-alerta is-aviso">
             Nenhuma CLI compatível foi encontrada no PATH. Instale uma delas e reinicie o OMNI Agents.
           </p>
         )}
-        <div className="mt-5 flex gap-2">
-          <Button className="flex-1" disabled={loading || !agent?.available} onClick={() => launch()}>
+
+        <div className="launcher-acoes">
+          <Button variant="primary" className="flex-1" disabled={loading || !agent?.available} onClick={() => launch()}>
             {loading ? (
               "Detectando CLIs…"
             ) : (
@@ -196,10 +221,12 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
               title="Escolhe uma conversa anterior deste projeto, com prévia das mensagens"
               onClick={() => setPicking(true)}
             >
+              <ChatIcon className="h-3.5 w-3.5" aria-hidden="true" />
               Retomar conversa
             </Button>
           )}
         </div>
+        <p className="launcher-rodape">O agente continua rodando mesmo se esta janela fechar.</p>
       </section>
     </div>
   );

@@ -9,6 +9,7 @@ import { resetShort, usageTone } from "../../lib/uso";
 export { resetShort, usageTone };
 import { useSession } from "./sessionProviders";
 import { listProfiles, type Profile } from "./terminalService";
+import { UsoDeTodasAsContas } from "./UsoDeTodasAsContas";
 
 export function timeAgo(ms: number, now: number) {
   const seconds = Math.max(0, Math.round((now - ms) / 1000));
@@ -202,6 +203,7 @@ export function AgentUsageStatus({ engineOnline, activeSessionId }: AgentUsageSt
   ].filter(Boolean).join("\n");
   return (
     <span className="flex min-w-0 items-center gap-2 lg:gap-3 text-[11px] font-semibold text-text-primary" title={title || undefined} aria-label={`Uso do ${rotulo}${conta ? ` — conta ${conta.name}` : ""}`}>
+      <UsoDeTodasAsContas engineOnline={engineOnline} contaAtiva={profileId} />
       <AgentIcon provider={provider} size={12} className="shrink-0" />
       <span className="hidden md:inline text-accent">{rotulo}</span>
       {conta && (

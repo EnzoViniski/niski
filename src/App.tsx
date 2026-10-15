@@ -1,3 +1,5 @@
+import { TitleBar } from "./components/TitleBar";
+import { LayoutPresetPicker } from "./features/workspace/LayoutPresetPicker";
 import { useEffect, useMemo, useState } from "react";
 import { AppBackground } from "./components/backgrounds/AppBackground";
 import { SettingsView } from "./components/SettingsView";
@@ -24,7 +26,7 @@ import {
   spawnTerminal,
 } from "./features/terminal/terminalService";
 import { HistoryView } from "./features/history/HistoryView";
-import { resumeCommand, samePath, type HistoryEntry } from "./features/history/historyService";
+import { levarParaConta, resumeCommand, samePath, type HistoryEntry } from "./features/history/historyService";
 import { rememberProject } from "./services/recentProjectsService";
 import { primeSshDrives } from "./features/projects/targetState";
 import type { SettingsSection } from "./hooks/useNotifications";
@@ -155,7 +157,7 @@ export function App() {
 
   /** Reabre uma conversa do Histórico num terminal do projeto dela — adicionando o projeto ao
    *  workspace ativo se ele ainda não estiver aberto em nenhum. */
-  async function resumeHistory(entry: HistoryEntry) {
+  async function resumeHistory(entry: HistoryEntry, profileId: string = entry.profile_id) {
     const cwd = entry.cwd;
     if (!cwd) throw new Error("Essa conversa não registrou a pasta onde rodou.");
     const cli = (await listAgentClis()).find((item) => item.id === entry.provider);
@@ -173,7 +175,9 @@ export function App() {
     }
 
     await ensureEngine();
-    await ensureAgentTrust(cli.id, cwd, entry.profile_id);
+    // Outra conta: o transcript vai para lá antes, senão o `--resume` não acha a conversa.
+    await levarParaConta(entry, profileId);
+    await ensureAgentTrust(cli.id, cwd, profileId);
     const session = await spawnTerminal({
       projectId,
       name: `${cli.label} · ${(entry.title ?? "retomada").slice(0, 40)}`,
@@ -182,7 +186,7 @@ export function App() {
       cols: 120,
       initialCommand: resumeCommand(cli.command, entry),
       provider: cli.id,
-      profileId: entry.profile_id,
+      profileId,
       externalSessionId: entry.session_id,
     });
     dispatch({ type: "FOCUS_SESSION", workspaceId, projectId, sessionId: session.id, title: session.name });
@@ -191,8 +195,24 @@ export function App() {
 
   return (
     <SessionProvidersContext.Provider value={sessionsById}>
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen flex-col overflow-hidden">
       <AppBackground settings={settings} />
+      <TitleBar
+        trilha={
+          view === "settings" ? ["Configurações"]
+            : view === "history" ? ["Histórico"]
+            : [workspaces.find((item) => item.id === activeWorkspaceId)?.name, activeProject?.name].filter((parte): parte is string => Boolean(parte))
+        }
+        dica={view === "workspace" ? activeProject?.path : undefined}
+        acoes={view === "workspace" && activeProject ? <LayoutPresetPicker dispatch={dispatch} /> : null}
+        onHome={() => setView("workspace")}
+        onOpenSettings={(section) => {
+          setSettingsSection(section);
+          if (view !== "settings") setViewBeforeSettings(view);
+          setView("settings");
+        }}
+      />
+      <div className="flex min-h-0 flex-1">
       <QuickOpen projectPath={activeProject?.path ?? null} onOpenFile={(path) => openFile(path, fileKind(path))} />
       <Sidebar
         workspaces={workspaces}
@@ -297,8 +317,8 @@ export function App() {
           {view === "history" ? (
             <HistoryView onResume={resumeHistory} onClose={closeHistory} />
           ) : view === "settings" ? (
-            <div className="h-full overflow-y-auto px-6 py-6 [scrollbar-gutter:stable]">
-              <div className="w-full mx-auto max-w-3xl">
+            <div className="h-full overflow-y-auto px-6 py-5 [scrollbar-gutter:stable]">
+              <div className="w-full mx-auto max-w-[1180px]">
                 <SettingsView
                   settings={settings}
                   onChange={updateSettings}
@@ -322,6 +342,7 @@ export function App() {
             />
           )}
         </main>
+      </div>
       </div>
     </div>
     </SessionProvidersContext.Provider>

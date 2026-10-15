@@ -96,6 +96,11 @@ export function FileTree({ projectPath, onOpenFile, onFileRenamed, onPathDeleted
   // `true` durante e logo depois de um arrasto de verdade (moveu além do limiar) — o botão
   // de abrir/expandir consulta isso pra não disparar no soltar do mouse que terminou o drag.
   const justDraggedRef = useRef(false);
+  // Arquivo vindo de FORA (Explorer, downloads do navegador) sendo arrastado por cima da árvore:
+  // onde está o cursor e qual pasta vai receber — antes nada aparecia até soltar.
+  const [externo, setExterno] = useState<{ x: number; y: number; pasta: string } | null>(null);
+  const quantosExternos = useRef(0);
+  const [copiados, setCopiados] = useState<{ pasta: string; quantos: number } | null>(null);
 
   // Arquivos arrastados de FORA do app (Explorer do Windows) chegam pelo evento nativo do
   // Tauri, não pelo HTML5 drag-and-drop — `dataTransfer` de um drop de arquivo do SO não
@@ -112,12 +117,26 @@ export function FileTree({ projectPath, onOpenFile, onFileRenamed, onPathDeleted
 
     void getCurrentWebviewWindow()
       .onDragDropEvent((event) => {
-        if (event.payload.type !== "drop") return;
+        const dados = event.payload;
+        if (dados.type === "leave") {
+          setExterno(null);
+          setDragOverPath(null);
+          return;
+        }
+        if (dados.type === "enter") quantosExternos.current = dados.paths.length;
         const scale = window.devicePixelRatio || 1;
-        const element = document.elementFromPoint(event.payload.position.x / scale, event.payload.position.y / scale);
-        const targetDir = resolveDropTargetDir(element, projectPath);
+        const x = dados.position.x / scale, y = dados.position.y / scale;
+        const targetDir = resolveDropTargetDir(document.elementFromPoint(x, y), projectPath);
+        if (dados.type === "enter" || dados.type === "over") {
+          // A pasta de destino acende (o mesmo realce do arrasto interno) e um selo segue o cursor.
+          setDragOverPath(targetDir);
+          setExterno(targetDir ? { x, y, pasta: targetDir } : null);
+          return;
+        }
+        setExterno(null);
+        setDragOverPath(null);
         if (!targetDir) return;
-        void copyExternalPaths(event.payload.paths, targetDir);
+        void copyExternalPaths(dados.paths, targetDir);
       })
       .then((fn) => {
         if (disposed) fn();
@@ -134,14 +153,20 @@ export function FileTree({ projectPath, onOpenFile, onFileRenamed, onPathDeleted
   if (!projectPath) return null;
 
   async function copyExternalPaths(paths: string[], targetDir: string) {
+    let ok = 0;
     for (const source of paths) {
       try {
         await copyIntoProject(projectPath!, source, targetDir);
+        ok += 1;
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : String(reason));
       }
     }
     await refreshDir(targetDir);
+    if (ok > 0) {
+      setCopiados({ pasta: targetDir, quantos: ok });
+      window.setTimeout(() => setCopiados((atual) => (atual?.pasta === targetDir ? null : atual)), 2600);
+    }
   }
 
   async function handlePaste(event: React.ClipboardEvent) {
@@ -309,6 +334,20 @@ export function FileTree({ projectPath, onOpenFile, onFileRenamed, onPathDeleted
           {error}
         </p>
       )}
+      {externo && createPortal(
+        <div className="drop-externo" style={{ left: externo.x + 16, top: externo.y + 14 }} aria-hidden>
+          <span className="drop-externo-icone">↓</span>
+          Copiar {quantosExternos.current > 1 ? `${quantosExternos.current} arquivos` : "para"}{" "}
+          {quantosExternos.current > 1 ? "para " : ""}<strong>{externo.pasta === projectPath ? "a raiz do projeto" : baseName(externo.pasta)}</strong>
+        </div>,
+        document.body,
+      )}
+      {copiados && (
+        <p role="status" className="drop-copiados">
+          ✓ {copiados.quantos > 1 ? `${copiados.quantos} arquivos copiados` : "Arquivo copiado"} para{" "}
+          <strong>{copiados.pasta === projectPath ? "a raiz" : baseName(copiados.pasta)}</strong>
+        </p>
+      )}
       {creating?.dirPath === projectPath && (
         <NewEntryInput depth={0} isDirectory={creating.isDirectory} onCommit={commitCreate} onCancel={() => setCreating(null)} />
       )}
@@ -441,6 +480,8 @@ function FileTreeNode({
           <input
             autoFocus
             value={draftName}
+            aria-label={`Renomear ${entry.name}`}
+            onFocus={(event) => selecionarNome(event.currentTarget, entry.isDirectory)}
             onChange={(event) => setDraftName(event.target.value)}
             onBlur={() => onCommitRename(entry.path, entry.isDirectory, draftName)}
             onKeyDown={(event) => {
@@ -563,6 +604,17 @@ function NewEntryInput({ depth, isDirectory, onCommit, onCancel }: { depth: numb
       />
     </div>
   );
+}
+
+/**
+ * Ao renomear um arquivo, pré-seleciona só o nome — `relatorio` em `relatorio.md` —, como o Explorer
+ * do Windows e o VS Code: digitar troca o nome e mantém a extensão. O campo tem o nome inteiro, então
+ * dá para editar a extensão também. Pasta e arquivo "só extensão" (`.gitignore`) selecionam tudo.
+ */
+export function selecionarNome(campo: HTMLInputElement, pasta: boolean) {
+  const ponto = campo.value.lastIndexOf(".");
+  if (pasta || ponto <= 0) campo.select();
+  else campo.setSelectionRange(0, ponto);
 }
 
 function FileTreeContextMenu({

@@ -1,6 +1,6 @@
 {
   "productName": "OMNI AGENTS",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "identifier": "com.omni.agents",
   "build": {
     "frontendDist": "../dist",
@@ -19,7 +19,9 @@
         "minHeight": 560,
         "resizable": true,
         "fullscreen": false,
-        "center": true
+        "center": true,
+        "decorations": false,
+        "shadow": true
       }
     ],
     "security": {

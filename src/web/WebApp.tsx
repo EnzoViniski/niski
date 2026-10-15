@@ -2,12 +2,14 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { AgentIcon } from "../components/ui/AgentIcon";
 import { OmniLogo } from "../components/ui/OmniLogo";
 import { Input } from "../components/ui/Input";
-import { ArrowLeftIcon, ChatIcon, FolderIcon, ReloadIcon, TerminalIcon } from "../components/ui/PixelIcon";
+import { ArrowLeftIcon, BlocksIcon, ChatIcon, FolderIcon, ReloadIcon, TerminalIcon } from "../components/ui/PixelIcon";
+import { ExtensoesSettings } from "../features/extensoes/ExtensoesSettings";
+import type { ExtensoesDaConta, FonteDeExtensoes } from "../features/extensoes/extensoesService";
 import { PairingScreen } from "../mobile/Chat";
 import { ConversationDetail, ConversationList, filterConversations, haQuanto, NovaSessao } from "../mobile/MobileApp";
 import { useDados } from "../mobile/useDados";
 import { usePoll } from "../mobile/usePoll";
-import { request, type Conversation } from "../mobile/api";
+import { request, temConversa, type Conversation } from "../mobile/api";
 import { UsoDasContas } from "./UsoDasContas";
 
 /** O xterm só baixa quando alguém abre a aba Terminal: quem só conversa não paga por ele. */
@@ -25,12 +27,41 @@ type Aba = "conversa" | "terminal";
 interface Shell { id: string; name: string; project_id: string; cwd: string; state: string; updated_at_ms: number }
 
 /** Endereço da tela aberta: `#/c/<id>` é uma conversa, `#/t/<id>` um terminal sem agente. */
-function lerEndereco(): { conversa: string | null; terminal: string | null } {
+function lerEndereco(): { conversa: string | null; terminal: string | null; extensoes: boolean } {
   const conversa = /^#\/c\/([^/?#]+)$/.exec(location.hash);
   const terminal = /^#\/t\/([^/?#]+)$/.exec(location.hash);
   return {
     conversa: conversa ? decodeURIComponent(conversa[1]) : null,
     terminal: terminal ? decodeURIComponent(terminal[1]) : null,
+    extensoes: location.hash === "#/extensoes",
+  };
+}
+
+/** A aba Extensões do app, pelas rotas do engine. O projeto vai por id; o caminho só serve para a
+ *  tela marcar "não vale neste projeto". */
+const fontesDaWeb = new Map<string, FonteDeExtensoes>();
+/** Uma por projeto: a página re-renderiza a cada leitura do PC, e uma fonte nova a cada render
+ *  faria a aba reler tudo a cada poucos segundos. */
+function fonteDaWeb(projetoId: string | null): FonteDeExtensoes {
+  const chave = projetoId ?? "";
+  const pronta = fontesDaWeb.get(chave);
+  if (pronta) return pronta;
+  const fonte = criarFonteDaWeb(projetoId);
+  fontesDaWeb.set(chave, fonte);
+  return fonte;
+}
+function criarFonteDaWeb(projetoId: string | null): FonteDeExtensoes {
+  const ler = () => request<{ contas: ExtensoesDaConta[]; compartilhar: boolean }>(
+    `/extensoes${projetoId ? `?projeto=${encodeURIComponent(projetoId)}` : ""}`);
+  return {
+    listar: async () => (await ler()).contas ?? [],
+    lerCompartilhamento: async () => Boolean((await ler()).compartilhar),
+    definirCompartilhamento: async (ligado) => {
+      await request("/extensoes/compartilhar", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ligado }),
+      });
+    },
+    explorer: false,
   };
 }
 const CHAVE_ABA = "omni-web-aba";
@@ -58,6 +89,7 @@ function tomDoEstado(conversa: Conversation): string {
 export function WebApp() {
   const [conversaId, setConversaId] = useState<string | null>(null);
   const [terminalId, setTerminalId] = useState<string | null>(null);
+  const [verExtensoes, setVerExtensoes] = useState(false);
   const [shells, setShells] = useState<Shell[]>([]);
   const [abrindoTerminal, setAbrindoTerminal] = useState(false);
   const [erroTerminal, setErroTerminal] = useState<string | null>(null);
@@ -75,6 +107,7 @@ export function WebApp() {
       const endereco = lerEndereco();
       setConversaId(endereco.conversa);
       setTerminalId(endereco.terminal);
+      setVerExtensoes(endereco.extensoes);
     };
     ler();
     window.addEventListener("hashchange", ler);
@@ -156,6 +189,7 @@ export function WebApp() {
     if (escolhida) setProjetoId(escolhida.project_id);
     history.pushState(null, "", `${location.pathname}${location.search}#/c/${encodeURIComponent(id)}`);
     setTerminalId(null);
+    setVerExtensoes(false);
     setConversaId(id);
   }
 
@@ -193,7 +227,10 @@ export function WebApp() {
   const doProjeto = conversations.filter((item) => item.project_id === projetoAtivo?.id);
   const daLista = filterConversations(query ? conversations : doProjeto, query, perfis, projetos);
   const trabalhando = conversations.filter((item) => item.state === "working");
-  const abaVisivel: Aba = aba === "terminal" && conversa?.live ? "terminal" : "conversa";
+  const naoVistas = new Set(attention.map((item) => item.id));
+  // Agente sem visão de conversa (Cursor) abre direto no terminal ao vivo.
+  const soTerminal = Boolean(conversa && !temConversa(conversa.provider));
+  const abaVisivel: Aba = (aba === "terminal" || soTerminal) && conversa?.live ? "terminal" : "conversa";
   const conta = conversa?.profile_id ? perfis.find((perfil) => perfil.id === conversa.profile_id)?.name : null;
   const projetoDaConversa = conversa ? projetos.find((item) => item.id === conversa.project_id)?.name : null;
   const shell = shells.find((item) => item.id === terminalId) ?? null;
@@ -222,6 +259,13 @@ export function WebApp() {
           </div>
         ) : <span className="w-topo-espaco" />}
         {error && <span className="w-erro" role="alert">Sem conexão com o PC: {error}</span>}
+        <button type="button" className={`btn btn-ghost w-atualizar${verExtensoes ? " is-ativo" : ""}`} aria-label="Extensões"
+          title="MCPs, plugins e conectores de cada IA" onClick={() => {
+            history.pushState(null, "", `${location.pathname}${location.search}#/extensoes`);
+            setVerExtensoes(true);
+          }}>
+          <BlocksIcon aria-hidden className="h-4 w-4" />
+        </button>
         <button type="button" className="btn btn-ghost w-atualizar" aria-label="Atualizar" title="Atualizar" disabled={atualizando}
           onClick={() => { setAtualizando(true); void Promise.resolve(atualizar()).finally(() => setAtualizando(false)); }}>
           <ReloadIcon aria-hidden className={`h-4 w-4${atualizando ? " anexo-girando" : ""}`} />
@@ -275,6 +319,7 @@ export function WebApp() {
               mostrarProjeto={Boolean(query)}
               abrir={abrirConversa}
               ativa={conversaId}
+              naoVistas={naoVistas}
               vazio={carregado ? (query ? "Nenhuma conversa encontrada." : "Nenhuma conversa neste projeto ainda.") : "Carregando…"}
             />
           </div>
@@ -309,7 +354,19 @@ export function WebApp() {
         </aside>
 
         <main className="w-coluna w-centro" aria-label="Conversa">
-          {terminalId ? (
+          {verExtensoes ? (
+            <div className="w-painel-central w-extensoes">
+              <div className="w-abas">
+                <span className="w-aba w-aba-ativa"><BlocksIcon aria-hidden className="h-3.5 w-3.5" />Extensões</span>
+                <span className="w-topo-espaco" />
+                <button type="button" className="btn btn-ghost w-fechar-terminal" onClick={() => {
+                  history.replaceState(null, "", `${location.pathname}${location.search}`);
+                  setVerExtensoes(false);
+                }}>Fechar</button>
+              </div>
+              <ExtensoesSettings key={projetoAtivo?.id ?? "-"} projectPath={projetoAtivo?.path ?? null} fonte={fonteDaWeb(projetoAtivo?.id ?? null)} />
+            </div>
+          ) : terminalId ? (
             <>
               <div className="w-abas">
                 <span className="w-aba w-aba-ativa"><TerminalIcon aria-hidden className="h-3.5 w-3.5" />{shell?.name ?? "Terminal"}</span>
@@ -329,7 +386,8 @@ export function WebApp() {
           ) : conversa ? (
             <>
               <div className="w-abas" role="tablist" aria-label="Visualização">
-                <button type="button" role="tab" aria-selected={abaVisivel === "conversa"}
+                <button type="button" role="tab" aria-selected={abaVisivel === "conversa"} disabled={soTerminal}
+                  title={soTerminal ? "O OMNI ainda não lê as conversas deste agente — use o terminal" : undefined}
                   className={`w-aba${abaVisivel === "conversa" ? " w-aba-ativa" : ""}`} onClick={() => setAba("conversa")}>
                   <ChatIcon aria-hidden className="h-3.5 w-3.5" />Conversa
                 </button>

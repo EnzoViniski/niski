@@ -2635,7 +2635,7 @@ dependencies = [
 
 [[package]]
 name = "omni-agents"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "omni-core",
  "omni-protocol",
@@ -2652,6 +2652,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tempfile",
  "tokio",
+ "toml 0.9.12+spec-1.1.0",
  "uuid",
 ]
 
@@ -2663,6 +2664,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "toml 0.9.12+spec-1.1.0",
 ]
 
 [[package]]

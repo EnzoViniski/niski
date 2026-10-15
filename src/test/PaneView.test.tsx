@@ -27,7 +27,9 @@ it("desmonta o terminal ao esvaziar a pane e permite criar agente sem tab fantas
   expect(screen.queryByText("Iniciar nova sessão")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Novo agente", exact: true }));
   expect(dispatch).toHaveBeenCalledWith({ type: "CREATE_TAB", paneId: "p", kind: "agent", title: "Novo agente" });
-  expect(screen.getByRole("button", { name: "Fechar painel" })).toBeDisabled();
+  // Painel único: fechar e maximizar não fazem sentido e nem aparecem.
+  expect(screen.queryByRole("button", { name: "Fechar painel" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Maximizar painel" })).not.toBeInTheDocument();
 });
 
 it("o + escolhe entre agente e terminal", async () => {
