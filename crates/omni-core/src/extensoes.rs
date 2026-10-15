@@ -62,6 +62,7 @@ pub struct ExtensoesDaConta {
 /// Extensões de todas as contas cadastradas em `dir` (a pasta do engine, onde mora o `profiles.json`).
 pub fn listar(dir: &Path, projeto: Option<&Path>) -> Vec<ExtensoesDaConta> {
     let projeto = projeto.map(Path::to_path_buf).filter(|p| p.is_dir());
+    let principais = crate::compartilhar::principais(dir);
     crate::profiles(dir)
         .into_iter()
         .filter_map(|perfil| {
@@ -70,7 +71,7 @@ pub fn listar(dir: &Path, projeto: Option<&Path>) -> Vec<ExtensoesDaConta> {
                 provider: perfil.provider.clone(),
                 conta_id: perfil.id.clone(),
                 conta_nome: perfil.name.clone(),
-                principal: perfil.builtin,
+                principal: principais.get(&perfil.provider).and_then(serde_json::Value::as_str) == Some(perfil.id.as_str()),
                 mcps: Vec::new(),
                 plugins: Vec::new(),
                 conectores: Vec::new(),

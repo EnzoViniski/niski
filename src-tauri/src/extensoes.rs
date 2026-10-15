@@ -12,6 +12,12 @@ pub fn compartilhamento_de_extensoes() -> Result<bool, String> {
     Ok(omni_core::compartilhar::ativado(&crate::engine_client::engine_dir()?))
 }
 
+/// Estrela: a conta de onde as outras da mesma IA recebem extensões e conectores.
+#[tauri::command(async)]
+pub fn definir_conta_principal(provider: String, profile_id: String) -> Result<Vec<(String, omni_core::compartilhar::Levado)>, String> {
+    omni_core::compartilhar::definir_principal(&crate::engine_client::engine_dir()?, &provider, &profile_id).map_err(|e| e.to_string())
+}
+
 /// Liga ou desliga. Ligando, já leva tudo agora para as contas extras — sem esperar a próxima sessão.
 #[tauri::command(async)]
 pub fn definir_compartilhamento_de_extensoes(ligado: bool) -> Result<Vec<(String, omni_core::compartilhar::Levado)>, String> {

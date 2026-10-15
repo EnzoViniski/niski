@@ -14,6 +14,19 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.6.3",
+    date: "2026-10-15",
+    changes: [
+      "Escolha com uma estrela qual conta é a principal na aba Extensões: as outras contas da mesma IA recebem os MCPs, plugins e skills dela.",
+      "Skills editadas na conta principal agora chegam atualizadas às outras contas, sem mexer nas que você mudou por lá.",
+      "Plugin desinstalado na conta principal sai também das outras, sem erro ao abrir.",
+      "As configurações do Codex mantêm seus comentários quando recebem extensões de outra conta, e contas com conversa aberta só recebem na próxima conversa.",
+      "Mensagens anteriores da conversa entram acima das atuais ao rolar para cima, sem trocar de página nem pular a tela.",
+      "Uso de todas as contas com visual novo: agrupado por IA, mostra a conta em uso, quando cada limite renova e um botão para atualizar todas.",
+      "Corrigido: mensagem com texto colado sumia da conversa no celular e no navegador e aparecia o aviso de que não deu para confirmar o envio.",
+    ],
+  },
+  {
     version: "0.6.2",
     date: "2026-10-15",
     changes: [

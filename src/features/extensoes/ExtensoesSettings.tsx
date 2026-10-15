@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { Button } from "../../components/ui";
-import { CloudIcon, FolderIcon, PackageIcon, ReloadIcon, ServerIcon } from "../../components/ui/PixelIcon";
+import { CloudIcon, FolderIcon, PackageIcon, ReloadIcon, ServerIcon, StarFilledIcon, StarIcon } from "../../components/ui/PixelIcon";
 import { fonteDoApp, type ExtensoesDaConta, type FonteDeExtensoes, type Mcp, type Plugin } from "./extensoesService";
 
 type Provider = "claude" | "codex" | "cursor";
@@ -68,6 +68,17 @@ export function ExtensoesSettings({ projectPath, fonte: fonteRecebida }: {
     void fonte.lerCompartilhamento().then(setCompartilhar).catch(() => setCompartilhar(null));
   }, [fonte]);
 
+  async function marcarPrincipal(conta: ExtensoesDaConta) {
+    // Otimista: a estrela pula na hora; a lista relida confirma.
+    setContas((atual) => atual?.map((c) => c.provider === conta.provider ? { ...c, principal: c.conta_id === conta.conta_id } : c) ?? atual);
+    try {
+      await fonte.definirPrincipal(conta.provider, conta.conta_id);
+    } catch (motivo) {
+      setErro(String(motivo));
+    }
+    setRecarga((n) => n + 1);
+  }
+
   async function trocarCompartilhamento(ligado: boolean) {
     setSalvando(true);
     try {
@@ -107,8 +118,8 @@ export function ExtensoesSettings({ projectPath, fonte: fonteRecebida }: {
           <div className="min-w-0 flex-1">
             <p className="ext-compartilhar-titulo">Mesmas extensões em todas as contas</p>
             <p className="ext-compartilhar-texto">
-              As contas extras (como uma segunda conta do Claude) recebem os MCPs, plugins e skills da conta
-              principal sempre que uma sessão abre nelas — inclusive na troca de conta automática. O que a conta
+              As outras contas da mesma IA recebem os MCPs, plugins e skills da conta principal (a da
+              estrela ★ — clique na estrela de outra conta para trocar) sempre que uma sessão abre nelas — inclusive na troca de conta automática. O que a conta
               já tinha continua lá.
             </p>
             <p className="ext-compartilhar-texto">
@@ -161,6 +172,15 @@ export function ExtensoesSettings({ projectPath, fonte: fonteRecebida }: {
             {(contaMuitas || tipoAtual !== "conectores") && (
               <header className="ext-conta-topo">
                 <AgentIcon provider={conta.provider} size={14} className="shrink-0" />
+                {contaMuitas && (
+                  <button type="button" className={`ext-estrela${conta.principal ? " is-principal" : ""}`} aria-pressed={!!conta.principal}
+                    aria-label={conta.principal ? `${conta.conta_nome} é a conta principal` : `Marcar ${conta.conta_nome} como principal`}
+                    title={conta.principal ? "Conta principal: as outras recebem as extensões e os conectores dela"
+                      : "Marcar como principal: as outras contas passam a receber as extensões e os conectores desta"}
+                    onClick={() => { if (!conta.principal) void marcarPrincipal(conta); }}>
+                    {conta.principal ? <StarFilledIcon aria-hidden className="h-4 w-4" /> : <StarIcon aria-hidden className="h-4 w-4" />}
+                  </button>
+                )}
                 <span className="ext-conta-nome">{contaMuitas ? `Conta ${conta.conta_nome}` : conta.conta_nome}</span>
                 {contaMuitas && compartilhar && tipoAtual !== "conectores" && (
                   <span className="ext-selo" title="Recebe as extensões da conta principal ao abrir uma sessão">

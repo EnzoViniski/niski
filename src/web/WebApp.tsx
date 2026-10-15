@@ -61,6 +61,11 @@ function criarFonteDaWeb(projetoId: string | null): FonteDeExtensoes {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ligado }),
       });
     },
+    definirPrincipal: async (provider, conta) => {
+      await request("/extensoes/principal", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, conta }),
+      });
+    },
     explorer: false,
   };
 }

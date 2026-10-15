@@ -6,6 +6,7 @@ import { AgentIcon } from "../../components/ui/AgentIcon";
 import { resetShort, usageTone } from "../../lib/uso";
 import type { Usage, UsageWindow } from "./AccountUsage";
 import { listProfiles, type Profile } from "./terminalService";
+import { timeAgo } from "./AgentUsageStatus";
 
 const AGENTE: Record<string, string> = { claude: "Claude", codex: "Codex" };
 
@@ -14,15 +15,16 @@ function Janela({ rotulo, janela }: { rotulo: string; janela: UsageWindow | null
   const tom = janela ? usageTone(janela.used_percent) : null;
   const reset = resetShort(janela);
   return (
-    <span className="grid grid-cols-[3.5rem_1fr_2.75rem] items-center gap-2" title={reset ? `${rotulo}: reseta ${reset}` : undefined}>
+    <span className="uso-janela" title={reset ? `${rotulo}: reseta ${reset}` : undefined}>
       <span className="text-text-secondary">{rotulo}</span>
       <span role="progressbar" aria-label={`${rotulo} consumido`} aria-valuenow={Math.round(usado)} aria-valuemin={0} aria-valuemax={100}
-        className="relative block h-1.5 bg-overlay/[0.16]">
-        {tom && <span className={`absolute inset-y-0 left-0 ${tom.bar}`} style={{ width: `${usado}%` }} />}
+        className="uso-barra">
+        {tom && <span className={`uso-barra-cheia ${tom.bar}`} style={{ width: `${usado}%` }} />}
       </span>
-      <span className={`text-right font-bold ${tom?.text ?? "text-text-muted"}`}>
+      <span className={`text-right font-bold tabular-nums ${tom?.text ?? "text-text-muted"}`}>
         {janela ? `${janela.used_percent.toLocaleString("pt-BR")}%` : "—"}
       </span>
+      <span className="truncate text-right text-[10px] text-text-muted">{reset ? `↻ ${reset}` : ""}</span>
     </span>
   );
 }
@@ -64,7 +66,7 @@ export function UsoDeTodasAsContas({ engineOnline, contaAtiva }: { engineOnline:
     const ancorar = () => {
       const caixa = botao.current?.getBoundingClientRect();
       if (!caixa) return;
-      const largura = 320;
+      const largura = 384;
       setPosicao({
         left: Math.max(8, Math.min(caixa.left, window.innerWidth - largura - 8)),
         bottom: window.innerHeight - caixa.top + 6,
@@ -86,6 +88,10 @@ export function UsoDeTodasAsContas({ engineOnline, contaAtiva }: { engineOnline:
     document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", fora); document.removeEventListener("keydown", esc); };
   }, [aberto]);
+
+  async function atualizarTodas() {
+    await Promise.all(contas.map((conta) => atualizar(conta.id)));
+  }
 
   async function atualizar(id: string) {
     setAtualizando((atual) => new Set(atual).add(id));
@@ -109,38 +115,66 @@ export function UsoDeTodasAsContas({ engineOnline, contaAtiva }: { engineOnline:
       </button>
       {aberto && posicao && createPortal(
         <div ref={painel} role="dialog" aria-label="Uso das contas" style={{ left: posicao.left, bottom: posicao.bottom }}
-          className="fixed z-[200] flex max-h-[70vh] w-80 flex-col overflow-y-auto border-2 border-border-subtle bg-bg-elevated p-2 text-[11px] text-text-primary shadow-[0_12px_28px_rgb(0_0_0/0.35)]">
-          <p className="px-1 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">Uso das contas</p>
-          {contas.length === 0 && <p className="px-1 py-2 text-text-secondary">Nenhuma conta de Claude ou Codex.</p>}
-          <ul className="flex flex-col gap-1.5">
-            {contas.map((conta) => {
-              const uso = usos[conta.id];
-              const girando = atualizando.has(conta.id);
-              const motivo = erros[conta.id] ?? (uso && uso.status === "unavailable" ? uso.reason : null);
+          className="uso-painel fixed z-[200] flex max-h-[72vh] w-96 flex-col border-2 border-border-subtle bg-bg-elevated text-[11px] text-text-primary shadow-[0_12px_28px_rgb(0_0_0/0.35)]">
+          <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
+            <ChartIcon aria-hidden className="h-3.5 w-3.5 text-accent" />
+            <p className="flex-1 text-[10px] font-bold uppercase tracking-wider text-text-secondary">Uso das contas</p>
+            <button type="button" onClick={() => void atualizarTodas()} disabled={contas.length === 0 || atualizando.size > 0}
+              title="Consultar o uso de todas as contas agora"
+              className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-text-secondary hover:text-accent disabled:opacity-50">
+              <ReloadIcon aria-hidden className={`h-3 w-3${atualizando.size > 0 ? " animate-spin" : ""}`} />Atualizar todas
+            </button>
+          </div>
+          <div className="flex flex-col gap-3 overflow-y-auto p-2.5">
+            {contas.length === 0 && <p className="px-1 py-2 text-text-secondary">Nenhuma conta de Claude ou Codex.</p>}
+            {(["claude", "codex"] as const).map((provider) => {
+              const doAgente = contas.filter((conta) => conta.provider === provider);
+              if (doAgente.length === 0) return null;
               return (
-                <li key={conta.id}
-                  className={`flex flex-col gap-1 border px-2 py-1.5 ${conta.id === contaAtiva ? "border-accent/60 bg-accent/[0.08]" : "border-border-subtle"}`}>
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <AgentIcon provider={conta.provider} size={12} className="shrink-0" />
-                    <span className="min-w-0 flex-1 truncate font-bold" title={conta.email ?? undefined}>{conta.name}</span>
-                    <span className="text-[10px] uppercase text-text-muted">{AGENTE[conta.provider] ?? conta.provider}</span>
-                    <button type="button" aria-label={`Atualizar uso de ${conta.name} (${AGENTE[conta.provider]})`} title="Consultar o uso agora"
-                      disabled={girando} onClick={() => void atualizar(conta.id)}
-                      className="shrink-0 text-text-secondary hover:text-accent disabled:opacity-50">
-                      <ReloadIcon aria-hidden className={`h-3.5 w-3.5${girando ? " animate-spin" : ""}`} />
-                    </button>
-                  </span>
-                  {uso && uso.status !== "unavailable" ? (
-                    <>
-                      <Janela rotulo="5H" janela={uso.primary} />
-                      <Janela rotulo="Semana" janela={uso.secondary} />
-                    </>
-                  ) : !motivo && <span className="text-text-muted">{uso ? "Sem leitura de uso ainda" : "Lendo…"}</span>}
-                  {motivo && <span role="alert" className="text-warning">{motivo}</span>}
-                </li>
+                <section key={provider} aria-label={AGENTE[provider]} className="flex flex-col gap-1.5">
+                  <p className="flex items-center gap-1.5 px-0.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                    <AgentIcon provider={provider} size={11} className="shrink-0" />
+                    {AGENTE[provider]}
+                    <span className="h-px flex-1 bg-border-subtle" />
+                    <span className="font-normal normal-case tracking-normal">{doAgente.length} {doAgente.length === 1 ? "conta" : "contas"}</span>
+                  </p>
+                  <ul className="flex flex-col gap-1.5">
+                    {doAgente.map((conta) => {
+                      const uso = usos[conta.id];
+                      const girando = atualizando.has(conta.id);
+                      const motivo = erros[conta.id] ?? (uso && uso.status === "unavailable" ? uso.reason : null);
+                      const emUso = conta.id === contaAtiva;
+                      return (
+                        <li key={conta.id} className={`uso-conta${emUso ? " is-ativa" : ""}`}>
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className="min-w-0 flex-1">
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <span className="truncate text-[12px] font-bold">{conta.name}</span>
+                                {emUso && <span className="uso-selo">em uso</span>}
+                              </span>
+                              {conta.email && <span className="block truncate text-[10px] text-text-muted">{conta.email}</span>}
+                            </span>
+                            <button type="button" aria-label={`Atualizar uso de ${conta.name} (${AGENTE[conta.provider]})`} title="Consultar o uso agora"
+                              disabled={girando} onClick={() => void atualizar(conta.id)} className="uso-atualizar">
+                              <ReloadIcon aria-hidden className={`h-3.5 w-3.5${girando ? " animate-spin" : ""}`} />
+                            </button>
+                          </span>
+                          {uso && uso.status !== "unavailable" ? (
+                            <span className="flex flex-col gap-1">
+                              <Janela rotulo="5H" janela={uso.primary} />
+                              <Janela rotulo="Semana" janela={uso.secondary} />
+                            </span>
+                          ) : !motivo && <span className="text-text-muted">{uso ? "Sem leitura de uso ainda" : "Lendo…"}</span>}
+                          {motivo && <span role="alert" className="text-warning">{motivo}</span>}
+                          {uso?.observed_at_ms ? <span className="text-[10px] text-text-muted">consultado {timeAgo(uso.observed_at_ms, Date.now())}</span> : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
               );
             })}
-          </ul>
+          </div>
         </div>,
         document.body,
       )}

@@ -1,6 +1,6 @@
 import { EtiquetaDoStatus, statusDaConversa } from "../components/ConversaStatus";
 import type { TerminalSession } from "../features/terminal/terminalService";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
@@ -289,6 +289,16 @@ function indiceDaMensagem(id: string): number {
   return Number.isFinite(n) ? n : -1;
 }
 
+/** Junta páginas da conversa pela numeração do servidor: sem repetir e na ordem do transcript. */
+export function juntarPaginas(...paginas: Mensagem[][]): Mensagem[] {
+  const porIndice = new Map<number, Mensagem>();
+  for (const pagina of paginas) for (const mensagem of pagina) porIndice.set(indiceDaMensagem(mensagem.id), mensagem);
+  return [...porIndice.entries()].sort((a, b) => a[0] - b[0]).map(([, mensagem]) => mensagem);
+}
+
+/** Distância do topo (px) em que rolar para cima já busca as mensagens anteriores. */
+const PERTO_DO_TOPO_PX = 160;
+
 /** O que a conversa desenha, já agrupado: ações seguidas viram um bloco só. */
 type Bloco =
   | { tipo: "fala"; mensagem: Mensagem }
@@ -345,8 +355,15 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const [busy, setBusy] = useState(false);
   const [editandoNome, setEditandoNome] = useState(false);
   const [parando, setParando] = useState(false);
-  // `null` = fim da conversa, como um chat abre. Número = lendo uma página antiga.
-  const [cursor, setCursor] = useState<number | null>(null);
+  // Páginas antigas buscadas por quem rola para cima. Ficam acima das recentes, na mesma rolagem:
+  // antes "Mensagens anteriores" trocava a tela por outra página e era preciso paginar de volta.
+  const [antigas, setAntigas] = useState<Mensagem[]>([]);
+  // `undefined` = ainda não buscou nenhuma (vale o `prev_cursor` da página ao vivo); `null` = chegou ao início.
+  const [cursorAntigas, setCursorAntigas] = useState<number | null | undefined>(undefined);
+  const [buscandoAntigas, setBuscandoAntigas] = useState(false);
+  const buscandoAntigasRef = useRef(false);
+  // Altura da conversa antes de pôr as antigas em cima: a tela fica onde quem lia estava.
+  const ancora = useRef<{ altura: number; topo: number } | null>(null);
   const [enviado, setEnviado] = useState<Enviado | null>(null);
   // Mensagens mandadas com o agente trabalhando: estão na fila da CLI e entram quando o turno acabar.
   const [fila, setFila] = useState<Enviado[]>([]);
@@ -378,7 +395,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   if (!ativo) trabalhandoDesde.current = null;
 
   const base = `/conversas/${encodeURIComponent(conversation.id)}/timeline`;
-  const url = cursor === null ? base : `${base}?cursor=${cursor}`;
+  const url = base;
 
   /** Lê a timeline. Página nova (ou componente recém-montado) vem inteira; depois só se mudou. */
   const ler = useCallback(async () => {
@@ -400,7 +417,42 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     }
   }, [conversation.state, refresh]);
 
-  const mensagens = useMemo(() => data?.timeline.messages ?? [], [data]);
+  const recentes = useMemo(() => data?.timeline.messages ?? [], [data]);
+  const mensagens = useMemo(() => antigas.length ? juntarPaginas(antigas, recentes) : recentes, [antigas, recentes]);
+  // Com antigas na tela, o que sai da janela ao vivo (a conversa andou) entra nelas: não abre buraco.
+  useEffect(() => {
+    if (antigas.length && recentes.length) setAntigas(atual => juntarPaginas(atual, recentes));
+  }, [recentes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const anteriorA = antigas.length ? cursorAntigas ?? null : data?.timeline.prev_cursor ?? null;
+
+  const buscarAntigas = useCallback(async () => {
+    if (anteriorA === null || buscandoAntigasRef.current) return;
+    buscandoAntigasRef.current = true;
+    setBuscandoAntigas(true);
+    try {
+      const pagina = await request<Timeline>(`${base}?cursor=${anteriorA}`);
+      const rolagem = rolagemDe(fim.current);
+      if (rolagem) ancora.current = { altura: rolagem.scrollHeight, topo: rolagem.scrollTop };
+      setAntigas(atual => juntarPaginas(pagina.timeline.messages, atual, recentes));
+      setCursorAntigas(pagina.timeline.prev_cursor ?? null);
+    } catch (motivo) {
+      setError(String(motivo));
+    } finally {
+      buscandoAntigasRef.current = false;
+      setBuscandoAntigas(false);
+    }
+  }, [anteriorA, base, recentes]);
+  const buscarAntigasRef = useRef(buscarAntigas);
+  buscarAntigasRef.current = buscarAntigas;
+
+  // As antigas entraram em cima: compensa a altura nova para o que estava na tela não sair do lugar.
+  useLayoutEffect(() => {
+    const antes = ancora.current;
+    const rolagem = rolagemDe(fim.current);
+    if (!antes || !rolagem) return;
+    ancora.current = null;
+    rolagem.scrollTop = antes.topo + (rolagem.scrollHeight - antes.altura);
+  }, [antigas]);
   const blocos = useMemo(() => agruparMensagens(mensagens), [mensagens]);
   // Só a primeira fala do agente em cada turno leva "Claude · 17:54"; as seguintes (falas curtas
   // entre ações) seguem coladas, sem repetir o cabeçalho.
@@ -491,6 +543,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     const aoRolar = () => {
       grudado.current = pertoDoFim(rolagem);
       if (grudado.current) setNovidades(false);
+      // Chegou ao topo: as anteriores entram sozinhas, como num chat.
+      else if (rolagem && rolagem.scrollTop < PERTO_DO_TOPO_PX) void buscarAntigasRef.current();
     };
     alvo.addEventListener("scroll", aoRolar, { passive: true });
     return () => alvo.removeEventListener("scroll", aoRolar);
@@ -504,10 +558,9 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
 
   // Chegou coisa nova: acompanha se estava no fim; senão avisa com o botão "novas mensagens".
   useEffect(() => {
-    if (cursor !== null) { window.scrollTo?.({ top: 0 }); return; }
     if (grudado.current) irParaOFim();
     else if (ultimaId) setNovidades(true);
-  }, [ultimaId, ativo, cursor, irParaOFim]);
+  }, [ultimaId, ativo, irParaOFim]);
 
   function adicionar(arquivos: File[]) {
     if (arquivos.length === 0) return;
@@ -700,7 +753,6 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
       if (paraFila) setFila((atual) => [...atual, item]); else setEnviado(item);
       setText("");
       setAnexos([]);
-      setCursor(null);
       grudado.current = true;
       await Promise.all([ler(), refresh()]);
     } catch (reason) {
@@ -718,7 +770,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   function renderizarBloco(bloco: Bloco, indice: number) {
     if (bloco.tipo === "acoes") {
       return <BlocoDeAcoes key={bloco.id} acoes={bloco.acoes} provider={bloco.acoes[0]?.provider}
-        aoVivo={ativo && cursor === null && bloco === ultimoBloco} />;
+        aoVivo={ativo && bloco === ultimoBloco} />;
     }
     if (bloco.tipo === "comando") return <LinhaDeComando key={bloco.mensagem.id} texto={bloco.mensagem.text} />;
     if (bloco.tipo === "aviso") return <LinhaDeAviso key={bloco.mensagem.id} texto={bloco.mensagem.text} />;
@@ -751,21 +803,23 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
         <span><AttachmentIcon className="h-5 w-5" />Solte para anexar à conversa</span>
       </div>
     )}
-    {timeline?.prev_cursor != null && (
-      <Button variant="ghost" size="sm" className="m-paginar" onClick={() => setCursor(timeline.prev_cursor!)}>
-        Mensagens anteriores
+    {anteriorA !== null && (
+      <Button variant="ghost" size="sm" className="m-paginar" disabled={buscandoAntigas} onClick={() => void buscarAntigas()}>
+        {buscandoAntigas ? "Carregando…" : "Mensagens anteriores"}
       </Button>
     )}
     {!!timeline?.unavailable_segments.length && <p className="m-aviso">Parte do histórico está indisponível; nenhum transcript foi associado por aproximação.</p>}
 
     <div className="chat" aria-label="Mensagens">
       {!data && <Vazio>Carregando conversa…</Vazio>}
-      {data && mensagens.length === 0 && !enviado && !ativo && !timeline?.unavailable_segments.length && cursor === null &&
+      {data && mensagens.length === 0 && !enviado && !ativo && !timeline?.unavailable_segments.length &&
         <Vazio>Nenhuma mensagem ainda. Mande o primeiro prompt abaixo.</Vazio>}
       {blocos.map((bloco, indice) => {
         const dia = separadores.get(indice);
         const conteudo = renderizarBloco(bloco, indice);
-        return dia ? <div key={`dia-${indice}`} className="chat-grupo"><p className="chat-dia"><span>{dia}</span></p>{conteudo}</div> : conteudo;
+        // Chave pelo bloco, não pela posição: com as antigas entrando em cima, a posição muda.
+        const chave = bloco.tipo === "acoes" ? bloco.id : bloco.mensagem.id;
+        return dia ? <div key={`dia-${chave}`} className="chat-grupo"><p className="chat-dia"><span>{dia}</span></p>{conteudo}</div> : conteudo;
       })}
       {enviado && <MessageBubble lado="user" pendente texto={enviado.texto}
         anexosLocais={enviado.anexos.length ? enviado.anexos : undefined} />}
@@ -777,9 +831,9 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
           <Button variant="danger" disabled={busy} onClick={() => void aprovar(false)}>Negar</Button>
         </div>
       </div>}
-      {ativo && !capability?.approve && cursor === null &&
+      {ativo && !capability?.approve &&
         <AgentWorking desde={trabalhandoDesde.current ?? Date.now()} provider={conversation.provider} tokens={conversation.tokens ?? null} />}
-      {fila.length > 0 && cursor === null && (
+      {fila.length > 0 && (
         <div className="chat-fila" aria-label="Mensagens na fila">
           <p className="chat-fila-rotulo">Na fila · entram quando o agente terminar</p>
           {fila.map((item) => (
@@ -791,15 +845,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
       <div ref={fim} />
     </div>
 
-    {novidades && cursor === null && (
+    {novidades && (
       <button type="button" className="chat-novidades" onClick={() => irParaOFim(true)}>Novas mensagens ↓</button>
-    )}
-
-    {cursor !== null && (
-      <div className="m-acoes m-acoes-centro">
-        {timeline?.next_cursor != null && <Button variant="ghost" size="sm" onClick={() => setCursor(timeline.next_cursor!)}>Próximas mensagens</Button>}
-        <Button size="sm" onClick={() => setCursor(null)}>Ir para as mais recentes</Button>
-      </div>
     )}
 
     {(falhaEnvio || error) && <p role="alert" className="m-alerta">{falhaEnvio ?? error}</p>}

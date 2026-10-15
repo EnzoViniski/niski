@@ -267,6 +267,8 @@ pub(crate) fn text_message(value: &Value, provider: &str) -> Option<(String, Str
             .filter_map(|b| b["text"].as_str()).collect::<Vec<_>>().join("
 ")
     };
+    // Texto colado vem embrulhado em `<pasted_content>`: é fala do usuário, não lembrete do CLI.
+    let text = if role == "user" { crate::feed::sem_colado(&text) } else { text };
     (!text.trim().is_empty()).then_some((role.into(), text))
 }
 

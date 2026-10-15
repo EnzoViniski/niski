@@ -287,9 +287,13 @@ describe("navegação", () => {
     expect(urls.find(u => u.includes("timeline"))).toBe("/conversas/c/timeline");
 
     await act(async () => { await userEvent.click(screen.getByRole("button", { name: "Mensagens anteriores" })); });
-    expect(await screen.findByText("Mensagem antiga")).toBeInTheDocument();
-    await act(async () => { await userEvent.click(screen.getByRole("button", { name: "Ir para as mais recentes" })); });
-    expect(await screen.findByText("Mensagem nova")).toBeInTheDocument();
+    // As antigas entram acima das recentes, na mesma tela: nada some e não há página para voltar.
+    const antiga = await screen.findByText("Mensagem antiga");
+    const nova = screen.getByText("Mensagem nova");
+    expect(antiga.compareDocumentPosition(nova) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(urls).toContain("/conversas/c/timeline?cursor=50");
+    // A página buscada começava no início (`prev_cursor: 0`)... e a de 0 não tem anterior.
+    expect(screen.queryByRole("button", { name: "Ir para as mais recentes" })).not.toBeInTheDocument();
   });
 });
 

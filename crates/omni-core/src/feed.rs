@@ -173,6 +173,26 @@ fn comando_digitado(texto: &str) -> Option<String> {
     Some(if args.is_empty() { nome } else { format!("{nome} {args}") })
 }
 
+/// A CLI grava o texto colado no terminal embrulhado em `<pasted_content id="…">…</pasted_content id="…">`.
+/// É fala do usuário, não texto injetado: sem desembrulhar, uma mensagem que era só texto colado
+/// começava com `<`, sumia da conversa e a web acusava "não consegui confirmar o envio".
+pub fn sem_colado(texto: &str) -> String {
+    if !texto.contains("pasted_content") { return texto.to_owned(); }
+    let mut saida = String::with_capacity(texto.len());
+    let mut resto = texto;
+    while let Some(inicio) = resto.find("<pasted_content").into_iter().chain(resto.find("</pasted_content")).min() {
+        let Some(fim) = resto[inicio..].find('>') else { break };
+        saida.push_str(&resto[..inicio]);
+        let depois = &resto[inicio + fim + 1..];
+        // A quebra de linha que a CLI põe colada na marca sai junto com ela.
+        let fechando = resto[inicio..].starts_with("</");
+        if fechando && saida.ends_with('\n') { saida.pop(); }
+        resto = if !fechando { depois.strip_prefix('\n').unwrap_or(depois) } else { depois };
+    }
+    saida.push_str(resto);
+    saida
+}
+
 /// Texto que a CLI grava como se fosse do usuário: lembrete de sistema, saída de comando `/x`,
 /// contexto de ambiente, AGENTS.md do Codex. No terminal ele não aparece; aqui também não.
 pub fn injetado(texto: &str) -> bool {
@@ -208,7 +228,7 @@ pub fn items(value: &Value, provider: &str) -> Vec<Item> {
             }
             if value["isMeta"] == true { return saida; }
             if role == "user" {
-                let Some(texto) = conteudo_texto(message) else { return saida };
+                let Some(texto) = conteudo_texto(message).map(|t| sem_colado(&t)) else { return saida };
                 if let Some(comando) = comando_digitado(&texto) {
                     saida.push(item(Kind::Command, "user", comando, None, value));
                 } else if texto.trim_start().starts_with("[Request interrupted") {
@@ -239,7 +259,7 @@ pub fn items(value: &Value, provider: &str) -> Vec<Item> {
             if payload["type"] == "message" {
                 let role = payload["role"].as_str().unwrap_or("");
                 if role != "user" && role != "assistant" { return saida; }
-                let Some(texto) = conteudo_texto(payload) else { return saida };
+                let Some(texto) = conteudo_texto(payload).map(|t| if role == "user" { sem_colado(&t) } else { t }) else { return saida };
                 if texto.trim().is_empty() || (role == "user" && injetado(&texto)) { return saida; }
                 saida.push(item(Kind::Text, role, texto, None, value));
             } else if let Some((nome, detalhe)) = ferramenta_codex(payload) {
@@ -359,6 +379,10 @@ mod tests {
 
         let comando = items(&claude("user", json!("<command-name>/model</command-name>\n<command-args>opus</command-args>")), "claude");
         assert_eq!((comando[0].kind, comando[0].text.as_str()), (Kind::Command, "/model opus"));
+        let colado = items(&claude("user", json!("<pasted_content id=\"8b5b\">\nlinha um\nlinha dois\n</pasted_content id=\"8b5b\">")), "claude");
+        assert_eq!((colado[0].kind, colado[0].text.as_str()), (Kind::Text, "linha um\nlinha dois"));
+        let com_imagem = items(&claude("user", json!([{"type": "text", "text": "[Image #2]\n\n<pasted_content id=\"a\">\noi\n</pasted_content id=\"a\">"}])), "claude");
+        assert_eq!(com_imagem[0].text, "[Image #2]\n\noi");
         let interrompido = items(&claude("user", json!([{"type": "text", "text": "[Request interrupted by user]"}])), "claude");
         assert_eq!(interrompido[0].kind, Kind::Notice);
     }

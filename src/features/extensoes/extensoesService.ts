@@ -27,7 +27,7 @@ export interface ExtensoesDaConta {
   provider: string;
   conta_id: string;
   conta_nome: string;
-  /** A conta nativa da CLI, de onde as extras recebem as extensões. */
+  /** A conta com estrela (sem estrela, a nativa da CLI), de onde as outras recebem as extensões. */
   principal?: boolean;
   mcps: Mcp[];
   plugins: Plugin[];
@@ -45,6 +45,11 @@ export async function definirCompartilhamento(ligado: boolean): Promise<void> {
   await invoke("definir_compartilhamento_de_extensoes", { ligado });
 }
 
+/** Estrela: a conta de onde as outras da mesma IA recebem extensões e conectores. */
+export async function definirPrincipal(provider: string, contaId: string): Promise<void> {
+  await invoke("definir_conta_principal", { provider, profileId: contaId });
+}
+
 export async function listarExtensoes(projectPath: string | null): Promise<ExtensoesDaConta[]> {
   const lista = await invoke<ExtensoesDaConta[]>("listar_extensoes", { projectPath });
   return Array.isArray(lista) ? lista : [];
@@ -55,10 +60,11 @@ export interface FonteDeExtensoes {
   listar: () => Promise<ExtensoesDaConta[]>;
   lerCompartilhamento: () => Promise<boolean>;
   definirCompartilhamento: (ligado: boolean) => Promise<void>;
+  definirPrincipal: (provider: string, contaId: string) => Promise<void>;
   /** "Mostrar no Explorer" só existe no app do PC. */
   explorer: boolean;
 }
 
 export function fonteDoApp(projectPath: string | null): FonteDeExtensoes {
-  return { listar: () => listarExtensoes(projectPath), lerCompartilhamento, definirCompartilhamento, explorer: true };
+  return { listar: () => listarExtensoes(projectPath), lerCompartilhamento, definirCompartilhamento, definirPrincipal, explorer: true };
 }

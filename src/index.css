@@ -1442,3 +1442,22 @@
   transition: transform 180ms cubic-bezier(.2, .8, .3, 1), background-color 160ms ease;
 }
 .ext-chave[aria-checked="true"] .ext-chave-bolinha { transform: translateX(1.25rem); background: rgb(var(--c-accent)); }
+
+/* Uso de todas as contas (rodapé): cartão por conta, agrupado por IA. */
+.uso-painel { animation: popover-entra 140ms cubic-bezier(.2, .8, .3, 1); transform-origin: bottom left; }
+.uso-conta { display: flex; flex-direction: column; gap: .45rem; padding: .55rem .65rem; border: 1px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-overlay) / .03); transition: border-color .15s, background-color .15s; }
+.uso-conta:hover { border-color: rgb(var(--c-border)); }
+.uso-conta.is-ativa { border-color: rgb(var(--c-accent) / .6); background: rgb(var(--c-accent) / .07); box-shadow: inset 2px 0 0 rgb(var(--c-accent)); }
+.uso-selo { flex-shrink: 0; padding: 0 .3rem; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: rgb(var(--c-accent)); border: 1px solid rgb(var(--c-accent) / .55); }
+.uso-atualizar { flex-shrink: 0; display: grid; place-items: center; width: 1.6rem; height: 1.6rem; color: rgb(var(--c-text-secondary)); border: 1px solid transparent; }
+.uso-atualizar:hover:not(:disabled) { color: rgb(var(--c-accent)); border-color: rgb(var(--c-border-subtle)); }
+.uso-atualizar:disabled { opacity: .5; }
+.uso-janela { display: grid; grid-template-columns: 3rem 1fr 2.5rem 6rem; align-items: center; gap: .45rem; }
+.uso-barra { position: relative; display: block; height: .45rem; background: rgb(var(--c-overlay) / .14); overflow: hidden; }
+.uso-barra-cheia { position: absolute; inset: 0 auto 0 0; transition: width .4s ease; }
+
+/* Estrela da conta principal (aba Extensões). */
+.ext-estrela { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; flex-shrink: 0; color: rgb(var(--c-text-muted)); border: 1px solid transparent; transition: color .15s, border-color .15s, transform .15s; }
+.ext-estrela:hover { color: rgb(var(--c-warning)); border-color: rgb(var(--c-border-subtle)); }
+.ext-estrela.is-principal { color: rgb(var(--c-warning)); cursor: default; animation: estrela-pulo 260ms cubic-bezier(.2, .8, .3, 1.4); }
+@keyframes estrela-pulo { from { transform: scale(.6); } to { transform: scale(1); } }

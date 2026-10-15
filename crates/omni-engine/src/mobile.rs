@@ -562,6 +562,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/historico/levar",post(levar_do_historico))
         .route("/extensoes",get(extensoes))
         .route("/extensoes/compartilhar",post(compartilhar_extensoes))
+        .route("/extensoes/principal",post(definir_principal))
         .route("/conversas/{id}/arquivos",get(arquivos_da_conversa))
         .route("/terminais",get(listar_terminais).post(abrir_terminal))
         .route("/terminais/{id}/saida",get(saida_do_terminal))
@@ -1617,6 +1618,17 @@ async fn compartilhar_extensoes(State(state): State<Arc<EngineState>>, Json(body
     }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao salvar"))?
 }
 
+/// Estrela da aba Extensões: qual conta da IA é a principal. Só aceita conta cadastrada.
+#[derive(Deserialize)] #[serde(deny_unknown_fields)] struct PrincipalBody { provider: String, conta: String }
+async fn definir_principal(State(state): State<Arc<EngineState>>, Json(body): Json<PrincipalBody>) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let dir = state.state_file.parent().unwrap().to_path_buf();
+        omni_core::compartilhar::definir_principal(&dir, &body.provider, &body.conta)
+            .map(|levado| Json(json!({"ok": true, "levado": levado})))
+            .map_err(|e| error(StatusCode::NOT_FOUND, &e.to_string()))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao salvar"))?
+}
+
 /* ── Retomar uma conversa sem sessão aberta ──────────────────────────────────────────────────
    Conversa do histórico (ou do OMNI, com a sessão já fechada) não tem o que "reabrir": abre uma
    sessão nova na pasta do projeto com `--resume`, já com a conta, o modelo e o esforço escolhidos. */
@@ -2009,6 +2021,37 @@ mod tests {
     fn req(method:&str, uri:&str, origin:&str, body:&str) -> Request {
         Request::builder().method(method).uri(uri).header("host","127.0.0.1:47322").header("origin",origin)
             .header("content-type","application/json").header("idempotency-key","test-key").body(Body::from(body.to_owned())).unwrap()
+    }
+
+    /// Estrela pela rota: a conta marcada vira a fonte, os MCPs dela chegam na outra na hora e a
+    /// lista da aba devolve a marca. Contas de mentira numa pasta temporária.
+    #[tokio::test] async fn estrela_pela_rota_leva_os_mcps_da_conta_marcada() {
+        let (dir,state) = fixture();
+        let (a,b) = (dir.path().join("a"),dir.path().join("b"));
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::create_dir_all(&b).unwrap();
+        std::fs::write(a.join(".claude.json"),json!({"mcpServers":{"so_da_a":{"type":"http","url":"https://a"}}}).to_string()).unwrap();
+        std::fs::write(b.join(".claude.json"),json!({"mcpServers":{"so_da_b":{"type":"http","url":"https://b"}},"oauthAccount":{"x":1}}).to_string()).unwrap();
+        atomic_write_json(&dir.path().join("profiles.json"),&json!({"profiles":[
+            {"id":"a","provider":"claude","name":"Padrão","config_dir":a.to_string_lossy(),"builtin":false,"created_at_ms":0},
+            {"id":"b","provider":"claude","name":"EmailUber","config_dir":b.to_string_lossy(),"builtin":false,"created_at_ms":0},
+        ]})).unwrap();
+
+        let EngineResponse::Api { status, .. } = local(state.clone(),"POST","/extensoes/principal",Some(r#"{"provider":"claude","conta":"b"}"#.into()),None,vec![]).await else { panic!("não é Api") };
+        assert_eq!(status,200);
+        let em_a: Value = serde_json::from_slice(&std::fs::read(a.join(".claude.json")).unwrap()).unwrap();
+        assert!(em_a["mcpServers"]["so_da_b"].is_object(),"a conta sem estrela recebeu o MCP da marcada");
+        assert!(em_a["mcpServers"]["so_da_a"].is_object(),"e não perdeu o seu");
+        let em_b: Value = serde_json::from_slice(&std::fs::read(b.join(".claude.json")).unwrap()).unwrap();
+        assert!(em_b["mcpServers"].get("so_da_a").is_none(),"a principal não recebe das outras");
+
+        let EngineResponse::Api { body, .. } = local(state.clone(),"GET","/extensoes",None,None,vec![]).await else { panic!("não é Api") };
+        let contas = serde_json::from_str::<Value>(&body).unwrap()["contas"].as_array().unwrap().clone();
+        let marca = |id: &str| contas.iter().find(|c| c["conta_id"] == id).unwrap()["principal"].clone();
+        assert_eq!((marca("a"),marca("b")),(json!(false),json!(true)));
+
+        let EngineResponse::Api { status, .. } = local(state,"POST","/extensoes/principal",Some(r#"{"provider":"claude","conta":"nao-existe"}"#.into()),None,vec![]).await else { panic!("não é Api") };
+        assert_eq!(status,404);
     }
 
     /// `/painel` junta lista e catálogo; com o `ETag` de volta e nada mudado, responde 304 sem corpo.

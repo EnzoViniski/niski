@@ -31,6 +31,7 @@ pub fn run() {
             extensoes::listar_extensoes,
             extensoes::compartilhamento_de_extensoes,
             extensoes::definir_compartilhamento_de_extensoes,
+            extensoes::definir_conta_principal,
             agent_runtime::agent_runtime,
             mobile::mobile_settings,
             mobile::publish_workspace,
