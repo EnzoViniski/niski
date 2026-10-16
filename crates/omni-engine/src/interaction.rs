@@ -33,6 +33,43 @@ pub struct Capabilities {
     /// mensagem mandada agora entra na fila da própria CLI, como digitar no terminal.
     #[serde(default)]
     pub enfileirar: bool,
+    /// Menu de escolha da própria CLI na tela (ex.: "Teach auto mode about your environment?"): sem
+    /// responder, o campo fica travado. A conversa mostra as opções e manda o número.
+    pub escolha: Option<Escolha>,
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub struct Escolha { pub pergunta: String, pub detalhe: Option<String>, pub opcoes: Vec<Opcao> }
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub struct Opcao { pub numero: u8, pub rotulo: String }
+
+/// Menu numerado da CLI com o rodapé "Enter to confirm · Esc to cancel": a caixa vai da última
+/// linha de borda (`────`) acima do rodapé até ele. Precisa de pelo menos duas opções numeradas em
+/// sequência a partir de 1. Pedido de permissão ("Do you want to…") fica de fora: é o `approval`,
+/// que só aceita as escolhas de uso único — a conversa nunca manda "não perguntar de novo".
+pub fn escolha(text: &str) -> Option<Escolha> {
+    let linhas: Vec<&str> = text.lines().collect();
+    let rodape = linhas.iter().rposition(|linha| {
+        let linha = linha.trim().to_lowercase();
+        linha.contains("esc to cancel") && linha.contains("enter")
+    })?;
+    let borda = |linha: &str| { let linha = linha.trim(); linha.chars().count() >= 10 && linha.chars().all(|c| c == '─') };
+    let inicio = linhas[..rodape].iter().rposition(|l| borda(l)).map(|i| i + 1).unwrap_or(rodape.saturating_sub(20));
+    let caixa = &linhas[inicio..rodape];
+    if caixa.iter().any(|l| l.contains("Do you want to")) { return None; }
+    let opcao = |linha: &str| -> Option<Opcao> {
+        let linha = linha.trim().trim_start_matches(['❯', '›']).trim();
+        let (numero, rotulo) = linha.split_once(". ")?;
+        let numero: u8 = numero.parse().ok()?;
+        (!rotulo.trim().is_empty()).then(|| Opcao { numero, rotulo: rotulo.trim().to_owned() })
+    };
+    let opcoes: Vec<Opcao> = caixa.iter().filter_map(|l| opcao(l)).collect();
+    if opcoes.len() < 2 || opcoes.len() > 9 || opcoes.iter().enumerate().any(|(i, o)| o.numero as usize != i + 1) { return None; }
+    let primeira = caixa.iter().position(|l| opcao(l).is_some())?;
+    let mut textos = caixa[..primeira].iter().map(|l| l.trim()).filter(|l| !l.is_empty());
+    let pergunta = textos.next()?.to_owned();
+    let detalhe = textos.collect::<Vec<_>>().join(" ");
+    Some(Escolha { pergunta, detalhe: (!detalhe.is_empty()).then_some(detalhe), opcoes })
 }
 
 /// Require provider chrome plus an empty composer at the actual terminal cursor.
@@ -206,8 +243,9 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
     let approve = available && dialog.is_some();
     let prompt = available && ready(context.parser.screen(),provider);
     let enfileirar = available && !prompt && pode_enfileirar(context.parser.screen(),provider);
+    let escolha = (available && !approve && !prompt).then(|| escolha(&context.parser.screen().contents())).flatten();
     Capabilities { prompt, approve, revision: context.revision(session), approval_text: dialog.map(|d|d.2),
-        reason: (!(approve || prompt)).then(|| "Entrada do CLI não reconhecida ou sessão ocupada".into()), enfileirar }
+        reason: (!(approve || prompt || escolha.is_some())).then(|| "Entrada do CLI não reconhecida ou sessão ocupada".into()), enfileirar, escolha }
 }
 
 /// Uso da conta Claude. A fonte é o `cachedUsageUtilization` que o próprio Claude Code grava no
@@ -568,6 +606,20 @@ mod tests {
         // Digitar de verdade na frente do cursor volta a bloquear.
         context.parser.process(b"abc");
         assert!(!ready(context.parser.screen(),"claude"));
+    }
+
+    /// Tela real do Claude Code 2.1.302 depois do primeiro turno: o menu travava o campo e a conversa
+    /// só dizia "Entrada do CLI não reconhecida".
+    #[test] fn menu_da_cli_vira_escolha_e_permissao_nao() {
+        let borda = "─".repeat(40);
+        let tela = format!("❯ responda apenas: ok\n● ok\n{borda}\n  Teach auto mode about your environment?\n\n  Auto mode works better when it knows your environment. Takes about a minute.\n\n  ❯ 1. Yes\n    2. Not now\n    3. Don't show again\n\n  Enter to confirm · Esc to cancel\n{borda}\n❯\n{borda}\n");
+        let menu = escolha(&tela).expect("menu reconhecido");
+        assert_eq!(menu.pergunta, "Teach auto mode about your environment?");
+        assert_eq!(menu.detalhe.as_deref(), Some("Auto mode works better when it knows your environment. Takes about a minute."));
+        assert_eq!(menu.opcoes.iter().map(|o| (o.numero, o.rotulo.as_str())).collect::<Vec<_>>(), vec![(1, "Yes"), (2, "Not now"), (3, "Don't show again")]);
+        let permissao = format!("{borda}\n Bash command\n Do you want to proceed?\n ❯ 1. Yes\n   2. Yes, and don't ask again\n   3. No\n\n Esc to cancel · Enter to confirm\n");
+        assert_eq!(escolha(&permissao), None);
+        assert_eq!(escolha("● ok\n❯ \n"), None);
     }
 
     #[test] fn le_os_tokens_do_turno_da_linha_de_status() {

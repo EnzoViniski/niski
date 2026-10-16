@@ -74,6 +74,7 @@ pub fn run() {
             git_client::git_pull,
             engine_client::wsl_distros,
             engine_client::rename_conversation,
+            engine_client::rename_session,
             engine_client::engine_api,
             ssh::ssh_connections,
             ssh::save_ssh_connection,

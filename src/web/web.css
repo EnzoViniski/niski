@@ -316,3 +316,13 @@
 .w-extensoes { overflow-y: auto; padding-bottom: 1rem; }
 .w-extensoes > .ext { padding: .75rem; }
 .w-atualizar.is-ativo { color: rgb(var(--c-accent)); }
+
+/* Topo da aba de agente no app do PC: as abas Conversa | Terminal da web, com o estado à direita. */
+.aba-agente-topo { display: flex; align-items: flex-end; gap: .5rem; min-height: 2.5rem; padding: .375rem .75rem 0; border-bottom: 2px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-bg-elevated) / .55); flex-shrink: 0; }
+.aba-agente-abas { display: flex; gap: .25rem; flex-shrink: 0; }
+.aba-agente-chips { display: flex; align-items: center; gap: .375rem; padding-bottom: .375rem; min-width: 0; }
+.aba-agente-resumo { display: flex; align-items: center; gap: .5rem; min-width: 0; padding-bottom: .5rem; font-size: .6875rem; }
+.aba-agente-titulo { min-width: 0; max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: rgb(var(--c-text-primary)); }
+.aba-agente-estado { flex-shrink: 0; color: rgb(var(--c-text-muted)); }
+.aba-agente-estado::before { content: '·'; margin-right: .5rem; }
+@media (max-width: 760px) { .aba-agente-titulo, .aba-agente-estado { display: none; } }

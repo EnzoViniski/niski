@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { MobileApp } from "../mobile/MobileApp";
 import type { Conversation } from "../mobile/api";
-import { MARCADOR_ANEXOS, montarPrompt, nomeDoCaminho, separarAnexos } from "../mobile/anexos";
+import { MARCADOR_ANEXOS, montarPrompt, nomeDoCaminho, semMarcasDeImagem, separarAnexos } from "../mobile/anexos";
 
 beforeEach(() => {
   // A tela vive no endereço (`#/c/<id>`): sem zerar, cada teste começaria onde o anterior parou.
@@ -513,4 +513,31 @@ describe("pareamento pelo Authy", () => {
     await act(async () => { await userEvent.click(screen.getByRole("button", { name: "Parear" })); });
     expect(await screen.findByText(/Muitas tentativas erradas/)).toBeInTheDocument();
   });
+});
+
+it("menu da CLI aparece na conversa e a opção vai pelo número", async () => {
+  const menu = { pergunta: "Teach auto mode about your environment?", detalhe: "Takes about a minute.",
+    opcoes: [{ numero: 1, rotulo: "Yes" }, { numero: 2, rotulo: "Not now" }] };
+  const posts: { url: string; corpo: string }[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === "POST") { posts.push({ url, corpo: String(init.body) }); return new Response(JSON.stringify({ id: "a" })); }
+    const conversa = conversaPronta({ capabilities: { prompt: false, approve: false, revision: '"r"', approval_text: null, reason: null, escolha: menu } });
+    return new Response(JSON.stringify(
+      url.includes("timeline") ? { ...TIMELINE_VAZIA, conversation: conversa }
+        : url === "/projetos" ? PROJETOS : url === "/atencao" ? [] : [conversa]));
+  }));
+  render(<MobileApp />);
+  await abrirConversa();
+  expect(await screen.findByText("Teach auto mode about your environment?")).toBeInTheDocument();
+  expect(screen.queryByText(/Entrada do CLI/)).not.toBeInTheDocument();
+  await act(async () => { await userEvent.click(screen.getByRole("button", { name: /Not now/ })); });
+  await waitFor(() => expect(posts.some((p) => p.url.endsWith("/escolher") && p.corpo === JSON.stringify({ opcao: 2 }))).toBe(true));
+});
+
+it("imagem colada que a CLI trocou por [Image #N] não vira texto cru", () => {
+  // O Claude Code troca o caminho da imagem por um bloco à parte e deixa só o "-" na lista.
+  const texto = `[Image #1]olha isso\n\n${MARCADOR_ANEXOS}\n-`;
+  const separado = separarAnexos(texto);
+  expect(separado.anexos).toEqual([]);
+  expect(semMarcasDeImagem(separado.texto)).toBe("olha isso");
 });

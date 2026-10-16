@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -8,8 +9,8 @@ import {
   BookIcon, CheckIcon, CopyIcon, EditIcon, FileTextIcon, GlobeIcon, ListIcon, RobotIcon, SearchIcon, ToolsIcon,
 } from "../components/ui/PixelIcon";
 import { iconForPath } from "../features/files/fileIcons";
-import { nomeDoCaminho, separarAnexos } from "./anexos";
-import type { Mensagem } from "./api";
+import { nomeDoCaminho, semMarcasDeImagem, separarAnexos } from "./anexos";
+import { request, type Mensagem } from "./api";
 
 /** Os quadros do spinner do Claude Code, em vai-e-volta — é o que faz parecer que ele "respira". */
 const QUADROS = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
@@ -32,6 +33,7 @@ export const FRASES_TRABALHANDO = [
   "Afinando a viola",
   "Desembaraçando os fios",
   "Lustrando os bits",
+  "Polindo",
   "Cozinhando em fogo baixo",
   "Filosofando",
   "Rabiscando no guardanapo",
@@ -84,6 +86,51 @@ function CartoesDeAnexo({ anexos }: { anexos: AnexoVisivel[] }) {
   );
 }
 
+/** Imagem colada numa mensagem: o conteúdo mora no transcript e vem do engine uma vez por sessão. */
+const imagensLidas = new Map<string, Promise<string>>();
+function lerImagem(caminho: string): Promise<string> {
+  let lida = imagensLidas.get(caminho);
+  if (!lida) {
+    lida = request<{ tipo: string; dados: string }>(caminho).then(({ tipo, dados }) => `data:${tipo};base64,${dados}`);
+    lida.catch(() => imagensLidas.delete(caminho));
+    imagensLidas.set(caminho, lida);
+  }
+  return lida;
+}
+
+function ImagemDaMensagem({ caminho, numero }: { caminho: string; numero: number }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [falhou, setFalhou] = useState(false);
+  const [aberta, setAberta] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    lerImagem(caminho).then((url) => { if (vivo) setSrc(url); }, () => { if (vivo) setFalhou(true); });
+    return () => { vivo = false; };
+  }, [caminho]);
+  if (falhou) return <li className="bubble-imagem bubble-imagem-falhou">Imagem {numero} indisponível</li>;
+  return (
+    <li className="bubble-imagem">
+      {src
+        ? <button type="button" className="bubble-imagem-botao" aria-label={`Ampliar imagem ${numero}`} onClick={() => setAberta(true)}>
+            <img src={src} alt={`Imagem ${numero} enviada`} />
+          </button>
+        : <span className="bubble-imagem-carregando" role="status" aria-label={`Carregando imagem ${numero}`} />}
+      {/* No `body`: dentro do painel, um ancestral com transform prendia o `fixed` na área do chat. */}
+      {aberta && src && createPortal(
+        <div className="imagem-ampliada" role="dialog" aria-label={`Imagem ${numero}`} onClick={() => setAberta(false)}
+          onKeyDown={(evento) => { if (evento.key === "Escape") setAberta(false); }}>
+          <img src={src} alt={`Imagem ${numero} enviada`} />
+          <button type="button" className="imagem-ampliada-fechar" autoFocus onClick={() => setAberta(false)}>Fechar</button>
+        </div>,
+        document.body,
+      )}
+    </li>
+  );
+}
+
+/** As imagens coladas numa mensagem do usuário, na ordem em que foram coladas. */
+export interface ImagensDaMensagem { conversa: string; n: number; total: number }
+
 interface MessageBubbleProps {
   lado: "user" | "agent";
   /** Id da CLI que respondeu, quando houver: dá o nome e a marca do autor. */
@@ -97,6 +144,7 @@ interface MessageBubbleProps {
   anexosLocais?: AnexoVisivel[];
   /** Mais uma fala do agente no mesmo turno: sem cabeçalho, colada na anterior. */
   continua?: boolean;
+  imagens?: ImagensDaMensagem;
 }
 
 /**
@@ -106,9 +154,11 @@ interface MessageBubbleProps {
  * com o mesmo `rehype-sanitize`. Mensagem do usuário fica em texto puro — reinterpretar o que a
  * pessoa digitou mudaria o que ela vê do próprio prompt — e a lista de anexos vira cartões.
  */
-export const MessageBubble = memo(function MessageBubble({ lado, provider, texto, horario, pendente, anexosLocais, continua }: MessageBubbleProps) {
+export const MessageBubble = memo(function MessageBubble({ lado, provider, texto, horario, pendente, anexosLocais, continua, imagens }: MessageBubbleProps) {
   const doUsuario = lado === "user";
-  const { texto: corpo, anexos } = doUsuario ? separarAnexos(texto) : { texto, anexos: [] as string[] };
+  const separado = doUsuario ? separarAnexos(texto) : { texto, anexos: [] as string[] };
+  const corpo = doUsuario ? semMarcasDeImagem(separado.texto) : separado.texto;
+  const anexos = separado.anexos;
   const cartoes = anexosLocais ?? anexos.map((caminho) => ({ nome: nomeDoCaminho(caminho) }));
   const autor = doUsuario ? "Você" : NOME_DO_AGENTE[provider ?? ""] ?? provider ?? "Agente";
   const hora = horarioCurto(horario);
@@ -127,6 +177,14 @@ export const MessageBubble = memo(function MessageBubble({ lado, provider, texto
         : <div className="bubble-markdown prose prose-sm max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={{ pre: BlocoDeCodigo }}>{corpo}</ReactMarkdown>
           </div>)}
+      {imagens && imagens.total > 0 && (
+        <ul className="bubble-imagens" aria-label="Imagens da mensagem">
+          {Array.from({ length: imagens.total }, (_, k) => (
+            <ImagemDaMensagem key={k} numero={k + 1}
+              caminho={`/conversas/${encodeURIComponent(imagens.conversa)}/imagens/${imagens.n}/${k}`} />
+          ))}
+        </ul>
+      )}
       <CartoesDeAnexo anexos={cartoes} />
       {!doUsuario && corpo && <BotaoCopiar texto={corpo} rotulo="Copiar resposta" className="bubble-copiar" />}
     </article>

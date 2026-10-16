@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ProjectPicker } from "../features/projects/ProjectPicker";
 import { EditableLabel } from "./ui/EditableLabel";
-import { renameConversation } from "../features/terminal/terminalService";
+import { listProfiles, renameSession } from "../features/terminal/terminalService";
 import { useStagger } from "../lib/motion";
 import { AgentIcon } from "./ui/AgentIcon";
 import type { SettingsSection } from "../hooks/useNotifications";
@@ -132,6 +132,21 @@ export function Sidebar({
   const naoVistas = new Set(attention.map((item) => item.conversationKey));
 
   const [pickerAberto, setPickerAberto] = useState(false);
+  // Nome de cada conta, para a segunda linha da conversa dizer em qual ela roda.
+  const [contas, setContas] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let vivo = true;
+    listProfiles().then((perfis) => {
+      if (vivo) setContas(Object.fromEntries(perfis.map((perfil) => [perfil.id, perfil.name])));
+    }).catch(() => undefined);
+    return () => { vivo = false; };
+  }, []);
+  // A segunda linha diz "há 3 min": relida a cada minuto sem depender de a sessão mudar.
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const relogio = window.setInterval(() => setAgora(Date.now()), 60_000);
+    return () => window.clearInterval(relogio);
+  }, []);
 
   return (
     // Logo e sino moram na barra superior (`TitleBar`): a lateral começa direto na navegação.
@@ -207,16 +222,18 @@ export function Sidebar({
               && terminalSessions.some((session) => Boolean(session.provider) === (section === "CHATS"))
               ? terminalSessions.filter((session) => Boolean(session.provider) === (section === "CHATS")).map((session) => (
                   <div key={session.id}
-                    className={`group flex items-stretch border-l-2 pl-[22px] ${
+                    className={`group relative ml-3 mr-1 flex items-stretch border-l-2 transition-colors hover:bg-overlay/[0.06] ${
                       session.provider ? destaqueDaLinha(statusDaConversa(session, naoVistas.has(conversationKey(session)))) : "border-transparent"
                     }`}>
                     <SessionLabel
                       session={session}
                       naoVista={naoVistas.has(conversationKey(session))}
+                      conta={session.profile_id ? contas[session.profile_id] : undefined}
+                      agora={agora}
                       onAttach={onAttachTerminal}
                     />
-                    {/* Ações só no hover/foco: fora dele o espaço é do status da conversa. */}
-                    <div className="hidden shrink-0 items-stretch group-focus-within:flex group-hover:flex">
+                    {/* Ações só no hover/foco, por cima do fim da linha: fora dele o espaço é do nome. */}
+                    <div className="absolute inset-y-0 right-0 hidden items-stretch border-l border-border-subtle bg-bg-elevated pl-0.5 shadow-[-12px_0_12px_-4px_rgb(var(--c-bg-elevated))] group-focus-within:flex group-hover:flex">
                     <button
                       type="button"
                       aria-label={session.provider ? `Bifurcar conversa ${session.name}` : `Duplicar terminal ${session.name}`}
@@ -305,27 +322,36 @@ export function Sidebar({
 function SessionLabel({
   session,
   naoVista,
+  conta,
+  agora,
   onAttach,
 }: {
   session: TerminalSession;
   /** Há um aviso desta conversa que você ainda não viu — é o que separa "finalizado" de neutro. */
   naoVista: boolean;
+  /** Nome da conta em que a conversa roda (só agente). */
+  conta?: string;
+  agora: number;
   onAttach: (sessionId: string, title: string) => void;
 }) {
   const status = statusDaConversa(session, naoVista);
   const [editando, setEditando] = useState(false);
+  const agente = Boolean(session.provider);
+  // Segunda linha: o que está acontecendo, onde e há quanto tempo — como a lista da web.
+  const situacao = agente
+    ? rotuloDoStatus(status) || (session.state === "stopped" || session.state === "orphan" ? "encerrada" : "pronta")
+    : session.state === "working" ? "rodando" : session.state === "stopped" || session.state === "crashed" ? "encerrado" : "parado";
+  const tempo = session.last_activity_at_ms ? haQuantoTempo(session.last_activity_at_ms, agora) : null;
 
   if (editando) {
     return (
-      <span className="min-w-0 flex-1 py-1">
+      <span className="min-w-0 flex-1 px-2 py-1.5">
         <EditableLabel
           value={session.name}
           editing
           onEditingChange={setEditando}
-          label={`Renomear conversa ${session.name}`}
-          onCommit={(nome) => {
-            if (session.conversation_id) void renameConversation(session.conversation_id, nome).catch(() => undefined);
-          }}
+          label={`Renomear ${session.provider ? "conversa" : "terminal"} ${session.name}`}
+          onCommit={(nome) => void renameSession(session, nome).catch(() => undefined)}
         />
       </span>
     );
@@ -336,17 +362,50 @@ function SessionLabel({
       type="button"
       onClick={() => onAttach(session.id, session.name)}
       onDoubleClick={() => setEditando(true)}
-      className={`flex min-w-0 flex-1 items-center gap-1.5 py-1.5 pr-1 text-left text-xs hover:text-text-primary ${
-        status === "neutro" ? "text-text-muted" : "font-semibold text-text-primary"
-      }`}
+      className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
       title={`${session.name}${rotuloDoStatus(status) ? ` · ${rotuloDoStatus(status)}` : ""} — duplo clique renomeia`}
     >
-      <IconeDoStatus status={status} />
-      <AgentIcon provider={session.provider} size={12} className="shrink-0" />
-      <span className="min-w-0 flex-1 truncate">{session.name}</span>
-      <EtiquetaDoStatus status={status} />
+      <span className="relative grid h-7 w-7 shrink-0 place-items-center border border-border-subtle bg-bg-primary/70">
+        {agente
+          ? <AgentIcon provider={session.provider} size={16} />
+          : <TerminalIcon className={`h-3.5 w-3.5 ${session.state === "working" ? "text-success" : "text-text-muted"}`} aria-hidden />}
+        {agente && status !== "neutro" && (
+          <span className="absolute -bottom-1 -right-1 grid h-3.5 w-3.5 place-items-center border border-border-subtle bg-bg-surface">
+            <IconeDoStatus status={status} className="!h-2.5 !w-2.5" />
+          </span>
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={`block truncate text-xs leading-4 ${
+          status === "neutro" && !(session.state === "working") ? "text-text-secondary" : "font-semibold text-text-primary"
+        }`}>{session.name}</span>
+        <span className="flex min-w-0 items-center gap-1 text-[10px] leading-4 text-text-muted">
+          <span className={`shrink-0 ${status === "neutro" ? "" : "font-semibold"} ${corDaSituacao(status, session.state)}`}>{situacao}</span>
+          {conta && <><span aria-hidden>·</span><span className="truncate">{conta}</span></>}
+          {tempo && <><span aria-hidden>·</span><span className="shrink-0">{tempo}</span></>}
+        </span>
+      </span>
+      <EtiquetaDoStatus status={status} className="hidden" />
     </button>
   );
+}
+
+/** Cor da palavra de situação: a mesma do selo do status; terminal rodando fica verde. */
+function corDaSituacao(status: ReturnType<typeof statusDaConversa>, state: TerminalSession["state"]): string {
+  if (status === "trabalhando" || (status === "neutro" && state === "working")) return "text-success";
+  if (status === "aprovacao") return "text-warning";
+  if (status === "interrompido") return "text-danger";
+  if (status === "finalizado") return "text-accent";
+  return "";
+}
+
+/** "agora", "5 min", "3 h", "2 d" — curto, cabe na segunda linha da lateral. */
+function haQuantoTempo(ms: number, agora: number): string {
+  const minutos = Math.floor(Math.max(0, agora - ms) / 60_000);
+  if (minutos < 1) return "agora";
+  if (minutos < 60) return `${minutos} min`;
+  if (minutos < 24 * 60) return `${Math.floor(minutos / 60)} h`;
+  return `${Math.floor(minutos / (24 * 60))} d`;
 }
 
 function SidebarSection({

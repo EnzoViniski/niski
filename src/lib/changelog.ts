@@ -14,6 +14,19 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.6.4",
+    date: "2026-10-16",
+    changes: [
+      "Quando o Claude faz uma pergunta de múltipla escolha, ela aparece na conversa com um botão por opção. Antes o campo travava com o aviso de entrada não reconhecida.",
+      "Imagens enviadas aparecem na conversa como miniaturas que ampliam ao clicar, em vez do texto \"[Image #1]\".",
+      "Mensagens mandadas com o agente trabalhando saem da fila assim que ele as recebe e aparecem no lugar certo da conversa.",
+      "Renomear um terminal agora funciona, pela barra lateral ou pela aba.",
+      "Conversa que terminou normalmente não aparece mais como interrompida por um erro passageiro.",
+      "A conversa no app ganhou o mesmo topo da versão do navegador: abas Conversa e Terminal, título e estado.",
+      "Barra lateral redesenhada: cada conversa mostra o agente, a situação, a conta e há quanto tempo foi usada.",
+    ],
+  },
+  {
     version: "0.6.3",
     date: "2026-10-15",
     changes: [

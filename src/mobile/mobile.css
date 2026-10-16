@@ -839,3 +839,23 @@
 .chat-fila-rotulo { align-self: flex-end; font-size: .625rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgb(var(--c-text-muted)); }
 @keyframes conversa-entra { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .working-tokens { color: rgb(var(--c-accent)); font-variant-numeric: tabular-nums; }
+
+/* Menu da própria CLI ("Teach auto mode…?"): sem resposta o campo fica travado. */
+.bubble-escolha .escolha-pergunta { font-weight: 700; }
+.escolha-detalhe { margin-top: .25rem; font-size: .75rem; color: rgb(var(--c-text-secondary)); }
+.escolha-opcoes { display: flex; flex-wrap: wrap; gap: .375rem; margin-top: .625rem; }
+.escolha-numero { display: inline-grid; place-items: center; min-width: 1.1rem; height: 1.1rem; margin-right: .375rem; font-size: .625rem; border: 1px solid currentColor; opacity: .7; }
+
+/* Imagens coladas na mensagem: miniaturas no balão, ampliadas ao clicar. */
+.bubble-imagens { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .375rem; margin-top: .5rem; list-style: none; padding: 0; }
+.bubble-imagem { position: relative; }
+.bubble-imagem-botao { display: block; padding: 0; border: 1px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-bg-primary)); cursor: zoom-in; transition: border-color .15s, transform .15s; }
+.bubble-imagem-botao:hover { border-color: rgb(var(--c-accent)); transform: translateY(-1px); }
+.bubble-imagem-botao img { display: block; max-width: min(18rem, 60vw); max-height: 12rem; object-fit: contain; }
+.bubble-imagem-carregando { display: block; width: 8rem; height: 5.5rem; border: 1px solid rgb(var(--c-border-subtle)); background: linear-gradient(90deg, rgb(var(--c-bg-elevated)) 0%, rgb(var(--c-border-subtle)) 50%, rgb(var(--c-bg-elevated)) 100%); background-size: 200% 100%; animation: imagem-carrega 1.2s linear infinite; }
+@keyframes imagem-carrega { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.bubble-imagem-falhou { font-size: .6875rem; color: rgb(var(--c-text-muted)); padding: .375rem .5rem; border: 1px dashed rgb(var(--c-border-subtle)); }
+.imagem-ampliada { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: 2rem; background: rgb(0 0 0 / .82); cursor: zoom-out; }
+.imagem-ampliada img { width: auto; height: auto; max-width: min(92vw, 100%); max-height: calc(100dvh - 6rem); object-fit: contain; box-shadow: 0 1rem 3rem rgb(0 0 0 / .5); }
+.imagem-ampliada-fechar { position: absolute; top: 1rem; right: 1rem; padding: .375rem .75rem; font-size: .75rem; color: #fff; border: 1px solid rgb(255 255 255 / .4); background: rgb(0 0 0 / .4); }
+@media (prefers-reduced-motion: reduce) { .bubble-imagem-carregando { animation: none; } }

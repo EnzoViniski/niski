@@ -609,7 +609,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const marcar = (id: string, mudanca: Partial<Anexo>) =>
     setAnexos(lista => lista.map(a => (a.id === id ? { ...a, ...mudanca } : a)));
 
-  async function post(kind: "prompt" | "aprovar" | "modo" | "ajustes", body: Record<string, unknown>) {
+  async function post(kind: "prompt" | "aprovar" | "escolher" | "modo" | "ajustes", body: Record<string, unknown>) {
     const capability = conversation.capabilities!;
     const signature = JSON.stringify([kind, body]);
     if (pending.current?.signature !== signature) pending.current = { signature, key: actionKey(), revision: capability.revision };
@@ -647,6 +647,15 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     if (!conversation.capabilities || busy) return;
     setBusy(true); setError(null); setFalhaEnvio(null);
     try { await post("aprovar", { permitir }); await Promise.all([ler(), refresh()]); }
+    catch (reason) { falhou(reason); }
+    finally { setBusy(false); }
+  }
+
+  /** Responde um menu da CLI pelo número da opção; `null` fecha o menu (Esc). */
+  async function escolher(opcao: number | null) {
+    if (!conversation.capabilities?.escolha || busy) return;
+    setBusy(true); setError(null); setFalhaEnvio(null);
+    try { await post("escolher", { opcao }); await Promise.all([ler(), refresh()]); }
     catch (reason) { falhou(reason); }
     finally { setBusy(false); }
   }
@@ -776,7 +785,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     if (bloco.tipo === "aviso") return <LinhaDeAviso key={bloco.mensagem.id} texto={bloco.mensagem.text} />;
     const message = bloco.mensagem;
     return <MessageBubble key={message.id} lado={message.role === "user" ? "user" : "agent"}
-      provider={message.provider} texto={message.text} horario={message.timestamp} continua={continuacoes.has(indice)} />;
+      provider={message.provider} texto={message.text} horario={message.timestamp} continua={continuacoes.has(indice)}
+      imagens={message.imagens ? { conversa: conversation.id, n: indiceDaMensagem(message.id), total: message.imagens } : undefined} />;
   }
 
   return <section className="chat-tela" ref={telaRef}
@@ -831,6 +841,20 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
           <Button variant="danger" disabled={busy} onClick={() => void aprovar(false)}>Negar</Button>
         </div>
       </div>}
+      {capability?.escolha && <div className="bubble bubble-agent bubble-aprovacao bubble-escolha glass" role="group" aria-label={capability.escolha.pergunta}>
+        <p className="bubble-author"><WarningIcon aria-hidden className="h-3.5 w-3.5 text-warning" />A CLI está perguntando</p>
+        <p className="mobile-message escolha-pergunta">{capability.escolha.pergunta}</p>
+        {capability.escolha.detalhe && <p className="escolha-detalhe">{capability.escolha.detalhe}</p>}
+        <div className="escolha-opcoes">
+          {capability.escolha.opcoes.map((opcao) => (
+            <Button key={opcao.numero} variant={opcao.numero === 1 ? "primary" : "ghost"} disabled={busy}
+              onClick={() => void escolher(opcao.numero)}>
+              <span className="escolha-numero">{opcao.numero}</span>{opcao.rotulo}
+            </Button>
+          ))}
+          <Button variant="ghost" disabled={busy} onClick={() => void escolher(null)}>Fechar (Esc)</Button>
+        </div>
+      </div>}
       {ativo && !capability?.approve &&
         <AgentWorking desde={trabalhandoDesde.current ?? Date.now()} provider={conversation.provider} tokens={conversation.tokens ?? null} />}
       {fila.length > 0 && (
@@ -857,7 +881,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
 
     <Composer texto={text} onTexto={setText} anexos={anexos} onAdicionar={adicionar} onRemover={remover}
       onEnviar={() => void enviarPrompt()} podeEnviar={podeEnviar} ocupado={busy}
-      placeholder={!capability?.prompt ? (capability?.enfileirar ? "Agente trabalhando… sua mensagem entra na fila"
+      placeholder={!capability?.prompt ? (capability?.escolha ? "Responda a pergunta acima para continuar"
+        : capability?.enfileirar ? "Agente trabalhando… sua mensagem entra na fila"
         : trabalhando ? "Agente trabalhando… escreva a próxima mensagem"
         : conversation.capabilities ? "Sem sessão ativa" : "Conversa fechada — escolha conta, modelo e esforço e retome abaixo") : "Mensagem para o agente…"}
       toolbar={editandoNome ? <RenomearConversa nome={conversation.title} onFechar={() => setEditandoNome(false)}

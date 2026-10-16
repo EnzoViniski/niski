@@ -165,6 +165,8 @@ pub enum EngineRequest {
     /// Renomear a conversa. Mora aqui (e não num comando do Tauri escrevendo o arquivo) para o
     /// índice de conversas ter um escritor só — desktop e celular passam pelo mesmo caminho.
     RenameConversation { token: String, conversation_id: String, title: String },
+    /// Renomear um terminal sem agente (shell). Ele não tem conversa: o nome mora na própria sessão.
+    RenameSession { token: String, session_id: String, name: String },
     /// As rotas HTTP do celular (`/conversas/{id}/timeline`, `/prompt`…), chamadas pelo desktop por
     /// dentro deste protocolo. A visão "Conversa" do desktop é o mesmo chat da web: um caminho só
     /// para ler e responder conversas, sem depender do acesso remoto estar ligado.
@@ -211,6 +213,7 @@ impl EngineRequest {
             | Self::RestartSession { token, .. }
             | Self::Snapshot { token, .. }
             | Self::RenameConversation { token, .. }
+            | Self::RenameSession { token, .. }
             | Self::Api { token, .. }
             | Self::Shutdown { token } => token,
         }

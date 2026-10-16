@@ -272,6 +272,7 @@ fn handle_request(request: EngineRequest, state: &Arc<EngineState>) -> EngineRes
                 omni_core::conversations::rename(&dir, &conversation_id, &title).map_err(|erro| anyhow!(erro))
             })
             .map(|_| EngineResponse::Ok),
+        EngineRequest::RenameSession { session_id, name, .. } => rename_session(state, &session_id, &name),
         EngineRequest::Api { .. } => unreachable!("tratada em serve_client"),
         EngineRequest::Shutdown { .. } => {
             std::process::exit(0);
@@ -837,6 +838,22 @@ enum RestartTarget {
     Historical(TerminalSession),
 }
 
+/// Nome de um terminal sem agente. Sessão de agente renomeia pela conversa (`RenameConversation`):
+/// o nome dela vem do índice e sobrescreveria este a cada listagem.
+fn rename_session(state: &EngineState, session_id: &str, name: &str) -> Result<EngineResponse> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 120 { return Err(anyhow!("nome vazio ou longo demais")); }
+    {
+        let mut sessions = state.sessions.lock().map_err(|_| anyhow!("sessions lock poisoned"))?;
+        match sessions.get_mut(session_id).ok_or_else(|| anyhow!("session not found"))? {
+            SessionEntry::Live(session) => session.meta.lock().map_err(|_| anyhow!("metadata poisoned"))?.name = name.to_owned(),
+            SessionEntry::Historical(meta) => meta.name = name.to_owned(),
+        }
+    }
+    state.persist()?;
+    Ok(EngineResponse::Ok)
+}
+
 fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineResponse> {
     let target = {
         let sessions = state.sessions.lock().map_err(|_| anyhow!("sessions lock poisoned"))?;
@@ -951,18 +968,25 @@ fn detect_notice(screen_text: &str) -> Option<String> {
     notice_since(notice_counts(screen_text), (0, 0))
 }
 
-/// Quantas linhas de aviso da CLI há na tela: (limite de uso, erro de API).
+/// Quantas linhas de aviso da CLI há na tela **depois da última fala do agente**: (limite de uso,
+/// erro de API). Aviso seguido de resposta (`●`) não interrompeu nada — o agente seguiu. E linha com
+/// "retrying" é a CLI tentando de novo sozinha, não o fim do turno. Sem isso um turno que terminou
+/// normal aparecia "interrompido" por um erro passageiro que ficou na tela.
 fn notice_counts(screen_text: &str) -> (usize, usize) {
     let mut counts = (0, 0);
     for line in screen_text.lines() {
+        let fala = line.trim_start().starts_with(['●', '⏺']);
         let line = line
             .trim_start_matches(|c: char| c.is_whitespace() || MARCADORES.contains(c))
             .replace('’', "'")
             .to_ascii_lowercase();
+        if line.contains("retrying") { continue; }
         if USAGE_LIMIT_LINES.iter().any(|p| line.starts_with(p)) && line.contains("limit") {
             counts.0 += 1;
         } else if API_ERROR_LINES.iter().any(|p| line.starts_with(p)) {
             counts.1 += 1;
+        } else if fala {
+            counts = (0, 0);
         }
     }
     counts
@@ -1662,6 +1686,18 @@ mod tests {
         let de_novo = format!("{terminou}  ⎿  Claude usage limit reached. Resets at 9pm
 ");
         assert_eq!(notice_since(notice_counts(&de_novo), base).as_deref(), Some("usage_limit"));
+    }
+
+    /// Erro passageiro que a CLI tentou de novo, ou aviso seguido de resposta do agente: o turno
+    /// seguiu e terminou normal — não é "interrompido".
+    #[test]
+    fn aviso_superado_no_mesmo_turno_nao_interrompe() {
+        let tentou_de_novo = "❯ arruma o teste\n  ⎿  API Error (Request timed out.) · Retrying in 1 seconds… (attempt 1/10)\n● Pronto, corrigi.\n";
+        assert_eq!(detect_notice(tentou_de_novo), None);
+        let respondeu_depois = "  ⎿  API Error: 529 overloaded\n● Voltei, segue o resultado.\n";
+        assert_eq!(detect_notice(respondeu_depois), None);
+        let parou_no_erro = "● Vou rodar os testes.\n  ⎿  API Error: 529 overloaded\n";
+        assert_eq!(detect_notice(parou_no_erro).as_deref(), Some("api_error"));
     }
 
     #[test]

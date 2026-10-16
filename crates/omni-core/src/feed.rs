@@ -38,7 +38,13 @@ pub struct Item {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool: Option<String>,
     pub timestamp: Option<String>,
+    /// Imagens coladas na mensagem do usuário. A CLI as guarda dentro do transcript (base64) e deixa
+    /// só `[Image #N]` no texto; o conteúdo vem sob demanda por [`imagem`].
+    #[serde(skip_serializing_if = "sem_imagens")]
+    pub imagens: usize,
 }
+
+fn sem_imagens(n: &usize) -> bool { *n == 0 }
 
 /// Item com a identidade usada para não repetir a mesma mensagem quando a troca de conta copia o
 /// transcript inteiro para a outra conta (o Claude preserva o `uuid`).
@@ -193,6 +199,26 @@ pub fn sem_colado(texto: &str) -> String {
     saida
 }
 
+/// Sem os `[Image #N]` que a CLI deixa no lugar da imagem colada. Para títulos e histórico: o nome
+/// da conversa era "[Image #1]bom dia…". O chat mostra a imagem de verdade (`Item::imagens`).
+pub fn sem_marcas_de_imagem(texto: &str) -> String {
+    let mut saida = String::with_capacity(texto.len());
+    let mut resto = texto;
+    while let Some(inicio) = resto.find("[Image #") {
+        let depois = &resto[inicio + 8..];
+        let digitos = depois.chars().take_while(char::is_ascii_digit).count();
+        saida.push_str(&resto[..inicio]);
+        if digitos > 0 && depois[digitos..].starts_with(']') {
+            resto = &depois[digitos + 1..];
+        } else {
+            saida.push_str("[Image #");
+            resto = depois;
+        }
+    }
+    saida.push_str(resto);
+    saida.trim().to_owned()
+}
+
 /// Texto que a CLI grava como se fosse do usuário: lembrete de sistema, saída de comando `/x`,
 /// contexto de ambiente, AGENTS.md do Codex. No terminal ele não aparece; aqui também não.
 pub fn injetado(texto: &str) -> bool {
@@ -209,8 +235,40 @@ fn conteudo_texto(message: &Value) -> Option<String> {
     (!partes.is_empty()).then(|| partes.join("\n"))
 }
 
+fn blocos_de_imagem(message: &Value) -> impl Iterator<Item = &Value> {
+    message["content"].as_array().into_iter().flatten()
+        .filter(|bloco| bloco["type"] == "image" && bloco["source"]["type"] == "base64")
+}
+
+/// A imagem `k` da mensagem `n` (a mesma numeração do timeline: `fontes` na ordem dos segmentos,
+/// sem repetir identidade). Devolve `(tipo, base64)`. Lê só a linha da mensagem de novo.
+pub fn imagem(fontes: &[(PathBuf, String)], n: usize, k: usize, cache: &mut FeedCache) -> Option<(String, String)> {
+    let mut vistos = std::collections::HashSet::new();
+    let mut indice = 0;
+    for (caminho, provider) in fontes {
+        let Ok(entradas) = cache.read(caminho, provider) else { continue };
+        let mut alvo = None;
+        for entrada in entradas {
+            if !vistos.insert(entrada.identity.clone()) { continue; }
+            if indice == n { alvo = Some(entrada.clone()); break; }
+            indice += 1;
+        }
+        let Some(entrada) = alvo else { continue };
+        if entrada.item.imagens <= k { return None; }
+        let uuid = entrada.identity.split_once(':')?.1.rsplit_once('#')?.0.to_owned();
+        let arquivo = std::io::BufReader::new(File::open(caminho).ok()?);
+        let linha = std::io::BufRead::lines(arquivo).map_while(Result::ok)
+            .find(|linha| linha.contains(&uuid) && serde_json::from_str::<Value>(linha).is_ok_and(|v| v["uuid"] == uuid.as_str()))?;
+        let valor: Value = serde_json::from_str(&linha).ok()?;
+        let bloco = blocos_de_imagem(&valor["message"]).nth(k)?;
+        let tipo = bloco["source"]["media_type"].as_str().filter(|t| t.starts_with("image/"))?.to_owned();
+        return Some((tipo, bloco["source"]["data"].as_str()?.to_owned()));
+    }
+    None
+}
+
 fn item(kind: Kind, role: &str, text: String, tool: Option<String>, value: &Value) -> Item {
-    Item { kind, role: role.into(), text, tool, timestamp: value["timestamp"].as_str().map(str::to_owned) }
+    Item { kind, role: role.into(), text, tool, timestamp: value["timestamp"].as_str().map(str::to_owned), imagens: 0 }
 }
 
 /// Itens de uma linha do transcript, na ordem em que aparecem nela.
@@ -228,13 +286,14 @@ pub fn items(value: &Value, provider: &str) -> Vec<Item> {
             }
             if value["isMeta"] == true { return saida; }
             if role == "user" {
-                let Some(texto) = conteudo_texto(message).map(|t| sem_colado(&t)) else { return saida };
+                let imagens = blocos_de_imagem(message).count();
+                let Some(texto) = conteudo_texto(message).map(|t| sem_colado(&t)).or_else(|| (imagens > 0).then(String::new)) else { return saida };
                 if let Some(comando) = comando_digitado(&texto) {
                     saida.push(item(Kind::Command, "user", comando, None, value));
                 } else if texto.trim_start().starts_with("[Request interrupted") {
                     saida.push(item(Kind::Notice, "assistant", "Interrompido por você".into(), None, value));
-                } else if !injetado(&texto) && !texto.trim().is_empty() {
-                    saida.push(item(Kind::Text, "user", texto, None, value));
+                } else if !injetado(&texto) && (!texto.trim().is_empty() || imagens > 0) {
+                    saida.push(Item { imagens, ..item(Kind::Text, "user", texto, None, value) });
                 }
             } else if role == "assistant" {
                 if let Some(texto) = message["content"].as_str() {
@@ -252,6 +311,16 @@ pub fn items(value: &Value, provider: &str) -> Vec<Item> {
                         _ => {}
                     }
                 }
+            }
+        }
+        // Mensagem mandada no meio do turno: a CLI a entrega ao agente na próxima pausa entre
+        // ferramentas e grava como anexo, não como fala do usuário. Sem isto ela sumia da conversa
+        // e a bolha ficava "na fila" para sempre.
+        "claude" if value["type"] == "attachment" && value["attachment"]["type"] == "queued_command" => {
+            let anexo = &value["attachment"];
+            if anexo["commandMode"].as_str().is_some_and(|modo| modo != "prompt") { return saida; }
+            if let Some(texto) = anexo["prompt"].as_str().map(sem_colado).filter(|t| !t.trim().is_empty() && !injetado(t)) {
+                saida.push(item(Kind::Text, "user", texto, None, value));
             }
         }
         "codex" if value["type"] == "response_item" => {
@@ -385,6 +454,34 @@ mod tests {
         assert_eq!(com_imagem[0].text, "[Image #2]\n\noi");
         let interrompido = items(&claude("user", json!([{"type": "text", "text": "[Request interrupted by user]"}])), "claude");
         assert_eq!(interrompido[0].kind, Kind::Notice);
+        // Mandada no meio do turno: a CLI grava como anexo `queued_command`.
+        let no_turno = json!({"type": "attachment", "attachment": {"type": "queued_command", "prompt": "faça um modal", "commandMode": "prompt"}});
+        assert_eq!(items(&no_turno, "claude")[0].text, "faça um modal");
+        let aviso = json!({"type": "attachment", "attachment": {"type": "queued_command", "prompt": "x", "commandMode": "task-notification"}});
+        assert!(items(&aviso, "claude").is_empty());
+    }
+
+    /// A CLI troca a imagem colada por `[Image #1]` no texto e guarda o conteúdo num bloco à parte.
+    #[test]
+    fn imagem_colada_conta_na_mensagem_e_volta_sob_demanda() {
+        let dir = tempfile::tempdir().unwrap();
+        let caminho = dir.path().join("t.jsonl");
+        let linhas = [
+            json!({"type": "assistant", "uuid": "a1", "message": {"role": "assistant", "content": [{"type": "text", "text": "oi"}]}}),
+            json!({"type": "user", "uuid": "u1", "message": {"role": "user", "content": [
+                {"type": "text", "text": "[Image #1] olha isso"},
+                {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw0K"}}]}}),
+        ];
+        std::fs::write(&caminho, linhas.iter().map(|l| format!("{l}\n")).collect::<String>()).unwrap();
+        let mut cache = FeedCache::default();
+        let itens = cache.read(&caminho, "claude").unwrap().to_vec();
+        assert_eq!((itens[1].item.imagens, itens[1].item.text.as_str()), (1, "[Image #1] olha isso"));
+        let fontes = [(caminho, "claude".to_owned())];
+        assert_eq!(imagem(&fontes, 1, 0, &mut cache), Some(("image/png".into(), "iVBORw0K".into())));
+        assert_eq!(imagem(&fontes, 1, 1, &mut cache), None);
+        assert_eq!(imagem(&fontes, 0, 0, &mut cache), None);
+        assert_eq!(sem_marcas_de_imagem("[Image #1]bom dia [Image #12] veja"), "bom dia  veja");
+        assert_eq!(sem_marcas_de_imagem("[Image #x] fica"), "[Image #x] fica");
     }
 
     #[test]

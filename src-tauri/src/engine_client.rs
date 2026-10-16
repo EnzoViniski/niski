@@ -62,6 +62,12 @@ pub fn rename_conversation(conversation_id: String, title: String) -> EngineResp
     request_or_error(|token| EngineRequest::RenameConversation { token, conversation_id, title })
 }
 
+/// Renomear um terminal sem agente (shell): o nome fica na sessão, no engine.
+#[tauri::command(async)]
+pub fn rename_session(session_id: String, name: String) -> EngineResponse {
+    request_or_error(|token| EngineRequest::RenameSession { token, session_id, name })
+}
+
 /// Rotas da API de conversas (as mesmas do celular), para a visão "Conversa" das abas de agente.
 #[tauri::command(async)]
 pub fn engine_api(

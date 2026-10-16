@@ -90,8 +90,15 @@ export function separarAnexos(texto: string): { texto: string; anexos: string[] 
   if (!marcador) return { texto, anexos: [] };
   const inicio = texto.lastIndexOf(marcador);
   const linhas = texto.slice(inicio + marcador.length).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  if (linhas.length === 0 || !linhas.every((l) => l.startsWith("- "))) return { texto, anexos: [] };
-  return { texto: texto.slice(0, inicio).trimEnd(), anexos: linhas.map((l) => l.slice(2)) };
+  // `-` sozinho: a CLI trocou o caminho de uma imagem por `[Image #N]` e guardou a imagem à parte —
+  // ela aparece pela própria mensagem, não como cartão.
+  if (linhas.length === 0 || !linhas.every((l) => l === "-" || l.startsWith("- "))) return { texto, anexos: [] };
+  return { texto: texto.slice(0, inicio).trimEnd(), anexos: linhas.filter((l) => l !== "-").map((l) => l.slice(2)) };
+}
+
+/** Tira os `[Image #N]` que a CLI deixa no lugar da imagem colada: a imagem é mostrada de verdade. */
+export function semMarcasDeImagem(texto: string): string {
+  return texto.replace(/\[Image #\d+\]/g, "").replace(/[ \t]+\n/g, "\n").trim();
 }
 
 /** Sobe um arquivo para a pasta do projeto da conversa no PC e devolve o caminho gravado lá. */

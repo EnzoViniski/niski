@@ -56,7 +56,9 @@ struct Action {
 #[derive(Clone, PartialEq)]
 enum ActionKind { Prompt(String), Approval(bool), Spawn(SpawnPlan), Modo(String), Ajustes(Ajustes), Retomar(Retomada),
     /// Mensagem mandada com o agente no meio de um turno: entra na fila da CLI.
-    Fila(String) }
+    Fila(String),
+    /// Resposta a um menu da CLI (`interaction::escolha`): o número da opção, ou `None` = Esc.
+    Escolha(Option<u8>) }
 
 /// Uma conversa sem sessão aberta (do índice do OMNI ou só do histórico da CLI) e como reabri-la.
 /// Resolvido no servidor antes da fila, como o `SpawnPlan`: o corpo do request só escolhe conta,
@@ -549,9 +551,11 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/painel",get(painel))
         .route("/conversas/{id}/timeline",get(timeline))
         .route("/conversas/{id}/terminal",get(terminal))
+        .route("/conversas/{id}/imagens/{n}/{k}",get(imagem_da_mensagem))
         .route("/conversas/{id}/teclas",post(teclas))
         .route("/conversas/{id}/prompt",post(prompt))
         .route("/conversas/{id}/aprovar",post(approve))
+        .route("/conversas/{id}/escolher",post(escolher))
         .route("/conversas/{id}/nome",post(renomear))
         .route("/conversas/{id}/modo",post(modo))
         .route("/conversas/{id}/opcoes",get(opcoes))
@@ -955,6 +959,29 @@ async fn timeline(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePat
     }
 }
 
+/// Imagem colada numa mensagem, lida do transcript (a CLI a guarda lá em base64). Vai em JSON
+/// (`{tipo, dados}`) e não como arquivo: o app do PC chega aqui pelo protocolo do engine, que só
+/// carrega texto, e a web precisa do cabeçalho de token, que um `<img src>` não manda.
+async fn imagem_da_mensagem(State(state): State<Arc<EngineState>>, RoutePath((id, n, k)): RoutePath<(String, usize, usize)>) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let dir = state.state_file.parent().unwrap();
+        let profiles = omni_core::profiles(dir);
+        let fontes = match current(&state,&id) {
+            Ok((conversation,_)) => omni_core::conversations::fontes(&conversation,&profiles),
+            Err(_) => {
+                let entry = historical_entries(&state).into_iter().find(|entry|history_id(entry) == id)
+                    .ok_or_else(||error(StatusCode::NOT_FOUND,"Conversa não encontrada"))?;
+                let caminho = omni_core::history::validated(Path::new(&entry.path),&entry.provider,&profiles)
+                    .ok_or_else(||error(StatusCode::NOT_FOUND,"Histórico não encontrado"))?;
+                vec![(caminho, entry.provider)]
+            }
+        };
+        let mut feeds = state.mobile.feeds.lock().expect("feeds poisoned");
+        let (tipo, dados) = omni_core::feed::imagem(&fontes,n,k,&mut feeds).ok_or_else(||error(StatusCode::NOT_FOUND,"Imagem não encontrada"))?;
+        Ok(Json(json!({"tipo":tipo,"dados":dados})))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ler a imagem"))?
+}
+
 /// Quanto do histórico do terminal vai na primeira leitura. O engine guarda até 5 MB; mandar tudo
 /// pela rede para desenhar uma tela é desperdício — 512 KB cobrem bem mais que a tela visível.
 const TERMINAL_INICIAL_BYTES: usize = 512 * 1024;
@@ -1179,6 +1206,11 @@ async fn approve(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath
     enqueue_async(state,id,headers,ActionKind::Approval(body.permitir)).await
 }
 
+#[derive(Deserialize)] #[serde(deny_unknown_fields)] struct EscolhaBody { opcao: Option<u8> }
+async fn escolher(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<EscolhaBody>) -> Result<(StatusCode,Json<Value>),ApiError> {
+    enqueue_async(state,id,headers,ActionKind::Escolha(body.opcao)).await
+}
+
 /// Modo de permissão, o que o `shift+tab` faz no terminal. Só `plan` e `auto`: são os dois que o
 /// usuário troca no dia a dia, e um seletor de quatro estados numa tela de celular seria pior.
 #[derive(Deserialize)] #[serde(deny_unknown_fields)] struct ModoBody { modo: String }
@@ -1296,6 +1328,8 @@ fn enqueue(state:&Arc<EngineState>,id:&str,headers:&HeaderMap,kind:ActionKind) -
         // Fila vale com o agente parado (vira um prompt comum) ou trabalhando com o campo livre.
         ActionKind::Fila(_) => capability.prompt || capability.enfileirar,
         ActionKind::Approval(_) => capability.approve,
+        ActionKind::Escolha(opcao) => capability.escolha.as_ref()
+            .is_some_and(|menu| opcao.is_none_or(|n| menu.opcoes.iter().any(|o| o.numero == n))),
         ActionKind::Spawn(_) | ActionKind::Retomar(_) => false,
     };
     if !supported { return Err(error(StatusCode::CONFLICT,"Sessão ocupada ou tela não reconhecida; atualize o status")); }
@@ -1891,6 +1925,15 @@ fn execute_checked(state:&Arc<EngineState>, action:&Action, is_running: impl Fn(
         ActionKind::Fila(text) if interaction::ready(context.parser.screen(),provider)
             || interaction::pode_enfileirar(context.parser.screen(),provider) => (format!("\x1b[200~{text}\x1b[201~"), true),
         ActionKind::Approval(allow) => { let dialog = interaction::approval(&context.parser.screen().contents(),provider).ok_or_else(||anyhow!("Aprovação não reconhecida"))?; (if *allow { dialog.0 } else { dialog.1 }, false) },
+        // O número sozinho escolhe (confirmado num Claude Code 2.1.302 real); Esc fecha o menu.
+        ActionKind::Escolha(opcao) => {
+            let menu = interaction::escolha(&context.parser.screen().contents()).ok_or_else(||anyhow!("Menu não reconhecido"))?;
+            match opcao {
+                Some(n) if menu.opcoes.iter().any(|o| o.numero == *n) => (n.to_string(), false),
+                Some(_) => return Err(anyhow!("Opção inexistente")),
+                None => ("\x1b".into(), false),
+            }
+        }
         _ => return Err(anyhow!("Entrada não está disponível")),
     };
     context.input_revision += 1;

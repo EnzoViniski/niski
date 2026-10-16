@@ -8,6 +8,8 @@ export interface Conversation {
     prompt: boolean; approve: boolean; revision: string; approval_text: string | null; reason: string | null;
     /** Agente no meio do turno com o campo livre: mensagem mandada agora entra na fila da CLI. */
     enfileirar?: boolean;
+    /** Menu da própria CLI travando o campo (ex.: "Teach auto mode…?"): responde-se pelo número. */
+    escolha?: { pergunta: string; detalhe: string | null; opcoes: { numero: number; rotulo: string }[] } | null;
   } | null;
   /** Há uma sessão aberta no PC ligada a esta conversa (dá para ver o terminal e mandar teclas). */
   live?: boolean;
@@ -32,6 +34,8 @@ export interface Mensagem {
   kind?: TipoMensagem;
   /** Nome da ferramenta (`Bash`, `Read`, `Shell`…) quando `kind` é `tool`. */
   tool?: string;
+  /** Imagens coladas na mensagem; cada uma vem por `GET /conversas/{id}/imagens/{n}/{k}`. */
+  imagens?: number;
 }
 export interface Projects {
   /** 0 = o desktop nunca publicou; a lista veio só das conversas já registradas. */

@@ -243,7 +243,11 @@ pub struct Message {
     pub kind: crate::feed::Kind,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool: Option<String>,
+    /// Imagens coladas nesta mensagem; o conteúdo vem por `GET …/imagens/{n}/{k}`.
+    #[serde(skip_serializing_if = "sem_imagens")]
+    pub imagens: usize,
 }
+fn sem_imagens(n: &usize) -> bool { *n == 0 }
 #[derive(Serialize)]
 pub struct Timeline {
     pub messages: Vec<Message>,
@@ -255,6 +259,12 @@ pub struct Timeline {
 
 pub(crate) fn text_message(value: &Value, provider: &str) -> Option<(String, String)> {
     if value["isSidechain"] == true { return None; }
+    // Mensagem mandada no meio do turno (ver `feed::items`).
+    if provider == "claude" && value["type"] == "attachment" && value["attachment"]["type"] == "queued_command" {
+        if value["attachment"]["commandMode"].as_str().is_some_and(|modo| modo != "prompt") { return None; }
+        let texto = crate::feed::sem_colado(value["attachment"]["prompt"].as_str()?);
+        return (!texto.trim().is_empty()).then(|| ("user".into(), texto));
+    }
     let message = match provider {
         "claude" if value["type"] == "user" || value["type"] == "assistant" => &value["message"],
         "codex" if value["type"] == "response_item" && value["payload"]["type"] == "message" => &value["payload"],
@@ -268,7 +278,7 @@ pub(crate) fn text_message(value: &Value, provider: &str) -> Option<(String, Str
 ")
     };
     // Texto colado vem embrulhado em `<pasted_content>`: é fala do usuário, não lembrete do CLI.
-    let text = if role == "user" { crate::feed::sem_colado(&text) } else { text };
+    let text = if role == "user" { crate::feed::sem_marcas_de_imagem(&crate::feed::sem_colado(&text)) } else { text };
     (!text.trim().is_empty()).then_some((role.into(), text))
 }
 
@@ -280,6 +290,15 @@ pub(crate) fn text_message(value: &Value, provider: &str) -> Option<(String, Str
 /// celular) usa [`timeline_cached`].
 pub fn timeline(conversation: &Conversation, profiles: &[crate::Profile], cursor: Option<usize>, limit: usize) -> Timeline {
     timeline_cached(conversation, profiles, cursor, limit, &mut crate::feed::FeedCache::default())
+}
+
+/// Os transcripts da conversa na ordem do timeline (os mesmos que `timeline_cached` lê), para achar
+/// de novo uma mensagem pelo número — ver `feed::imagem`.
+pub fn fontes(conversation: &Conversation, profiles: &[crate::Profile]) -> Vec<(std::path::PathBuf, String)> {
+    conversation.segments.iter()
+        .filter(|segment| !segment.transcript_path.as_deref().is_some_and(|path| !Path::new(path).exists()))
+        .filter_map(|segment| resolve_transcript(segment, conversation, profiles).map(|path| (path, segment.provider.clone())))
+        .collect()
 }
 
 /// Maior página aceita. Ações do agente contam como item, então a página é maior que a de texto puro.
@@ -329,6 +348,7 @@ pub fn page(conversation_id: &str, itens: Vec<(String, crate::feed::Item)>, curs
         timestamp: item.timestamp,
         kind: item.kind,
         tool: item.tool,
+        imagens: item.imagens,
     }).collect();
     Timeline {
         messages,

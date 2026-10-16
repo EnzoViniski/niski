@@ -36,6 +36,8 @@ export interface TerminalSession {
   attention_seq?: number;
   /** Quando a sessão foi criada. Desempata qual sessão representa a conversa (ver `useAttention`). */
   created_at_ms?: number;
+  /** Última saída do terminal — o "há 5 min" da lateral. */
+  last_activity_at_ms?: number;
 }
 
 export type AgentCliId = "cursor" | "claude" | "codex";
@@ -375,6 +377,12 @@ export async function listConversations(projectId?: string) {
 /** Renomeia a conversa (e trava o nome automático). Quem grava é o engine. */
 export async function renameConversation(conversationId: string, title: string) {
   expect(await invoke<EngineResponse>("rename_conversation", { conversationId, title }), "ok");
+}
+
+/** Renomeia a sessão: conversa (agente) pelo índice de conversas, shell direto na sessão. */
+export async function renameSession(session: Pick<TerminalSession, "id" | "conversation_id">, nome: string) {
+  if (session.conversation_id) return renameConversation(session.conversation_id, nome);
+  expect(await invoke<EngineResponse>("rename_session", { sessionId: session.id, name: nome }), "ok");
 }
 
 export async function beginConversation(input: {

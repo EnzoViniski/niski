@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { ApiError, actionKey, request, type Timeline, type Conversation } from "../../mobile/api";
 import { AjustesDaConversa, type Ajustes } from "../../mobile/AjustesDaConversa";
 import { usePoll } from "../../mobile/usePoll";
-import { ChatIcon } from "../../components/ui/PixelIcon";
+import { ChatIcon, TerminalIcon } from "../../components/ui/PixelIcon";
+import { AgentIcon } from "../../components/ui/AgentIcon";
+import { EtiquetaDoStatus, statusDaConversa } from "../../components/ConversaStatus";
+import type { TerminalSession } from "../terminal/terminalService";
 import { EVENTO_ANEXAR, EVENTO_ARRASTANDO, tipoPelaExtensao } from "../../mobile/anexos";
 import { ConversationDetail } from "../../mobile/MobileApp";
 import { listTerminalSessions } from "../terminal/terminalService";
@@ -43,13 +46,8 @@ export function AbaDeAgente({
       {/* Terminal na tela e sessão aberta: a faixa com conta/modelo/esforço (e, no modo Conversa,
           o caminho de volta). Faixa e não botão flutuante: nada fica por cima do texto da CLI. */}
       {sessionId !== null && !chatNaTela && (
-        <FaixaDoTerminal sessionId={sessionId}>
-          {conversa && (
-            <button type="button" onClick={() => setVerTerminal(false)} className="btn btn-primary min-h-0 px-2 py-1 text-[11px]">
-              <ChatIcon aria-hidden className="h-3.5 w-3.5" />Ver conversa
-            </button>
-          )}
-        </FaixaDoTerminal>
+        <FaixaDoTerminal sessionId={sessionId}
+          abas={conversa ? <AbasDoAgente vendo="terminal" onTrocar={(aba) => setVerTerminal(aba === "terminal")} /> : null} />
       )}
       {/* `invisible`, não desmontado nem `display: none`: o xterm continua com tamanho de verdade
           (a PTY não encolhe) e o failover segue rodando — mas nada dele aparece por trás da
@@ -79,7 +77,7 @@ function useConversaDaSessao(sessionId: string) {
  * Conta, modelo e esforço no modo Terminal — os mesmos chips da conversa. Trocar reabre a mesma
  * sessão com `--resume` (a aba continua a mesma), só com o agente parado.
  */
-function FaixaDoTerminal({ sessionId, children }: { sessionId: string; children?: ReactNode }) {
+function FaixaDoTerminal({ sessionId, abas }: { sessionId: string; abas: ReactNode }) {
   const conversa = useConversaDaSessao(sessionId);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -96,15 +94,56 @@ function FaixaDoTerminal({ sessionId, children }: { sessionId: string; children?
     });
   }
 
-  if (!conversa?.capabilities && !children) return null;
+  if (!conversa?.capabilities && !abas) return null;
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b-2 border-border-subtle bg-bg-elevated/90 px-2 py-1">
-      {conversa?.capabilities && (
-        <AjustesDaConversa conversaId={conversa.id} pronto={Boolean(conversa.capabilities.prompt)} onAplicar={aplicar} />
-      )}
-      {erro && <span role="alert" className="text-[11px] text-danger">{erro}</span>}
+    <div className="aba-agente-topo">
+      {abas}
       <span className="flex-1" />
-      {children}
+      {erro && <span role="alert" className="text-[11px] text-danger">{erro}</span>}
+      {conversa?.capabilities && (
+        <div className="aba-agente-chips">
+          <AjustesDaConversa conversaId={conversa.id} pronto={Boolean(conversa.capabilities.prompt)} onAplicar={aplicar} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Conversa | Terminal — as mesmas abas da página web, nos dois modos da aba de agente. */
+function AbasDoAgente({ vendo, onTrocar }: { vendo: "conversa" | "terminal"; onTrocar: (aba: "conversa" | "terminal") => void }) {
+  return (
+    <div className="aba-agente-abas" role="tablist" aria-label="Visualização">
+      <button type="button" role="tab" aria-selected={vendo === "conversa"} onClick={() => onTrocar("conversa")}
+        className={`w-aba${vendo === "conversa" ? " w-aba-ativa" : ""}`}>
+        <ChatIcon aria-hidden className="h-3.5 w-3.5" />Conversa
+      </button>
+      <button type="button" role="tab" aria-selected={vendo === "terminal"} onClick={() => onTrocar("terminal")}
+        className={`w-aba${vendo === "terminal" ? " w-aba-ativa" : ""}`}>
+        <TerminalIcon aria-hidden className="h-3.5 w-3.5" />Terminal
+      </button>
+    </div>
+  );
+}
+
+const ESTADO: Record<string, string> = {
+  working: "Trabalhando", answered: "Pronta para a próxima mensagem", approval_required: "Esperando sua aprovação",
+  stopped: "Sessão encerrada", orphan: "Sessão anterior", crashed: "A sessão caiu",
+};
+
+/** Título e estado da conversa, à direita das abas — o que a web mostra no topo. */
+function ResumoDaConversa({ conversa }: { conversa: Conversation }) {
+  const status = statusDaConversa(
+    { state: (conversa.capabilities?.approve ? "approval_required" : conversa.state) as TerminalSession["state"],
+      notice: (conversa.notice ?? undefined) as TerminalSession["notice"] },
+    false,
+  );
+  const aviso = conversa.notice === "usage_limit" ? "Parou no limite de uso" : conversa.notice === "api_error" ? "Parou num erro da API" : null;
+  return (
+    <div className="aba-agente-resumo" title={conversa.title}>
+      {conversa.provider && <AgentIcon provider={conversa.provider} size={14} className="shrink-0" />}
+      <span className="aba-agente-titulo">{conversa.title}</span>
+      <span className="aba-agente-estado">{aviso ?? ESTADO[conversa.state ?? ""] ?? "Sem sessão aberta"}</span>
+      <EtiquetaDoStatus status={status} />
     </div>
   );
 }
@@ -166,6 +205,8 @@ function ChatDaSessao({ sessionId, onVerTerminal }: { sessionId: string; onVerTe
   const [erro, setErro] = useState<string | null>(null);
   const area = useRef<HTMLDivElement>(null);
   useSoltarArquivos(area);
+  // O estado no topo acompanha o agente (a conversa acima é lida uma vez, para montar o chat).
+  const aoVivo = useConversaDaSessao(sessionId);
 
   const carregar = useCallback(async () => {
     // Sessão recém-aberta: o engine pode ainda estar subindo o processo (wsl.exe frio leva ~3 s) ou
@@ -200,10 +241,10 @@ function ChatDaSessao({ sessionId, onVerTerminal }: { sessionId: string; onVerTe
 
   return (
     <div ref={area} className="absolute inset-0 z-20 flex flex-col bg-bg-surface">
-      <div className="flex shrink-0 items-center justify-end px-3 pt-2">
-        <button type="button" onClick={onVerTerminal} className="btn btn-ghost min-h-0 px-2 py-1 text-[11px]">
-          Ver terminal
-        </button>
+      <div className="aba-agente-topo">
+        <AbasDoAgente vendo="conversa" onTrocar={(aba) => { if (aba === "terminal") onVerTerminal(); }} />
+        <span className="flex-1" />
+        {(aoVivo ?? conversa) && <ResumoDaConversa conversa={(aoVivo ?? conversa)!} />}
       </div>
       {conversa ? (
         <div className="w-painel-central">

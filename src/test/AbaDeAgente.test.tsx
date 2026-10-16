@@ -45,8 +45,8 @@ describe("AbaDeAgente", () => {
       </SessionProvidersContext.Provider>,
     );
     expect(screen.getByText("TERMINAL").parentElement).not.toHaveClass("invisible");
-    expect(screen.queryByRole("button", { name: "Ver terminal" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Ver conversa/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Terminal" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Conversa" })).not.toBeInTheDocument();
   });
 
   it("no modo Conversa mostra o chat por cima do terminal, que continua montado", async () => {
@@ -61,12 +61,12 @@ describe("AbaDeAgente", () => {
     expect(engine.engineApi).toHaveBeenCalledWith("GET", "/conversas/conv-1/timeline", null, expect.anything());
 
     await act(async () => {
-      await userEvent.click(screen.getByRole("button", { name: "Ver terminal" }));
+      await userEvent.click(screen.getByRole("tab", { name: "Terminal" }));
     });
     expect(screen.queryByText("Resposta anterior")).not.toBeInTheDocument();
     expect(screen.getByText("TERMINAL").parentElement).not.toHaveClass("invisible");
     await act(async () => {
-      await userEvent.click(screen.getByRole("button", { name: "Ver conversa" }));
+      await userEvent.click(screen.getByRole("tab", { name: "Conversa" }));
     });
     expect(await screen.findByText("Resposta anterior")).toBeInTheDocument();
   });

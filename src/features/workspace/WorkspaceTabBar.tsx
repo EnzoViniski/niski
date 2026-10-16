@@ -5,7 +5,7 @@ import { ChatIcon, KanbanIcon, ListIcon, TerminalIcon, GitBranchIcon } from "../
 import { AGENT_ICON } from "../../components/ui/AgentIcon";
 import { useSession, useSessionProvider } from "../terminal/sessionProviders";
 import { EditableLabel } from "../../components/ui/EditableLabel";
-import { renameConversation } from "../terminal/terminalService";
+import { renameSession } from "../terminal/terminalService";
 import { iconForPath } from "../files/fileIcons";
 import type { PaneKind, PaneNode, WorkspaceAction } from "../../types/workspace";
 import { startTabDrag } from "./tabPointerDrag";
@@ -101,9 +101,7 @@ function TabLabel({
       toResourceId: item.resourceId ?? "",
       title: nome,
     });
-    if (session?.conversation_id) {
-      void renameConversation(session.conversation_id, nome).catch(() => undefined);
-    }
+    if (session) void renameSession(session, nome).catch(() => undefined);
   }
 
   if (editando) {
