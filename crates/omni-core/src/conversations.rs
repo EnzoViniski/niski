@@ -315,14 +315,6 @@ pub fn timeline_cached(
     let mut itens: Vec<(String, crate::feed::Item)> = Vec::new();
     let mut seen = HashSet::new();
     for (segment_index, segment) in conversation.segments.iter().enumerate() {
-        // Troca de conta (failover ou escolha manual) ou de IA: uma linha no chat dizendo de onde
-        // para onde, no ponto em que aconteceu. Vem antes de ler o transcript novo — logo depois da
-        // troca ele ainda pode nem existir, e o aviso já tem de aparecer.
-        if let Some(anterior) = segment_index.checked_sub(1).map(|i| &conversation.segments[i]) {
-            if anterior.profile_id != segment.profile_id || anterior.provider != segment.provider {
-                itens.push((segment.provider.clone(), aviso_de_troca(anterior, segment, profiles)));
-            }
-        }
         // O Claude só grava o `.jsonl` depois da primeira mensagem. Conversa recém-aberta tem o
         // caminho já fixado (`--session-id`) mas nenhum arquivo: isso é "vazia", não "indisponível".
         // Antes caía no aviso de histórico perdido logo na primeira abertura. Nada é lido aqui, então
@@ -336,9 +328,44 @@ pub fn timeline_cached(
             itens.push((segment.provider.clone(), entry.item.clone()));
         }
     }
+    let itens = com_avisos_de_troca(conversation, itens, profiles);
     let mut result = page(&conversation.id, itens, cursor, limit);
     result.unavailable_segments = unavailable;
     result
+}
+
+/// Põe "Conta trocada: A → B" no ponto da conversa em que a troca aconteceu — pela **hora** da
+/// troca, não pela ordem dos segmentos: voltar para uma conta grava no mesmo `.jsonl` de antes, e
+/// as mensagens novas eram lidas junto com o primeiro segmento, deixando os avisos (de dias atrás)
+/// presos no fim do chat. Trocas seguidas sem mensagem no meio viram um aviso só, da primeira conta
+/// até a última; ida e volta para a mesma conta não aparece.
+fn com_avisos_de_troca(conversation: &Conversation, itens: Vec<(String, crate::feed::Item)>, profiles: &[crate::Profile]) -> Vec<(String, crate::feed::Item)> {
+    let segmentos = &conversation.segments;
+    let trocas: Vec<(i64, &Segment, &Segment)> = segmentos.windows(2)
+        .filter(|par| par[0].profile_id != par[1].profile_id || par[0].provider != par[1].provider)
+        .map(|par| (par[1].started_at_ms as i64, &par[0], &par[1]))
+        .collect();
+    if trocas.is_empty() { return itens; }
+    let hora = |item: &crate::feed::Item| item.timestamp.as_deref()
+        .and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok()).map(|d| d.timestamp_millis());
+    let mut resultado = Vec::with_capacity(itens.len() + trocas.len());
+    let mut proxima = 0;
+    let mut despejar = |ate: Option<i64>, resultado: &mut Vec<(String, crate::feed::Item)>| {
+        let fim = trocas[proxima..].iter().take_while(|t| ate.is_none_or(|m| t.0 <= m)).count() + proxima;
+        if fim > proxima {
+            let (de, para) = (trocas[proxima].1, trocas[fim - 1].2);
+            if de.profile_id != para.profile_id || de.provider != para.provider {
+                resultado.push((para.provider.clone(), aviso_de_troca(de, para, profiles)));
+            }
+            proxima = fim;
+        }
+    };
+    for (provider, item) in itens {
+        if let Some(m) = hora(&item) { despejar(Some(m), &mut resultado); }
+        resultado.push((provider, item));
+    }
+    despejar(None, &mut resultado);
+    resultado
 }
 
 /// "Conta trocada: Padrão → EmailUber" (ou "IA trocada: Claude → Codex"), com a hora da troca.
@@ -426,6 +453,34 @@ mod tests {
         let ultima = t.messages.last().unwrap();
         assert_eq!(ultima.text, "Conta trocada: Padrão → EmailUber");
         assert_eq!(ultima.kind, crate::feed::Kind::Notice);
+    }
+
+    /// O caso real: voltar para uma conta grava no mesmo `.jsonl`. O aviso fica entre as mensagens
+    /// certas (pela hora), ida-e-volta seguida vira um aviso só e voltar à mesma conta não aparece.
+    #[test] fn aviso_de_troca_entra_pela_hora_e_nao_fica_preso_no_fim() {
+        let dir = tempfile::tempdir().unwrap();
+        let msg = |uuid: &str, papel: &str, hora: &str, texto: &str| json!({"type":papel,"uuid":uuid,"timestamp":hora,
+            "message":{"role":papel,"content":[{"type":"text","text":texto}]}});
+        let mut conversa = conversa_com_transcript(dir.path(), &[
+            msg("u1","user","2026-10-12T10:00:00Z","primeira"),
+            msg("u2","user","2026-10-15T10:00:00Z","segunda"),
+            msg("u3","user","2026-10-17T10:00:00Z","de hoje"),
+        ]);
+        let caminho = conversa.segments[0].transcript_path.clone();
+        let ms = |t: &str| chrono::DateTime::parse_from_rfc3339(t).unwrap().timestamp_millis() as u64;
+        let seg = |perfil: &str, inicio: u64| Segment { provider: "claude".into(), profile_id: Some(perfil.into()), external_session_id: None,
+            transcript_path: caminho.clone(), terminal_session_id: None, started_at_ms: inicio, ended_at_ms: None };
+        conversa.segments.push(seg("q", ms("2026-10-12T11:00:00Z")));
+        // Três trocas em segundos no dia 15: viram um aviso só (EmailUber → Padrão).
+        conversa.segments.push(seg("p", ms("2026-10-15T11:00:00Z")));
+        conversa.segments.push(seg("q", ms("2026-10-15T11:00:05Z")));
+        conversa.segments.push(seg("p", ms("2026-10-15T11:00:09Z")));
+        let pasta = dir.path().to_string_lossy();
+        let perfis: Vec<crate::Profile> = serde_json::from_value(json!([
+            {"id":"p","provider":"claude","name":"Padrão","config_dir":pasta,"created_at_ms":0},
+            {"id":"q","provider":"claude","name":"EmailUber","config_dir":pasta,"created_at_ms":0}])).unwrap();
+        let textos: Vec<String> = timeline(&conversa, &perfis, None, 50).messages.into_iter().map(|m| m.text).collect();
+        assert_eq!(textos, ["primeira", "Conta trocada: Padrão → EmailUber", "segunda", "Conta trocada: EmailUber → Padrão", "de hoje"]);
     }
 
     /// O nome da aba sai do **primeiro prompt**: é o que diz de que conversa se trata, e é o que o

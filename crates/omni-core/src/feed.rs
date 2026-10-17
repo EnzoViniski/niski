@@ -305,6 +305,13 @@ pub fn items(value: &Value, provider: &str) -> Vec<Item> {
                         Some("text") => if let Some(texto) = bloco["text"].as_str().filter(|t| !t.trim().is_empty()) {
                             saida.push(item(Kind::Text, "assistant", texto.to_owned(), None, value));
                         },
+                        // O que o agente diz entre uma ferramenta e outra pode vir como `thinking` com texto,
+                        // e o terminal mostra isso como fala. O raciocínio que a CLI esconde chega vazio
+                        // (só a assinatura) — esse continua de fora, como no terminal.
+                        Some("thinking") =>
+                            if let Some(texto) = bloco["thinking"].as_str().filter(|t| !t.trim().is_empty()) {
+                                saida.push(item(Kind::Text, "assistant", texto.to_owned(), None, value));
+                            },
                         Some("tool_use") => if let Some((nome, detalhe)) = ferramenta_claude(bloco["name"].as_str().unwrap_or(""), &bloco["input"]) {
                             saida.push(item(Kind::Tool, "assistant", detalhe, Some(nome), value));
                         },
@@ -428,14 +435,17 @@ mod tests {
     #[test]
     fn claude_mostra_texto_e_acoes_e_esconde_o_que_e_interno() {
         let resposta = items(&claude("assistant", json!([
-            {"type": "thinking", "thinking": "hmm"},
+            {"type": "thinking", "thinking": "", "signature": "EqQBCkgIBx"},
             {"type": "text", "text": "Vou rodar os testes."},
+            {"type": "thinking", "thinking": "Testes passaram; agora o lint.", "signature": "EqQBCkgIBy"},
             {"type": "tool_use", "name": "Bash", "input": {"command": "npm test", "description": "Roda os testes"}},
             {"type": "tool_use", "name": "Read", "input": {"file_path": "C:/app/src/main.ts"}},
             {"type": "tool_use", "name": "ToolSearch", "input": {"query": "x"}},
         ])), "claude");
         assert_eq!(resposta.iter().map(|i| (i.kind, i.tool.as_deref(), i.text.as_str())).collect::<Vec<_>>(), vec![
             (Kind::Text, None, "Vou rodar os testes."),
+            // Narração gravada como `thinking` com texto: o terminal mostra, a conversa também.
+            (Kind::Text, None, "Testes passaram; agora o lint."),
             (Kind::Tool, Some("Bash"), "npm test"),
             (Kind::Tool, Some("Read"), "C:/app/src/main.ts"),
         ]);
@@ -555,3 +565,4 @@ mod tests {
 
     use std::io::Write;
 }
+
