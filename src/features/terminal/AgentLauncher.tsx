@@ -3,6 +3,7 @@ import { Button, Select } from "../../components/ui";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { ChatIcon, FolderIcon } from "../../components/ui/PixelIcon";
 import { HistoryView } from "../history/HistoryView";
+import { Mascote } from "../workspace/PainelVazio";
 import { targetLabel } from "../../lib/paths";
 import { levarParaConta, resumeCommand, type HistoryEntry, type HistoryProvider } from "../history/historyService";
 import {
@@ -128,9 +129,34 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
         ? { texto: "Conectada", tom: "ok" }
         : { texto: "Sem login", tom: "aviso" };
 
+  // O que a janelinha da cena "digita": o comando de verdade que vai abrir.
+  const comando = agent?.command ?? "agent";
+  const faiscas = [8, 19, 33, 47, 61, 74, 88];
+
   return (
     <div className="launcher">
-      <section className="launcher-card" aria-labelledby="launcher-titulo">
+      <section className="launcher-card lz-card" aria-labelledby="launcher-titulo">
+        {/* Cena: remonta a cada troca de agente (key) — varredura, comando digitado e o herói chegando. */}
+        <div key={agent?.id} className="lz-cena" aria-hidden>
+          <span className="lz-varredura" />
+          {faiscas.map((x, i) => (
+            <span key={x} className="lz-faisca" style={{ left: `${x}%`, animationDelay: `${(i * 0.53) % 2.6}s` }} />
+          ))}
+          <div className="lz-janela">
+            <div className="lz-janela-barra"><i /><i /><i /><span>{projectName}</span></div>
+            <div className="lz-janela-corpo" style={{ "--n": comando.length } as React.CSSProperties}>
+              <p className="lz-linha"><span className="lz-prompt">$</span> <span className="lz-digitando">{comando}</span><span className="lz-cursor" /></p>
+              <p className="lz-linha lz-saida lz-saida-1">✓ {agent?.label ?? "Agente"} pronto em {projectName}</p>
+              <p className="lz-linha lz-saida lz-saida-2">{profile ? `conta ${profile.name}` : "conta padrão"} · continua rodando em segundo plano</p>
+            </div>
+          </div>
+          <div className="lz-heroi">
+            {agent?.id === "claude" ? <Mascote /> : <AgentIcon provider={agent?.id} size={46} className="lz-heroi-icone" />}
+            <span className="lz-sombra" />
+          </div>
+          <div className="lz-chao" />
+        </div>
+
         <header className="launcher-topo">
           <span className="launcher-topo-icone" aria-hidden>
             <FolderIcon className="h-5 w-5" />
@@ -149,12 +175,13 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
         )}
 
         <div role="radiogroup" aria-label="CLI do agente" className="launcher-agentes">
-          {agents.map((item) => {
+          {agents.map((item, indice) => {
             const status = statusDe(item);
             const marcado = item.id === selected;
             return (
               <button
                 key={item.id}
+                style={{ "--i": indice } as React.CSSProperties}
                 type="button"
                 role="radio"
                 aria-checked={marcado}
@@ -203,7 +230,7 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
         )}
 
         <div className="launcher-acoes">
-          <Button variant="primary" className="flex-1" disabled={loading || !agent?.available} onClick={() => launch()}>
+          <Button variant="primary" className="flex-1 lz-abrir" disabled={loading || !agent?.available} onClick={() => launch()}>
             {loading ? (
               "Detectando CLIs…"
             ) : (

@@ -557,6 +557,8 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/conversas/{id}/aprovar",post(approve))
         .route("/conversas/{id}/escolher",post(escolher))
         .route("/conversas/{id}/nome",post(renomear))
+        .route("/conversas/{id}/ocultar",post(ocultar))
+        .route("/conversas/{id}/bifurcar",post(bifurcar_rota))
         .route("/conversas/{id}/modo",post(modo))
         .route("/conversas/{id}/opcoes",get(opcoes))
         .route("/conversas/{id}/ajustes",post(ajustar))
@@ -844,7 +846,63 @@ fn summaries(state: &EngineState) -> Vec<Value> {
             "live":false,"updated_at_ms":entry.updated_at_ms})));
     }
     result.sort_by_key(|(updated,_)|std::cmp::Reverse(*updated));
-    result.into_iter().map(|(_,summary)|summary).collect()
+    let ocultas = conversas_ocultas(dir);
+    result.into_iter().map(|(_,mut summary)| {
+        if summary["id"].as_str().is_some_and(|id| ocultas.contains(id)) { summary["hidden"] = json!(true); }
+        summary
+    }).collect()
+}
+
+/// Conversas que você tirou da lista na web ou no celular, só pelo id. Nada é apagado: o transcript
+/// e o índice ficam como estão, e reabrir é tirar o id daqui.
+const OCULTAS: &str = "conversas-ocultas.json";
+/// Teto da lista: id é curto, mas um cliente em loop não deve crescer o arquivo sem fim.
+const OCULTAS_MAX: usize = 5_000;
+static OCULTAS_TRAVA: Mutex<()> = Mutex::new(());
+
+fn conversas_ocultas(dir: &Path) -> HashSet<String> {
+    std::fs::read(dir.join(OCULTAS)).ok()
+        .and_then(|bytes| serde_json::from_slice::<Vec<String>>(&bytes).ok())
+        .unwrap_or_default().into_iter().collect()
+}
+
+#[derive(Deserialize)] #[serde(deny_unknown_fields)] struct OcultarBody { oculta: bool }
+async fn ocultar(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, Json(body): Json<OcultarBody>) -> Result<Json<Value>, ApiError> {
+    // Os ids são `conv-<uuid>` e `history-<hash>`: qualquer outra coisa é lixo, não vai para o disco.
+    if id.is_empty() || id.len() > 120 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return Err(error(StatusCode::BAD_REQUEST,"Conversa inválida"));
+    }
+    tokio::task::spawn_blocking(move || {
+        let dir = state.state_file.parent().unwrap();
+        let _trava = OCULTAS_TRAVA.lock().map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Lista de ocultas indisponível"))?;
+        let mut lista: Vec<String> = conversas_ocultas(dir).into_iter().filter(|item| item != &id).collect();
+        if body.oculta {
+            if lista.len() >= OCULTAS_MAX { return Err(error(StatusCode::TOO_MANY_REQUESTS,"Conversas ocultas demais; reabra algumas antes")); }
+            lista.push(id.clone());
+        }
+        lista.sort();
+        atomic_write_json(&dir.join(OCULTAS),&lista).map_err(|erro|error(StatusCode::INTERNAL_SERVER_ERROR,&erro.to_string()))?;
+        Ok(Json(json!({"id":id,"hidden":body.oculta})))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ocultar"))?
+}
+
+/// Bifurcar pela web/celular: o mesmo "Bifurcar" da lateral do PC. Precisa da sessão aberta — é dela
+/// que sai o id da CLI e a conta. Devolve o id da conversa nova para a tela abrir.
+async fn bifurcar_rota(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>) -> Result<(StatusCode,Json<Value>), ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let (_, sessao) = current(&state,&id)?;
+        let sessao = sessao.ok_or_else(||error(StatusCode::CONFLICT,"Retome a conversa antes de bifurcar: ela precisa estar aberta no PC"))?;
+        let fonte = sessao.meta.lock().map(|meta| meta.clone()).map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Sessão indisponível"))?;
+        let provider = fonte.provider.clone().filter(|p| p == "claude" || p == "codex")
+            .ok_or_else(||error(StatusCode::CONFLICT,"Só dá para bifurcar conversas do Claude e do Codex"))?;
+        if state.sessions.lock().expect("sessions poisoned").values()
+            .filter(|entry| matches!(entry,SessionEntry::Live(_))).count() >= MAX_SESSOES {
+            return Err(error(StatusCode::TOO_MANY_REQUESTS,"Muitas sessões abertas neste PC; feche alguma antes"));
+        }
+        let resposta = bifurcar(&state, fonte, &provider, true).map_err(|erro|error(StatusCode::INTERNAL_SERVER_ERROR,&erro.to_string()))?;
+        let EngineResponse::Session { session } = resposta else { return Err(error(StatusCode::INTERNAL_SERVER_ERROR,"Resposta inesperada")); };
+        Ok((StatusCode::CREATED,Json(json!({"id":session.conversation_id,"title":session.name}))))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao bifurcar"))?
 }
 
 pub fn publish(state: &EngineState, projects: Vec<PublishedProject>, agents: Vec<PublishedAgent>, theme: Option<PublishedTheme>) -> Result<EngineResponse> {
@@ -2195,6 +2253,21 @@ quebra"}"#] {
             assert_eq!(app.clone().oneshot(req("POST","/conversas/c/nome","http://127.0.0.1:47322",lixo)).await.unwrap().status(),StatusCode::BAD_REQUEST);
         }
         assert_eq!(app.oneshot(req("POST","/conversas/desconhecida/nome","http://127.0.0.1:47322",r#"{"nome":"x"}"#)).await.unwrap().status(),StatusCode::BAD_REQUEST);
+    }
+
+    /// Ocultar tira da lista (marca `hidden`), reabrir devolve; id estranho nem chega ao disco.
+    #[tokio::test] async fn ocultar_e_reabrir_conversa() {
+        let (dir,state) = fixture();
+        let app = router(state.clone());
+        let origem = "http://127.0.0.1:47322";
+        assert_eq!(app.clone().oneshot(req("POST","/conversas/c/ocultar",origem,r#"{"oculta":true}"#)).await.unwrap().status(),StatusCode::OK);
+        assert_eq!(summaries(&state)[0]["hidden"],true);
+        assert_eq!(app.clone().oneshot(req("POST","/conversas/c/ocultar",origem,r#"{"oculta":false}"#)).await.unwrap().status(),StatusCode::OK);
+        assert!(summaries(&state)[0].get("hidden").is_none());
+        assert_eq!(app.clone().oneshot(req("POST","/conversas/..%2Fx/ocultar",origem,r#"{"oculta":true}"#)).await.unwrap().status(),StatusCode::BAD_REQUEST);
+        assert_eq!(std::fs::read_to_string(dir.path().join(OCULTAS)).unwrap().trim(),"[]");
+        // Bifurcar sem sessão aberta explica em vez de falhar calado.
+        assert_eq!(app.oneshot(req("POST","/conversas/c/bifurcar",origem,"")).await.unwrap().status(),StatusCode::CONFLICT);
     }
 
     /// O modo é `plan` ou `auto` e nada mais; sem sessão viva a fila recusa, como qualquer ação.

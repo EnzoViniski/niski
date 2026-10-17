@@ -202,7 +202,7 @@ export function AgentUsageStatus({ engineOnline, activeSessionId }: AgentUsageSt
     reason,
   ].filter(Boolean).join("\n");
   return (
-    <span className="flex min-w-0 items-center gap-2 lg:gap-3 text-[11px] font-semibold text-text-primary" title={title || undefined} aria-label={`Uso do ${rotulo}${conta ? ` — conta ${conta.name}` : ""}`}>
+    <span className="flex min-w-0 items-center gap-2 lg:gap-3 overflow-hidden text-[11px] font-semibold text-text-primary" title={title || undefined} aria-label={`Uso do ${rotulo}${conta ? ` — conta ${conta.name}` : ""}`}>
       <UsoDeTodasAsContas engineOnline={engineOnline} contaAtiva={profileId} />
       <AgentIcon provider={provider} size={12} className="shrink-0" />
       <span className="hidden md:inline text-accent">{rotulo}</span>

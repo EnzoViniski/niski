@@ -11,6 +11,7 @@ mod history;
 mod instalacao;
 mod profiles;
 mod extensoes;
+mod relatorio;
 
 pub fn run() {
     #[cfg(unix)]
@@ -87,6 +88,8 @@ pub fn run() {
             git_client::git_branches,
             git_client::git_checkout_branch,
             git_client::git_log_graph,
+            git_client::git_conta,
+            relatorio::relatorio_ia,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

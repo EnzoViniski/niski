@@ -47,6 +47,10 @@ export interface AppSettings {
 
   /** Como a aba de um agente aparece. Shells sem IA continuam sempre terminal. */
   agentView: AgentView;
+  /** Fundo da visão Conversa: `web` é a grade colorida da página web; `liso`, o painel chapado. */
+  conversationBackground: "web" | "liso";
+  /** Força das linhas da grade no fundo "web" da conversa, 0..100 (100 = linha bem marcada). */
+  conversationGridOpacity: number;
 
   /** Só os atalhos que o usuário trocou; o resto cai no padrão de `SHORTCUTS`. */
   shortcuts: ShortcutOverrides;
@@ -73,6 +77,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   notifyAttention: true,
 
   agentView: "terminal",
+  conversationBackground: "web",
+  conversationGridOpacity: 26,
 
   shortcuts: {},
 };

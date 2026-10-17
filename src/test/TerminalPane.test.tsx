@@ -18,6 +18,7 @@ const engine = vi.hoisted(() => ({
   listAgentClis: vi.fn(),
   listProfiles: vi.fn(),
   planSwitch: vi.fn(),
+  engineApi: vi.fn(),
 }));
 
 vi.mock("../features/terminal/terminalService", async (original) => ({
@@ -265,6 +266,44 @@ describe("TerminalPane — failover automático de conta", () => {
       })
     ));
     expect(await screen.findByRole("status")).toHaveTextContent("conta trocada: Pessoal → Trabalho");
+    // Limite já estava na tela quando a aba abriu (não caiu no meio de uma tarefa): nada é mandado.
+    expect(engine.engineApi).not.toHaveBeenCalledWith("POST", expect.anything(), expect.anything(), expect.anything());
+  });
+
+  it("limite no meio de uma tarefa: troca e manda o continue sozinho quando a conta nova fica pronta", async () => {
+    const resetAt = Math.floor(Date.now() / 1000) + 300;
+    engine.accountUsage.mockImplementation(async (profileId: string) => ({
+      status: "available", observed_at_ms: Date.now(),
+      primary: { used_percent: profileId === "pessoal" ? 100 : 20, resets_at: resetAt, reset_label: null },
+      secondary: null, reason: null,
+    }));
+    engine.listProfiles.mockResolvedValue([
+      { id: "pessoal", provider: "claude", name: "Pessoal", config_dir: "C:/a", builtin: true, created_at_ms: 0, last_used_at_ms: 1, authenticated: true },
+      { id: "trabalho", provider: "claude", name: "Trabalho", config_dir: "C:/b", builtin: false, created_at_ms: 1, last_used_at_ms: null, authenticated: true },
+    ]);
+    engine.listAgentClis.mockResolvedValue([
+      { id: "claude", label: "Claude", command: "claude", path: "C:/bin/claude.exe", available: true, authenticated: true },
+    ]);
+    engine.planSwitch.mockResolvedValue({
+      conversation_id: "conv-1", title: "Conversa", provider: "claude", profile_id: "trabalho",
+      initial_command: "claude --resume native-1", external_session_id: "native-1", handoff: false, handoff_path: null, notice: null,
+    });
+    engine.spawnTerminal.mockResolvedValue({ id: "s2", name: "Conversa", state: "working" });
+    const sessao = { provider: "claude", conversation_id: "conv-1", external_session_id: "native-1" };
+    engine.terminalSnapshot
+      .mockResolvedValueOnce(snapshot(1, { ...sessao, state: "working", profile_id: "pessoal" }))
+      .mockResolvedValueOnce(snapshot(2, { ...sessao, state: "answered", notice: "usage_limit", profile_id: "pessoal" }))
+      .mockResolvedValue(snapshot(3, { ...sessao, state: "answered", profile_id: "trabalho" }));
+    engine.engineApi.mockImplementation(async (method: string) => method === "GET"
+      ? { status: 200, body: JSON.stringify({ conversation: { capabilities: { prompt: true } } }) }
+      : { status: 202, body: "{}" });
+
+    renderPane();
+
+    await waitFor(() => expect(engine.engineApi).toHaveBeenCalledWith(
+      "POST", "/conversas/conv-1/prompt", expect.stringContaining("Mensagem automática do OMNI"), expect.anything(),
+    ), { timeout: 5_000 });
+    expect(engine.engineApi.mock.calls.filter(([metodo]) => metodo === "POST")).toHaveLength(1);
   });
 
   it("tenta de novo depois de 'sem outra conta' e usa a conta conectada nesse meio-tempo", async () => {
@@ -344,5 +383,46 @@ describe("TerminalPane — failover automático de conta", () => {
     await waitFor(() => expect(engine.terminalSnapshot.mock.calls.length).toBeGreaterThan(8));
     expect(engine.planSwitch).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("status")).toHaveTextContent("conta trocada: Pessoal → Trabalho");
+  });
+});
+
+describe("TerminalPane — abrir e reabrir terminal", () => {
+  it("abre uma PTY só mesmo com o efeito rodando duas vezes (StrictMode)", async () => {
+    const { StrictMode } = await import("react");
+    let soltar: (valor: unknown) => void = () => {};
+    engine.spawnTerminal.mockReturnValue(new Promise((resolve) => { soltar = resolve; }));
+    engine.terminalSnapshot.mockResolvedValue(snapshot(1, { id: "novo" }));
+    const onSessionCreated = vi.fn();
+    render(
+      <StrictMode>
+        <TerminalPane projectId="p1" projectPath="C:/dev/projeto" paneId="pane-1"
+          tab={{ id: "t2", kind: "terminal", title: "Novo terminal" }} onSessionCreated={onSessionCreated} />
+      </StrictMode>
+    );
+    await waitFor(() => expect(engine.spawnTerminal).toHaveBeenCalled());
+    soltar({ id: "novo", name: "Terminal", state: "working" });
+    await waitFor(() => expect(onSessionCreated).toHaveBeenCalledWith("novo", "Terminal", undefined));
+    expect(engine.spawnTerminal).toHaveBeenCalledTimes(1);
+    expect(onSessionCreated).toHaveBeenCalledTimes(1);
+  });
+
+  it("não devolve à PTY as respostas do xterm ao histórico reproduzido", async () => {
+    const { Terminal } = await import("@xterm/xterm");
+    let digitar: (dados: string) => void = () => {};
+    let terminarEscrita: (() => void) | undefined;
+    vi.spyOn(Terminal.prototype, "onData").mockImplementation((fn: (dados: string) => void) => { digitar = fn; return { dispose() {} }; });
+    vi.spyOn(Terminal.prototype, "write").mockImplementation((_dados: unknown, pronto?: () => void) => { terminarEscrita ??= pronto; });
+    engine.terminalSnapshot.mockResolvedValueOnce({ ...snapshot(0), data: "PS C:\> \u001b[6n" }).mockResolvedValue(snapshot(1));
+
+    renderPane();
+    await waitFor(() => expect(terminarEscrita).toBeDefined());
+    // O xterm responde à pergunta de posição do cursor que estava no histórico: não vai para o shell.
+    digitar("\u001b[3;9R");
+    expect(engine.writeTerminal).not.toHaveBeenCalled();
+    // Histórico desenhado: o que você digita volta a ir.
+    terminarEscrita?.();
+    digitar("ls");
+    expect(engine.writeTerminal).toHaveBeenCalledWith("s1", "ls");
+    vi.restoreAllMocks();
   });
 });

@@ -17,6 +17,8 @@ export interface Conversation {
   updated_at_ms?: number;
   /** Conversa achada só no histórico da CLI, sem sessão do OMNI. */
   historical?: boolean;
+  /** Você tirou da lista (web/celular). Continua existindo e reabre pela seção Ocultas. */
+  hidden?: boolean;
   /** Identidade do último evento de atenção (`sessão:contador`). Muda só quando o agente termina
    *  um turno ou pede aprovação — redesenho da tela não mexe. Engine antigo não manda. */
   attention?: string | null;

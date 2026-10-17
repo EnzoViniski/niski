@@ -703,7 +703,7 @@ fn duplicate_session(state: &Arc<EngineState>, session_id: &str) -> Result<Engin
     // Sessão de agente: "duplicar" é **bifurcar** a conversa — uma conversa nova com todo o histórico
     // da original, que segue independente dela. Shell continua virando outro shell igual.
     if let Some(provider) = source.provider.clone().filter(|p| p == "claude" || p == "codex") {
-        return bifurcar(state, source, &provider);
+        return bifurcar(state, source, &provider, false);
     }
     let id = state.next_id();
     // Duplicate is "a new terminal just like this one", not "clone the agent's work in
@@ -733,7 +733,8 @@ fn duplicate_session(state: &Arc<EngineState>, session_id: &str) -> Result<Engin
 /// na 2.1.296: o arquivo nasce com ele), então a timeline sabe onde ler desde o primeiro instante.
 /// Codex: `codex fork <id>` escolhe o id sozinho; a descoberta de rollouts acha o arquivo depois.
 /// Sem mensagem ainda (nada a bifurcar), abre uma conversa nova do mesmo agente e conta.
-fn bifurcar(state: &Arc<EngineState>, source: TerminalSession, provider: &str) -> Result<EngineResponse> {
+/// `headless`: bifurcação pedida pela web/celular — ninguém exibe a PTY até o desktop abrir a aba.
+fn bifurcar(state: &Arc<EngineState>, source: TerminalSession, provider: &str, headless: bool) -> Result<EngineResponse> {
     let dir = state.state_file.parent().ok_or_else(|| anyhow!("engine dir unavailable"))?.to_path_buf();
     let mut indice = omni_core::conversations::read_index(&dir);
     let original = source.conversation_id.as_deref().and_then(|id| indice.iter().find(|c| c.id == id)).cloned();
@@ -766,7 +767,7 @@ fn bifurcar(state: &Arc<EngineState>, source: TerminalSession, provider: &str) -
         source.cols,
         agora,
         SessionOrigin {
-            headless: false,
+            headless,
             env: source.env.clone(),
             provider: Some(provider.to_string()),
             profile_id: source.profile_id.clone(),

@@ -25,6 +25,20 @@ export interface GitCommit {
   refs: string[];
 }
 
+export interface GitConta {
+  nome: string | null;
+  email_configurado: boolean;
+  github: string | null;
+  gh_instalado: boolean;
+  /** `null` = tudo certo. */
+  problema: string | null;
+}
+
+/** Quem assina os commits do projeto e se o GitHub CLI está logado (nunca e-mail nem token). */
+export async function gitConta(projectPath: string): Promise<GitConta> {
+  return invoke<GitConta>("git_conta", { projectPath });
+}
+
 export const UNTRACKED = "?";
 
 export function isStaged(entry: GitStatusEntry): boolean {

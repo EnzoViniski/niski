@@ -54,6 +54,19 @@ const SECTION_ICON: Record<(typeof SECTIONS)[number], React.ComponentType<{ clas
   KANBAN: KanbanIcon,
 };
 
+/** Largura da lateral em px: arrastável pela borda direita, com teto para não engolir os painéis. */
+const LARGURA = { min: 224, padrao: 256, max: 440 } as const;
+const CHAVE_LARGURA = "omni-lateral-largura";
+const limitarLargura = (valor: number) => Math.round(Math.min(LARGURA.max, Math.max(LARGURA.min, valor)));
+function lerLargura(): number {
+  try {
+    const salva = Number(localStorage.getItem(CHAVE_LARGURA));
+    return salva ? limitarLargura(salva) : LARGURA.padrao;
+  } catch {
+    return LARGURA.padrao;
+  }
+}
+
 interface SidebarProps {
   workspaces: WorkspaceState[];
   activeWorkspaceId: string | null;
@@ -74,6 +87,8 @@ interface SidebarProps {
   onFileRenamed: (fromPath: string, toPath: string, title: string) => void;
   onPathDeleted: (path: string) => void;
   terminalSessions: TerminalSession[];
+  /** Sessão da aba em foco: a linha dela fica marcada na lista. */
+  activeSessionId?: string | null;
   showSettings: boolean;
   showHistory: boolean;
   onOpenHistory: () => void;
@@ -112,6 +127,7 @@ export function Sidebar({
   onFileRenamed,
   onPathDeleted,
   terminalSessions,
+  activeSessionId = null,
   showSettings,
   showHistory,
   onOpenHistory,
@@ -148,9 +164,48 @@ export function Sidebar({
     return () => window.clearInterval(relogio);
   }, []);
 
+  const [largura, setLargura] = useState(lerLargura);
+  useEffect(() => {
+    try { localStorage.setItem(CHAVE_LARGURA, String(largura)); } catch { /* sem armazenamento: vale só agora */ }
+  }, [largura]);
+  function arrastarBorda(evento: React.PointerEvent) {
+    evento.preventDefault();
+    const inicioX = evento.clientX;
+    const inicio = largura;
+    const mover = (movimento: PointerEvent) => setLargura(limitarLargura(inicio + movimento.clientX - inicioX));
+    const soltar = () => {
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+      document.body.classList.remove("redimensionando-lateral");
+    };
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
+    // Sem isto o xterm debaixo do ponteiro "rouba" o arrasto e seleciona texto.
+    document.body.classList.add("redimensionando-lateral");
+  }
+
   return (
     // Logo e sino moram na barra superior (`TitleBar`): a lateral começa direto na navegação.
-    <aside className="glass glass-strong w-64 shrink-0 flex flex-col h-full rounded-none border-y-0 border-l-0">
+    <aside style={{ width: largura }} className="glass glass-strong shrink-0 flex flex-col h-full rounded-none border-y-0 border-l-0">
+      {/* Borda arrastável: alarga até LARGURA.max; duplo clique volta ao padrão; setas pelo teclado. */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Largura da barra lateral"
+        aria-valuemin={LARGURA.min}
+        aria-valuemax={LARGURA.max}
+        aria-valuenow={largura}
+        tabIndex={0}
+        title="Arraste para alargar · duplo clique volta ao tamanho padrão"
+        onPointerDown={arrastarBorda}
+        onDoubleClick={() => setLargura(LARGURA.padrao)}
+        onKeyDown={(evento) => {
+          if (evento.key !== "ArrowLeft" && evento.key !== "ArrowRight") return;
+          evento.preventDefault();
+          setLargura((atual) => limitarLargura(atual + (evento.key === "ArrowRight" ? 16 : -16)));
+        }}
+        className="lateral-alca"
+      />
 
       {/* Nav */}
       <nav ref={navRef} className="px-2 py-3 flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-3">
@@ -216,17 +271,25 @@ export function Sidebar({
         </div>
 
         {SECTIONS.map((section) => (
-          <SidebarSection key={section} label={section} icon={SECTION_ICON[section]} disabled={!activeProjectId}>
+          <SidebarSection key={section} label={section} icon={SECTION_ICON[section]} disabled={!activeProjectId}
+            contagem={section === "CHATS" || section === "TERMINALS"
+              ? terminalSessions.filter((session) => Boolean(session.provider) === (section === "CHATS")).length
+              : undefined}>
             {/* CHATS = conversas com um agente de IA; TERMINALS = shells (npm run dev, git…). */}
             {(section === "CHATS" || section === "TERMINALS")
               && terminalSessions.some((session) => Boolean(session.provider) === (section === "CHATS"))
               ? terminalSessions.filter((session) => Boolean(session.provider) === (section === "CHATS")).map((session) => (
                   <div key={session.id}
-                    className={`group relative ml-3 mr-1 flex items-stretch border-l-2 transition-colors hover:bg-overlay/[0.06] ${
+                    className={`lateral-item group relative mx-1 flex items-stretch border-l-2 ring-1 ring-inset transition-colors ${
+                      session.id === activeSessionId
+                        ? "lateral-item-ativo ring-accent/50"
+                        : "ring-border-subtle/40 hover:ring-border-subtle"
+                    } ${
                       session.provider ? destaqueDaLinha(statusDaConversa(session, naoVistas.has(conversationKey(session)))) : "border-transparent"
                     }`}>
                     <SessionLabel
                       session={session}
+                      ativa={session.id === activeSessionId}
                       naoVista={naoVistas.has(conversationKey(session))}
                       conta={session.profile_id ? contas[session.profile_id] : undefined}
                       agora={agora}
@@ -321,12 +384,15 @@ export function Sidebar({
  *  o celular mostram. */
 function SessionLabel({
   session,
+  ativa,
   naoVista,
   conta,
   agora,
   onAttach,
 }: {
   session: TerminalSession;
+  /** É a aba em foco. */
+  ativa: boolean;
   /** Há um aviso desta conversa que você ainda não viu — é o que separa "finalizado" de neutro. */
   naoVista: boolean;
   /** Nome da conta em que a conversa roda (só agente). */
@@ -362,10 +428,12 @@ function SessionLabel({
       type="button"
       onClick={() => onAttach(session.id, session.name)}
       onDoubleClick={() => setEditando(true)}
-      className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+      aria-current={ativa ? "true" : undefined}
+      className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
       title={`${session.name}${rotuloDoStatus(status) ? ` · ${rotuloDoStatus(status)}` : ""} — duplo clique renomeia`}
     >
-      <span className="relative grid h-7 w-7 shrink-0 place-items-center border border-border-subtle bg-bg-primary/70">
+      <span className={`lateral-avatar relative grid h-8 w-8 shrink-0 place-items-center border border-border-subtle${
+        status === "trabalhando" || (!agente && session.state === "working") ? " lateral-avatar-vivo" : ""}`}>
         {agente
           ? <AgentIcon provider={session.provider} size={16} />
           : <TerminalIcon className={`h-3.5 w-3.5 ${session.state === "working" ? "text-success" : "text-text-muted"}`} aria-hidden />}
@@ -376,13 +444,16 @@ function SessionLabel({
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className={`block truncate text-xs leading-4 ${
-          status === "neutro" && !(session.state === "working") ? "text-text-secondary" : "font-semibold text-text-primary"
-        }`}>{session.name}</span>
-        <span className="flex min-w-0 items-center gap-1 text-[10px] leading-4 text-text-muted">
+        {/* Linha 1: nome e há quanto tempo, como numa lista de mensagens. Linha 2: situação e conta. */}
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className={`min-w-0 flex-1 truncate text-xs leading-4 ${
+            ativa || status !== "neutro" || session.state === "working" ? "font-semibold text-text-primary" : "text-text-secondary"
+          }`}>{session.name}</span>
+          {tempo && <span className="shrink-0 text-[10px] leading-4 text-text-muted tabular-nums">{tempo}</span>}
+        </span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] leading-4 text-text-muted">
           <span className={`shrink-0 ${status === "neutro" ? "" : "font-semibold"} ${corDaSituacao(status, session.state)}`}>{situacao}</span>
           {conta && <><span aria-hidden>·</span><span className="truncate">{conta}</span></>}
-          {tempo && <><span aria-hidden>·</span><span className="shrink-0">{tempo}</span></>}
         </span>
       </span>
       <EtiquetaDoStatus status={status} className="hidden" />
@@ -412,11 +483,14 @@ function SidebarSection({
   label,
   icon: Icon,
   disabled,
+  contagem,
   children,
 }: {
   label: string;
   icon?: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   disabled: boolean;
+  /** Quantos itens a seção tem (chats e terminais): aparece ao lado do título. */
+  contagem?: number;
   children?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(true);
@@ -436,8 +510,15 @@ function SidebarSection({
         />
         {Icon && <Icon className="w-3 h-3 shrink-0" aria-hidden />}
         {label}
+        {!disabled && contagem !== undefined && contagem > 0 && (
+          <span aria-hidden className="ml-auto min-w-[1.125rem] border border-border-subtle bg-overlay/[0.06] px-1 text-center text-[9px] leading-[14px] tabular-nums">
+            {contagem}
+          </span>
+        )}
       </button>
-      {open && !disabled && (children ?? <p data-nav-item className="text-text-muted text-xs px-6 py-1.5">Vazio</p>)}
+      {open && !disabled && (contagem !== undefined && contagem > 0
+        ? <div className="space-y-1 pt-0.5">{children}</div>
+        : children ?? <p data-nav-item className="text-text-muted text-xs px-6 py-1.5">Vazio</p>)}
     </div>
   );
 }

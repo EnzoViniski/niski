@@ -63,6 +63,9 @@ export function useSettings() {
     root.dataset.bg = isBackgroundEffect(settings.background) ? "efeito" : settings.background;
     root.dataset.glass = settings.glass;
     root.dataset.motion = settings.animations;
+    root.dataset.conversa = settings.conversationBackground;
+    // 100% vira alfa .25 da cor do tema: acima disso a linha disputa com o texto.
+    root.style.setProperty("--conversa-grade", String(settings.conversationGridOpacity / 400));
     root.style.setProperty("--app-bg-opacity", String(settings.backgroundOpacity / 100));
     root.style.setProperty("--app-bg-blur", `${settings.backgroundBlur}px`);
     root.style.setProperty("--terminal-opacity", String(settings.terminalOpacity / 100));
@@ -83,6 +86,8 @@ export function useSettings() {
     settings.terminalOpacity,
     settings.glass,
     settings.animations,
+    settings.conversationBackground,
+    settings.conversationGridOpacity,
   ]);
 
   return { settings, updateSettings, resetSettings };

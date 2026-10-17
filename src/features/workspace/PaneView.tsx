@@ -18,7 +18,8 @@ import { closeTerminal } from "../terminal/terminalService";
 import { PANE_DRAG_TYPE } from "./tabDrag";
 import { TAB_DRAG_EVENT, type DropZone, type TabDragState } from "./tabPointerDrag";
 import { TabDropOverlay } from "./TabDropOverlay";
-import { NEW_TAB_OPTIONS, WorkspaceTabBar } from "./WorkspaceTabBar";
+import { WorkspaceTabBar } from "./WorkspaceTabBar";
+import { PainelVazio } from "./PainelVazio";
 
 interface PaneViewProps {
   pane: PaneNode;
@@ -158,18 +159,7 @@ export function PaneView({
       <div className="flex-1 min-h-0">
         <PaneErrorBoundary key={tab?.id ?? pane.id}>
         {!tab ? (
-          <div className="h-full flex items-center justify-center gap-2">
-            {NEW_TAB_OPTIONS.map((option) => (
-              <Button
-                key={option.kind}
-                variant={option.kind === "agent" ? "primary" : "ghost"}
-                title={option.hint}
-                onClick={() => dispatch({ type: "CREATE_TAB", paneId: pane.id, kind: option.kind, title: option.title })}
-              >
-                {option.title}
-              </Button>
-            ))}
-          </div>
+          <PainelVazio onCriar={(kind, title) => dispatch({ type: "CREATE_TAB", paneId: pane.id, kind, title })} />
         ) : tab.kind === "agent" ? (
           <AbaDeAgente agentView={agentView} sessionId={tab.resourceId ?? null}>
             <TerminalPane

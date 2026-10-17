@@ -147,7 +147,7 @@ fn codex_titles(config_dir: &Path) -> HashMap<String, String> {
 }
 
 /// Só `projects/<slug>/<arquivo>.jsonl` — as subpastas por sessão são de subagente e anexos.
-fn claude_transcripts(config_dir: &Path) -> Vec<PathBuf> {
+pub(crate) fn claude_transcripts(config_dir: &Path) -> Vec<PathBuf> {
     let Ok(projects) = fs::read_dir(config_dir.join("projects")) else { return Vec::new() };
     projects
         .flatten()

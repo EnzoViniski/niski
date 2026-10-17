@@ -14,6 +14,25 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.7.0",
+    date: "2026-10-17",
+    changes: [
+      "Nova página Relatórios nas Configurações: quanto de IA você usou por dia, por conta, por modelo e por projeto, quantos commits a IA fez e quantas linhas escreveu, e em que horário você mais usa.",
+      "Quando os tokens de uma conta acabam no meio de uma tarefa, o OMNI troca para outra conta e manda sozinho um \"continue\" marcado como automático. A troca aparece na própria conversa.",
+      "Tela de Novo agente e painel vazio redesenhados, com um mascote em pixel passeando e animações.",
+      "O fundo da conversa no app pode ficar colorido como no navegador, com a opacidade das linhas ajustável em Aparência.",
+      "Campo de digitação da conversa com visual novo; uma barra no topo mostra quando o agente está trabalhando.",
+      "Barra lateral mais bonita e com largura ajustável: arraste a borda para alargar.",
+      "O rodapé mostra a sua conta do GitHub e se está tudo certo para commitar.",
+      "No navegador e no celular: oculte conversas da lista e reabra quando quiser, bifurque conversas e veja separadas as abertas no PC e o histórico.",
+      "No navegador, um botão atualiza o uso de todas as contas de uma vez. O início do celular ficou mais claro.",
+      "Configurações de Aparência reorganizadas em cartões simétricos.",
+      "Corrigido: \"Novo terminal\" às vezes abria dois terminais.",
+      "Corrigido: letras soltas como \"R\" ou \"1\" apareciam em terminais que você nem tinha usado.",
+      "Corrigido: num agente recém-aberto a conversa recusava a mensagem com \"Entrada do CLI não reconhecida\", embora o terminal estivesse pronto.",
+    ],
+  },
+  {
     version: "0.6.4",
     date: "2026-10-16",
     changes: [

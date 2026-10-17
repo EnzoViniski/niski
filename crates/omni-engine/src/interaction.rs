@@ -125,7 +125,9 @@ pub(crate) fn composer_vazio(screen: &vt100::Screen) -> bool {
     let (_, cols) = screen.size();
     let antes = screen.contents_between(row,0,row,col);
     matches!(antes.trim(), "❯" | "›" | ">")
-        && (col..cols).all(|c| screen.cell(row,c).is_none_or(|cell| !cell.has_contents() || cell.dim()))
+        // Espaço em branco conta como vazio: a 2.1.302 apaga cada palavra do exemplo em separado e deixa
+        // os espaços entre elas sem `dim` — `Try "fix lint errors"` virava "rascunho" e travava a conversa.
+        && (col..cols).all(|c| screen.cell(row,c).is_none_or(|cell| !cell.has_contents() || cell.dim() || cell.contents().trim().is_empty()))
 }
 
 /// Quanto esperar a colagem aparecer no campo antes de mandar o Enter assim mesmo.
@@ -640,6 +642,18 @@ mod tests {
         let mut digitado = Interaction::new(5,40);
         digitado.parser.process("[?2004h❯ Try this[1;3H".as_bytes());
         assert!(!ready(digitado.parser.screen(),"claude"));
+    }
+
+    /// Tela real da 2.1.302 num agente recém-aberto: cada palavra do exemplo em `dim` separado, os
+    /// espaços entre elas sem estilo e um NBSP depois do `❯`.
+    #[test] fn exemplo_com_palavras_apagadas_em_separado_continua_vazio() {
+        let mut real = Interaction::new(5,60);
+        real.parser.process("\x1b[?2004h\u{276f}\u{a0}\x1b[2mTry\x1b[22m \x1b[2m\"fix\x1b[22m \x1b[2mlint\x1b[22m \x1b[2merrors\"\x1b[22m\x1b[K\x1b[1;3H".as_bytes());
+        assert!(ready(real.parser.screen(),"claude"));
+
+        let mut rascunho = Interaction::new(5,60);
+        rascunho.parser.process("\x1b[?2004h\u{276f}\u{a0}fix lint\x1b[1;3H".as_bytes());
+        assert!(!ready(rascunho.parser.screen(),"claude"));
     }
 
     #[test] fn trust_dialog_moves_to_yes_before_confirming() {

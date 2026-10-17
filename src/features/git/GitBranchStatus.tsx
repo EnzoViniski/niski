@@ -1,7 +1,44 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { matchesShortcut } from "../../lib/shortcuts";
+import { GitBranchIcon, GithubIcon } from "../../components/ui/PixelIcon";
 import { isRemoteProject } from "../projects/targetState";
-import { gitBranches, gitCheckoutBranch, gitPull, gitStatus, type GitBranch } from "./gitService";
+import { gitBranches, gitCheckoutBranch, gitConta, gitPull, gitStatus, type GitBranch, type GitConta } from "./gitService";
+
+/** Releitura da conta: muda quase nunca (login/logout), e o `gh auth status` vai à rede. */
+const CONTA_RITMO_MS = 120_000;
+
+/** Conta do git no rodapé, à esquerda da branch: o login do GitHub (ou o `user.name`) e um ponto
+ *  verde quando está tudo certo para commitar e dar push — amarelo com o motivo quando não. */
+export function GitContaStatus({ projectPath }: { projectPath: string | null }) {
+  const [conta, setConta] = useState<GitConta | null>(null);
+  useEffect(() => {
+    if (!projectPath) { setConta(null); return; }
+    let vivo = true;
+    const ler = () => gitConta(projectPath).then((lida) => { if (vivo) setConta(lida); }).catch(() => { if (vivo) setConta(null); });
+    ler();
+    const timer = window.setInterval(ler, CONTA_RITMO_MS);
+    return () => { vivo = false; window.clearInterval(timer); };
+  }, [projectPath]);
+
+  if (!conta) return null;
+  const quem = conta.github ?? conta.nome ?? "sem conta";
+  const detalhes = [
+    conta.nome ? `Commits como: ${conta.nome}` : "Commits sem nome de autor",
+    conta.email_configurado ? "E-mail do git configurado" : "E-mail do git não configurado",
+    conta.gh_instalado ? (conta.github ? `GitHub: ${conta.github}` : "GitHub CLI sem login") : "GitHub CLI não instalado",
+    conta.problema ?? "Tudo certo para commitar e dar push",
+  ].join("\n");
+  return (
+    <span className="flex min-w-0 shrink items-center gap-1.5" title={detalhes}>
+      <span aria-hidden className={`h-1.5 w-1.5 shrink-0 ${conta.problema ? "bg-warning" : "bg-success"}`} />
+      <span className="sr-only">{conta.problema ? `Git com problema: ${conta.problema}.` : "Git ok."}</span>
+      <span className={`min-w-0 truncate ${conta.problema ? "text-warning" : ""}`}>{quem}</span>
+      {conta.github
+        ? <GithubIcon aria-hidden className={`h-3 w-3 shrink-0 ${conta.problema ? "text-warning" : "text-success"}`} />
+        : <GitBranchIcon aria-hidden className={`h-3 w-3 shrink-0 ${conta.problema ? "text-warning" : "text-success"}`} />}
+    </span>
+  );
+}
 
 /** Branch do projeto em foco no rodapé, com pull, troca de branch e criação ao lado. O status vem
  *  do mesmo `git_status` do painel lateral; relê sozinho porque quem troca de branch costuma ser o

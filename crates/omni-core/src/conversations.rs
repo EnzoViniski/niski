@@ -315,6 +315,14 @@ pub fn timeline_cached(
     let mut itens: Vec<(String, crate::feed::Item)> = Vec::new();
     let mut seen = HashSet::new();
     for (segment_index, segment) in conversation.segments.iter().enumerate() {
+        // Troca de conta (failover ou escolha manual) ou de IA: uma linha no chat dizendo de onde
+        // para onde, no ponto em que aconteceu. Vem antes de ler o transcript novo — logo depois da
+        // troca ele ainda pode nem existir, e o aviso já tem de aparecer.
+        if let Some(anterior) = segment_index.checked_sub(1).map(|i| &conversation.segments[i]) {
+            if anterior.profile_id != segment.profile_id || anterior.provider != segment.provider {
+                itens.push((segment.provider.clone(), aviso_de_troca(anterior, segment, profiles)));
+            }
+        }
         // O Claude só grava o `.jsonl` depois da primeira mensagem. Conversa recém-aberta tem o
         // caminho já fixado (`--session-id`) mas nenhum arquivo: isso é "vazia", não "indisponível".
         // Antes caía no aviso de histórico perdido logo na primeira abertura. Nada é lido aqui, então
@@ -331,6 +339,27 @@ pub fn timeline_cached(
     let mut result = page(&conversation.id, itens, cursor, limit);
     result.unavailable_segments = unavailable;
     result
+}
+
+/// "Conta trocada: Padrão → EmailUber" (ou "IA trocada: Claude → Codex"), com a hora da troca.
+fn aviso_de_troca(anterior: &Segment, novo: &Segment, profiles: &[crate::Profile]) -> crate::feed::Item {
+    let nome = |segment: &Segment| segment.profile_id.as_deref()
+        .and_then(|id| profiles.iter().find(|p| p.id == id).map(|p| p.name.clone()))
+        .unwrap_or_else(|| "Padrão".into());
+    let agente = |provider: &str| match provider { "claude" => "Claude", "codex" => "Codex", "cursor" => "Cursor", outro => outro }.to_string();
+    let text = if anterior.provider != novo.provider {
+        format!("IA trocada: {} ({}) → {} ({})", agente(&anterior.provider), nome(anterior), agente(&novo.provider), nome(novo))
+    } else {
+        format!("Conta trocada: {} → {}", nome(anterior), nome(novo))
+    };
+    crate::feed::Item {
+        kind: crate::feed::Kind::Notice,
+        role: "assistant".into(),
+        text,
+        tool: None,
+        timestamp: chrono::DateTime::from_timestamp_millis(novo.started_at_ms as i64).map(|d| d.to_rfc3339()),
+        imagens: 0,
+    }
 }
 
 /// Recorta uma página de itens já em ordem e numera as mensagens `<conversa>:<n>` pela posição na
@@ -378,6 +407,25 @@ mod tests {
                 transcript_path: Some(transcript.to_string_lossy().into_owned()), terminal_session_id: None,
                 started_at_ms: 0, ended_at_ms: None }],
         }
+    }
+
+    /// Conversa passada de uma conta para outra: o chat mostra a troca no ponto em que aconteceu,
+    /// mesmo antes de a conta nova gravar a primeira mensagem.
+    #[test] fn troca_de_conta_aparece_no_chat() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut conversa = conversa_com_transcript(dir.path(), &[
+            json!({"type":"user","uuid":"u1","message":{"role":"user","content":"oi"}}),
+        ]);
+        conversa.segments.push(Segment { provider: "claude".into(), profile_id: Some("q".into()), external_session_id: None,
+            transcript_path: Some(dir.path().join("ainda-nao-existe.jsonl").to_string_lossy().into_owned()), terminal_session_id: None,
+            started_at_ms: 1_000, ended_at_ms: None });
+        let perfis: Vec<crate::Profile> = serde_json::from_value(json!([
+            {"id":"p","provider":"claude","name":"Padrão","config_dir":"x","created_at_ms":0},
+            {"id":"q","provider":"claude","name":"EmailUber","config_dir":"y","created_at_ms":0}])).unwrap();
+        let t = timeline(&conversa, &perfis, None, 50);
+        let ultima = t.messages.last().unwrap();
+        assert_eq!(ultima.text, "Conta trocada: Padrão → EmailUber");
+        assert_eq!(ultima.kind, crate::feed::Kind::Notice);
     }
 
     /// O nome da aba sai do **primeiro prompt**: é o que diz de que conversa se trata, e é o que o

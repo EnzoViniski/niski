@@ -11,10 +11,11 @@ import { SkillsManager } from "../features/skills/SkillsManager";
 import { ExtensoesSettings } from "../features/extensoes/ExtensoesSettings";
 import { MobileSettings } from "../features/mobile/MobileSettings";
 import { testarAviso } from "../features/terminal/useAttentionNotifier";
-import { BlocksIcon, BookIcon, BrushIcon, CloseIcon, GearIcon, GlobeIcon, KeyboardIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
+import { BlocksIcon, BookIcon, BrushIcon, ChartIcon, CloseIcon, GearIcon, GlobeIcon, KeyboardIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
+import { RelatoriosIa } from "../features/relatorios/RelatoriosIa";
 import { SHORTCUTS, comboFromEvent, setRecordingShortcut, shortcutFor, type ShortcutId } from "../lib/shortcuts";
 
-type SectionId = "geral" | "aparencia" | "agentes" | "extensoes" | "skills" | "mobile" | "atalhos" | "sobre";
+type SectionId = "geral" | "aparencia" | "agentes" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
 
 type Icone = React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 
@@ -27,6 +28,7 @@ const SECTIONS: { id: SectionId; label: string; desc: string; icon: Icone }[] = 
   { id: "extensoes", label: "Extensões", desc: "MCPs, plugins e conectores por IA", icon: BlocksIcon },
   { id: "skills", label: "Skills", desc: "Skills do Claude e do projeto", icon: BookIcon },
   { id: "mobile", label: "Acesso remoto", desc: "Celular e outro computador", icon: GlobeIcon },
+  { id: "relatorios", label: "Relatórios", desc: "Uso de IA por dia, contas e commits", icon: ChartIcon },
   { id: "atalhos", label: "Atalhos", desc: "Teclas do app", icon: KeyboardIcon },
   { id: "sobre", label: "Sobre", desc: "Versão, novidades e atualização", icon: StarIcon },
 ];
@@ -68,11 +70,13 @@ interface SettingsViewProps {
   initialSection?: SectionId;
   /** Projeto aberto — a aba de Skills lista o `.claude/skills` dele além dos escopos globais. */
   projectPath: string | null;
+  /** Todos os projetos abertos nos workspaces: os Relatórios contam os commits deles. */
+  projectPaths?: string[];
   /** Volta pra tela de antes de abrir as Configurações. */
   onClose: () => void;
 }
 
-export function SettingsView({ settings, onChange, onReset, initialSection, projectPath, onClose }: SettingsViewProps) {
+export function SettingsView({ settings, onChange, onReset, initialSection, projectPath, projectPaths = [], onClose }: SettingsViewProps) {
   const [section, setSection] = useState<SectionId>(initialSection ?? "geral");
   const atual = SECTIONS.find((item) => item.id === section) ?? SECTIONS[0];
 
@@ -138,6 +142,7 @@ export function SettingsView({ settings, onChange, onReset, initialSection, proj
           {section === "extensoes" && <ExtensoesSettings projectPath={projectPath} />}
           {section === "skills" && <SkillsManager projectPath={projectPath} />}
           {section === "mobile" && <MobileSettings accent={settings.accent} />}
+          {section === "relatorios" && <RelatoriosIa projectPaths={projectPaths} />}
           {section === "atalhos" && <AtalhosSection settings={settings} onChange={onChange} />}
           {section === "sobre" && <SobreSection onReset={onReset} />}
         </div>
@@ -169,7 +174,7 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
   const efeito = isBackgroundEffect(settings.background);
 
   return (
-    <div className="settings-grade">
+    <div className="settings-grade settings-grade-par">
       <Card title="Tema">
         <Segmented
           label="Tema"
@@ -210,9 +215,9 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
             })}
           </div>
         </Field>
+      </Card>
 
-        <Divider />
-
+      <Card title="Painéis e movimento">
         <Segmented
           label="Relevo"
           description="Espessura da borda e da sombra dos painéis — o quão 'chunky' o app fica."
@@ -220,9 +225,9 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
           value={settings.glass}
           onChange={(v) => onChange({ glass: v })}
         />
-      </Card>
 
-      <Card title="Movimento">
+        <Divider />
+
         <Segmented
           label="Animações"
           description='"Desligadas" corta todo movimento. Se o Windows estiver com "reduzir animações", isso vale sempre, independente da escolha aqui.'
@@ -232,7 +237,7 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
         />
       </Card>
 
-      <Card title="Fundo" className="settings-largo">
+      <Card title="Fundo do app">
         <Segmented
           label="Imagem de fundo"
           description="Pixels é a grade padrão do app. Aurora, Poente e Maré são gradientes suaves. Ondas é um efeito animado em WebGL — mais bonito, mais GPU."
@@ -288,6 +293,9 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
             )}
           </>
         )}
+      </Card>
+
+      <Card title="Terminais e conversa">
         <SliderField
           id="terminal-opacity"
           label="Opacidade dos terminais"
@@ -297,8 +305,31 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
           max={100}
           onChange={(v) => onChange({ terminalOpacity: v })}
         />
-      </Card>
 
+        <Divider />
+
+        <Segmented
+          label="Fundo da conversa"
+          description="Igual à web pinta a conversa com a grade colorida da página do navegador, na cor do tema. Liso deixa o painel numa cor só."
+          options={[
+            { value: "web", label: "Igual à web" },
+            { value: "liso", label: "Liso" },
+          ]}
+          value={settings.conversationBackground}
+          onChange={(v) => onChange({ conversationBackground: v })}
+        />
+        {settings.conversationBackground === "web" && (
+          <SliderField
+            id="conversa-grade"
+            label="Opacidade das linhas"
+            unit="%"
+            value={settings.conversationGridOpacity}
+            min={0}
+            max={100}
+            onChange={(v) => onChange({ conversationGridOpacity: v })}
+          />
+        )}
+      </Card>
     </div>
   );
 }

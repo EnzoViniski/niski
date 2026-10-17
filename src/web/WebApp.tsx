@@ -6,7 +6,7 @@ import { ArrowLeftIcon, BlocksIcon, ChatIcon, FolderIcon, ReloadIcon, TerminalIc
 import { ExtensoesSettings } from "../features/extensoes/ExtensoesSettings";
 import type { ExtensoesDaConta, FonteDeExtensoes } from "../features/extensoes/extensoesService";
 import { PairingScreen } from "../mobile/Chat";
-import { ConversationDetail, ConversationList, filterConversations, haQuanto, NovaSessao } from "../mobile/MobileApp";
+import { ConversationDetail, ConversasPorEstado, filterConversations, haQuanto, NovaSessao, Ocultas } from "../mobile/MobileApp";
 import { useDados } from "../mobile/useDados";
 import { usePoll } from "../mobile/usePoll";
 import { request, temConversa, type Conversation } from "../mobile/api";
@@ -229,8 +229,11 @@ export function WebApp() {
     ?? projetos.find((item) => item.id === conversations[0]?.project_id)
     ?? projetos[0]
     ?? null;
-  const doProjeto = conversations.filter((item) => item.project_id === projetoAtivo?.id);
-  const daLista = filterConversations(query ? conversations : doProjeto, query, perfis, projetos);
+  // Ocultas saem da lista e da busca; ficam numa seção recolhida no fim.
+  const visiveis = conversations.filter((item) => !item.hidden);
+  const doProjeto = visiveis.filter((item) => item.project_id === projetoAtivo?.id);
+  const daLista = filterConversations(query ? visiveis : doProjeto, query, perfis, projetos);
+  const ocultasDoProjeto = conversations.filter((item) => item.hidden && item.project_id === projetoAtivo?.id);
   const trabalhando = conversations.filter((item) => item.state === "working");
   const naoVistas = new Set(attention.map((item) => item.id));
   // Agente sem visão de conversa (Cursor) abre direto no terminal ao vivo.
@@ -317,7 +320,7 @@ export function WebApp() {
 
           <h2 className="w-rotulo">{query ? "Resultados" : `Conversas${projetoAtivo ? ` · ${projetoAtivo.name}` : ""}`}</h2>
           <div className="w-conversas">
-            <ConversationList
+            <ConversasPorEstado
               conversations={daLista}
               perfis={perfis}
               projetos={projetos}
@@ -327,6 +330,7 @@ export function WebApp() {
               naoVistas={naoVistas}
               vazio={carregado ? (query ? "Nenhuma conversa encontrada." : "Nenhuma conversa neste projeto ainda.") : "Carregando…"}
             />
+            {!query && <Ocultas conversas={ocultasDoProjeto} perfis={perfis} abrir={abrirConversa} ativa={conversaId} />}
           </div>
           {projetoAtivo?.path && !query && shellsDoProjeto.length > 0 && (
             <div className="w-terminais-bloco">

@@ -240,7 +240,7 @@ function ChatDaSessao({ sessionId, onVerTerminal }: { sessionId: string; onVerTe
   }, [carregar]);
 
   return (
-    <div ref={area} className="absolute inset-0 z-20 flex flex-col bg-bg-surface">
+    <div ref={area} className="aba-conversa-tela absolute inset-0 z-20 flex flex-col bg-bg-surface">
       <div className="aba-agente-topo">
         <AbasDoAgente vendo="conversa" onTrocar={(aba) => { if (aba === "terminal") onVerTerminal(); }} />
         <span className="flex-1" />

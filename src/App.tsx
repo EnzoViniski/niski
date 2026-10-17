@@ -7,7 +7,7 @@ import { Sidebar } from "./components/Sidebar";
 import { fileKind } from "./features/files/filesService";
 import { QuickOpen } from "./features/files/QuickOpen";
 import { useWorkspace } from "./features/workspace/useWorkspace";
-import { collectResourceIds } from "./features/workspace/workspaceReducer";
+import { collectResourceIds, findPane } from "./features/workspace/workspaceReducer";
 import { WorkspaceView } from "./features/workspace/WorkspaceView";
 import { useKanban } from "./features/kanban/useKanban";
 import { useKanbanDispatcher } from "./features/kanban/useKanbanDispatcher";
@@ -244,6 +244,10 @@ export function App() {
         }}
         // Uma linha por conversa: as tentativas antigas do failover (uma sessão parada por troca
         // de conta) repetiam a mesma conversa dez vezes na lista.
+        activeSessionId={(() => {
+          const pane = activeProject ? findPane(activeProject.layout, activeProject.activePaneId) : null;
+          return pane?.tabs.find((tab) => tab.id === pane.activeTabId)?.resourceId ?? null;
+        })()}
         terminalSessions={latestPerConversation(
           sessions.filter((session) => session.project_id === workspace.activeProjectId),
         )}
@@ -325,6 +329,7 @@ export function App() {
                   onReset={resetSettings}
                   initialSection={settingsSection}
                   projectPath={activeProject?.path ?? null}
+                  projectPaths={[...new Set(workspaces.flatMap((item) => item.projects.map((project) => project.path)))]}
                   onClose={closeSettings}
                 />
               </div>

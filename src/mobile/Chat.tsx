@@ -7,6 +7,7 @@ import { AgentIcon } from "../components/ui/AgentIcon";
 import { OmniLogo } from "../components/ui/OmniLogo";
 import {
   BookIcon, CheckIcon, CopyIcon, EditIcon, FileTextIcon, GlobeIcon, ListIcon, RobotIcon, SearchIcon, ToolsIcon,
+  ReloadIcon,
 } from "../components/ui/PixelIcon";
 import { iconForPath } from "../features/files/fileIcons";
 import { nomeDoCaminho, semMarcasDeImagem, separarAnexos } from "./anexos";
@@ -308,6 +309,11 @@ export function LinhaDeComando({ texto }: { texto: string }) {
 
 /** Aviso da própria CLI (interrompido, compactado): linha discreta no meio da conversa. */
 export function LinhaDeAviso({ texto }: { texto: string }) {
+  // Troca de conta/IA (o engine escreve "Conta trocada: A → B"): destaque próprio, é o tipo de
+  // aviso que explica por que a conversa mudou de dono no meio.
+  if (/^(Conta|IA) trocada: /.test(texto)) {
+    return <p className="aviso-cli aviso-troca" role="note"><ReloadIcon aria-hidden className="h-3 w-3" />{texto}</p>;
+  }
   return <p className="aviso-cli" role="note">{texto}</p>;
 }
 

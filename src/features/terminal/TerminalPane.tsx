@@ -20,6 +20,7 @@ import {
   restartTerminal,
   selectFailoverProfile,
   spawnTerminal,
+  engineApi,
   stopTerminal,
   terminalSnapshot,
   type AgentCliStatus,
@@ -31,6 +32,7 @@ import {
   usageLimitResetAtMs,
   writeTerminal,
 } from "./terminalService";
+import type { TerminalSession } from "./terminalService";
 import { handleTerminalKey } from "./keyBindings";
 import { AgentLauncher } from "./AgentLauncher";
 import { AgentSwitcher } from "./AgentSwitcher";
@@ -63,6 +65,16 @@ const JANELA_ATIVA_MS = 700;
  *  continua na tela, então a próxima leitura reabre a busca — e uma conta conectada depois do
  *  limite passa a ser encontrada sem o usuário precisar reabrir a aba. */
 const FAILOVER_RETRY_MS = 30_000;
+/** Limite que chega até isso depois do agente ter sido visto trabalhando = caiu no meio de uma tarefa. */
+const MEIO_DA_TAREFA_MS = 120_000;
+/** Quanto esperar a conta nova ficar pronta para receber o "continue" antes de desistir. */
+const CONTINUAR_ATE_MS = 120_000;
+/** Entre uma consulta e outra da tela da conta nova, enquanto espera para mandar o "continue". */
+const CONTINUAR_RITMO_MS = 1_500;
+/** Mensagem que o OMNI manda sozinho depois de trocar de conta no meio de uma tarefa. Diz que é
+ *  automática para ninguém (você nem o agente) achar que foi digitada. */
+export const MENSAGEM_DE_CONTINUAR =
+  "Continue de onde parou. (Mensagem automática do OMNI: a conta anterior atingiu o limite de uso e esta conversa foi passada para outra conta.)";
 
 type FailoverStatus = {
   tone: "working" | "success" | "warning";
@@ -81,6 +93,9 @@ interface TerminalPaneProps {
 export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCreated }: TerminalPaneProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef(tab.resourceId);
+  /** Criação de sessão em andamento. O efeito pode rodar de novo antes dela terminar (StrictMode no
+   *  dev, remontagem): sem isto cada execução abria a sua PTY e "Novo terminal" virava dois. */
+  const criandoRef = useRef<Promise<TerminalSession> | null>(null);
   const sequenceRef = useRef(0);
   const falhasRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +115,11 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
    *  limite da conta anterior, e o engine (que lê a tela) o reporta como se fosse desta — sem este
    *  filtro a aba tentava trocar de novo na hora. Vale até o aviso sair da tela uma vez. */
   const staleLimitProfileRef = useRef<string | null>(null);
+  /** Troca feita no meio de uma tarefa: falta mandar o "continue" quando a conta nova ficar pronta.
+   *  Ref porque a troca remonta o efeito (nova conta) e o pedido tem de sobreviver a isso. */
+  const continuarRef = useRef<{ conversationId: string; ate: number; consultaEm: number } | null>(null);
+  /** Última vez que o agente desta aba foi visto trabalhando. */
+  const trabalhouEmRef = useRef(0);
   /** Título da aba num ref, **fora das dependências do efeito**: ele só é lido na hora de abrir a
    *  sessão, e tê-lo como dependência fazia renomear a aba derrubar o xterm e reproduzir o
    *  scrollback inteiro. Com o nome automático vindo do primeiro prompt, isso passou a acontecer em
@@ -169,6 +189,14 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
     let cancelled = false;
     let pollTimer: number | undefined;
     let firstPoll = true;
+    /** Escritas do histórico em andamento no xterm. Enquanto > 0, o que ele "responde" sai de
+     *  perguntas antigas (posição do cursor, cor do fundo que o shell fez ao abrir) e não vai para
+     *  a PTY: chegava ao prompt como letras soltas — "R", "1", ":". */
+    let reproduzindo = 0;
+    /** Esta montagem se liga a uma sessão que já existia e vai ler do começo: o que vier na primeira
+     *  leitura é histórico. Sessão recém-criada aqui fica de fora — a saída dela é ao vivo e o shell
+     *  pode estar esperando a resposta. */
+    const reatando = Boolean(sessionRef.current) && sequenceRef.current === 0;
     let reviving = false;
     let failoverInProgress = false;
     /** Antes disso não tenta de novo; 0 = nenhuma tentativa frustrada ainda. */
@@ -213,6 +241,20 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
         setError(null);
         await ensureEngine();
         if (!sessionRef.current) {
+          criandoRef.current ??= criarSessao().finally(() => { criandoRef.current = null; });
+          const session = await criandoRef.current;
+          if (cancelled) return;
+          setState(session.state);
+        }
+        poll();
+      } catch (reason) {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
+      }
+    }
+
+    /** Abre a conversa (agente) e a PTY. Uma vez só por sessão, mesmo com o efeito rodando de novo:
+     *  quem chega depois espera a mesma promessa em `criandoRef`. */
+    async function criarSessao(): Promise<TerminalSession> {
           if (agent) await ensureAgentTrust(agent.id, projectPath, launch?.profile?.id);
 
           // A conversa é a entidade que sobrevive à troca de conta e de IA. Abri-la antes do
@@ -253,18 +295,13 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
             conversationId: conversationRef.current ?? undefined,
             externalSessionId,
           });
-          if (cancelled) return;
+          // Grava mesmo se esta execução do efeito já foi cancelada: a próxima usa esta sessão.
           sessionRef.current = session.id;
           if (conversationRef.current) {
             await attachTerminal(conversationRef.current, session.id).catch(() => undefined);
           }
-          setState(session.state);
           onSessionCreated(session.id, session.name, agent?.id);
-        }
-        poll();
-      } catch (reason) {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
-      }
+          return session;
     }
 
     /** Religa a sessão que o engine só conhece como histórica (engine reiniciado por update ou
@@ -289,6 +326,8 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
       conversationId: string;
       provider: AgentCliId;
       profileId: string;
+      /** O limite chegou com o agente trabalhando: depois da troca, manda o "continue" sozinho. */
+      meioDaTarefa: boolean;
     }) {
       if (failoverInProgress || Date.now() < failoverRetryAt) return;
       failoverInProgress = true;
@@ -370,6 +409,9 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
         // com um simples "oi" sem resposta, ele saiu rodando comandos. Quem continua é o usuário.
         const resumedCommand = plan.initial_command;
         staleLimitProfileRef.current = target.id;
+        if (input.meioDaTarefa) {
+          continuarRef.current = { conversationId: plan.conversation_id, ate: Date.now() + CONTINUAR_ATE_MS, consultaEm: 0 };
+        }
         setLaunch({
           agent: { ...nextAgent, command: resumedCommand },
           profile: target,
@@ -387,6 +429,31 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
       }
     }
 
+    /** Depois de trocar de conta no meio de uma tarefa: espera a CLI da conta nova mostrar o campo
+     *  pronto e manda o "continue" pela fila do engine (a mesma porta do chat), uma vez só. */
+    async function talvezContinuar() {
+      const pedido = continuarRef.current;
+      if (!pedido || cancelled) return;
+      const agora = Date.now();
+      if (agora > pedido.ate) { continuarRef.current = null; return; }
+      if (agora < pedido.consultaEm) return;
+      pedido.consultaEm = agora + CONTINUAR_RITMO_MS;
+      try {
+        const caminho = `/conversas/${encodeURIComponent(pedido.conversationId)}`;
+        const leitura = await engineApi("GET", `${caminho}/timeline`, null);
+        const capacidades = JSON.parse(leitura.body || "{}")?.conversation?.capabilities;
+        if (!capacidades?.prompt || continuarRef.current !== pedido) return;
+        continuarRef.current = null;
+        const envio = await engineApi("POST", `${caminho}/prompt`, JSON.stringify({ texto: MENSAGEM_DE_CONTINUAR, fila: true }), {
+          headers: [["Content-Type", "application/json"], ["Idempotency-Key", `continuar-${pedido.conversationId}-${pedido.ate}`]],
+        });
+        if (envio.status >= 400) throw new Error(JSON.parse(envio.body || "{}")?.error ?? `HTTP ${envio.status}`);
+        setFailoverStatus((atual) => atual && { ...atual, text: `${atual.text} · continuando`, detail: `${atual.detail} O OMNI mandou "continue" sozinho, porque a troca aconteceu no meio de uma tarefa.` });
+      } catch (reason) {
+        if (!cancelled) setFailoverStatus((atual) => atual && { ...atual, tone: "warning", detail: `${atual.detail} Não consegui mandar o "continue" sozinho (${reason instanceof Error ? reason.message : String(reason)}); mande a próxima mensagem.` });
+      }
+    }
+
     async function poll() {
       if (cancelled || !sessionRef.current) return;
       try {
@@ -394,10 +461,19 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
         // Sessão histórica: o engine devolve `next_seq` 0 e nenhuma saída. Só na primeira leitura,
         // para não ressuscitar em loop quem o usuário parou nesta mesma montagem.
         const dead = snapshot.session.state === "stopped" || snapshot.session.state === "crashed";
+        const historico = firstPoll && reatando;
         if (firstPoll && dead && snapshot.next_seq === 0) void revive(sessionRef.current);
         firstPoll = false;
         if (snapshot.from_seq > sequenceRef.current) terminal.write("\r\n[scrollback anterior descartado]\r\n");
-        if (snapshot.data) terminal.write(snapshot.data);
+        if (snapshot.data) {
+          // Primeira leitura desta montagem = histórico. As respostas do xterm a ele são descartadas.
+          if (historico || reproduzindo > 0) {
+            reproduzindo += 1;
+            terminal.write(snapshot.data, () => { reproduzindo -= 1; });
+          } else {
+            terminal.write(snapshot.data);
+          }
+        }
         setState(snapshot.session.state);
         setInputLocked(Boolean(snapshot.session.input_locked));
         const conversationId = snapshot.session.conversation_id ?? conversationRef.current;
@@ -428,6 +504,8 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
         const provider = snapshot.session.provider as AgentCliId | null | undefined;
         const profileId = snapshot.session.profile_id;
         const limitOnScreen = snapshot.session.notice === "usage_limit";
+        if (snapshot.session.state === "working" && !limitOnScreen) trabalhouEmRef.current = Date.now();
+        void talvezContinuar();
         if (profileId && profileId === staleLimitProfileRef.current && !limitOnScreen) {
           staleLimitProfileRef.current = null;
         }
@@ -444,6 +522,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
             conversationId,
             provider,
             profileId,
+            meioDaTarefa: Date.now() - trabalhouEmRef.current < MEIO_DA_TAREFA_MS,
           });
         }
         // Voltou a responder: derruba um aviso que tenha sobrado. Atualização funcional porque
@@ -471,6 +550,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
     }
 
     const dataSubscription = terminal.onData((data) => {
+      if (reproduzindo > 0) return;
       // Digitou: a leitura acelera para o eco aparecer no quadro seguinte, não em até 100ms.
       atividadeEm = Date.now();
       const sessionId = sessionRef.current;

@@ -7,7 +7,7 @@ import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { Select } from "../components/ui/Select";
 import { AgentIcon } from "../components/ui/AgentIcon";
 import { OmniLogo } from "../components/ui/OmniLogo";
-import { ArrowLeftIcon, AttachmentIcon, ChatIcon, EditIcon, FolderIcon, NotesIcon, PlayIcon, ReloadIcon, WarningIcon } from "../components/ui/PixelIcon";
+import { ArchiveIcon, ArrowLeftIcon, AttachmentIcon, ChatIcon, EditIcon, FolderIcon, GitBranchIcon, NotesIcon, PlayIcon, ReloadIcon, WarningIcon } from "../components/ui/PixelIcon";
 import { request, requestSeMudou, esquecerVersao, enviarTeclas, actionKey, ApiError, type Conversation, type Mensagem, type Projects, type Timeline } from "./api";
 import { AgentWorking, BlocoDeAcoes, LinhaDeAviso, LinhaDeComando, MessageBubble, PairingScreen } from "./Chat";
 import { Composer } from "./Composer";
@@ -134,17 +134,25 @@ export function ProjectList({ projects, conversations, abrir }: {
   projects: Projects["projects"]; conversations: Conversation[]; abrir: (id: string) => void;
 }) {
   if (projects.length === 0) return <Vazio>Nenhum projeto conhecido ainda. Abra um projeto no OMNI do PC.</Vazio>;
-  return <ul className="m-lista">{projects.map(project => {
+  // Projeto mexido por último primeiro, como a lista de conversas.
+  const ultimaAtividade = (id: string) => Math.max(0, ...conversations.filter(c => c.project_id === id).map(c => c.updated_at_ms ?? 0));
+  const ordenados = [...projects].sort((a, b) => ultimaAtividade(b.id) - ultimaAtividade(a.id));
+  return <ul className="m-lista">{ordenados.map(project => {
     const doProjeto = conversations.filter(c => c.project_id === project.id);
     const aguardando = doProjeto.filter(c => c.capabilities?.approve).length;
     const trabalhando = doProjeto.filter(c => c.state === "working").length;
+    const ultima = haQuanto(Math.max(0, ...doProjeto.map(c => c.updated_at_ms ?? 0)) || undefined);
+    const agentes = [...new Set(doProjeto.map(c => c.provider).filter((p): p is string => Boolean(p)))];
     return <li key={project.id}>
-      <button type="button" className="m-card glass glass-hover" onClick={() => abrir(project.id)}
+      <button type="button" className="m-card glass glass-hover" onClick={() => abrir(project.id)} title={project.path}
         aria-label={`Abrir projeto ${project.name}, ${doProjeto.length} conversa(s)`}>
         <span className="m-card-icone"><FolderIcon aria-hidden className="h-5 w-5" /></span>
         <span className="m-card-corpo">
           <span className="m-card-titulo">{project.name}</span>
-          <span className="m-card-sub">{project.path}</span>
+          <span className="m-card-sub">
+            {agentes.map(p => <AgentIcon key={p} provider={p} size={11} className="shrink-0" />)}
+            <span className="truncate">{doProjeto.length === 1 ? "1 conversa" : `${doProjeto.length} conversas`}{ultima ? ` · ${ultima}` : ""}</span>
+          </span>
         </span>
         <span className="m-card-lado">
           {aguardando > 0 && <span className="m-badge m-badge-alerta">{aguardando} aprovar</span>}
@@ -196,6 +204,43 @@ export function ConversationList({ conversations, perfis, projetos = [], mostrar
       </button>
     </li>;
   })}</ul>;
+}
+
+/** A lista em duas partes: o que tem sessão aberta no PC agora (dá para responder na hora) e o
+ *  histórico (fechadas — abrir uma permite retomar). Antes vinha tudo misturado, ordenado só por data. */
+export function ConversasPorEstado(props: Parameters<typeof ConversationList>[0]) {
+  if (props.conversations.length === 0) return <ConversationList {...props} />;
+  const abertas = props.conversations.filter(c => c.live);
+  const fechadas = props.conversations.filter(c => !c.live);
+  return <>
+    <h3 className="m-subtitulo"><span className="m-dot m-dot-ativo" aria-hidden />Abertas no PC<span className="m-subtitulo-total">{abertas.length}</span></h3>
+    <ConversationList {...props} conversations={abertas} vazio="Nenhuma conversa aberta no PC agora." />
+    {fechadas.length > 0 && <>
+      <h3 className="m-subtitulo"><span className="m-dot m-dot-parado" aria-hidden />Histórico<span className="m-subtitulo-total">{fechadas.length}</span></h3>
+      <ConversationList {...props} conversations={fechadas} vazio="" />
+    </>}
+  </>;
+}
+
+/** Conversas que você ocultou: recolhidas no fim da lista. Abrir uma mostra o botão de reabrir. */
+export function Ocultas({ conversas, perfis, projetos, mostrarProjeto = false, abrir, ativa = null }: {
+  conversas: Conversation[]; perfis: Projects["profiles"]; projetos?: Projects["projects"];
+  mostrarProjeto?: boolean; abrir: (id: string) => void; ativa?: string | null;
+}) {
+  const [aberto, setAberto] = useState(false);
+  if (conversas.length === 0) return null;
+  return <div className="m-ocultas">
+    <button type="button" className="m-ocultas-botao" aria-expanded={aberto} onClick={() => setAberto(valor => !valor)}>
+      <ArchiveIcon aria-hidden className="h-3.5 w-3.5" />
+      <span>Ocultas ({conversas.length})</span>
+      <span className="m-ocultas-acao">{aberto ? "esconder" : "ver"}</span>
+    </button>
+    {aberto && <>
+      <p className="m-dica">Abra uma conversa e toque em <ArchiveIcon aria-hidden className="inline h-3 w-3" /> para ela voltar à lista.</p>
+      <ConversationList conversations={conversas} perfis={perfis} projetos={projetos} mostrarProjeto={mostrarProjeto}
+        abrir={abrir} ativa={ativa} vazio="" />
+    </>}
+  </div>;
 }
 
 export function NovaSessao({ project, catalog, onCriada, classeBotao = "w-full" }: {
@@ -355,6 +400,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const [busy, setBusy] = useState(false);
   const [editandoNome, setEditandoNome] = useState(false);
   const [parando, setParando] = useState(false);
+  const [bifurcando, setBifurcando] = useState(false);
   // Páginas antigas buscadas por quem rola para cima. Ficam acima das recentes, na mesma rolagem:
   // antes "Mensagens anteriores" trocava a tela por outra página e era preciso paginar de volta.
   const [antigas, setAntigas] = useState<Mensagem[]>([]);
@@ -715,6 +761,26 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     catch (reason) { setError(String(reason)); }
   }
 
+  /** O "Bifurcar" da lateral do PC: conversa nova com todo o histórico desta, e a tela vai para ela. */
+  async function bifurcar() {
+    setBifurcando(true);
+    try {
+      const nova = await request<{ id: string | null }>(`/conversas/${encodeURIComponent(conversation.id)}/bifurcar`, { method: "POST" });
+      await refresh();
+      if (nova.id) abrirConversa?.(nova.id);
+    } catch (reason) { falhou(reason); } finally { setBifurcando(false); }
+  }
+
+  /** Tira da lista (ou devolve). Não apaga nada: a conversa vai para a seção Ocultas. */
+  async function ocultar(oculta: boolean) {
+    try {
+      await request(`/conversas/${encodeURIComponent(conversation.id)}/ocultar`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ oculta }),
+      });
+      await refresh();
+    } catch (reason) { falhou(reason); }
+  }
+
   async function renomear(nome: string) {
     const limpo = nome.trim();
     if (!limpo || limpo === conversation.title) return;
@@ -898,6 +964,22 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
           onClick={() => setEditandoNome(true)}>
           <EditIcon aria-hidden className="h-4 w-4" />
         </button>
+        {/* Bifurcar e ocultar só na web e no celular (quem passa `abrirConversa`): no PC a lateral já faz. */}
+        {abrirConversa && conversation.live && (conversation.provider === "claude" || conversation.provider === "codex") && (
+          <button type="button" className="composer-botao" disabled={bifurcando}
+            title="Bifurcar: abre uma conversa nova com todo o histórico desta, que segue independente" aria-label="Bifurcar conversa"
+            onClick={() => void bifurcar()}>
+            <GitBranchIcon aria-hidden className={`h-4 w-4${bifurcando ? " anexo-girando" : ""}`} />
+          </button>
+        )}
+        {abrirConversa && (
+          <button type="button" className={`composer-botao${conversation.hidden ? " is-ativo" : ""}`}
+            title={conversation.hidden ? "Reabrir: a conversa volta para a lista" : "Ocultar da lista — fica em Ocultas, nada é apagado"}
+            aria-label={conversation.hidden ? "Reabrir conversa na lista" : "Ocultar conversa da lista"}
+            onClick={() => void ocultar(!conversation.hidden)}>
+            <ArchiveIcon aria-hidden className="h-4 w-4" />
+          </button>
+        )}
       </>}
       // Sessão ligada = há `capabilities` (engine antigo não manda `live`).
       direita={conversation.capabilities && <ModoDoAgente modo={conversation.mode} pronto={Boolean(conversation.capabilities?.prompt) && !busy} onModo={trocarModo} />}
@@ -968,6 +1050,8 @@ export function MobileApp() {
   if (semAcesso) return <main className="m-shell"><PairingScreen parear={parear} /></main>;
 
   const conversa = rota.tela === "conversa" ? conversations.find(c => c.id === rota.conversa) ?? null : null;
+  // As ocultas saem das listas; continuam em `conversations` para abrir pela seção Ocultas.
+  const visiveis = conversations.filter(c => !c.hidden);
   const projetoId = rota.tela === "projeto" ? rota.projeto : conversa?.project_id ?? null;
   const projeto = catalog?.projects.find(p => p.id === projetoId) ?? null;
   const perfis = catalog?.profiles ?? [];
@@ -999,7 +1083,7 @@ export function MobileApp() {
     }
   } else if (rota.tela === "projeto") {
     if (projeto) {
-      const doProjeto = (onlyAttention ? attention : conversations).filter(c => c.project_id === projeto.id);
+      const doProjeto = (onlyAttention ? attention : visiveis).filter(c => c.project_id === projeto.id);
       const daLista = filterConversations(doProjeto, query, perfis, catalog?.projects);
       const aguardando = attention.filter(c => c.project_id === projeto.id).length;
       titulo = projeto.name;
@@ -1012,8 +1096,14 @@ export function MobileApp() {
             options={[{ value: "todas", label: "Todas" }, { value: "atencao", label: `Atenção (${aguardando})` }]} />
           <Input type="search" value={query} onChange={event => setQuery(event.target.value)}
             placeholder="Pesquisar conversas" aria-label="Pesquisar conversas" className="m-busca" />
-          <ConversationList conversations={daLista} perfis={perfis} abrir={abrirConversa} naoVistas={naoVistas}
-            vazio={query ? "Nenhuma conversa encontrada neste projeto." : onlyAttention ? "Nada esperando por você neste projeto." : "Nenhuma conversa neste projeto ainda."} />
+          {onlyAttention
+            ? <ConversationList conversations={daLista} perfis={perfis} abrir={abrirConversa} naoVistas={naoVistas}
+                vazio="Nada esperando por você neste projeto." />
+            : <ConversasPorEstado conversations={daLista} perfis={perfis} abrir={abrirConversa} naoVistas={naoVistas}
+                vazio={query ? "Nenhuma conversa encontrada neste projeto." : "Nenhuma conversa neste projeto ainda."} />}
+          {!query && !onlyAttention && (
+            <Ocultas conversas={conversations.filter(c => c.hidden && c.project_id === projeto.id)} perfis={perfis} abrir={abrirConversa} />
+          )}
         </Secao>
       </>;
     } else {
@@ -1021,21 +1111,49 @@ export function MobileApp() {
       conteudo = <Vazio>{carregado ? "Esse projeto não está mais aberto no PC." : "Carregando projeto…"}</Vazio>;
     }
   } else {
-    const baseDaBusca = onlyAttention ? attention : conversations;
+    const baseDaBusca = onlyAttention ? attention : visiveis;
     const resultadoDaBusca = filterConversations(baseDaBusca, query, perfis, catalog?.projects);
+    const trabalhandoAgora = visiveis.filter(c => c.state === "working").length;
+    const projetos = catalog?.projects ?? [];
     conteudo = <>
       {aviso && <p className="m-aviso">{aviso}</p>}
-      <SegmentedControl<"projetos" | "atencao"> value={onlyAttention ? "atencao" : "projetos"}
-        onChange={valor => setOnlyAttention(valor === "atencao")}
-        options={[{ value: "projetos", label: "Projetos" }, { value: "atencao", label: `Atenção (${attention.length})` }]} />
+      {/* Painel do início: o que está acontecendo agora, em três números. "Precisa de você" filtra. */}
+      <div className="m-resumo">
+        <button type="button" className="m-resumo-item glass" data-tom="ativo" onClick={() => setOnlyAttention(false)}>
+          <span className="m-resumo-num">{trabalhandoAgora}</span>
+          <span className="m-resumo-rotulo">Trabalhando</span>
+        </button>
+        <button type="button" className="m-resumo-item glass" data-tom="alerta" aria-pressed={onlyAttention}
+          onClick={() => setOnlyAttention(valor => !valor)}>
+          <span className="m-resumo-num">{attention.length}</span>
+          <span className="m-resumo-rotulo">Aguardando</span>
+        </button>
+        <button type="button" className="m-resumo-item glass" data-tom="neutro" onClick={() => setOnlyAttention(false)}>
+          <span className="m-resumo-num">{projetos.length}</span>
+          <span className="m-resumo-rotulo">Projetos</span>
+        </button>
+      </div>
       <Input type="search" value={query} onChange={event => setQuery(event.target.value)}
         placeholder="Pesquisar conversas" aria-label="Pesquisar conversas" className="m-busca" />
       {query
-        ? <ConversationList conversations={resultadoDaBusca} perfis={perfis} projetos={catalog?.projects}
+        ? <ConversationList conversations={resultadoDaBusca} perfis={perfis} projetos={projetos}
             mostrarProjeto abrir={abrirConversa} naoVistas={naoVistas} vazio="Nenhuma conversa encontrada." />
         : onlyAttention
-        ? <ConversationList conversations={attention} perfis={perfis} abrir={abrirConversa} naoVistas={naoVistas} vazio="Nada esperando por você agora." />
-        : <ProjectList projects={catalog?.projects ?? []} conversations={conversations} abrir={id => ir({ tela: "projeto", projeto: id })} />}
+        ? <Secao titulo="Precisa de você">
+            <ConversationList conversations={attention} perfis={perfis} projetos={projetos} mostrarProjeto abrir={abrirConversa}
+              naoVistas={naoVistas} vazio="Nada esperando por você agora." />
+          </Secao>
+        : <>
+            {visiveis.length > 0 && (
+              <Secao titulo="Recentes">
+                <ConversationList conversations={visiveis.slice(0, 3)} perfis={perfis} projetos={projetos} mostrarProjeto
+                  abrir={abrirConversa} naoVistas={naoVistas} vazio="" />
+              </Secao>
+            )}
+            <Secao titulo="Projetos">
+              <ProjectList projects={projetos} conversations={visiveis} abrir={id => ir({ tela: "projeto", projeto: id })} />
+            </Secao>
+          </>}
     </>;
   }
 

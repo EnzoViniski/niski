@@ -254,6 +254,94 @@ pub struct GitCommit {
     refs: Vec<String>,
 }
 
+/// Quem o git do projeto diz que você é, e se o GitHub CLI está logado. Só nomes e "configurado
+/// ou não": e-mail e token nunca saem daqui.
+#[derive(Serialize)]
+pub struct GitConta {
+    /// `user.name` que vai nos commits deste projeto.
+    nome: Option<String>,
+    email_configurado: bool,
+    /// Login do `gh` (github.com), quando instalado e logado.
+    github: Option<String>,
+    gh_instalado: bool,
+    /// O que está errado, em uma frase. `None` = tudo certo.
+    problema: Option<String>,
+}
+
+/// Lê o login do `gh auth status`. Versões novas dizem "account X", antigas "as X"; a saída vai para
+/// stdout ou stderr conforme a versão, por isso as duas chegam juntas. Linha com o token é ignorada.
+fn login_do_gh(saida: &str) -> Option<String> {
+    saida.lines().filter(|linha| !linha.contains("Token:")).find_map(|linha| {
+        let resto = linha.split("Logged in to github.com").nth(1)?;
+        let nome = resto.trim().strip_prefix("account ").or_else(|| resto.trim().strip_prefix("as "))?;
+        nome.split_whitespace().next().map(|n| n.trim_end_matches('.').to_string()).filter(|n| !n.is_empty())
+    })
+}
+
+#[tauri::command(async)]
+pub fn git_conta(project_path: String) -> GitConta {
+    let ler = |chave: &str| run_git(&project_path, &["config", "--get", chave]).ok()
+        .map(|valor| valor.trim().to_string()).filter(|valor| !valor.is_empty());
+    let nome = ler("user.name");
+    let email_configurado = ler("user.email").is_some();
+    // O `gh` é o do Windows: em projeto remoto (WSL/SSH) quem faz push é o de lá, que não dá para ler daqui.
+    let remoto = git_invocation(&project_path, &[]).0 != "git";
+    let gh = (!remoto).then(|| hidden(&mut Command::new("gh"))
+        .args(["auth", "status", "--hostname", "github.com"])
+        .env("GH_PROMPT_DISABLED", "1")
+        .output().ok()).flatten();
+    let gh_instalado = gh.is_some();
+    let github = gh.as_ref().filter(|saida| saida.status.success()).and_then(|saida| {
+        login_do_gh(&format!("{}
+{}", String::from_utf8_lossy(&saida.stdout), String::from_utf8_lossy(&saida.stderr)))
+    });
+    let problema = if !git_available() {
+        Some("git não encontrado no PATH".to_string())
+    } else if nome.is_none() || !email_configurado {
+        Some("Nome ou e-mail do git não configurado — os commits saem sem autor".to_string())
+    } else if gh_instalado && github.is_none() {
+        Some("GitHub CLI sem login ou com login vencido — rode `gh auth login`".to_string())
+    } else {
+        None
+    };
+    GitConta { nome, email_configurado, github, gh_instalado, problema }
+}
+
+/// Um commit do período, sem mensagem: quando, se foi a IA (pelo trailer) e quantas linhas entraram.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct CommitResumo {
+    pub em_ms: i64,
+    pub ia: bool,
+    pub linhas: u64,
+}
+
+/// Marcas que Claude Code, Codex e Cursor deixam no commit. Minúsculas.
+const MARCAS_DE_IA: [&str; 6] = [
+    "co-authored-by: claude", "generated with [claude code]", "claude.com/claude-code",
+    "co-authored-by: codex", "co-authored-by: openai", "co-authored-by: cursor",
+];
+
+fn parse_commits(saida: &str) -> Vec<CommitResumo> {
+    saida.split('\u{1e}').filter_map(|registro| {
+        let (data, corpo) = registro.split_once('\u{1}')?;
+        let em_ms = data.trim().parse::<i64>().ok()? * 1000;
+        let minusculo = corpo.to_lowercase();
+        let ia = MARCAS_DE_IA.iter().any(|marca| minusculo.contains(marca));
+        // `--shortstat`: " 3 files changed, 10 insertions(+), 2 deletions(-)" depois do corpo.
+        let linhas = corpo.lines().rev().find(|linha| linha.contains("changed,") || linha.contains("insertion"))
+            .and_then(|linha| linha.split(',').find(|parte| parte.contains("insertion")))
+            .and_then(|parte| parte.split_whitespace().next()?.parse().ok()).unwrap_or(0);
+        Some(CommitResumo { em_ms, ia, linhas })
+    }).collect()
+}
+
+/// Commits dos últimos `dias` dias do projeto (sem merges). Projeto sem git devolve vazio.
+pub(crate) fn commits_recentes(projeto: &str, dias: u32) -> Vec<CommitResumo> {
+    let desde = format!("--since={dias}.days");
+    run_git(projeto, &["log", &desde, "--no-merges", "--shortstat", "--max-count=5000", "--format=%x1e%at%x01%B"])
+        .map(|saida| parse_commits(&saida)).unwrap_or_default()
+}
+
 const LOG_SEP: &str = "\u{1}";
 const LOG_FORMAT: &str = "%H\u{1}%P\u{1}%an\u{1}%aI\u{1}%s\u{1}%D";
 
@@ -308,6 +396,24 @@ mod tests {
 
         // Não rastreado continua "??" — o front depende disso pra mostrar o rótulo.
         assert_eq!((entries[2].x, entries[2].y), ('?', '?'));
+    }
+
+    #[test]
+    fn commit_da_ia_pelo_trailer_e_linhas_do_shortstat() {
+        let saida = "\u{1e}1760000000\u{1}feat: login\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n\n 2 files changed, 30 insertions(+), 4 deletions(-)\n\u{1e}1760000100\u{1}fix: manual\n\n 1 file changed, 1 deletion(-)\n";
+        let commits = parse_commits(saida);
+        assert_eq!(commits, vec![
+            CommitResumo { em_ms: 1_760_000_000_000, ia: true, linhas: 30 },
+            CommitResumo { em_ms: 1_760_000_100_000, ia: false, linhas: 0 },
+        ]);
+    }
+
+    #[test]
+    fn login_do_gh_nas_duas_versoes_e_nunca_o_token() {
+        let nova = "github.com\n  ✓ Logged in to github.com account FelipeCamposM (keyring)\n  - Token: gho_****";
+        assert_eq!(login_do_gh(nova).as_deref(), Some("FelipeCamposM"));
+        assert_eq!(login_do_gh("✓ Logged in to github.com as ana (oauth_token)").as_deref(), Some("ana"));
+        assert_eq!(login_do_gh("You are not logged into any GitHub hosts."), None);
     }
 
     #[test]

@@ -67,9 +67,21 @@ export function UsoDasContas({ contaAtiva }: { contaAtiva: string | null }) {
   }, () => undefined, [], INTERVALO_MS);
 
   if (contas.length === 0) return null;
+  // Só Claude e Codex sabem reler o uso na hora; o Cursor não tem leitura.
+  const atualizaveis = contas.filter((conta) => conta.provider === "claude" || conta.provider === "codex");
+  const todasLendo = atualizaveis.length > 0 && atualizaveis.every((conta) => atualizando.has(conta.id));
   return (
     <>
-      <h2 className="w-rotulo">Uso das contas</h2>
+      <div className="w-uso-cabecalho">
+        <h2 className="w-rotulo">Uso das contas</h2>
+        {atualizaveis.length > 1 && (
+          <button type="button" className="w-uso-atualizar" disabled={todasLendo} title="Buscar o uso de todas as contas de uma vez"
+            onClick={() => atualizaveis.forEach((conta) => { if (!atualizando.has(conta.id)) void atualizar(conta.id); })}>
+            <ReloadIcon aria-hidden className={`h-3 w-3${todasLendo ? " anexo-girando" : ""}`} />
+            <span>{todasLendo ? "Lendo…" : "Atualizar todas"}</span>
+          </button>
+        )}
+      </div>
       <ul className="w-uso">
         {contas.map((conta) => (
           <li key={conta.id} className={`w-uso-conta${conta.id === contaAtiva ? " w-uso-conta-ativa" : ""}`}>
