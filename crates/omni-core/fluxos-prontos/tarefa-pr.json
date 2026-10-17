@@ -1,0 +1,35 @@
+{
+  "id": "tarefa-pr",
+  "nome": "Tarefa → PR",
+  "descricao": "O orquestrador planeja, o dev implementa, o QA testa em loop (até 3 voltas), o revisor revisa, você aprova e sai o pull request.",
+  "nos": [
+    { "id": "entrada", "tipo": "entrada", "titulo": "Tarefa", "x": 0, "y": 160 },
+    { "id": "plano", "tipo": "agente", "titulo": "Planejar", "agente": "orquestrador", "x": 280, "y": 160,
+      "config": { "prompt": "## Tarefa\n{{entrada}}" } },
+    { "id": "dev", "tipo": "agente", "titulo": "Implementar", "agente": "dev", "x": 560, "y": 160,
+      "config": { "prompt": "## Tarefa\n{{entrada}}\n\n## Plano do orquestrador\n{{no:plano}}\n\n## Retorno da etapa anterior (se for do QA, corrija a causa de cada problema)\n{{anterior}}" } },
+    { "id": "qa", "tipo": "agente", "titulo": "Testar", "agente": "qa", "x": 840, "y": 160,
+      "config": { "prompt": "## Tarefa e critério de pronto\n{{entrada}}\n\n## Plano\n{{no:plano}}\n\n## O que o dev disse que entregou\n{{anterior}}" } },
+    { "id": "passou", "tipo": "condicao", "titulo": "QA aprovou?", "x": 1120, "y": 160, "config": { "max_voltas": 3 } },
+    { "id": "revisao", "tipo": "agente", "titulo": "Revisar código", "agente": "revisor", "x": 1400, "y": 60,
+      "config": { "prompt": "## Tarefa\n{{entrada}}\n\nRevise o diff deste branch contra a base (`git diff` do que mudou)." } },
+    { "id": "aprovar", "tipo": "aprovacao", "titulo": "Sua aprovação", "x": 1680, "y": 60,
+      "config": { "pergunta": "Abrir o pull request com estas mudanças?" } },
+    { "id": "pr", "tipo": "pr", "titulo": "Abrir PR", "x": 1960, "y": 60, "config": {} },
+    { "id": "fim", "tipo": "fim", "titulo": "Fim", "x": 2240, "y": 160 },
+    { "id": "desistiu", "tipo": "fim", "titulo": "Parou: QA não aprovou", "x": 1400, "y": 300 }
+  ],
+  "conexoes": [
+    { "de": "entrada", "para": "plano" },
+    { "de": "plano", "para": "dev" },
+    { "de": "dev", "para": "qa" },
+    { "de": "qa", "para": "passou" },
+    { "de": "passou", "para": "revisao", "saida": "sim" },
+    { "de": "passou", "para": "dev", "saida": "nao" },
+    { "de": "passou", "para": "desistiu", "saida": "esgotado" },
+    { "de": "revisao", "para": "aprovar" },
+    { "de": "aprovar", "para": "pr", "saida": "sim" },
+    { "de": "aprovar", "para": "fim", "saida": "nao" },
+    { "de": "pr", "para": "fim" }
+  ]
+}

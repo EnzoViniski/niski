@@ -69,17 +69,24 @@ export function WorkspaceView({
         />
       </div>
 
-      <footer className="h-7 shrink-0 px-3 flex items-center justify-between gap-3 overflow-hidden whitespace-nowrap border-t-2 border-border-subtle bg-bg-elevated text-[10px] text-text-muted">
-        <span className="flex min-w-0 max-w-[45%] shrink-0 items-center gap-3 overflow-hidden">
-          <GitContaStatus projectPath={project.path} />
-          <GitBranchStatus projectPath={project.path} />
-        </span>
-        <span className="flex min-w-0 flex-1 md:flex-initial items-center justify-between md:justify-end gap-3 lg:gap-4 overflow-hidden">
-          <AgentUsageStatus engineOnline={engineOnline} activeSessionId={abaAtiva?.resourceId ?? null} />
-          <span className="shrink-0">ENGINE: {engineOnline ? "ONLINE" : "CONNECTING"}</span>
-        </span>
-      </footer>
+      <RodapeDoProjeto projectPath={project.path} engineOnline={engineOnline} activeSessionId={abaAtiva?.resourceId ?? null} />
     </div>
+  );
+}
+
+/** Conta do git, branch, uso dos agentes e engine — no workspace e nos fluxos. */
+export function RodapeDoProjeto({ projectPath, engineOnline, activeSessionId }: { projectPath: string | null; engineOnline: boolean; activeSessionId: string | null }) {
+  return (
+    <footer className="h-7 shrink-0 px-3 flex items-center justify-between gap-3 overflow-hidden whitespace-nowrap border-t-2 border-border-subtle bg-bg-elevated text-[10px] text-text-muted">
+      <span className="flex min-w-0 max-w-[45%] shrink-0 items-center gap-3 overflow-hidden">
+        {projectPath && <GitContaStatus projectPath={projectPath} />}
+        {projectPath && <GitBranchStatus projectPath={projectPath} />}
+      </span>
+      <span className="flex min-w-0 flex-1 md:flex-initial items-center justify-between md:justify-end gap-3 lg:gap-4 overflow-hidden">
+        <AgentUsageStatus engineOnline={engineOnline} activeSessionId={activeSessionId} />
+        <span className="shrink-0">ENGINE: {engineOnline ? "ONLINE" : "CONNECTING"}</span>
+      </span>
+    </footer>
   );
 }
 

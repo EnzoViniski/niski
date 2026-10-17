@@ -12,6 +12,8 @@ mod instalacao;
 mod profiles;
 mod extensoes;
 mod relatorio;
+mod agentes;
+mod fluxos;
 
 pub fn run() {
     #[cfg(unix)]
@@ -90,6 +92,18 @@ pub fn run() {
             git_client::git_log_graph,
             git_client::git_conta,
             relatorio::relatorio_ia,
+            agentes::agentes_listar,
+            agentes::agentes_salvar,
+            agentes::agentes_apagar,
+            agentes::agentes_restaurar_kit,
+            agentes::agentes_instalar_claude,
+            agentes::agentes_criar_com_ia,
+            agentes::agentes_modelos,
+            fluxos::fluxos_criar_com_ia,
+            fluxos::fluxos_listar,
+            fluxos::fluxos_salvar,
+            fluxos::fluxos_apagar,
+            fluxos::fluxos_validar,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

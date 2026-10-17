@@ -1,6 +1,8 @@
 import {
   BookIcon,
   ChatIcon,
+  CheckIcon,
+  CircuitIcon,
   ChevronDownIcon,
   CloseIcon,
   CopyIcon,
@@ -14,7 +16,7 @@ import {
   SlidersIcon as Sliders,
   TerminalIcon,
 } from "./ui/PixelIcon";
-import { destaqueDaLinha, EtiquetaDoStatus, IconeDoStatus, rotuloDoStatus, statusDaConversa } from "./ConversaStatus";
+import { destaqueDaLinha, EtiquetaDoStatus, IconeDoStatus, ResumoDeAgentes, rotuloDoStatus, statusDaConversa } from "./ConversaStatus";
 import { conversationKey } from "../features/terminal/useAttention";
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
@@ -29,6 +31,7 @@ import type { Project, WorkspaceState } from "../types/workspace";
 import type { TerminalSession } from "../features/terminal/terminalService";
 import type { AttentionItem } from "../features/terminal/useAttention";
 import { WorkspaceList } from "./WorkspaceList";
+import { TodoList, useTodos } from "../features/todo/TodoList";
 import { AttentionPanel } from "./AttentionPanel";
 import { FileTree } from "./FileTree";
 import { GitPanel } from "./GitPanel";
@@ -87,10 +90,15 @@ interface SidebarProps {
   onFileRenamed: (fromPath: string, toPath: string, title: string) => void;
   onPathDeleted: (path: string) => void;
   terminalSessions: TerminalSession[];
+  /** Conversas de agente de todos os projetos: resumo nas linhas de workspace e projeto. */
+  agentSessions?: TerminalSession[];
   /** Sessão da aba em foco: a linha dela fica marcada na lista. */
   activeSessionId?: string | null;
   showSettings: boolean;
   showHistory: boolean;
+  /** Tela de fluxos de agentes (editor estilo n8n e execuções). */
+  showFluxos?: boolean;
+  onOpenFluxos?: () => void;
   onOpenHistory: () => void;
   /** Antigo clique no logo: o logo mudou para a barra superior (`TitleBar`). */
   onHome?: () => void;
@@ -127,9 +135,12 @@ export function Sidebar({
   onFileRenamed,
   onPathDeleted,
   terminalSessions,
+  agentSessions = [],
   activeSessionId = null,
   showSettings,
   showHistory,
+  showFluxos = false,
+  onOpenFluxos,
   onOpenHistory,
   onAddProject,
   onSelectProject,
@@ -148,6 +159,7 @@ export function Sidebar({
   const naoVistas = new Set(attention.map((item) => item.conversationKey));
 
   const [pickerAberto, setPickerAberto] = useState(false);
+  const todos = useTodos();
   // Nome de cada conta, para a segunda linha da conversa dizer em qual ela roda.
   const [contas, setContas] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -215,13 +227,15 @@ export function Sidebar({
           workspaces={workspaces}
           activeWorkspaceId={activeWorkspaceId}
           attentionByWorkspace={attentionByWorkspace}
+          agentSessions={agentSessions}
+          naoVistas={naoVistas}
           onSelect={onSelectWorkspace}
           onCreate={onCreateWorkspace}
           onClose={onCloseWorkspace}
           onRename={onRenameWorkspace}
         />
 
-        <div className="space-y-0.5">
+        <div className="space-y-1">
           <div className="flex items-center justify-between px-3 pt-1">
             <p className="text-text-muted text-[10px] font-medium uppercase tracking-wider">Projects</p>
             <button
@@ -239,22 +253,34 @@ export function Sidebar({
             </p>
           ) : (
             projects.map((project) => (
-              <div key={project.id} className="group flex items-stretch">
+              <div key={project.id}
+                className={`lateral-item group mx-1 flex items-stretch border-l-2 ring-1 ring-inset transition-colors ${
+                  project.id === activeProjectId
+                    ? "lateral-item-ativo border-accent ring-accent/50"
+                    : "border-transparent ring-border-subtle/40 hover:ring-border-subtle"
+                }`}>
                 <button
                   type="button"
                   data-nav-item
                   aria-current={project.id === activeProjectId ? "page" : undefined}
                   onClick={() => onSelectProject(project.id)}
-                  className={[
-                    "min-w-0 flex-1 px-3 py-2 text-left text-xs truncate border-l-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-                    project.id === activeProjectId
-                      ? "border-accent bg-accent-muted text-text-primary"
-                      : "border-transparent text-text-secondary hover:text-text-primary hover:bg-overlay/[0.07]",
-                  ].join(" ")}
+                  className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                   title={project.path}
                 >
-                  <FolderIcon className="mr-2 inline w-3 h-3 shrink-0 text-accent" aria-hidden />
-                  {project.name}
+                  <span className="lateral-avatar grid h-8 w-8 shrink-0 place-items-center border border-border-subtle">
+                    <FolderIcon className="h-3.5 w-3.5 text-accent" aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className={`block truncate text-xs leading-4 ${
+                      project.id === activeProjectId ? "font-semibold text-text-primary" : "text-text-secondary"
+                    }`}>{project.name}</span>
+                    <span aria-hidden className="mt-0.5 flex">
+                      <ResumoDeAgentes
+                        sessions={agentSessions.filter((session) => session.project_id === project.id)}
+                        naoVistas={naoVistas}
+                      />
+                    </span>
+                  </span>
                 </button>
                 <button
                   type="button"
@@ -269,6 +295,11 @@ export function Sidebar({
             ))
           )}
         </div>
+
+        {/* Suas tarefas, não as do agente (Kanban): valem em qualquer workspace/projeto. */}
+        <SidebarSection label="TAREFAS" icon={CheckIcon} disabled={false} contagem={todos.pendentes}>
+          <TodoList {...todos} />
+        </SidebarSection>
 
         {SECTIONS.map((section) => (
           <SidebarSection key={section} label={section} icon={SECTION_ICON[section]} disabled={!activeProjectId}
@@ -353,6 +384,14 @@ export function Sidebar({
 
       {/* Footer */}
       <div className="px-2 py-3 border-t border-border-subtle/60 space-y-0.5">
+        {onOpenFluxos && (
+          <NavItem
+            active={showFluxos}
+            onClick={onOpenFluxos}
+            icon={<CircuitIcon className="w-4 h-4" aria-hidden="true" />}
+            label="Fluxos de agentes"
+          />
+        )}
         <NavItem
           active={showHistory}
           onClick={onOpenHistory}

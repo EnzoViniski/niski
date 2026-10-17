@@ -11,11 +11,12 @@ import { SkillsManager } from "../features/skills/SkillsManager";
 import { ExtensoesSettings } from "../features/extensoes/ExtensoesSettings";
 import { MobileSettings } from "../features/mobile/MobileSettings";
 import { testarAviso } from "../features/terminal/useAttentionNotifier";
-import { BlocksIcon, BookIcon, BrushIcon, ChartIcon, CloseIcon, GearIcon, GlobeIcon, KeyboardIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
+import { BlocksIcon, BookIcon, BrushIcon, ChartIcon, CloseIcon, SparkleIcon, GearIcon, GlobeIcon, KeyboardIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
 import { RelatoriosIa } from "../features/relatorios/RelatoriosIa";
+import { ModelosDeAgentes } from "../features/agentes/ModelosDeAgentes";
 import { SHORTCUTS, comboFromEvent, setRecordingShortcut, shortcutFor, type ShortcutId } from "../lib/shortcuts";
 
-type SectionId = "geral" | "aparencia" | "agentes" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
+type SectionId = "geral" | "aparencia" | "agentes" | "modelos" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
 
 type Icone = React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 
@@ -25,6 +26,7 @@ const SECTIONS: { id: SectionId; label: string; desc: string; icon: Icone }[] = 
   { id: "geral", label: "Geral", desc: "Conversa ou terminal, arquivos e avisos", icon: GearIcon },
   { id: "aparencia", label: "Aparência", desc: "Tema, cor, fundo e animações", icon: BrushIcon },
   { id: "agentes", label: "Agentes", desc: "CLIs instaladas e contas", icon: RobotIcon },
+  { id: "modelos", label: "Modelos de agentes", desc: "QA, revisor, orquestrador… criados com IA", icon: SparkleIcon },
   { id: "extensoes", label: "Extensões", desc: "MCPs, plugins e conectores por IA", icon: BlocksIcon },
   { id: "skills", label: "Skills", desc: "Skills do Claude e do projeto", icon: BookIcon },
   { id: "mobile", label: "Acesso remoto", desc: "Celular e outro computador", icon: GlobeIcon },
@@ -139,6 +141,7 @@ export function SettingsView({ settings, onChange, onReset, initialSection, proj
           {section === "geral" && <GeralSection settings={settings} onChange={onChange} />}
           {section === "aparencia" && <AparenciaSection settings={settings} onChange={onChange} />}
           {section === "agentes" && <AgentConnections />}
+          {section === "modelos" && <ModelosDeAgentes projectPath={projectPath} />}
           {section === "extensoes" && <ExtensoesSettings projectPath={projectPath} />}
           {section === "skills" && <SkillsManager projectPath={projectPath} />}
           {section === "mobile" && <MobileSettings accent={settings.accent} />}

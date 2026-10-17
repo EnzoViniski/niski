@@ -1,3 +1,4 @@
+mod fluxos;
 mod interaction;
 mod mobile;
 use anyhow::{anyhow, Context, Result};
@@ -93,7 +94,15 @@ fn settle(session: &LiveSession) -> TerminalSession {
     let tracked = screen_tracked(meta.provider.as_deref());
     let screen_in_turn = tracked && in_turn(&interaction.parser.screen().contents());
     let idle_ms = now_ms().saturating_sub(meta.last_activity_at_ms);
-    let (state, turn_finished) = settle_state(&meta.state, idle_ms, tracked, screen_in_turn, interaction.turn_active);
+    // Shell puro calado mas com filho vivo (dev server) continua rodando. Só consulta os processos
+    // quando ia virar `Answered`: shell no prompt sai do `Working` e não paga mais nada.
+    let shell_busy = meta.provider.is_none() && meta.state == SessionState::Working && idle_ms > ANSWERED_IDLE_MS
+        && interaction::has_children(meta.pid);
+    let (state, turn_finished) = if shell_busy {
+        (SessionState::Working, false)
+    } else {
+        settle_state(&meta.state, idle_ms, tracked, screen_in_turn, interaction.turn_active)
+    };
     if turn_finished {
         interaction.turn_active = false;
         interaction.aprovacao_contada = false;
@@ -176,6 +185,7 @@ async fn main() -> Result<()> {
         .with_context(|| format!("engine already running or port {port} unavailable"))?;
 
     mobile::start(state.clone());
+    fluxos::carregar(&state);
 
     loop {
         let (stream, _) = listener.accept().await?;

@@ -1,0 +1,15 @@
+{
+  "id": "time-de-agentes",
+  "nome": "Time de agentes",
+  "descricao": "Arquiteto, dev e QA discutem o assunto em rodadas até chegar a um consenso. No fim sai uma ata com a decisão e os próximos passos.",
+  "nos": [
+    { "id": "entrada", "tipo": "entrada", "titulo": "Assunto", "x": 0, "y": 120 },
+    { "id": "reuniao", "tipo": "sala", "titulo": "Reunião", "x": 300, "y": 120,
+      "config": { "participantes": ["arquiteto", "dev", "qa"], "rodadas": 3, "objetivo": "{{entrada}}" } },
+    { "id": "fim", "tipo": "fim", "titulo": "Ata", "x": 600, "y": 120 }
+  ],
+  "conexoes": [
+    { "de": "entrada", "para": "reuniao" },
+    { "de": "reuniao", "para": "fim" }
+  ]
+}

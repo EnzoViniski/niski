@@ -9,6 +9,8 @@ pub mod targets;
 pub mod compartilhar;
 pub mod extensoes;
 pub mod relatorio;
+pub mod agentes;
+pub mod fluxos;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};

@@ -8,7 +8,7 @@ import { fileKind } from "./features/files/filesService";
 import { QuickOpen } from "./features/files/QuickOpen";
 import { useWorkspace } from "./features/workspace/useWorkspace";
 import { collectResourceIds, findPane } from "./features/workspace/workspaceReducer";
-import { WorkspaceView } from "./features/workspace/WorkspaceView";
+import { RodapeDoProjeto, WorkspaceView } from "./features/workspace/WorkspaceView";
 import { useKanban } from "./features/kanban/useKanban";
 import { useKanbanDispatcher } from "./features/kanban/useKanbanDispatcher";
 import { SessionProvidersContext } from "./features/terminal/sessionProviders";
@@ -26,6 +26,7 @@ import {
   spawnTerminal,
 } from "./features/terminal/terminalService";
 import { HistoryView } from "./features/history/HistoryView";
+import { FluxosView } from "./features/fluxos/FluxosView";
 import { levarParaConta, resumeCommand, samePath, type HistoryEntry } from "./features/history/historyService";
 import { rememberProject } from "./services/recentProjectsService";
 import { primeSshDrives } from "./features/projects/targetState";
@@ -33,7 +34,7 @@ import type { SettingsSection } from "./hooks/useNotifications";
 import { useSettings } from "./hooks/useSettings";
 import { matchesShortcut } from "./lib/shortcuts";
 
-type View = "workspace" | "settings" | "history";
+type View = "workspace" | "settings" | "history" | "fluxos";
 
 export function App() {
   const [view, setView] = useState<View>("workspace");
@@ -201,6 +202,7 @@ export function App() {
         trilha={
           view === "settings" ? ["Configurações"]
             : view === "history" ? ["Histórico"]
+            : view === "fluxos" ? ["Fluxos de agentes"]
             : [workspaces.find((item) => item.id === activeWorkspaceId)?.name, activeProject?.name].filter((parte): parte is string => Boolean(parte))
         }
         dica={view === "workspace" ? activeProject?.path : undefined}
@@ -251,8 +253,11 @@ export function App() {
         terminalSessions={latestPerConversation(
           sessions.filter((session) => session.project_id === workspace.activeProjectId),
         )}
+        agentSessions={latestPerConversation(sessions.filter((session) => session.provider))}
         showSettings={view === "settings"}
         showHistory={view === "history"}
+        showFluxos={view === "fluxos"}
+        onOpenFluxos={() => setView("fluxos")}
         onOpenHistory={openHistory}
         onHome={() => setView("workspace")}
         onAddProject={(path) => {
@@ -320,6 +325,15 @@ export function App() {
         <main className="flex-1 min-h-0">
           {view === "history" ? (
             <HistoryView onResume={resumeHistory} onClose={closeHistory} />
+          ) : view === "fluxos" ? (
+            <div className="h-full min-h-0 flex flex-col">
+              <div className="flex-1 min-h-0">
+                <FluxosView projectId={activeProject?.id ?? null} projectPath={activeProject?.path ?? null}
+                  onAbrirSessao={(sessionId, title) => { dispatch({ type: "ATTACH_TERMINAL", sessionId, title }); setView("workspace"); }}
+                  onClose={() => setView("workspace")} />
+              </div>
+              <RodapeDoProjeto projectPath={activeProject?.path ?? null} engineOnline={engineOnline} activeSessionId={null} />
+            </div>
           ) : view === "settings" ? (
             <div className="h-full overflow-y-auto px-6 py-5 [scrollbar-gutter:stable]">
               <div className="w-full mx-auto max-w-[1180px]">
