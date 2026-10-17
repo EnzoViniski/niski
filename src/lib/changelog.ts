@@ -14,6 +14,29 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.7.1",
+    date: "2026-10-17",
+    changes: [
+      "Novo: Fluxos de agentes. Monte times de agentes num quadro como o do n8n, ligando etapas de agente, condição, aprovação, time de agentes conversando e pull request, e rode tudo no seu projeto.",
+      "Cada execução trabalha numa cópia isolada do repositório, numa branch nova. Você vê a branch, a pasta, o tempo, o custo e o que cada agente está fazendo naquele momento.",
+      "Pause, retome ou cancele uma execução, veja o histórico de cada etapa e abra qualquer agente numa conversa para pedir um ajuste ou que ele desfaça o que fez.",
+      "Antes de executar, um cartão mostra etapa por etapa o que vai acontecer.",
+      "Crie um fluxo inteiro descrevendo o processo para a IA, ou importe e copie fluxos em JSON.",
+      "Modelos de agentes nas Configurações: o OMNI já vem com 7 (orquestrador, arquiteto, dev, QA, revisor, segurança e documentação). Crie novos com IA a partir de uma frase, também direto de uma etapa do fluxo.",
+      "Escolha a IA, o modelo e o esforço de cada agente, e mude o modelo e o esforço só numa etapa quando quiser.",
+      "Ligar uma etapa à outra ficou mais fácil: soltar a seta no vazio cria a próxima etapa já ligada, e um × remove a ligação.",
+      "Manual com imagens explicando agentes e fluxos, no botão \"Como usar\".",
+      "Workspaces e projetos na lateral mostram quantos agentes estão trabalhando, esperando ou parados em cada um.",
+      "Nova lista de tarefas pessoais na lateral, a mesma em todos os projetos.",
+      "O histórico de conversas usa o mesmo visual das conversas da lateral.",
+      "Relatórios abrem na hora com o último resultado e ficaram mais completos: linhas removidas, dias seguidos de uso, uso do cache e o último commit de cada projeto.",
+      "Os avisos de troca de conta aparecem no ponto certo da conversa, e não mais todos presos no fim.",
+      "Frases que o agente diz entre uma ação e outra voltaram a aparecer na conversa, como no terminal.",
+      "Corrigido: atualizar o app às vezes parava pedindo \"Repetir\" porque o instalador abria antes de o app fechar.",
+      "Corrigido: terminal rodando um servidor de desenvolvimento aparecia como parado.",
+    ],
+  },
+  {
     version: "0.7.0",
     date: "2026-10-17",
     changes: [
