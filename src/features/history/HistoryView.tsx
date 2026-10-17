@@ -225,30 +225,45 @@ export function HistoryView({ onResume, lock, actions, onClose }: HistoryViewPro
           <p className="historico-contagem">
             {entries === null ? "Lendo transcripts…" : `${filtered.length} de ${entries.length} conversas`}
           </p>
-          <ul className="min-h-0 flex-1 overflow-y-auto p-1">
+          <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1">
             {entries === null && Array.from({ length: 6 }, (_, i) => <li key={i} className="historico-esqueleto" aria-hidden />)}
-            {filtered.slice(0, limit).map((entry) => (
-              <li key={entry.path}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedPath(entry.path)}
-                  aria-current={entry.path === selectedPath ? "true" : undefined}
-                  className="historico-item"
-                >
-                  <AgentIcon provider={entry.provider} size={14} className="mt-0.5 shrink-0" />
-                  <span className="min-w-0 flex-1">
-                    <span className="historico-item-titulo">{entry.title ?? entry.first_prompt}</span>
-                    <span className="historico-item-meta">
-                      <FolderIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
-                      <span className="truncate">{entry.cwd ? baseName(entry.cwd) : "sem pasta"}</span>
-                      <span aria-hidden>·</span>
-                      <span className="truncate">{entry.profile_name}</span>
+            {/* Mesmo cartão das conversas da lateral (`Sidebar` → `SessionLabel`). */}
+            {filtered.slice(0, limit).map((entry) => {
+              const ativa = entry.path === selectedPath;
+              return (
+                <li key={entry.path}
+                  className={`lateral-item border-l-2 ring-1 ring-inset transition-colors ${
+                    ativa ? "lateral-item-ativo border-accent ring-accent/50" : "border-transparent ring-border-subtle/40 hover:ring-border-subtle"
+                  }`}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPath(entry.path)}
+                    aria-current={ativa ? "true" : undefined}
+                    className="flex w-full min-w-0 items-center gap-2.5 px-2 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                  >
+                    <span className="lateral-avatar grid h-8 w-8 shrink-0 place-items-center border border-border-subtle">
+                      <AgentIcon provider={entry.provider} size={16} />
                     </span>
-                  </span>
-                  <time className="historico-item-tempo" title={formatDate(entry.updated_at_ms)}>{quando(entry.updated_at_ms)}</time>
-                </button>
-              </li>
-            ))}
+                    <span className="min-w-0 flex-1">
+                      <span className="flex min-w-0 items-baseline gap-2">
+                        <span className={`min-w-0 flex-1 truncate text-xs leading-4 ${ativa ? "font-semibold text-text-primary" : "text-text-secondary"}`}>
+                          {entry.title ?? entry.first_prompt}
+                        </span>
+                        <time className="shrink-0 text-[10px] leading-4 text-text-muted tabular-nums" title={formatDate(entry.updated_at_ms)}>
+                          {quando(entry.updated_at_ms)}
+                        </time>
+                      </span>
+                      <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] leading-4 text-text-muted">
+                        <FolderIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
+                        <span className="truncate">{entry.cwd ? baseName(entry.cwd) : "sem pasta"}</span>
+                        <span aria-hidden>·</span>
+                        <span className="truncate">{entry.profile_name}</span>
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
             {entries !== null && filtered.length === 0 && (
               <li className="px-3 py-8 text-center text-xs text-text-muted">
                 {entries.length === 0 ? "Nenhuma conversa gravada ainda." : "Nada encontrado com esses filtros."}

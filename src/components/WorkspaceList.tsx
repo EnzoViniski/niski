@@ -1,11 +1,16 @@
 import { useState } from "react";
 import { BoxIcon, CloseIcon, EditIcon, FolderPlusIcon } from "./ui/PixelIcon";
+import { ResumoDeAgentes } from "./ConversaStatus";
+import type { TerminalSession } from "../features/terminal/terminalService";
 import type { WorkspaceState } from "../types/workspace";
 
 interface WorkspaceListProps {
   workspaces: WorkspaceState[];
   activeWorkspaceId: string | null;
   attentionByWorkspace: Record<string, number>;
+  /** Conversas de agente de todos os projetos (resumo por workspace). */
+  agentSessions?: TerminalSession[];
+  naoVistas?: Set<string>;
   onSelect: (workspaceId: string) => void;
   onCreate: () => void;
   onClose: (workspaceId: string) => void;
@@ -25,6 +30,8 @@ export function WorkspaceList({
   workspaces,
   activeWorkspaceId,
   attentionByWorkspace,
+  agentSessions = [],
+  naoVistas = new Set(),
   onSelect,
   onCreate,
   onClose,
@@ -39,7 +46,7 @@ export function WorkspaceList({
   }
 
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-1">
       <div className="flex items-center justify-between px-3 pt-1">
         <p className="text-text-muted text-[10px] font-medium uppercase tracking-wider">Workspaces</p>
         <button
@@ -82,7 +89,10 @@ export function WorkspaceList({
         }
 
         return (
-          <div key={workspace.id} className="group flex items-stretch">
+          <div key={workspace.id}
+            className={`lateral-item group mx-1 flex items-stretch border-l-2 ring-1 ring-inset transition-colors ${
+              ativo ? "lateral-item-ativo border-accent ring-accent/50" : "border-transparent ring-border-subtle/40 hover:ring-border-subtle"
+            }`}>
             <button
               type="button"
               data-nav-item
@@ -93,15 +103,22 @@ export function WorkspaceList({
                 setEditandoId(workspace.id);
               }}
               title="Clique duplo para renomear"
-              className={[
-                "min-w-0 flex-1 flex items-center gap-2 px-3 py-2 text-left text-xs border-l-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-                ativo
-                  ? "border-accent bg-accent-muted text-text-primary"
-                  : "border-transparent text-text-secondary hover:text-text-primary hover:bg-overlay/[0.07]",
-              ].join(" ")}
+              className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             >
-              <BoxIcon className="w-3 h-3 shrink-0 text-accent" aria-hidden />
-              <span className="min-w-0 flex-1 truncate">{workspace.name}</span>
+              <span className="lateral-avatar grid h-8 w-8 shrink-0 place-items-center border border-border-subtle">
+                <BoxIcon className="h-3.5 w-3.5 text-accent" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className={`block truncate text-xs leading-4 ${ativo ? "font-semibold text-text-primary" : "text-text-secondary"}`}>
+                  {workspace.name}
+                </span>
+                <span aria-hidden className="mt-0.5 flex">
+                  <ResumoDeAgentes
+                    sessions={agentSessions.filter((session) => workspace.projects.some((project) => project.id === session.project_id))}
+                    naoVistas={naoVistas}
+                  />
+                </span>
+              </span>
               {pendentes > 0 && (
                 <span
                   aria-label={`${pendentes} ${pendentes === 1 ? "agente esperando" : "agentes esperando"} em ${workspace.name}`}

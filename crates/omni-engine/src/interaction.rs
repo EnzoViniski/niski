@@ -210,6 +210,37 @@ pub fn provider_running(pid: Option<u32>, provider: &str) -> bool {
         } false })
     }
 }
+/// O shell tem um processo filho rodando (`npm run dev`, `node`…): silêncio aí não é "parado".
+/// Shell no prompt não tem filho. conhost/OpenConsole são da ConPTY, não do usuário.
+#[cfg(windows)]
+pub fn has_children(pid: Option<u32>) -> bool {
+    use windows_sys::Win32::{Foundation::{CloseHandle, INVALID_HANDLE_VALUE}, System::Diagnostics::ToolHelp::*};
+    let Some(pid) = pid else { return false };
+    unsafe {
+        let handle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
+        if handle == INVALID_HANDLE_VALUE { return false; }
+        let mut entry: PROCESSENTRY32W = std::mem::zeroed(); entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+        let mut found = false;
+        let mut valid = Process32FirstW(handle,&mut entry) != 0;
+        while valid && !found {
+            if entry.th32ParentProcessID == pid && entry.th32ProcessID != pid {
+                let end = entry.szExeFile.iter().position(|c| *c == 0).unwrap_or(entry.szExeFile.len());
+                let name = String::from_utf16_lossy(&entry.szExeFile[..end]).to_ascii_lowercase();
+                found = name != "conhost.exe" && name != "openconsole.exe";
+            }
+            valid = Process32NextW(handle,&mut entry) != 0;
+        }
+        CloseHandle(handle);
+        found
+    }
+}
+#[cfg(not(windows))]
+pub fn has_children(pid: Option<u32>) -> bool {
+    let Some(pid) = pid else { return false };
+    let Ok(output) = std::process::Command::new("ps").args(["-A", "-o", "ppid="]).output() else { return false };
+    String::from_utf8_lossy(&output.stdout).lines().any(|line| line.trim().parse::<u32>() == Ok(pid))
+}
+
 #[cfg(not(windows))]
 pub fn provider_running(pid: Option<u32>, provider: &str) -> bool {
     let Some(pid) = pid else { return false };
@@ -559,6 +590,16 @@ fn run_usage_command(state: &Arc<EngineState>, session: &Arc<LiveSession>, profi
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn shell_com_filho_vivo_conta_como_ocupado() {
+        let mut filho = if cfg!(windows) {
+            std::process::Command::new("cmd").args(["/c", "ping -n 4 127.0.0.1 >nul"]).spawn()
+        } else {
+            std::process::Command::new("sleep").arg("3").spawn()
+        }.expect("spawn");
+        assert!(has_children(Some(std::process::id())));
+        let _ = filho.kill(); let _ = filho.wait();
+        assert!(!has_children(None));
+    }
     #[test] fn reconstructs_split_ansi_and_checks_cursor_not_old_prompts() {
         let mut context = Interaction::new(10,80);
         context.parser.process(b"\x1b[?2004hClaude Code\r\n> ");
