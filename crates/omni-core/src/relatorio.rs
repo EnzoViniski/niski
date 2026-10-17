@@ -5,15 +5,15 @@
 //! contagem de tokens, modelo, conta e o nome da pasta do projeto.
 
 use crate::Profile;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 /// Um evento contável de um transcript, já sem conteúdo.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Evento {
     /// Identidade estável entre cópias do arquivo (fork e troca de conta copiam o `.jsonl`).
     chave: String,
@@ -22,7 +22,7 @@ pub struct Evento {
     tipo: TipoEvento,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 enum TipoEvento {
     /// Mensagem que você mandou.
     Prompt,
@@ -31,12 +31,18 @@ enum TipoEvento {
 }
 
 /// Eventos de um arquivo e de onde ele veio. É o que o cache guarda por (caminho, mtime, tamanho).
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Arquivo {
     eventos: Vec<Evento>,
     /// Nome da pasta do projeto (último componente do `cwd`).
     projeto: Option<String>,
     sessao: String,
+    /// Até que byte o arquivo já foi lido. Transcript só cresce: a próxima leitura continua daqui.
+    #[serde(default)]
+    lido_ate: u64,
+    /// Codex: último modelo visto (`turn_context`), para quem continuar a leitura saber qual é.
+    #[serde(default)]
+    modelo: Option<String>,
 }
 
 pub type Cache = HashMap<PathBuf, (u64, u64, Arquivo)>;
@@ -97,11 +103,39 @@ fn prompt_de_verdade(mensagem: &Value) -> bool {
     }
 }
 
+/// Linhas que entraram no arquivo desde `arquivo.lido_ate`, avançando a marca. A última linha sem
+/// `\n` só conta se já for um JSON inteiro — senão a CLI ainda está escrevendo e fica para a próxima.
+fn linhas_novas(caminho: &Path, arquivo: &mut Arquivo) -> Vec<String> {
+    let Ok(mut file) = File::open(caminho) else { return Vec::new() };
+    if file.seek(SeekFrom::Start(arquivo.lido_ate)).is_err() { return Vec::new(); }
+    let mut leitor = BufReader::new(file);
+    let mut linhas = Vec::new();
+    let mut linha = String::new();
+    loop {
+        linha.clear();
+        let Ok(lidos) = leitor.read_line(&mut linha) else { break };
+        if lidos == 0 { break; }
+        if !linha.ends_with('\n') && serde_json::from_str::<Value>(&linha).is_err() { break; }
+        arquivo.lido_ate += lidos as u64;
+        linhas.push(linha.trim_end().to_owned());
+    }
+    linhas
+}
+
+fn novo_arquivo(caminho: &Path) -> Arquivo {
+    Arquivo { sessao: caminho.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(), ..Default::default() }
+}
+
 pub fn ler_claude(caminho: &Path) -> Arquivo {
-    let mut arquivo = Arquivo { sessao: caminho.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(), ..Default::default() };
-    let Ok(file) = File::open(caminho) else { return arquivo };
+    let mut arquivo = novo_arquivo(caminho);
+    continuar_claude(caminho, &mut arquivo);
+    arquivo
+}
+
+fn continuar_claude(caminho: &Path, arquivo: &mut Arquivo) {
+    // Só evita empilhar o mesmo evento: a contagem em `montar` já deduplica pela chave.
     let mut vistas = HashSet::new();
-    for linha in BufReader::new(file).lines().map_while(Result::ok) {
+    for linha in linhas_novas(caminho, arquivo) {
         // Filtro barato antes do parse: a maioria das linhas não conta.
         let resposta = linha.contains("\"usage\"");
         if !resposta && !linha.contains("\"type\":\"user\"") { continue; }
@@ -127,14 +161,17 @@ pub fn ler_claude(caminho: &Path) -> Arquivo {
             arquivo.eventos.push(Evento { chave: format!("u:{uuid}"), em_ms, tipo: TipoEvento::Prompt });
         }
     }
-    arquivo
 }
 
 pub fn ler_codex(caminho: &Path) -> Arquivo {
-    let mut arquivo = Arquivo { sessao: caminho.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(), ..Default::default() };
-    let Ok(file) = File::open(caminho) else { return arquivo };
-    let mut modelo = String::from("codex");
-    for linha in BufReader::new(file).lines().map_while(Result::ok) {
+    let mut arquivo = novo_arquivo(caminho);
+    continuar_codex(caminho, &mut arquivo);
+    arquivo
+}
+
+fn continuar_codex(caminho: &Path, arquivo: &mut Arquivo) {
+    let mut modelo = arquivo.modelo.clone().unwrap_or_else(|| "codex".into());
+    for linha in linhas_novas(caminho, arquivo) {
         if !linha.contains("token_count") && !linha.contains("user_message") && !linha.contains("turn_context") && !linha.contains("session_meta") { continue; }
         let Ok(valor) = serde_json::from_str::<Value>(&linha) else { continue };
         let carga = &valor["payload"];
@@ -164,7 +201,7 @@ pub fn ler_codex(caminho: &Path) -> Arquivo {
             _ => {}
         }
     }
-    arquivo
+    arquivo.modelo = Some(modelo);
 }
 
 fn carimbo(caminho: &Path) -> (u64, u64) {
@@ -209,12 +246,15 @@ pub fn montar(profiles: &[Profile], dias: u32, fuso_min: i32, agora_ms: i64, cac
         let (modificado, tamanho) = carimbo(&caminho);
         if modificado < corte_ms { continue; }
         vivos.insert(caminho.clone());
-        let atual = cache.get(&caminho).filter(|(m, t, _)| *m == modificado && *t == tamanho).map(|(_, _, a)| a.clone());
-        let arquivo = atual.unwrap_or_else(|| {
-            let lido = if profile.provider == "claude" { ler_claude(&caminho) } else { ler_codex(&caminho) };
-            cache.insert(caminho.clone(), (modificado, tamanho, lido.clone()));
-            lido
-        });
+        let entrada = cache.entry(caminho.clone()).or_insert_with(|| (0, 0, novo_arquivo(&caminho)));
+        if (entrada.0, entrada.1) != (modificado, tamanho) {
+            // Transcript só cresce: lê só o pedaço novo. Encolheu = foi reescrito, lê do zero.
+            if tamanho < entrada.2.lido_ate { entrada.2 = novo_arquivo(&caminho); }
+            if profile.provider == "claude" { continuar_claude(&caminho, &mut entrada.2); } else { continuar_codex(&caminho, &mut entrada.2); }
+            entrada.0 = modificado;
+            entrada.1 = tamanho;
+        }
+        let arquivo = &entrada.2;
         for evento in &arquivo.eventos {
             let dia = dia_de(evento.em_ms);
             if dia < primeiro || dia > hoje || !contados.insert(evento.chave.clone()) { continue; }
@@ -242,8 +282,9 @@ pub fn montar(profiles: &[Profile], dias: u32, fuso_min: i32, agora_ms: i64, cac
             }
         }
     }
-    // Arquivo apagado ou fora do período não fica ocupando memória.
-    cache.retain(|caminho, _| vivos.contains(caminho));
+    // Fica o que ainda pode cair em algum período (até 90 dias); o resto sai da memória e do disco.
+    let corte_maximo = (agora_ms - 91 * 86_400_000).max(0) as u64;
+    cache.retain(|caminho, (modificado, _, _)| vivos.contains(caminho) || (*modificado >= corte_maximo && caminho.exists()));
 
     let dias_saida = por_dia.into_iter().map(|(dia, mut linha)| {
         linha.conversas = sessoes_por_dia.get(&dia).map_or(0, |s| s.len() as u64);
@@ -296,6 +337,26 @@ mod tests {
         assert_eq!(r.por_hora[23], 1);
         // Segunda leitura vem do cache e dá o mesmo resultado.
         assert_eq!(montar(&[perfil(dir.path(), "claude")], 2, -180, agora, &mut cache).dias, r.dias);
+    }
+
+    /// Arquivo que cresceu é lido só do ponto onde parou; linha pela metade espera a próxima leitura;
+    /// o cache sobrevive a ir e voltar do disco (JSON).
+    #[test]
+    fn continua_de_onde_parou() {
+        let dir = tempfile::tempdir().unwrap();
+        let pasta_projeto = dir.path().join("projects").join("proj");
+        std::fs::create_dir_all(&pasta_projeto).unwrap();
+        let arquivo = pasta_projeto.join("a.jsonl");
+        let prompt = |id: &str| format!(r#"{{"type":"user","uuid":"{id}","timestamp":"2026-10-16T12:00:00Z","message":{{"role":"user","content":"oi"}}}}"#);
+        std::fs::write(&arquivo, format!("{}\n{}", prompt("u1"), &prompt("u2")[..20])).unwrap();
+        let agora = chrono::DateTime::parse_from_rfc3339("2026-10-16T13:00:00Z").unwrap().timestamp_millis();
+        let perfis = [perfil(dir.path(), "claude")];
+        let mut cache = Cache::new();
+        assert_eq!(montar(&perfis, 1, 0, agora, &mut cache).dias[0].prompts, 1);
+        std::fs::write(&arquivo, format!("{}\n{}\n{}\n", prompt("u1"), prompt("u2"), prompt("u3"))).unwrap();
+        let mut cache: Cache = serde_json::from_str(&serde_json::to_string(&cache).unwrap()).unwrap();
+        assert_eq!(montar(&perfis, 1, 0, agora, &mut cache).dias[0].prompts, 3);
+        assert_eq!(cache.values().next().unwrap().2.eventos.len(), 3, "releu o começo do arquivo");
     }
 }
 

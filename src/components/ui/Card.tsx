@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 export interface CardProps {
-  title: string;
+  title: ReactNode;
   /** Canto direito do cabeçalho: um selo de estado, um botão pequeno. */
   aside?: ReactNode;
   children: ReactNode;

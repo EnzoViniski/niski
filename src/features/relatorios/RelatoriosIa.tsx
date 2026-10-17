@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button, Card, SegmentedControl } from "../../components/ui";
 import { AgentIcon } from "../../components/ui/AgentIcon";
-import { ReloadIcon } from "../../components/ui/PixelIcon";
+import {
+  ChartIcon, ChatIcon, ClockIcon, CpuIcon, DatabaseIcon, FlagIcon, FolderIcon, GitBranchIcon, ReloadIcon, RobotIcon, SparkleIcon,
+} from "../../components/ui/PixelIcon";
 
 interface Dia { data: string; tokens: number; saida: number; cache_lido: number; prompts: number; respostas: number; conversas: number }
 interface Fatia { nome: string; provider?: string; tokens: number; prompts: number }
-interface Commit { em_ms: number; ia: boolean; linhas: number }
+interface Commit { em_ms: number; ia: boolean; linhas: number; removidas?: number }
 interface RelatorioIa {
   uso: { dias: Dia[]; por_conta: Fatia[]; por_modelo: Fatia[]; por_projeto: Fatia[]; por_hora: number[] };
   commits: { caminho: string; commits: Commit[] }[];
@@ -18,14 +20,37 @@ const fmt = (n: number) => (n < 10_000 ? inteiro.format(n) : compacto.format(n))
 /** "16/10" a partir de "2026-10-16". */
 const diaCurto = (data: string) => `${data.slice(8, 10)}/${data.slice(5, 7)}`;
 const pasta = (caminho: string) => caminho.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || caminho;
+const pct = (parte: number, todo: number) => (todo ? Math.round((parte / todo) * 100) : 0);
+
+function haQuanto(ms: number, agora: number): string {
+  const min = Math.floor(Math.max(0, agora - ms) / 60_000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  if (min < 24 * 60) return `há ${Math.floor(min / 60)} h`;
+  return `há ${Math.floor(min / (24 * 60))} d`;
+}
+
+/** Último relatório de cada período, para a tela abrir na hora enquanto o novo é lido. */
+const chaveGuardada = (dias: number) => `omni-relatorio-v1-${dias}`;
+function lerGuardado(dias: number): { em: number; dados: RelatorioIa } | null {
+  try {
+    const bruto = localStorage.getItem(chaveGuardada(dias));
+    return bruto ? JSON.parse(bruto) : null;
+  } catch {
+    return null;
+  }
+}
+function guardar(dias: number, dados: RelatorioIa) {
+  try { localStorage.setItem(chaveGuardada(dias), JSON.stringify({ em: Date.now(), dados })); } catch { /* sem armazenamento: só não abre instantâneo */ }
+}
 
 /** Barra horizontal com rótulo e valor: as listas por conta, modelo e projeto. */
-function Barras({ itens, total, vazio }: { itens: { chave: string; nome: React.ReactNode; valor: number; texto: string }[]; total: number; vazio: string }) {
+function Barras({ itens, total, vazio }: { itens: { chave: string; nome: React.ReactNode; valor: number; texto: React.ReactNode; titulo?: string }[]; total: number; vazio: string }) {
   if (itens.length === 0) return <p className="text-xs text-text-muted">{vazio}</p>;
   return (
     <ul className="rel-barras">
       {itens.map((item) => (
-        <li key={item.chave}>
+        <li key={item.chave} title={item.titulo}>
           <span className="rel-barras-nome">{item.nome}</span>
           <span className="rel-barras-trilho" aria-hidden><span style={{ width: `${total ? Math.min(100, Math.max(2, (item.valor / total) * 100)) : 0}%` }} /></span>
           <span className="rel-barras-valor">{item.texto}</span>
@@ -35,22 +60,56 @@ function Barras({ itens, total, vazio }: { itens: { chave: string; nome: React.R
   );
 }
 
+function Titulo({ icone: Icone, children }: { icone: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; children: React.ReactNode }) {
+  return <span className="inline-flex items-center gap-2"><Icone className="h-3.5 w-3.5 text-accent" aria-hidden />{children}</span>;
+}
+
+function Kpi({ tom, icone: Icone, rotulo, valor, sub }: {
+  tom: "accent" | "info" | "success" | "warning" | "danger";
+  icone: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  rotulo: string; valor: React.ReactNode; sub: React.ReactNode;
+}) {
+  return (
+    <div className="rel-cartao glass" data-tom={tom}>
+      <span className="rel-cartao-topo">
+        <span className="rel-cartao-rotulo">{rotulo}</span>
+        <span className="rel-cartao-icone" aria-hidden><Icone className="h-3.5 w-3.5" /></span>
+      </span>
+      <span className="rel-cartao-num">{valor}</span>
+      <span className="rel-cartao-sub">{sub}</span>
+    </div>
+  );
+}
+
 /**
  * Relatórios de uso de IA: tokens e mensagens por dia (lidos dos transcripts de cada conta), commits
  * que a IA assinou nos projetos abertos e onde/quando você mais usa. Tudo calculado neste PC.
+ *
+ * Abre com o último resultado guardado e atualiza por trás. O lado nativo guarda em disco o que já
+ * leu de cada transcript e só lê o que entrou desde a última vez — por isso a releitura é rápida.
  */
 export function RelatoriosIa({ projectPaths }: { projectPaths: string[] }) {
   const [dias, setDias] = useState<7 | 30>(7);
-  const [dados, setDados] = useState<RelatorioIa | null>(null);
+  const [guardado, setGuardado] = useState(() => lerGuardado(7));
+  const dados = guardado?.dados ?? null;
   const [lendo, setLendo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [agora, setAgora] = useState(() => Date.now());
   const chaveProjetos = projectPaths.join("\n");
+
+  useEffect(() => {
+    const relogio = window.setInterval(() => setAgora(Date.now()), 30_000);
+    return () => window.clearInterval(relogio);
+  }, []);
 
   const ler = useCallback(async () => {
     setLendo(true);
     setErro(null);
     try {
-      setDados(await invoke<RelatorioIa>("relatorio_ia", { dias, fusoMin: -new Date().getTimezoneOffset(), projetos: chaveProjetos ? chaveProjetos.split("\n") : [] }));
+      const novo = await invoke<RelatorioIa>("relatorio_ia", { dias, fusoMin: -new Date().getTimezoneOffset(), projetos: chaveProjetos ? chaveProjetos.split("\n") : [] });
+      guardar(dias, novo);
+      setGuardado({ em: Date.now(), dados: novo });
+      setAgora(Date.now());
     } catch (motivo) {
       setErro(motivo instanceof Error ? motivo.message : String(motivo));
     } finally {
@@ -58,6 +117,11 @@ export function RelatoriosIa({ projectPaths }: { projectPaths: string[] }) {
     }
   }, [dias, chaveProjetos]);
   useEffect(() => { void ler(); }, [ler]);
+
+  function trocarPeriodo(valor: 7 | 30) {
+    setDias(valor);
+    setGuardado(lerGuardado(valor));
+  }
 
   const resumo = useMemo(() => {
     if (!dados) return null;
@@ -76,18 +140,34 @@ export function RelatoriosIa({ projectPaths }: { projectPaths: string[] }) {
     }
     const porProjeto = dados.commits.map((projeto) => {
       const doPeriodo = todos.filter((c) => c.projeto === projeto.caminho);
-      return { caminho: projeto.caminho, total: doPeriodo.length, ia: doPeriodo.filter((c) => c.ia).length };
+      const daIa = doPeriodo.filter((c) => c.ia);
+      return {
+        caminho: projeto.caminho, total: doPeriodo.length, ia: daIa.length,
+        mais: daIa.reduce((s, c) => s + c.linhas, 0), menos: daIa.reduce((s, c) => s + (c.removidas ?? 0), 0),
+        ultimo: Math.max(0, ...doPeriodo.map((c) => c.em_ms)),
+      };
     }).filter((p) => p.total > 0).sort((a, b) => b.ia - a.ia || b.total - a.total);
     const hoje = dados.uso.dias[dados.uso.dias.length - 1];
-    const tokens = dados.uso.dias.reduce((soma, d) => soma + d.tokens, 0);
-    const prompts = dados.uso.dias.reduce((soma, d) => soma + d.prompts, 0);
-    const ativos = dados.uso.dias.filter((d) => d.tokens > 0);
+    const soma = (campo: keyof Omit<Dia, "data">) => dados.uso.dias.reduce((s, d) => s + d[campo], 0);
+    const tokens = soma("tokens");
+    const prompts = soma("prompts");
+    const cacheLido = soma("cache_lido");
+    const ativos = dados.uso.dias.filter((d) => d.tokens > 0 || d.prompts > 0);
     const pico = ativos.reduce<Dia | null>((maior, d) => (!maior || d.tokens > maior.tokens ? d : maior), null);
+    // Dias seguidos com uso, contando de hoje (ou de ontem, se hoje ainda não teve nada) para trás.
+    let sequencia = 0;
+    const lista = [...dados.uso.dias].reverse();
+    for (const [i, d] of lista.entries()) {
+      if (d.tokens > 0 || d.prompts > 0) sequencia += 1;
+      else if (i > 0 || sequencia > 0) break;
+    }
     return {
-      hoje, tokens, prompts, pico, commitsPorDia, porProjeto,
+      hoje, tokens, prompts, cacheLido, pico, commitsPorDia, porProjeto, sequencia,
+      saida: soma("saida"), respostas: soma("respostas"), diasAtivos: ativos.length,
       mediaDia: ativos.length ? tokens / ativos.length : 0,
       porMensagem: prompts ? tokens / prompts : 0,
-      commitsIa: ia.length, commitsTotal: todos.length, linhasIa: ia.reduce((soma, c) => soma + c.linhas, 0),
+      commitsIa: ia.length, commitsTotal: todos.length,
+      linhasIa: ia.reduce((s, c) => s + c.linhas, 0), removidasIa: ia.reduce((s, c) => s + (c.removidas ?? 0), 0),
     };
   }, [dados]);
 
@@ -97,12 +177,21 @@ export function RelatoriosIa({ projectPaths }: { projectPaths: string[] }) {
 
   return (
     <div className="settings-grade">
-      <Card title="Período" className="settings-largo"
-        aside={<Button size="sm" variant="ghost" onClick={() => void ler()} disabled={lendo}>
-          <ReloadIcon aria-hidden className={`h-3.5 w-3.5${lendo ? " anexo-girando" : ""}`} />{lendo ? "Lendo…" : "Atualizar"}
-        </Button>}>
+      <Card title={<Titulo icone={ChartIcon}>Período</Titulo>} className="settings-largo"
+        aside={
+          <span className="flex items-center gap-3">
+            {guardado && (
+              <span className="text-[11px] text-text-muted" aria-live="polite">
+                {lendo ? "atualizando…" : `atualizado ${haQuanto(guardado.em, agora)}`}
+              </span>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => void ler()} disabled={lendo}>
+              <ReloadIcon aria-hidden className={`h-3.5 w-3.5${lendo ? " anexo-girando" : ""}`} />{lendo ? "Lendo…" : "Atualizar"}
+            </Button>
+          </span>
+        }>
         <SegmentedControl<7 | 30> options={[{ value: 7, label: "Últimos 7 dias" }, { value: 30, label: "Últimos 30 dias" }]}
-          value={dias} onChange={setDias} />
+          value={dias} onChange={trocarPeriodo} />
         <p className="text-[11px] text-text-muted">
           Lido das conversas que o Claude e o Codex guardam neste computador, em todas as contas, e do git dos projetos abertos.
           Nada sai daqui. Tokens = o que a IA leu e escreveu; leituras do cache contam à parte porque custam bem menos.
@@ -111,35 +200,27 @@ export function RelatoriosIa({ projectPaths }: { projectPaths: string[] }) {
       </Card>
 
       {!dados || !resumo ? (
-        <Card title="Relatório" className="settings-largo"><p className="text-xs text-text-muted">{lendo ? "Somando o uso… a primeira leitura pode levar alguns segundos." : "Sem dados."}</p></Card>
+        <Card title="Relatório" className="settings-largo"><p className="text-xs text-text-muted">{lendo ? "Somando o uso… a primeira leitura pode levar alguns segundos; as próximas só leem o que mudou." : "Sem dados."}</p></Card>
       ) : (
         <>
           <section className="rel-cartoes settings-largo" aria-label="Resumo">
-            <div className="rel-cartao glass" data-tom="accent">
-              <span className="rel-cartao-rotulo">Tokens hoje</span>
-              <span className="rel-cartao-num">{fmt(resumo.hoje?.tokens ?? 0)}</span>
-              <span className="rel-cartao-sub">média de {fmt(Math.round(resumo.mediaDia))} por dia com uso</span>
-            </div>
-            <div className="rel-cartao glass" data-tom="info">
-              <span className="rel-cartao-rotulo">Mensagens hoje</span>
-              <span className="rel-cartao-num">{fmt(resumo.hoje?.prompts ?? 0)}</span>
-              <span className="rel-cartao-sub">{fmt(resumo.prompts)} no período · {resumo.hoje?.conversas ?? 0} conversas hoje</span>
-            </div>
-            <div className="rel-cartao glass" data-tom="success">
-              <span className="rel-cartao-rotulo">Commits da IA</span>
-              <span className="rel-cartao-num">{resumo.commitsIa}</span>
-              <span className="rel-cartao-sub">
-                de {resumo.commitsTotal} no período{resumo.commitsTotal ? ` · ${Math.round((resumo.commitsIa / resumo.commitsTotal) * 100)}%` : ""}
-              </span>
-            </div>
-            <div className="rel-cartao glass" data-tom="warning">
-              <span className="rel-cartao-rotulo">Linhas escritas pela IA</span>
-              <span className="rel-cartao-num">{fmt(resumo.linhasIa)}</span>
-              <span className="rel-cartao-sub">adicionadas nos commits da IA</span>
-            </div>
+            <Kpi tom="accent" icone={SparkleIcon} rotulo="Tokens hoje" valor={fmt(resumo.hoje?.tokens ?? 0)}
+              sub={`média de ${fmt(Math.round(resumo.mediaDia))} por dia com uso`} />
+            <Kpi tom="info" icone={ChatIcon} rotulo="Mensagens hoje" valor={fmt(resumo.hoje?.prompts ?? 0)}
+              sub={`${fmt(resumo.prompts)} no período · ${resumo.hoje?.conversas ?? 0} conversas hoje`} />
+            <Kpi tom="accent" icone={DatabaseIcon} rotulo="Tokens no período" valor={fmt(resumo.tokens)}
+              sub={`${fmt(resumo.saida)} escritos pela IA · ${pct(resumo.cacheLido, resumo.cacheLido + resumo.tokens)}% do contexto veio do cache`} />
+            <Kpi tom="warning" icone={FlagIcon} rotulo="Dias com uso" valor={`${resumo.diasAtivos}/${dias}`}
+              sub={resumo.sequencia > 1 ? `${resumo.sequencia} dias seguidos` : `${fmt(resumo.respostas)} respostas da IA no período`} />
+            <Kpi tom="success" icone={GitBranchIcon} rotulo="Commits da IA" valor={resumo.commitsIa}
+              sub={`de ${resumo.commitsTotal} no período${resumo.commitsTotal ? ` · ${pct(resumo.commitsIa, resumo.commitsTotal)}%` : ""}`} />
+            <Kpi tom="success" icone={RobotIcon} rotulo="Linhas da IA" valor={<>
+              <span className="text-success">+{fmt(resumo.linhasIa)}</span>{" "}
+              <span className="rel-cartao-num-menor text-danger">−{fmt(resumo.removidasIa)}</span>
+            </>} sub="adicionadas e removidas nos commits da IA" />
           </section>
 
-          <Card title="Uso por dia" className="settings-largo"
+          <Card title={<Titulo icone={ChartIcon}>Uso por dia</Titulo>} className="settings-largo"
             aside={resumo.pico && <span className="text-[11px] text-text-muted">Dia mais intenso: {diaCurto(resumo.pico.data)} · {fmt(resumo.pico.tokens)}</span>}>
             <div className="rel-grafico" role="img" aria-label={`Tokens por dia nos últimos ${dias} dias`}>
               {dados.uso.dias.map((d) => {
@@ -158,7 +239,7 @@ export function RelatoriosIa({ projectPaths }: { projectPaths: string[] }) {
             <p className="text-[11px] text-text-muted">Passe o mouse num dia para ver os números. ◆ = commit feito pela IA naquele dia.</p>
           </Card>
 
-          <Card title="Por conta">
+          <Card title={<Titulo icone={RobotIcon}>Por conta</Titulo>}>
             <Barras total={resumo.tokens} vazio="Nenhum uso no período."
               itens={dados.uso.por_conta.map((f) => ({
                 chave: `${f.provider}-${f.nome}`, valor: f.tokens, texto: `${fmt(f.tokens)} · ${f.prompts} msg`,
@@ -166,29 +247,50 @@ export function RelatoriosIa({ projectPaths }: { projectPaths: string[] }) {
               }))} />
           </Card>
 
-          <Card title="Por modelo">
+          <Card title={<Titulo icone={CpuIcon}>Por modelo</Titulo>}>
             <Barras total={resumo.tokens} vazio="Nenhum uso no período."
-              itens={dados.uso.por_modelo.map((f) => ({ chave: f.nome, valor: f.tokens, texto: fmt(f.tokens), nome: <span className="truncate">{f.nome}</span> }))} />
-          </Card>
-
-          <Card title="Por projeto">
-            <Barras total={resumo.tokens} vazio="Nenhum uso no período."
-              itens={dados.uso.por_projeto.slice(0, 8).map((f) => ({ chave: f.nome, valor: f.tokens, texto: `${fmt(f.tokens)} · ${f.prompts} msg`, nome: <span className="truncate">{f.nome}</span> }))} />
-          </Card>
-
-          <Card title="Commits por projeto">
-            <Barras total={Math.max(1, ...resumo.porProjeto.map((p) => p.total))} vazio="Nenhum commit nos projetos abertos no período."
-              itens={resumo.porProjeto.slice(0, 8).map((p) => ({
-                chave: p.caminho, valor: p.ia, texto: `${p.ia} de ${p.total}`, nome: <span className="truncate" title={p.caminho}>{pasta(p.caminho)}</span>,
+              itens={dados.uso.por_modelo.map((f) => ({
+                chave: f.nome, valor: f.tokens, texto: `${fmt(f.tokens)} · ${pct(f.tokens, resumo.tokens)}%`,
+                nome: <><CpuIcon className="h-3 w-3 shrink-0 text-text-muted" aria-hidden /><span className="truncate">{f.nome}</span></>,
               }))} />
           </Card>
 
-          <Card title="Quando você mais usa" className="settings-largo"
+          <Card title={<Titulo icone={FolderIcon}>Por projeto</Titulo>}>
+            <Barras total={resumo.tokens} vazio="Nenhum uso no período."
+              itens={dados.uso.por_projeto.slice(0, 8).map((f) => ({
+                chave: f.nome, valor: f.tokens, texto: `${fmt(f.tokens)} · ${f.prompts} msg`,
+                nome: <><FolderIcon className="h-3 w-3 shrink-0 text-accent" aria-hidden /><span className="truncate">{f.nome}</span></>,
+              }))} />
+          </Card>
+
+          <Card title={<Titulo icone={GitBranchIcon}>Git por projeto</Titulo>}>
+            {resumo.porProjeto.length === 0 ? <p className="text-xs text-text-muted">Nenhum commit nos projetos abertos no período.</p> : (
+              <ul className="rel-git">
+                {resumo.porProjeto.slice(0, 8).map((p) => (
+                  <li key={p.caminho} title={p.caminho}>
+                    <span className="rel-git-topo">
+                      <GitBranchIcon className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden />
+                      <span className="min-w-0 flex-1 truncate text-text-primary">{pasta(p.caminho)}</span>
+                      <span className="rel-git-ultimo"><ClockIcon className="h-3 w-3" aria-hidden />{haQuanto(p.ultimo, agora)}</span>
+                    </span>
+                    <span className="rel-barras-trilho" aria-hidden><span style={{ width: `${Math.max(2, pct(p.ia, p.total))}%` }} /></span>
+                    <span className="rel-git-meta">
+                      <span><RobotIcon className="h-3 w-3" aria-hidden />{p.ia} de {p.total} commits pela IA</span>
+                      <span className="text-success">+{fmt(p.mais)}</span>
+                      <span className="text-danger">−{fmt(p.menos)}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card title={<Titulo icone={ClockIcon}>Quando você mais usa</Titulo>} className="settings-largo"
             aside={horaPico >= 0 && dados.uso.por_hora[horaPico] > 0 && <span className="text-[11px] text-text-muted">Pico às {horaPico}h</span>}>
             <div className="rel-horas" role="img" aria-label="Mensagens por hora do dia">
               {dados.uso.por_hora.map((n, hora) => (
                 <div key={hora} className="rel-hora" title={`${hora}h: ${n} mensagens`}>
-                  <span className="rel-hora-barra" style={{ height: `${(n / maiorHora) * 100}%` }} />
+                  <span className={`rel-hora-barra${hora === horaPico && n > 0 ? " rel-hora-pico" : ""}`} style={{ height: `${(n / maiorHora) * 100}%` }} />
                   <span className="rel-hora-rotulo">{hora % 3 === 0 ? `${hora}h` : ""}</span>
                 </div>
               ))}

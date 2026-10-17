@@ -313,6 +313,8 @@ pub struct CommitResumo {
     pub em_ms: i64,
     pub ia: bool,
     pub linhas: u64,
+    /// Linhas removidas (`deletions` do shortstat).
+    pub removidas: u64,
 }
 
 /// Marcas que Claude Code, Codex e Cursor deixam no commit. Minúsculas.
@@ -328,10 +330,10 @@ fn parse_commits(saida: &str) -> Vec<CommitResumo> {
         let minusculo = corpo.to_lowercase();
         let ia = MARCAS_DE_IA.iter().any(|marca| minusculo.contains(marca));
         // `--shortstat`: " 3 files changed, 10 insertions(+), 2 deletions(-)" depois do corpo.
-        let linhas = corpo.lines().rev().find(|linha| linha.contains("changed,") || linha.contains("insertion"))
-            .and_then(|linha| linha.split(',').find(|parte| parte.contains("insertion")))
+        let resumo = corpo.lines().rev().find(|linha| linha.contains("changed,")).unwrap_or("");
+        let conta = |tipo: &str| resumo.split(',').find(|parte| parte.contains(tipo))
             .and_then(|parte| parte.split_whitespace().next()?.parse().ok()).unwrap_or(0);
-        Some(CommitResumo { em_ms, ia, linhas })
+        Some(CommitResumo { em_ms, ia, linhas: conta("insertion"), removidas: conta("deletion") })
     }).collect()
 }
 
@@ -403,8 +405,8 @@ mod tests {
         let saida = "\u{1e}1760000000\u{1}feat: login\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n\n 2 files changed, 30 insertions(+), 4 deletions(-)\n\u{1e}1760000100\u{1}fix: manual\n\n 1 file changed, 1 deletion(-)\n";
         let commits = parse_commits(saida);
         assert_eq!(commits, vec![
-            CommitResumo { em_ms: 1_760_000_000_000, ia: true, linhas: 30 },
-            CommitResumo { em_ms: 1_760_000_100_000, ia: false, linhas: 0 },
+            CommitResumo { em_ms: 1_760_000_000_000, ia: true, linhas: 30, removidas: 4 },
+            CommitResumo { em_ms: 1_760_000_100_000, ia: false, linhas: 0, removidas: 1 },
         ]);
     }
 
