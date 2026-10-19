@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { createConnection } from "node:net";
 import { resolve } from "node:path";
 
@@ -49,6 +49,12 @@ async function shutdownRunningEngine() {
 }
 
 async function copyEngine(source, destination) {
+  // macOS/Linux: sobrescrever no lugar o binário de um engine em execução altera páginas que ele
+  // tem mapeadas — no macOS a assinatura deixa de bater e o kernel mata o processo (SIGKILL) na
+  // próxima leitura. Apagar antes cria um arquivo novo; o processo vivo segue com o antigo.
+  if (process.platform !== "win32" && existsSync(destination) && digest(source) !== digest(destination)) {
+    rmSync(destination);
+  }
   try {
     copyFileSync(source, destination);
     return;
