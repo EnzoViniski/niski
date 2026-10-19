@@ -50,11 +50,19 @@ export const CursorIcon = makeBrandIcon(
   "currentColor"
 );
 
+/** Antigravity (Google). Grade 16×16: o arco da marca, no azul do Google. */
+export const AntigravityIcon = makeBrandIcon(
+  "M6 2h4v2h-4zM4 4h3v2h-3zM9 4h3v2h-3zM3 6h3v3h-3zM10 6h3v3h-3zM2 9h3v3h-3zM11 9h3v3h-3zM1 12h3v2h-3zM12 12h3v2h-3z",
+  16,
+  "#4285f4"
+);
+
 /** Ids de CLI com marca desenhada. Id desconhecido cai em `undefined` e não renderiza nada. */
 export const AGENT_ICON: Record<string, typeof ClaudeIcon | undefined> = {
   claude: ClaudeIcon,
   codex: GptIcon,
   cursor: CursorIcon,
+  antigravity: AntigravityIcon,
 };
 
 /** Ícone do provider, ou nada quando a CLI não tem marca desenhada. */

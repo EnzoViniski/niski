@@ -57,7 +57,7 @@ pub struct Entry {
 /// Teto do detalhe de uma ação. A tela corta com reticências; o texto inteiro fica no tooltip.
 const DETALHE_MAX: usize = 400;
 
-fn curto(texto: &str) -> String {
+pub(crate) fn curto(texto: &str) -> String {
     let linha = texto.lines().map(str::trim).find(|linha| !linha.is_empty()).unwrap_or("");
     let mut saida: String = linha.chars().take(DETALHE_MAX).collect();
     if linha.chars().count() > DETALHE_MAX || texto.trim().lines().count() > 1 {
@@ -255,6 +255,13 @@ pub fn imagem(fontes: &[(PathBuf, String)], n: usize, k: usize, cache: &mut Feed
         }
         let Some(entrada) = alvo else { continue };
         if entrada.item.imagens <= k { return None; }
+        if entrada.item.role == "assistant" {
+            use base64::Engine as _;
+            let caminho = caminhos_de_imagem(&entrada.item.text).into_iter().nth(k)?;
+            let nome = caminho.to_string_lossy().to_ascii_lowercase();
+            let tipo = EXTENSOES_DE_IMAGEM.iter().find(|(ext, _)| nome.ends_with(ext))?.1;
+            return Some((tipo.to_owned(), base64::engine::general_purpose::STANDARD.encode(std::fs::read(&caminho).ok()?)));
+        }
         let uuid = entrada.identity.split_once(':')?.1.rsplit_once('#')?.0.to_owned();
         let arquivo = std::io::BufReader::new(File::open(caminho).ok()?);
         let linha = std::io::BufRead::lines(arquivo).map_while(Result::ok)
@@ -347,7 +354,55 @@ pub fn items(value: &Value, provider: &str) -> Vec<Item> {
         }
         _ => {}
     }
+    // Print ou imagem que o agente cita pelo caminho ("salvei em C:\…\tela.png") vira imagem na
+    // conversa, como as coladas pelo usuário.
+    for it in saida.iter_mut().filter(|it| it.role == "assistant" && it.kind == Kind::Text) {
+        it.imagens = caminhos_de_imagem(&it.text).len();
+    }
     saida
+}
+
+const EXTENSOES_DE_IMAGEM: [(&str, &str); 5] =
+    [(".png", "image/png"), (".jpg", "image/jpeg"), (".jpeg", "image/jpeg"), (".gif", "image/gif"), (".webp", "image/webp")];
+/// Maior imagem citada que a conversa mostra (o JSON leva o arquivo inteiro em base64).
+const IMAGEM_MAX_BYTES: u64 = 15 * 1024 * 1024;
+
+/// Caminhos absolutos de imagens que existem, citados num texto, na ordem e sem repetir. Aceita
+/// `C:\…` e `C:/…` (com espaços, como `C:\Users\Fulano de Tal\…`) e `/…` sem espaços. O caminho vem
+/// do texto do agente, nunca de quem pede pela rede, e só imagens comuns passam.
+pub fn caminhos_de_imagem(texto: &str) -> Vec<PathBuf> {
+    let mut achados: Vec<PathBuf> = Vec::new();
+    for linha in texto.lines() {
+        let minusculo = linha.to_ascii_lowercase();
+        let bytes = linha.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            let antes = if i == 0 { b' ' } else { bytes[i - 1] };
+            let drive = i + 2 < bytes.len() && bytes[i].is_ascii_alphabetic() && bytes[i + 1] == b':'
+                && matches!(bytes[i + 2], b'\\' | b'/') && !antes.is_ascii_alphanumeric();
+            let raiz = bytes[i] == b'/' && matches!(antes, b' ' | b'`' | b'(' | b'"' | b'\'' | b'<' | b'[' | b'*');
+            if !(drive || raiz) { i += 1; continue; }
+            // O fim é a primeira extensão de imagem seguida de algo que não continua o nome.
+            let fim = EXTENSOES_DE_IMAGEM.iter().filter_map(|(ext, _)| {
+                let mut de = i;
+                while let Some(pos) = minusculo[de..].find(ext) {
+                    let f = de + pos + ext.len();
+                    if f == bytes.len() || !(bytes[f].is_ascii_alphanumeric() || bytes[f] == b'_' || bytes[f] == b'-') { return Some(f); }
+                    de = f;
+                }
+                None
+            }).min();
+            let Some(fim) = fim else { break };
+            let candidato = &linha[i..fim];
+            if (drive || !candidato.contains(' ')) && !candidato.contains(['`', '"', '<', '>', '|', '*', '?']) {
+                let caminho = PathBuf::from(candidato);
+                let cabe = std::fs::metadata(&caminho).is_ok_and(|m| m.is_file() && m.len() <= IMAGEM_MAX_BYTES);
+                if cabe && !achados.contains(&caminho) { achados.push(caminho); }
+                i = fim;
+            } else { i += 1; }
+        }
+    }
+    achados
 }
 
 /// FNV-1a: identidade estável de uma linha sem guardar a linha inteira na memória.
@@ -427,6 +482,25 @@ impl FeedCache {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn imagem_citada_pelo_agente_vira_imagem_da_mensagem() {
+        let dir = tempfile::tempdir().unwrap();
+        let pasta = dir.path().join("Fulano de Tal");
+        std::fs::create_dir_all(&pasta).unwrap();
+        let tela = pasta.join("tela.png");
+        let foto = pasta.join("foto.JPG");
+        std::fs::write(&tela, b"png").unwrap();
+        std::fs::write(&foto, b"jpg").unwrap();
+        std::fs::write(pasta.join("notas.txt"), b"txt").unwrap();
+        let texto = format!("Print em `{}`, de novo {}.\nE {} (foto). Sumiu: {}. Texto: {}",
+            tela.display(), tela.display(), foto.display(), pasta.join("nao.png").display(), pasta.join("notas.txt").display());
+        assert_eq!(caminhos_de_imagem(&texto), vec![tela.clone(), foto.clone()]);
+        let linha = json!({"type": "assistant", "uuid": "u1", "message": {"role": "assistant", "content": [{"type": "text", "text": texto}]}});
+        let itens = items(&linha, "claude");
+        assert_eq!(itens[0].imagens, 2);
+        assert_eq!(caminhos_de_imagem("versao 1.2.png ou http://x.com/a.png ou abc/def.png"), Vec::<PathBuf>::new());
+    }
 
     fn claude(role: &str, content: Value) -> Value {
         json!({"type": role, "uuid": "u", "timestamp": "2026-10-12T10:00:00Z", "message": {"role": role, "content": content}})

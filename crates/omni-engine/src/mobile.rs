@@ -57,8 +57,18 @@ struct Action {
 enum ActionKind { Prompt(String), Approval(bool), Spawn(SpawnPlan), Modo(String), Ajustes(Ajustes), Retomar(Retomada),
     /// Mensagem mandada com o agente no meio de um turno: entra na fila da CLI.
     Fila(String),
-    /// Resposta a um menu da CLI (`interaction::escolha`): o número da opção, ou `None` = Esc.
-    Escolha(Option<u8>) }
+    /// Resposta a um menu da CLI (`interaction::escolha`).
+    Escolha(Resposta) }
+
+#[derive(Clone, Copy, PartialEq)]
+enum Resposta {
+    /// O número da opção: escolhe, ou marca/desmarca quando o menu é de marcar várias.
+    Opcao(u8),
+    /// Tab: no marcar-várias, segue para a próxima pergunta ou para a revisão.
+    Avancar,
+    /// Esc.
+    Fechar,
+}
 
 /// Uma conversa sem sessão aberta (do índice do OMNI ou só do histórico da CLI) e como reabri-la.
 /// Resolvido no servidor antes da fila, como o `SpawnPlan`: o corpo do request só escolhe conta,
@@ -1320,9 +1330,10 @@ async fn approve(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath
     enqueue_async(state,id,headers,ActionKind::Approval(body.permitir)).await
 }
 
-#[derive(Deserialize)] #[serde(deny_unknown_fields)] struct EscolhaBody { opcao: Option<u8> }
+#[derive(Deserialize)] #[serde(deny_unknown_fields)] struct EscolhaBody { opcao: Option<u8>, #[serde(default)] avancar: bool }
 async fn escolher(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<EscolhaBody>) -> Result<(StatusCode,Json<Value>),ApiError> {
-    enqueue_async(state,id,headers,ActionKind::Escolha(body.opcao)).await
+    let resposta = match (body.avancar, body.opcao) { (true, _) => Resposta::Avancar, (false, Some(n)) => Resposta::Opcao(n), (false, None) => Resposta::Fechar };
+    enqueue_async(state,id,headers,ActionKind::Escolha(resposta)).await
 }
 
 /// Modo de permissão, o que o `shift+tab` faz no terminal. Só `plan` e `auto`: são os dois que o
@@ -1442,8 +1453,11 @@ fn enqueue(state:&Arc<EngineState>,id:&str,headers:&HeaderMap,kind:ActionKind) -
         // Fila vale com o agente parado (vira um prompt comum) ou trabalhando com o campo livre.
         ActionKind::Fila(_) => capability.prompt || capability.enfileirar,
         ActionKind::Approval(_) => capability.approve,
-        ActionKind::Escolha(opcao) => capability.escolha.as_ref()
-            .is_some_and(|menu| opcao.is_none_or(|n| menu.opcoes.iter().any(|o| o.numero == n))),
+        ActionKind::Escolha(resposta) => capability.escolha.as_ref().is_some_and(|menu| match resposta {
+            Resposta::Opcao(n) => menu.opcoes.iter().any(|o| o.numero == n),
+            Resposta::Avancar => menu.multipla,
+            Resposta::Fechar => true,
+        }),
         ActionKind::Spawn(_) | ActionKind::Retomar(_) => false,
     };
     if !supported { return Err(error(StatusCode::CONFLICT,"Sessão ocupada ou tela não reconhecida; atualize o status")); }
@@ -1504,6 +1518,29 @@ fn modelos_codex(config_dir: &Path) -> Vec<Value> {
         }).collect()
 }
 
+/// Saída do `agy models` (slug e nome de cada variante). A lista vem da internet e leva uns segundos,
+/// então fica guardada um dia em `modelos-antigravity.txt` no engine. Falhou e não há cópia: vazio, e
+/// o seletor some em vez de travar a conversa.
+fn saida_agy_models(dir: &Path) -> String {
+    let arquivo = dir.join("modelos-antigravity.txt");
+    let fresca = std::fs::metadata(&arquivo).and_then(|m| m.modified()).ok()
+        .and_then(|quando| quando.elapsed().ok()).is_some_and(|idade| idade < std::time::Duration::from_secs(24 * 3600));
+    let guardada = std::fs::read_to_string(&arquivo).ok();
+    if fresca { if let Some(texto) = guardada.clone() { return texto; } }
+    omni_core::cli_path::ampliar_path();
+    let mut comando = std::process::Command::new("agy");
+    comando.arg("models").stdin(std::process::Stdio::null());
+    #[cfg(windows)] { use std::os::windows::process::CommandExt; comando.creation_flags(0x08000000); }
+    match comando.output() {
+        Ok(saida) if saida.status.success() && !omni_core::antigravity::variantes(&String::from_utf8_lossy(&saida.stdout)).is_empty() => {
+            let texto = String::from_utf8_lossy(&saida.stdout).into_owned();
+            let _ = std::fs::write(&arquivo, &texto);
+            texto
+        }
+        _ => guardada.unwrap_or_default(),
+    }
+}
+
 /// Agente, conta, pasta e id nativo da última sessão — do índice do OMNI ou do histórico da CLI.
 fn ultima_sessao(state: &EngineState, id: &str) -> Result<omni_core::conversations::Segment, ApiError> {
     if let Ok((conversa,_)) = current(state,id) {
@@ -1535,16 +1572,25 @@ fn opcoes_da_conversa(state: &EngineState, id: &str) -> Result<Value, ApiError> 
         ("codex", Some(perfil)) => omni_core::runtime::codex_runtime(Path::new(&perfil.config_dir),&cwd),
         _ => None,
     };
+    let saida_agy = (segmento.provider == "antigravity").then(|| saida_agy_models(dir)).unwrap_or_default();
+    // Antigravity: o modelo em uso sai do log da própria sessão, já como família + esforço.
+    let (modelo_agy, esforco_agy) = match (segmento.provider.as_str(), atual, segmento.terminal_session_id.as_deref()) {
+        ("antigravity", Some(perfil), Some(sessao)) => omni_core::antigravity::modelo_da_sessao(Path::new(&perfil.config_dir), sessao, &saida_agy)
+            .map_or((None, None), |(familia, esforco)| (Some(familia), esforco)),
+        _ => (None, None),
+    };
     let modelos: Vec<Value> = match segmento.provider.as_str() {
         "claude" => MODELOS_CLAUDE.iter().map(|(id,label)| json!({"id":id,"label":label,"efforts":ESFORCOS_CLAUDE})).collect(),
         "codex" => atual.map(|perfil| modelos_codex(Path::new(&perfil.config_dir))).unwrap_or_default(),
+        "antigravity" => omni_core::antigravity::familias(&saida_agy).into_iter()
+            .map(|f| json!({"id":f.id,"label":f.label,"efforts":f.esforcos})).collect(),
         _ => Vec::new(),
     };
     Ok(json!({
         "provider": segmento.provider,
         "profile_id": segmento.profile_id,
-        "model": runtime.as_ref().and_then(|r| r.model.clone()),
-        "effort": runtime.as_ref().and_then(|r| r.effort.clone()),
+        "model": runtime.as_ref().and_then(|r| r.model.clone()).or(modelo_agy),
+        "effort": runtime.as_ref().and_then(|r| r.effort.clone()).or(esforco_agy),
         "profiles": perfis.iter().map(|p| json!({"id":p.id,"name":p.name})).collect::<Vec<_>>(),
         "models": modelos,
         "can_resume": segmento.external_session_id.is_some(),
@@ -1683,6 +1729,14 @@ async fn arquivos_da_conversa(State(state): State<Arc<EngineState>>, RoutePath(i
 
 /// Linha de comando que retoma a conversa com o modelo e o esforço pedidos.
 fn comando_de_retomada(base: &str, provider: &str, sessao: &str, ajustes: &Ajustes) -> Result<String> {
+    // Antigravity: família + esforço viram a variante (`--model gemini-4-argon --effort high`). As
+    // opções vão **antes** do `--conversation`: o reinício troca só o que vem depois dele.
+    if provider == "antigravity" {
+        let mut comando = base.to_owned();
+        if let Some(modelo) = &ajustes.model { comando += &format!(" --model {modelo}"); }
+        if let Some(esforco) = &ajustes.effort { comando += &format!(" --effort {esforco}"); }
+        return Ok(format!("{comando} --conversation {sessao}"));
+    }
     let mut comando = match provider {
         "claude" => format!("{base} --resume {sessao}"),
         "codex" => format!("{base} resume {sessao}"),
@@ -2041,11 +2095,31 @@ fn execute_checked(state:&Arc<EngineState>, action:&Action, is_running: impl Fn(
         ActionKind::Approval(allow) => { let dialog = interaction::approval(&context.parser.screen().contents(),provider).ok_or_else(||anyhow!("Aprovação não reconhecida"))?; (if *allow { dialog.0 } else { dialog.1 }, false) },
         // O número sozinho escolhe (confirmado num Claude Code 2.1.302 real); Esc fecha o menu.
         ActionKind::Escolha(opcao) => {
-            let menu = interaction::escolha(&context.parser.screen().contents()).ok_or_else(||anyhow!("Menu não reconhecido"))?;
+            let menu = interaction::escolha(&interaction::linha_a_linha(context.parser.screen())).ok_or_else(||anyhow!("Menu não reconhecido"))?;
             match opcao {
-                Some(n) if menu.opcoes.iter().any(|o| o.numero == *n) => (n.to_string(), false),
-                Some(_) => return Err(anyhow!("Opção inexistente")),
-                None => ("\x1b".into(), false),
+                // Antigravity: menu de setas ("↑/↓ Navigate · enter Select"). Anda da opção marcada com
+                // `>` até a pedida e confirma.
+                Resposta::Opcao(n) if provider == "antigravity" && menu.opcoes.iter().any(|o| o.numero == *n) => {
+                    let tela = context.parser.screen().contents();
+                    let marcada = tela.lines().filter_map(|l| l.trim().strip_prefix("> ")?.split_once(". ")?.0.parse::<u8>().ok())
+                        .last().ok_or_else(||anyhow!("Opção marcada não reconhecida"))?;
+                    let seta = if *n >= marcada { "\x1b[B" } else { "\x1b[A" };
+                    (format!("{}\r", seta.repeat(n.abs_diff(marcada) as usize)), false)
+                }
+                // Com prévia o número só move a seleção: manda o Enter depois, em outro write — junto, a
+                // CLI recebe uma rajada só e pode não tratar como duas teclas.
+                Resposta::Opcao(n) if menu.previa && menu.opcoes.iter().any(|o| o.numero == *n) => {
+                    let mut writer = session.writer.lock().map_err(|_|anyhow!("writer poisoned"))?;
+                    writer.write_all(n.to_string().as_bytes())?; writer.flush()?;
+                    drop(writer);
+                    std::thread::sleep(std::time::Duration::from_millis(150));
+                    ("\r".into(), false)
+                }
+                Resposta::Opcao(n) if menu.opcoes.iter().any(|o| o.numero == *n) => (n.to_string(), false),
+                Resposta::Opcao(_) => return Err(anyhow!("Opção inexistente")),
+                Resposta::Avancar if menu.multipla => ("\t".into(), false),
+                Resposta::Avancar => return Err(anyhow!("Este menu não é de marcar várias")),
+                Resposta::Fechar => ("\x1b".into(), false),
             }
         }
         _ => return Err(anyhow!("Entrada não está disponível")),
@@ -3017,6 +3091,9 @@ quebra"}"#] {
                 "codex resume xyz -m gpt-5.6-sol -c model_reasoning_effort=xhigh");
             assert_eq!(comando_de_retomada("claude","claude","abc",&ajustes(None,None)).unwrap(), "claude --resume abc");
             assert!(comando_de_retomada("cursor-agent","cursor","abc",&ajustes(None,None)).is_err());
+            assert_eq!(comando_de_retomada("agy","antigravity","c1",&ajustes(Some("gemini-4-argon"),Some("high"))).unwrap(),
+                "agy --model gemini-4-argon --effort high --conversation c1");
+            assert_eq!(comando_de_retomada("agy","antigravity","c1",&ajustes(None,None)).unwrap(), "agy --conversation c1");
         }
 
         /// O valor vira argumento de um comando digitado num shell: nada de `;`, espaço ou aspas.

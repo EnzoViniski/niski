@@ -26,7 +26,7 @@ pub struct AccountUsage {
 impl AccountUsage {
     pub fn unavailable(profile_id: &str, provider: &str, reason: &str) -> Self {
         Self { profile_id: profile_id.into(), provider: provider.into(),
-            source: if provider == "codex" { "codex_rollout" } else { "claude_screen" }.into(),
+            source: match provider { "codex" => "codex_rollout", "antigravity" => "antigravity_screen", _ => "claude_screen" }.into(),
             status: "unavailable".into(), observed_at_ms: None, primary: None, secondary: None,
             reason: Some(reason.into()) }
     }
@@ -172,10 +172,57 @@ pub fn parse_claude_screen(screen: &str, profile_id: &str, now_ms: u64) -> Accou
     result
 }
 
+/// Painel "Models & Quota" do `/usage` do Antigravity CLI (1.4.2). A tela diz quanto **resta**
+/// ("Five Hour Limit Remaining … 100.00%"), por grupo de modelos; o OMNI guarda quanto foi **usado**.
+/// Vale o grupo "GEMINI MODELS" (o padrão da CLI); sem ele, o primeiro grupo da tela.
+/// ponytail: um grupo só — quem usa Claude/GPT dentro do Antigravity vê o limite do Gemini. Upgrade:
+/// escolher o grupo pelo modelo do rodapé quando o nome bater com a lista "Models within this group".
+pub fn parse_antigravity_screen(screen: &str, profile_id: &str, now_ms: u64) -> AccountUsage {
+    let mut result = AccountUsage::unavailable(profile_id, "antigravity", "Formato de /usage não reconhecido");
+    let lines: Vec<&str> = screen.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    if !lines.iter().any(|l| l.contains("Models & Quota")) { return result; }
+    let inicio = lines.iter().position(|l| *l == "GEMINI MODELS")
+        .or_else(|| lines.iter().position(|l| l.ends_with("MODELS")))
+        .unwrap_or(0);
+    // O grupo vai até o próximo título em maiúsculas.
+    let fim = lines.iter().enumerate().skip(inicio + 1)
+        .find(|(_, l)| l.len() > 3 && l.chars().any(char::is_alphabetic) && !l.chars().any(char::is_lowercase))
+        .map_or(lines.len(), |(i, _)| i);
+    let grupo = &lines[inicio..fim];
+    let janela = |titulo: &str, minutos: u64| -> Option<UsageWindow> {
+        let i = grupo.iter().position(|l| *l == titulo)?;
+        let barra = grupo.get(i + 1)?;
+        let numero = barra.strip_suffix('%')?.split_whitespace().last()?;
+        let resta = numero.parse::<f64>().ok().filter(|v| v.is_finite() && (0.0..=100.0).contains(v))?;
+        let nota = grupo.get(i + 2).filter(|l| !l.ends_with("Remaining") && **l != "Quota available");
+        Some(UsageWindow { used_percent: ((100.0 - resta) * 100.0).round() / 100.0, window_minutes: minutos,
+            resets_at: None, reset_label: nota.map(|l| (*l).to_owned()) })
+    };
+    let (primary, secondary) = (janela("Five Hour Limit Remaining", 300), janela("Weekly Limit Remaining", 10080));
+    if primary.is_some() || secondary.is_some() {
+        result.source = "antigravity_screen".into();
+        result.primary = primary; result.secondary = secondary;
+        result.status = "available".into(); result.observed_at_ms = Some(now_ms); result.reason = None;
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// Tela real do `/usage` do agy 1.4.2 (texto como o terminal mostra, barras viram `█`).
+    #[test] fn antigravity_le_o_que_resta_e_guarda_o_usado() {
+        let tela = "> \n└ Models & Quota\n\n  Account: eu@gmail.com\n\nGEMINI MODELS\n  Models within this group: Gemini Flash, Gemini Pro\n\n  Weekly Limit Remaining\n    [██████████████          ] 62.50%\n    Resets in 3d 4h\n\n  Five Hour Limit Remaining\n    [████████████████████████] 100.00%\n    Quota available\n\nCLAUDE AND GPT MODELS\n  Models within this group: Claude Opus\n\n  Weekly Limit Remaining\n    [                        ] 0.00%\n    Quota exhausted\n";
+        let uso = parse_antigravity_screen(tela, "p", 7);
+        assert_eq!(uso.status, "available");
+        assert_eq!(uso.primary.as_ref().unwrap().used_percent, 0.0);
+        assert!(uso.primary.unwrap().reset_label.is_none());
+        let semana = uso.secondary.unwrap();
+        assert_eq!((semana.used_percent, semana.reset_label.as_deref()), (37.5, Some("Resets in 3d 4h")));
+        assert!(parse_antigravity_screen("GEMINI MODELS\nWeekly Limit Remaining\n[] 10.00%", "p", 7).primary.is_none());
+    }
     #[test] fn validates_windows_and_expiration() {
         let event = json!({"timestamp":"2026-09-10T04:21:00Z","payload":{"rate_limits":{
             "primary":{"used_percent":5,"window_minutes":300,"resets_at":2000000000},

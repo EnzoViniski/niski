@@ -8,8 +8,8 @@ export interface Conversation {
     prompt: boolean; approve: boolean; revision: string; approval_text: string | null; reason: string | null;
     /** Agente no meio do turno com o campo livre: mensagem mandada agora entra na fila da CLI. */
     enfileirar?: boolean;
-    /** Menu da própria CLI travando o campo (ex.: "Teach auto mode…?"): responde-se pelo número. */
-    escolha?: { pergunta: string; detalhe: string | null; opcoes: { numero: number; rotulo: string }[] } | null;
+    /** Menu da CLI ou pergunta do agente travando o campo: responde-se pelo número. */
+    escolha?: Escolha | null;
   } | null;
   /** Há uma sessão aberta no PC ligada a esta conversa (dá para ver o terminal e mandar teclas). */
   live?: boolean;
@@ -67,8 +67,11 @@ export interface Painel { conversations: Conversation[]; catalog: Projects }
 /** Precisa de você: aprovação pendente ou agente parado esperando a próxima mensagem. Mesma regra
  *  que o servidor usava no `/atencao`. */
 /** Agentes que a visão Conversa entende: o OMNI lê o transcript e reconhece a tela deles. O Cursor
- *  não grava transcript legível, então a aba dele fica no terminal (que funciona normalmente). */
-export const AGENTES_COM_CONVERSA = ["claude", "codex"];
+ *  não grava transcript legível, então a aba dele fica no terminal (que funciona normalmente).
+ *  O Antigravity grava num SQLite que o engine lê (`omni_core::antigravity`). */
+export const AGENTES_COM_CONVERSA = ["claude", "codex", "antigravity"];
+/** Agentes com uso de conta (5 h e semana) que o OMNI consegue ler. */
+export const AGENTES_COM_USO = ["claude", "codex", "antigravity"];
 export function temConversa(provider: string | null | undefined): boolean {
   return !provider || AGENTES_COM_CONVERSA.includes(provider);
 }
@@ -192,4 +195,16 @@ export async function enviarTeclas(conversa: string, dados: string) {
 // HTTP on a Tailscale IP is not a secure context: crypto.randomUUID may be unavailable.
 export function actionKey(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2,"0")).join("");
+}
+
+/** Pergunta na tela do terminal (menu da CLI ou AskUserQuestion do agente). */
+export interface Escolha {
+  pergunta: string;
+  /** Texto entre a pergunta e as opções, uma linha da tela por linha. */
+  detalhe: string | null;
+  opcoes: { numero: number; rotulo: string; descricao?: string; marcada?: boolean }[];
+  /** Marcar várias: o número marca/desmarca e "avançar" (Tab) segue. */
+  multipla?: boolean;
+  /** Várias perguntas seguidas: as abas e quais já têm resposta. */
+  etapas?: { titulo: string; respondida: boolean }[];
 }

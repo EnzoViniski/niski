@@ -30,6 +30,9 @@ fn comando(id: &str) -> Option<&'static str> {
         // https://cursor.com/docs/cli/installation
         ("cursor", true) => "irm 'https://cursor.com/install?win32=true' | iex",
         ("cursor", false) => "curl https://cursor.com/install -fsS | bash",
+        // https://antigravity.google/docs/getting-started
+        ("antigravity", true) => "irm https://antigravity.google/cli/install.ps1 | iex",
+        ("antigravity", false) => "curl -fsSL https://antigravity.google/cli/install.sh | bash",
         _ => return None,
     })
 }
@@ -39,6 +42,7 @@ fn docs(id: &str) -> Option<&'static str> {
         "claude" => "https://code.claude.com/docs/en/setup",
         "codex" => "https://learn.chatgpt.com/docs/codex/cli",
         "cursor" => "https://cursor.com/docs/cli/installation",
+        "antigravity" => "https://antigravity.google/docs/getting-started",
         "tailscale" => "https://tailscale.com/download",
         _ => return None,
     })
@@ -104,7 +108,7 @@ mod tests {
 
     #[test]
     fn cada_cli_tem_comando_e_pagina_oficial() {
-        for id in ["claude", "codex", "cursor"] {
+        for id in ["claude", "codex", "cursor", "antigravity"] {
             let hint = install_hint(id.into()).expect(id);
             assert!(hint.automatico, "{id} deveria ter instalador automático");
             assert!(hint.comando.starts_with(if cfg!(windows) { "irm" } else { "curl" }), "{id}: {}", hint.comando);

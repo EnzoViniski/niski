@@ -40,7 +40,7 @@ export interface TerminalSession {
   last_activity_at_ms?: number;
 }
 
-export type AgentCliId = "cursor" | "claude" | "codex";
+export type AgentCliId = "cursor" | "claude" | "codex" | "antigravity";
 
 export interface AgentCliStatus {
   id: AgentCliId;

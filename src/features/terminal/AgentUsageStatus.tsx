@@ -10,6 +10,7 @@ export { resetShort, usageTone };
 import { useSession } from "./sessionProviders";
 import { listProfiles, type Profile } from "./terminalService";
 import { UsoDeTodasAsContas } from "./UsoDeTodasAsContas";
+import { AGENTES_COM_USO } from "../../mobile/api";
 
 export function timeAgo(ms: number, now: number) {
   const seconds = Math.max(0, Math.round((now - ms) / 1000));
@@ -94,7 +95,7 @@ export function AgentUsageStatus({ engineOnline, activeSessionId }: AgentUsageSt
   const recente = (lista: Profile[]) =>
     [...lista].sort((a, b) => (b.last_used_at_ms ?? 0) - (a.last_used_at_ms ?? 0))[0] ?? null;
   const provider =
-    session?.provider ?? recente(profiles.filter(p => p.provider === "claude" || p.provider === "codex"))?.provider ?? null;
+    session?.provider ?? recente(profiles.filter(p => AGENTES_COM_USO.includes(p.provider)))?.provider ?? null;
   const profileId =
     session?.profile_id ?? (provider ? recente(profiles.filter(p => p.provider === provider))?.id ?? null : null);
 

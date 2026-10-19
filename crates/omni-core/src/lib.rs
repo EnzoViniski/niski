@@ -11,6 +11,7 @@ pub mod extensoes;
 pub mod relatorio;
 pub mod agentes;
 pub mod fluxos;
+pub mod antigravity;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};

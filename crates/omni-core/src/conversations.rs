@@ -169,9 +169,21 @@ pub fn resolve_transcript(
 ) -> Option<PathBuf> {
     let profile = profiles.iter().find(|p| Some(&p.id) == segment.profile_id.as_ref() && p.provider == segment.provider)?;
     let root = Path::new(&profile.config_dir).canonicalize().ok()?;
+    // Antigravity: o log da própria sessão diz a conversa na tela agora — vale mais que o ponteiro
+    // guardado, que fica velho quando o agy reabre (reinício, engine reiniciado) ou depois de um `/clear`.
+    if segment.provider == "antigravity" {
+        if let Some((_, path)) = segment.terminal_session_id.as_deref().and_then(|id| crate::antigravity::conversa_da_sessao(&root, id)) {
+            return Some(path);
+        }
+    }
     if let Some(path) = &segment.transcript_path {
         let path = Path::new(path).canonicalize().ok()?;
-        return (path.starts_with(&root) && path.extension().is_some_and(|e| e == "jsonl")).then_some(path);
+        let extensao = if segment.provider == "antigravity" { "db" } else { "jsonl" };
+        return (path.starts_with(&root) && path.extension().is_some_and(|e| e == extensao)).then_some(path);
+    }
+    // O agy não aceita id escolhido no spawn: a conversa é achada pela pasta + instante no índice dele.
+    if segment.provider == "antigravity" {
+        return crate::antigravity::descobrir(&root, &conversation.cwd, segment.started_at_ms).map(|(_, path)| path);
     }
     if segment.provider != "codex" { return None; }
     let candidates: Vec<_> = crate::rollouts(&root.join("sessions")).into_iter().filter(|path| {
@@ -210,7 +222,8 @@ pub fn discover_codex_transcripts(
         for segment_index in 0..conversations[conversation_index].segments.len() {
             let should_discover = {
                 let segment = &conversations[conversation_index].segments[segment_index];
-                segment.provider == "codex" && segment.transcript_path.is_none()
+                // Antigravity troca de conversa dentro da mesma sessão: o ponteiro é conferido sempre.
+                (segment.provider == "codex" && segment.transcript_path.is_none()) || segment.provider == "antigravity"
             };
             if !should_discover {
                 continue;
@@ -220,10 +233,14 @@ pub fn discover_codex_transcripts(
                 resolve_transcript(&conversation.segments[segment_index], conversation, profiles)
             };
             let Some(path) = resolved else { continue };
-            let session_id = codex_session_id(&path);
+            let atual = conversations[conversation_index].segments[segment_index].transcript_path.as_deref().map(Path::new);
+            if atual.is_some_and(|atual| atual == path) { continue; }
+            let session_id = if conversations[conversation_index].segments[segment_index].provider == "antigravity" {
+                path.file_stem().map(|s| s.to_string_lossy().into_owned())
+            } else { codex_session_id(&path) };
             let segment = &mut conversations[conversation_index].segments[segment_index];
             segment.transcript_path = Some(path.to_string_lossy().into_owned());
-            if segment.external_session_id.is_none() {
+            if segment.external_session_id.is_none() || segment.provider == "antigravity" {
                 segment.external_session_id = session_id;
             }
             changed = true;
@@ -321,7 +338,17 @@ pub fn timeline_cached(
         // pular não abre brecha na checagem de caminho feita em `resolve_transcript`.
         if segment.transcript_path.as_deref().is_some_and(|path| !Path::new(path).exists()) { continue }
         let Some(path) = resolve_transcript(segment, conversation, profiles) else { unavailable.push(segment_index); continue };
-        let Ok(entries) = cache.read(&path, &segment.provider) else { unavailable.push(segment_index); continue };
+        // ponytail: o SQLite do agy é relido inteiro a cada consulta (conversa pequena, leitura local);
+        // cache por mtime se uma conversa longa pesar.
+        let lidos;
+        let entries: &[crate::feed::Entry] = if segment.provider == "antigravity" {
+            let Ok(itens) = crate::antigravity::itens(&path) else { unavailable.push(segment_index); continue };
+            lidos = itens;
+            &lidos
+        } else {
+            let Ok(entries) = cache.read(&path, &segment.provider) else { unavailable.push(segment_index); continue };
+            entries
+        };
         for entry in entries {
             // Claude UUIDs survive profile copies. Codex records preserve timestamp/content.
             if !seen.insert(entry.identity.clone()) { continue; }
@@ -373,7 +400,7 @@ fn aviso_de_troca(anterior: &Segment, novo: &Segment, profiles: &[crate::Profile
     let nome = |segment: &Segment| segment.profile_id.as_deref()
         .and_then(|id| profiles.iter().find(|p| p.id == id).map(|p| p.name.clone()))
         .unwrap_or_else(|| "Padrão".into());
-    let agente = |provider: &str| match provider { "claude" => "Claude", "codex" => "Codex", "cursor" => "Cursor", outro => outro }.to_string();
+    let agente = |provider: &str| match provider { "claude" => "Claude", "codex" => "Codex", "cursor" => "Cursor", "antigravity" => "Antigravity", outro => outro }.to_string();
     let text = if anterior.provider != novo.provider {
         format!("IA trocada: {} ({}) → {} ({})", agente(&anterior.provider), nome(anterior), agente(&novo.provider), nome(novo))
     } else {

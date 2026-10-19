@@ -113,6 +113,8 @@ pub fn locais_conhecidos() -> Vec<PathBuf> {
             // Instalador do CLI do Cursor (`agent.cmd`).
             if let Some(local) = env::var_os("LOCALAPPDATA").map(PathBuf::from) {
                 locais.push(local.join("cursor-agent"));
+                // Instalador do Antigravity CLI (`agy.exe`).
+                locais.push(local.join("agy").join("bin"));
                 locais.push(local.join("pnpm"));
                 locais.push(local.join("Microsoft").join("WinGet").join("Links"));
                 locais.push(local.join("nvs").join("default"));
