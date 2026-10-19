@@ -13,6 +13,7 @@ pub mod agentes;
 pub mod fluxos;
 pub mod registro;
 pub mod antigravity;
+pub mod roteamento;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};
