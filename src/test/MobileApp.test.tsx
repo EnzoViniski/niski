@@ -534,6 +534,30 @@ it("menu da CLI aparece na conversa e a opção vai pelo número", async () => {
   await waitFor(() => expect(posts.some((p) => p.url.endsWith("/escolher") && p.corpo === JSON.stringify({ opcao: 2 }))).toBe(true));
 });
 
+it("pergunta de marcar várias: marca pelo número, mostra a descrição e Continuar avança", async () => {
+  const menu = { pergunta: "Quais frutas você gosta?", detalhe: null, multipla: true, opcoes: [
+    { numero: 1, rotulo: "Manga", descricao: "Doce e suculenta", marcada: true },
+    { numero: 2, rotulo: "Uva", descricao: "Pequena, em cachos", marcada: false },
+    { numero: 5, rotulo: "Chat about this" }] };
+  const posts: { url: string; corpo: string }[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === "POST") { posts.push({ url, corpo: String(init.body) }); return new Response(JSON.stringify({ id: "a" })); }
+    const conversa = conversaPronta({ capabilities: { prompt: false, approve: false, revision: '"r"', approval_text: null, reason: null, escolha: menu } });
+    return new Response(JSON.stringify(
+      url.includes("timeline") ? { ...TIMELINE_VAZIA, conversation: conversa }
+        : url === "/projetos" ? PROJETOS : url === "/atencao" ? [] : [conversa]));
+  }));
+  render(<MobileApp />);
+  await abrirConversa();
+  expect(await screen.findByText("Pequena, em cachos")).toBeInTheDocument();
+  expect(screen.getByRole("checkbox", { name: /Manga/ })).toHaveAttribute("aria-checked", "true");
+  await act(async () => { await userEvent.click(screen.getByRole("checkbox", { name: /Uva/ })); });
+  await waitFor(() => expect(posts.some((p) => p.url.endsWith("/escolher") && p.corpo === JSON.stringify({ opcao: 2 }))).toBe(true));
+  await act(async () => { await userEvent.click(screen.getByRole("button", { name: /Continuar/ })); });
+  await waitFor(() => expect(posts.some((p) => p.url.endsWith("/escolher") && p.corpo === JSON.stringify({ avancar: true }))).toBe(true));
+  expect(screen.getByRole("button", { name: /Responder com minhas palavras/ })).toBeInTheDocument();
+});
+
 it("imagem colada que a CLI trocou por [Image #N] não vira texto cru", () => {
   // O Claude Code troca o caminho da imagem por um bloco à parte e deixa só o "-" na lista.
   const texto = `[Image #1]olha isso\n\n${MARCADOR_ANEXOS}\n-`;

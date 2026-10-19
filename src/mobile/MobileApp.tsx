@@ -11,6 +11,7 @@ import { ArchiveIcon, ArrowLeftIcon, AttachmentIcon, ChatIcon, EditIcon, FolderI
 import { request, requestSeMudou, esquecerVersao, enviarTeclas, actionKey, ApiError, type Conversation, type Mensagem, type Projects, type Timeline } from "./api";
 import { AgentWorking, BlocoDeAcoes, LinhaDeAviso, LinhaDeComando, MessageBubble, PairingScreen } from "./Chat";
 import { Composer } from "./Composer";
+import { CartaoDePergunta } from "./CartaoDePergunta";
 import { AjustesDaConversa, type Ajustes } from "./AjustesDaConversa";
 import {
   ANEXO_MAX_BYTES,
@@ -672,10 +673,16 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
       // tela redesenhada desde a última leitura (o próprio rodapé do modo muda a cada troca) não
       // os torna perigosos. Relê a versão da tela e tenta uma vez — antes isso virava erro e
       // exigia um segundo clique. Prompt e aprovação continuam recusando: ali o If-Match protege.
-      if (!(reason instanceof ApiError && reason.status === 412 && (kind === "modo" || kind === "ajustes"))) throw reason;
+      // Escolha também, desde que a pergunta na tela seja a mesma: marcar uma caixa redesenha o menu
+      // e o clique seguinte chegava com a versão velha e sumia. Pergunta trocada continua recusando.
+      // Na escolha, 409 (menu não lido naquele quadro, a TUI no meio de um redesenho) também relê.
+      const relerEscolha = kind === "escolher" && (reason instanceof ApiError && reason.status === 409);
+      if (!relerEscolha && !(reason instanceof ApiError && reason.status === 412 && (kind === "modo" || kind === "ajustes" || kind === "escolher"))) throw reason;
+      if (relerEscolha) await new Promise((r) => setTimeout(r, 400));
       const atual = await request<Timeline>(`/conversas/${encodeURIComponent(conversation.id)}/timeline`);
       const revisao = atual.conversation?.capabilities?.revision;
       if (!revisao) throw reason;
+      if (kind === "escolher" && atual.conversation?.capabilities?.escolha?.pergunta !== capability.escolha?.pergunta) throw reason;
       pending.current = { signature, key: actionKey(), revision: revisao };
       acao = await enviar();
     }
@@ -697,11 +704,12 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     finally { setBusy(false); }
   }
 
-  /** Responde um menu da CLI pelo número da opção; `null` fecha o menu (Esc). */
-  async function escolher(opcao: number | null) {
+  /** Responde um menu da CLI pelo número da opção; `null` fecha o menu (Esc); `"avancar"` é o Tab
+   *  do marcar-várias. */
+  async function escolher(opcao: number | null | "avancar") {
     if (!conversation.capabilities?.escolha || busy) return;
     setBusy(true); setError(null); setFalhaEnvio(null);
-    try { await post("escolher", { opcao }); await Promise.all([ler(), refresh()]); }
+    try { await post("escolher", opcao === "avancar" ? { avancar: true } : { opcao }); await Promise.all([ler(), refresh()]); }
     catch (reason) { falhou(reason); }
     finally { setBusy(false); }
   }
@@ -907,20 +915,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
           <Button variant="danger" disabled={busy} onClick={() => void aprovar(false)}>Negar</Button>
         </div>
       </div>}
-      {capability?.escolha && <div className="bubble bubble-agent bubble-aprovacao bubble-escolha glass" role="group" aria-label={capability.escolha.pergunta}>
-        <p className="bubble-author"><WarningIcon aria-hidden className="h-3.5 w-3.5 text-warning" />A CLI está perguntando</p>
-        <p className="mobile-message escolha-pergunta">{capability.escolha.pergunta}</p>
-        {capability.escolha.detalhe && <p className="escolha-detalhe">{capability.escolha.detalhe}</p>}
-        <div className="escolha-opcoes">
-          {capability.escolha.opcoes.map((opcao) => (
-            <Button key={opcao.numero} variant={opcao.numero === 1 ? "primary" : "ghost"} disabled={busy}
-              onClick={() => void escolher(opcao.numero)}>
-              <span className="escolha-numero">{opcao.numero}</span>{opcao.rotulo}
-            </Button>
-          ))}
-          <Button variant="ghost" disabled={busy} onClick={() => void escolher(null)}>Fechar (Esc)</Button>
-        </div>
-      </div>}
+      {capability?.escolha && <CartaoDePergunta escolha={capability.escolha} provider={conversation.provider} busy={busy}
+        onEscolher={(opcao) => void escolher(opcao)} onAvancar={() => void escolher("avancar")} />}
       {ativo && !capability?.approve &&
         <AgentWorking desde={trabalhandoDesde.current ?? Date.now()} provider={conversation.provider} tokens={conversation.tokens ?? null} />}
       {fila.length > 0 && (

@@ -1,4 +1,7 @@
 /* O PC trava a página na altura da janela; no celular quem rola é o documento, e a barra de
    cima e a de digitação ficam presas com `sticky`, que lida melhor com o teclado do iOS. */
 html, body, #root { min-height: 100%; height: auto; overflow: visible; }
+/* Só rolagem vertical: algo mais largo que a tela não pode arrastar a página para o lado. `clip`, não
+   `hidden` — `hidden` faria do body um rolador e o `sticky` das barras pararia de grudar. */
+html, body { overflow-x: clip; overscroll-behavior-x: none; }
 body { user-select: text; -webkit-user-select: text; -webkit-tap-highlight-color: transparent; }
