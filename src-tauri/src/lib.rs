@@ -16,10 +16,18 @@ mod agentes;
 mod fluxos;
 
 pub fn run() {
+    if let Ok(dir) = engine_client::engine_dir() {
+        omni_core::registro::iniciar("app", &dir);
+    }
+    omni_core::registro::registrar_panicos();
+    let inicio = std::time::Instant::now();
     #[cfg(unix)]
-    engine_client::import_login_shell_path();
+    let path_do_shell = engine_client::import_login_shell_path();
+    #[cfg(not(unix))]
+    let path_do_shell = "nao_se_aplica";
     // Antes de qualquer detecção ou spawn: o engine e os terminais herdam este PATH.
     omni_core::cli_path::ampliar_path();
+    registrar_inicio(path_do_shell, inicio.elapsed().as_millis());
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -30,6 +38,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             engine_client::engine_status,
+            engine_client::registrar_evento_da_ui,
             account_usage::account_usage,
             extensoes::listar_extensoes,
             extensoes::compartilhamento_de_extensoes,
@@ -107,4 +116,23 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Metadados da subida: o que costuma faltar quando o app é aberto pelo Finder (PATH, TERM, LANG) e
+/// onde o binário está (`AppTranslocation` = aberto de dentro do `.dmg` ou de Downloads).
+fn registrar_inicio(path_do_shell: &str, ms: u128) {
+    let achou = |nome: &str| if engine_client::resolve_on_path(nome).is_some() { "sim" } else { "nao" };
+    let presente = |nome: &str| if std::env::var_os(nome).is_some_and(|v| !v.is_empty()) { "sim" } else { "nao" };
+    let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    omni_core::registro::info("app_iniciou", &[
+        ("versao", env!("CARGO_PKG_VERSION")),
+        ("exe", &exe),
+        ("path_do_shell", path_do_shell),
+        ("path_ms", &ms.to_string()),
+        ("claude", achou("claude")),
+        ("codex", achou("codex")),
+        ("term", presente("TERM")),
+        ("lang", presente("LANG")),
+        ("porta", &engine_client::engine_port().to_string()),
+    ]);
 }

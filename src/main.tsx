@@ -4,6 +4,9 @@ import { App } from "./App";
 import "./index.css";
 import { usarTransporte } from "./mobile/api";
 import { transporteDoEngine } from "./features/conversa/transporteDoEngine";
+import { instalarRegistroDeErros } from "./lib/registroDeErros";
+
+instalarRegistroDeErros();
 
 // A visão Conversa das abas de agente usa o chat da web; aqui ele fala com o engine pelo protocolo
 // local em vez de HTTP.

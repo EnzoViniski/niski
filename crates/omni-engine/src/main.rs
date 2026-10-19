@@ -2,7 +2,7 @@ mod fluxos;
 mod interaction;
 mod mobile;
 use anyhow::{anyhow, Context, Result};
-use omni_core::targets;
+use omni_core::{registro, targets};
 use omni_protocol::{
     atomic_write_json, EngineRequest, EngineResponse, SessionState, TerminalSession,
     DEFAULT_ENGINE_PORT, PROTOCOL_VERSION,
@@ -161,6 +161,8 @@ async fn main() -> Result<()> {
     omni_core::cli_path::ampliar_path();
     let engine_dir = engine_dir()?;
     fs::create_dir_all(&engine_dir)?;
+    registro::iniciar("engine", &engine_dir);
+    registro::registrar_panicos();
     executable_identity(); // captura antes que uma atualização troque o arquivo
     let token = load_or_create_token(&engine_dir.join("engine.token"))?;
     let state_file = engine_dir.join("sessions.json");
@@ -180,9 +182,24 @@ async fn main() -> Result<()> {
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(DEFAULT_ENGINE_PORT);
-    let listener = TcpListener::bind(("127.0.0.1", port))
-        .await
-        .with_context(|| format!("engine already running or port {port} unavailable"))?;
+    let listener = match TcpListener::bind(("127.0.0.1", port)).await {
+        Ok(listener) => listener,
+        Err(error) => {
+            registro::erro("engine_porta_ocupada", &[("porta", &port.to_string()), ("erro", &error.to_string())]);
+            return Err(error).with_context(|| format!("engine already running or port {port} unavailable"));
+        }
+    };
+    let (exe, _) = executable_identity();
+    let presente = |nome: &str| if env::var_os(nome).is_some_and(|v| !v.is_empty()) { "sim" } else { "nao" };
+    registro::info("engine_iniciou", &[
+        ("versao", env!("CARGO_PKG_VERSION")),
+        ("porta", &port.to_string()),
+        ("exe", exe.as_deref().unwrap_or("?")),
+        ("sessoes_salvas", &state.sessions.lock().map(|s| s.len()).unwrap_or(0).to_string()),
+        ("term", presente("TERM")),
+        ("lang", presente("LANG")),
+        ("shell", &env::var("SHELL").unwrap_or_default()),
+    ]);
 
     mobile::start(state.clone());
     fluxos::carregar(&state);
@@ -192,6 +209,7 @@ async fn main() -> Result<()> {
         let state = state.clone();
         tokio::spawn(async move {
             if let Err(error) = serve_client(stream, state).await {
+                registro::aviso("conexao_falhou", &[("erro", &format!("{error:#}"))]);
                 eprintln!("engine client error: {error:#}");
             }
         });
@@ -202,7 +220,9 @@ async fn serve_client(stream: TcpStream, state: Arc<EngineState>) -> Result<()> 
     let (reader, mut writer) = stream.into_split();
     let mut lines = BufReader::new(reader).lines();
     while let Some(line) = lines.next_line().await? {
-        let response = match serde_json::from_str::<EngineRequest>(&line) {
+        let pedido = serde_json::from_str::<EngineRequest>(&line);
+        let tipo = pedido.as_ref().map(|p| p.tipo()).unwrap_or("invalido");
+        let response = match pedido {
             // Assíncrona (é o roteador do axum): não pode ir para o `spawn_blocking` das outras.
             Ok(EngineRequest::Api { token, method, path, body, body_base64, headers }) if token == state.token => {
                 mobile::local(state.clone(), &method, &path, body, body_base64, headers).await
@@ -220,10 +240,19 @@ async fn serve_client(stream: TcpStream, state: Arc<EngineState>) -> Result<()> 
                 message: error.to_string(),
             },
         };
+        if let EngineResponse::Error { code, message } = &response {
+            registrar_erro_de_pedido(tipo, code, message);
+        }
         writer.write_all(&serde_json::to_vec(&response)?).await?;
         writer.write_all(b"\n").await?;
     }
     Ok(())
+}
+
+/// Erro devolvido a um pedido. A UI pede snapshot a cada 100 ms: uma sessão sumida encheria o log
+/// sem a supressão de repetidos.
+fn registrar_erro_de_pedido(tipo: &str, code: &str, message: &str) {
+    registro::aviso_sem_repetir(&format!("{tipo}/{code}"), "pedido_falhou", &[("pedido", tipo), ("codigo", code), ("mensagem", message)]);
 }
 
 fn handle_request(request: EngineRequest, state: &Arc<EngineState>) -> EngineResponse {
@@ -564,6 +593,16 @@ fn spawn_reader_thread(state: Arc<EngineState>, session: Arc<LiveSession>, mut r
             }
         }
         let exit_status = session.child.lock().ok().and_then(|mut child| child.try_wait().ok().flatten());
+        if let Ok(meta) = session.meta.lock() {
+            if meta.pid == watched_pid {
+                registro::info("sessao_terminou", &[
+                    ("id", &meta.id),
+                    ("provider", meta.provider.as_deref().unwrap_or("shell")),
+                    ("codigo", &exit_status.as_ref().map(|s| s.exit_code().to_string()).unwrap_or_else(|| "?".into())),
+                    ("duracao_ms", &now_ms().saturating_sub(meta.created_at_ms).to_string()),
+                ]);
+            }
+        }
         if let Ok(mut meta) = session.meta.lock() {
             // A restart may have replaced the process this thread was watching before
             // EOF arrived here — only the reader whose pid still matches gets to report
@@ -676,6 +715,13 @@ pub(crate) fn spawn_terminal_inner(
         .map_err(|_| anyhow!("sessions lock poisoned"))?
         .insert(id, SessionEntry::Live(session.clone()));
     state.persist()?;
+    registro::info("sessao_aberta", &[
+        ("id", &metadata.id),
+        ("provider", metadata.provider.as_deref().unwrap_or("shell")),
+        ("perfil", metadata.profile_id.as_deref().unwrap_or("-")),
+        ("pid", &pid.map(|p| p.to_string()).unwrap_or_default()),
+        ("headless", if headless { "sim" } else { "nao" }),
+    ]);
 
     spawn_initial_command_thread(session.clone(), initial_command);
     spawn_reader_thread(state.clone(), session, reader, pid);

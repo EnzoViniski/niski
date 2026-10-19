@@ -28,10 +28,12 @@ pub fn engine_status() -> EngineResponse {
 
 #[tauri::command(async)]
 pub fn ensure_engine() -> EngineResponse {
+    use omni_core::registro;
     if let Ok(response) = authenticated_request(|token| EngineRequest::Ping { token }) {
         if !engine_binary_replaced(&response) {
             return response;
         }
+        registro::aviso("engine_binario_trocado", &[("acao", "reiniciar")]);
         // Atualização trocou o binário com o engine vivo (macOS/Linux; no Windows o NSIS mata antes).
         // Mesmo efeito do hook do instalador: as sessões abertas caem e o engine novo sobe.
         let _ = authenticated_request(|token| EngineRequest::Shutdown { token });
@@ -40,19 +42,32 @@ pub fn ensure_engine() -> EngineResponse {
             thread::sleep(Duration::from_millis(100));
         }
     }
+    let executavel = engine_executable().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
     if let Err(error) = spawn_engine() {
+        registro::erro("engine_nao_abriu", &[("exe", &executavel), ("erro", &error)]);
         return EngineResponse::Error { code: "ENGINE_START_FAILED".into(), message: error };
     }
-    for _ in 0..30 {
+    for tentativa in 0..30 {
         thread::sleep(Duration::from_millis(100));
         if let Ok(response) = authenticated_request(|token| EngineRequest::Ping { token }) {
+            registro::info("engine_aberto", &[("exe", &executavel), ("ms", &((tentativa + 1) * 100).to_string())]);
             return response;
         }
     }
+    registro::erro("engine_sem_resposta", &[("exe", &executavel), ("porta", &engine_port().to_string())]);
     EngineResponse::Error {
         code: "ENGINE_START_TIMEOUT".into(),
         message: "O OMNI Engine não respondeu após 3 segundos.".into(),
     }
+}
+
+/// Erros da interface (exceção não tratada, promessa rejeitada) para o log em disco. A UI manda só
+/// tipo, mensagem e origem; o `registro` tira trechos entre aspas e corta o tamanho.
+#[tauri::command]
+pub fn registrar_evento_da_ui(evento: String, detalhe: Option<String>) {
+    let evento: String = evento.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_').take(40).collect();
+    let detalhe = detalhe.unwrap_or_default();
+    omni_core::registro::aviso_sem_repetir(&format!("ui/{evento}/{detalhe}"), "ui", &[("evento", &evento), ("detalhe", &detalhe)]);
 }
 
 /// Renomear conversa. Passa pelo engine de propósito: é ele quem grava o índice, e dois processos
@@ -375,12 +390,12 @@ fn quote_powershell(value: &str) -> String {
 /// vê no terminal — antes de qualquer detecção ou spawn do engine (que herda daqui).
 /// ponytail: timeout fixo de 3 s; um `.zshrc` que pede input ou demora mais fica com o PATH mínimo.
 #[cfg(unix)]
-pub fn import_login_shell_path() {
+pub fn import_login_shell_path() -> &'static str {
     let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
     let Ok(mut child) = Command::new(shell)
         .args(["-ilc", "printf '\n__OMNI_PATH__%s' \"$PATH\""])
         .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null())
-        .spawn() else { return };
+        .spawn() else { return "shell_nao_abriu" };
     let started = std::time::Instant::now();
     while started.elapsed() < Duration::from_secs(3) {
         match child.try_wait() {
@@ -389,15 +404,19 @@ pub fn import_login_shell_path() {
                 let _ = std::io::Read::read_to_string(&mut child.stdout.take().expect("stdout piped"), &mut output);
                 // Marcador: `.zshrc` que imprime banner não pode contaminar o valor.
                 if let Some(path) = output.rsplit("__OMNI_PATH__").next().filter(|_| output.contains("__OMNI_PATH__")) {
-                    if !path.trim().is_empty() { env::set_var("PATH", path.trim()); }
+                    if !path.trim().is_empty() {
+                        env::set_var("PATH", path.trim());
+                        return "ok";
+                    }
                 }
-                return;
+                return "sem_path";
             }
             Ok(None) => thread::sleep(Duration::from_millis(50)),
-            Err(_) => return,
+            Err(_) => return "erro",
         }
     }
     let _ = child.kill();
+    "tempo_esgotado"
 }
 
 /// Resolve um comando no PATH **sem criar processo**. A versão anterior rodava `where.exe` por
@@ -462,9 +481,9 @@ pub fn terminal_snapshot(session_id: String, since: u64) -> EngineResponse {
 }
 
 fn request_or_error(build: impl FnOnce(String) -> EngineRequest) -> EngineResponse {
-    authenticated_request(build).unwrap_or_else(|message| EngineResponse::Error {
-        code: "ENGINE_UNAVAILABLE".into(),
-        message,
+    authenticated_request(build).unwrap_or_else(|message| {
+        omni_core::registro::aviso_sem_repetir("engine_indisponivel", "engine_indisponivel", &[("erro", &message)]);
+        EngineResponse::Error { code: "ENGINE_UNAVAILABLE".into(), message }
     })
 }
 
