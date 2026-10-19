@@ -29,3 +29,19 @@
 .orq-pendente { margin-top: .3rem; font-size: .625rem; font-style: italic; color: rgb(var(--c-warning)); }
 .orq-ultima { margin-top: .35rem; padding-top: .3rem; border-top: 1px dashed rgb(var(--c-border-subtle)); font-size: .6875rem; line-height: 1.35; color: rgb(var(--c-text-secondary)); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
 .orq-porta { opacity: 0; pointer-events: none; }
+
+/* Fatia (c): pedido de permissão e parar no nó, composer "Para:" embaixo. */
+.orq-pedido { margin-top: .4rem; padding: .35rem .4rem; background: rgb(var(--c-warning) / .1); border: 1px solid rgb(var(--c-warning) / .5); cursor: default; }
+.orq-pedido-texto { font-size: .6875rem; line-height: 1.3; color: rgb(var(--c-text-primary)); max-height: 4.2em; overflow: hidden; white-space: pre-line; }
+.orq-pedido-dica { margin-top: .2rem; font-size: .625rem; color: rgb(var(--c-text-muted)); }
+.orq-pedido-botoes { display: flex; gap: .35rem; margin-top: .35rem; }
+.orq-botao.is-sim { color: rgb(var(--c-success)); border-color: rgb(var(--c-success) / .6); }
+.orq-botao.is-nao { color: rgb(var(--c-danger)); border-color: rgb(var(--c-danger) / .6); }
+.orq-no-rodape { display: flex; justify-content: flex-end; margin-top: .35rem; }
+.orq-composer { display: flex; align-items: flex-end; gap: .5rem; padding: .5rem .75rem; border-top: 2px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-bg-elevated) / .55); flex-shrink: 0; }
+.orq-para { display: inline-flex; align-items: center; gap: .3rem; flex-shrink: 0; font-size: .6875rem; font-weight: 700; color: rgb(var(--c-text-secondary)); }
+.orq-para select { max-width: 14rem; font: inherit; font-weight: 600; padding: .15rem .2rem; color: rgb(var(--c-text-primary)); background: rgb(var(--c-bg-primary)); border: 1px solid rgb(var(--c-outline)); }
+.orq-para-marca { display: inline-grid; place-items: center; }
+.orq-composer textarea { flex: 1; min-width: 0; min-height: 2rem; max-height: 8rem; resize: vertical; padding: .35rem .5rem; font: inherit; font-size: .75rem; color: rgb(var(--c-text-primary)); background: rgb(var(--c-bg-primary)); border: 1px solid rgb(var(--c-outline)); user-select: text; }
+.orq-composer textarea:focus { outline: none; border-color: rgb(var(--c-accent)); }
+@media (max-width: 640px) { .orq-composer { flex-wrap: wrap; } .orq-para select { max-width: 9rem; } }

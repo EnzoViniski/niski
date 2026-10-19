@@ -14,6 +14,8 @@ import { pedirAbrirConversa } from "./abrirFluxo";
 import { definirLimite, obterFluxo, type FluxoAoVivo as Fluxo, type NoAoVivo } from "./orquestracaoService";
 import "./orquestracao.css";
 import "./fluxoAoVivo.css";
+// Fatia (c): mandar prompt a qualquer nó, aprovar/negar e parar pelo fluxo.
+import { AcoesContext, AcoesDoNo, ParaQuem, useAcoesDoFluxo } from "./InteragirPeloFluxo";
 
 /**
  * Fork: fluxo ao vivo de uma conversa orquestradora, numa aba do layout (`PaneKind "orquestracao"`).
@@ -56,7 +58,7 @@ export function rotuloDoNo(no: NoAoVivo): string {
 }
 
 const NoAoVivoView = memo(function NoAoVivoView({ data }: NodeProps<NoDoOrquestrador>) {
-  const { no, centro } = data;
+  const { no, centro, orquestrador } = data;
   const plataforma = no.plataforma ?? "";
   return (
     <div className={`fx-no orq-no st-${no.estado}${centro ? " is-centro" : ""}`} title="Clique para abrir a conversa">
@@ -72,6 +74,7 @@ const NoAoVivoView = memo(function NoAoVivoView({ data }: NodeProps<NoDoOrquestr
       <div className="fx-no-sub">{rotuloDoNo(no)}</div>
       {no.pendente && <div className="orq-pendente">{no.pendente}</div>}
       {no.ultima_mensagem && <div className="orq-ultima" title={no.ultima_mensagem}>{no.ultima_mensagem}</div>}
+      <AcoesDoNo no={no} orquestrador={orquestrador} centro={centro} />
     </div>
   );
 });
@@ -142,6 +145,7 @@ function Canvas({ fluxo, orquestrador, paneId }: { fluxo: Fluxo; orquestrador: s
 
 export function FluxoAoVivo({ orquestrador, paneId }: { orquestrador: string; paneId?: string }) {
   const { fluxo, erro, recarregar } = useFluxoAoVivo(orquestrador);
+  const acoes = useAcoesDoFluxo(recarregar);
   const vivos = fluxo?.agentes.filter((a) => a.estado !== "parado" && a.estado !== "erro").length ?? 0;
   return (
     <div className="orq-fluxo">
@@ -154,21 +158,23 @@ export function FluxoAoVivo({ orquestrador, paneId }: { orquestrador: string; pa
         {fluxo && (
           <label className="orq-limite" title="Subagentes vivos ao mesmo tempo, por orquestrador">
             {vivos} vivo(s) · limite
-            <select value={fluxo.limite} onChange={(e) => void definirLimite(Number(e.target.value)).then(recarregar)}>
+            <select aria-label="Limite de subagentes" value={fluxo.limite} onChange={(e) => void definirLimite(Number(e.target.value)).then(recarregar)}>
               {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
         )}
       </div>
-      {erro && <div role="alert" className="orq-erro">{erro}</div>}
+      {(acoes.erro || erro) && <div role="alert" className="orq-erro">{acoes.erro ?? erro}</div>}
       <div className="orq-canvas">
         {!fluxo ? (
           <p className="orq-vazio">{erro ? "Não consegui ler o fluxo." : "Abrindo o fluxo…"}</p>
         ) : (
           <>
-            <ReactFlowProvider>
-              <Canvas fluxo={fluxo} orquestrador={orquestrador} paneId={paneId} />
-            </ReactFlowProvider>
+            <AcoesContext.Provider value={acoes}>
+              <ReactFlowProvider>
+                <Canvas fluxo={fluxo} orquestrador={orquestrador} paneId={paneId} />
+              </ReactFlowProvider>
+            </AcoesContext.Provider>
             {fluxo.agentes.length === 0 && (
               <p className="orq-dica">
                 {fluxo.ativo ? "Nenhum subagente ainda. Peça na conversa: “cria 2 agentes para…”."
@@ -178,6 +184,7 @@ export function FluxoAoVivo({ orquestrador, paneId }: { orquestrador: string; pa
           </>
         )}
       </div>
+      {fluxo && <ParaQuem key={fluxo.orquestrador.id} fluxo={fluxo} acoes={acoes} />}
     </div>
   );
 }

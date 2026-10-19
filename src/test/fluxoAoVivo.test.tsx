@@ -61,13 +61,23 @@ describe("posições do fluxo", () => {
   });
 });
 
+/** O texto dentro de um nó do canvas (o composer "Para:" repete as tarefas na lista). */
+async function noComTexto(texto: string) {
+  // O composer aparece antes: o React Flow monta os nós num tique seguinte.
+  return waitFor(() => {
+    const no = screen.getAllByText(texto).find((el) => el.closest(".orq-no"));
+    if (!no) throw new Error(`nó com "${texto}" ainda não apareceu`);
+    return no;
+  });
+}
+
 describe("FluxoAoVivo", () => {
   it("mostra o orquestrador no centro e cada subagente com plataforma, conta, modelo, estado, tarefa e última mensagem", async () => {
     render(<div style={{ width: 800, height: 600 }}><FluxoAoVivo orquestrador="orq" paneId="pane-1" /></div>);
-    expect(await screen.findByText("Revisar o login")).toBeInTheDocument();
-    expect(screen.getByText("Orquestrador")).toBeInTheDocument();
+    expect(await noComTexto("Revisar o login")).toBeInTheDocument();
+    expect(screen.getAllByText("Orquestrador").some((el) => el.closest(".orq-no.is-centro"))).toBe(true);
     expect(screen.getAllByText("Planejar a migração").length).toBeGreaterThan(0);
-    expect(screen.getByText("Codex")).toBeInTheDocument();
+    expect(screen.getAllByText("Codex").length).toBeGreaterThan(0);
     expect(screen.getByText("Trabalho · gpt-mini · low")).toBeInTheDocument();
     expect(screen.getByText("esperando você")).toBeInTheDocument();
     expect(screen.getByText("Posso rodar npm test?")).toBeInTheDocument();
@@ -80,7 +90,7 @@ describe("FluxoAoVivo", () => {
     const ouvir = (e: Event) => pedidos.push((e as CustomEvent).detail);
     window.addEventListener(EVENTO_ORQUESTRACAO, ouvir);
     render(<div style={{ width: 800, height: 600 }}><FluxoAoVivo orquestrador="orq" paneId="pane-1" /></div>);
-    fireEvent.click(await screen.findByText("Escrever testes"));
+    fireEvent.click(await noComTexto("Escrever testes"));
     await waitFor(() => expect(pedidos).toEqual([{ tipo: "abrir-conversa", sessionId: "terminal-9", titulo: "Codex · testes", paneId: "pane-1" }]));
     window.removeEventListener(EVENTO_ORQUESTRACAO, ouvir);
   });
@@ -89,7 +99,7 @@ describe("FluxoAoVivo", () => {
     fluxo = { ...fluxo, agentes: [] };
     render(<div style={{ width: 800, height: 600 }}><FluxoAoVivo orquestrador="orq" /></div>);
     expect(await screen.findByText(/Nenhum subagente ainda/)).toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByRole("combobox"), "2");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Limite de subagentes" }), "2");
     await waitFor(() => expect(engine.engineApi.mock.calls.some(([m, c, b]) => m === "POST" && c === "/orquestracao/limite" && JSON.parse(String(b)).limite === 2)).toBe(true));
   });
 });
