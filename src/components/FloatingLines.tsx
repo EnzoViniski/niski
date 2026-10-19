@@ -10,6 +10,8 @@ import {
   Vector3,
   WebGLRenderer
 } from 'three';
+// Fork: pausa de energia (janela oculta/sem foco/parada) — `src/lib/energia.ts`.
+import { cancelarQuadro, proximoQuadro } from '../lib/energia';
 
 const vertexShader = `
 precision highp float;
@@ -459,14 +461,14 @@ export default function FloatingLines({
       }
 
       renderer.render(scene, camera);
-      raf = requestAnimationFrame(renderLoop);
+      raf = proximoQuadro(renderLoop);
     };
     renderLoop();
 
     return () => {
       active = false;
 
-      cancelAnimationFrame(raf);
+      cancelarQuadro(raf);
 
       if (ro) ro.disconnect();
 

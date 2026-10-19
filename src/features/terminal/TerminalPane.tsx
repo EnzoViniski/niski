@@ -39,6 +39,7 @@ import { AgentSwitcher } from "./AgentSwitcher";
 import { AgentRuntimeBadge } from "./AgentRuntimeBadge";
 import { FONTE_MONO } from "../../lib/fontes";
 import { ajustesDoAgente, opcoesDeModelo } from "../../lib/escolhasSalvas";
+import { useSession } from "./sessionProviders";
 
 /** Colar imagem numa CLI de agente: ESC v (meta+v) — o que o Alt+V já mandava e funcionava.
  *  Se alguma CLI passar a escutar ^V (0x16) em vez disso, é aqui que muda. */
@@ -63,6 +64,15 @@ const POLL_ATIVO_MS = 16;
 const POLL_OCIOSO_MS = 100;
 /** Quanto tempo depois da última atividade o ritmo rápido continua valendo. */
 const JANELA_ATIVA_MS = 700;
+/** Fork: janela oculta (minimizada, outro Space, coberta). Ninguém vê o quadro: lê 1x/s só para o
+ *  estado (aviso de turno, failover) seguir vivo; ao voltar, lê na hora. */
+const POLL_OCULTO_MS = 1_000;
+/** Fork (energia): PTY calada há {@link VAZIAS_ATE_ESPACAR} leituras seguidas (~1 s) com a janela
+ *  na tela: espaça para 250 ms (em foco) ou 500 ms (sem foco). Tecla digitada volta ao ritmo rápido na
+ *  hora, e a primeira saída nova volta aos 100 ms. */
+const VAZIAS_ATE_ESPACAR = 10;
+const POLL_CALADO_MS = 250;
+const POLL_CALADO_SEM_FOCO_MS = 500;
 /** Intervalo entre tentativas quando o failover não achou conta ou falhou. O aviso de limite
  *  continua na tela, então a próxima leitura reabre a busca — e uma conta conectada depois do
  *  limite passa a ser encontrada sem o usuário precisar reabrir a aba. */
@@ -95,6 +105,9 @@ interface TerminalPaneProps {
 export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCreated }: TerminalPaneProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef(tab.resourceId);
+  // Fork: pasta da sessão aberta (pode ser a worktree de outra branch) — a troca de conta relança nela.
+  const pastaDaSessaoRef = useRef<string | undefined>(undefined);
+  pastaDaSessaoRef.current = useSession(tab.resourceId)?.cwd ?? pastaDaSessaoRef.current;
   /** Criação de sessão em andamento. O efeito pode rodar de novo antes dela terminar (StrictMode no
    *  dev, remontagem): sem isto cada execução abria a sua PTY e "Novo terminal" virava dois. */
   const criandoRef = useRef<Promise<TerminalSession> | null>(null);
@@ -190,6 +203,18 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
     if (!host) return;
     let cancelled = false;
     let pollTimer: number | undefined;
+    /** Fork: há um `pollTimer` pendente (nem em voo nem parado) — só aí dá para antecipar a leitura. */
+    let agendado = false;
+    const agendar = (ms: number) => {
+      agendado = true;
+      pollTimer = window.setTimeout(() => { agendado = false; void poll(); }, ms);
+    };
+    const aoVoltar = () => {
+      if (cancelled || document.hidden || !agendado) return;
+      window.clearTimeout(pollTimer);
+      agendar(0);
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
     let firstPoll = true;
     /** Escritas do histórico em andamento no xterm. Enquanto > 0, o que ele "responde" sai de
      *  perguntas antigas (posição do cursor, cor do fundo que o shell fez ao abrir) e não vai para
@@ -205,6 +230,8 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
     let failoverRetryAt = 0;
     /** Última tecla digitada ou saída recebida — decide o ritmo da leitura. */
     let atividadeEm = Date.now();
+    /** Fork (energia): leituras seguidas sem saída nova. */
+    let vazias = 0;
     const terminal = new Terminal({
       convertEol: true,
       cursorBlink: true,
@@ -257,7 +284,9 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
     /** Abre a conversa (agente) e a PTY. Uma vez só por sessão, mesmo com o efeito rodando de novo:
      *  quem chega depois espera a mesma promessa em `criandoRef`. */
     async function criarSessao(): Promise<TerminalSession> {
-          if (agent) await ensureAgentTrust(agent.id, projectPath, launch?.profile?.id);
+          // Fork: branch escolhida no lançador roda na worktree dela (`launch.cwd`).
+          const pastaDoAgente = launch?.cwd ?? projectPath;
+          if (agent) await ensureAgentTrust(agent.id, pastaDoAgente, launch?.profile?.id);
 
           // A conversa é a entidade que sobrevive à troca de conta e de IA. Abri-la antes do
           // spawn é o que fixa o `--session-id` do Claude e, com ele, o caminho do transcript.
@@ -269,7 +298,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
               ? null
               : await beginConversation({
                   projectId,
-                  cwd: projectPath,
+                  cwd: pastaDoAgente,
                   provider: agent.id,
                   profileId: launch?.profile?.id,
                   command: agent.command,
@@ -289,7 +318,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
             // Nome da **conversa**, não "Claude · agent": é ele que aparece na aba, na barra lateral
             // e na notificação, e o engine o atualiza sozinho quando o primeiro prompt der um nome.
             name: planoTitulo ?? (agent ? `${agent.label} · agent` : tituloRef.current),
-            cwd: projectPath,
+            cwd: pastaDoAgente,
             rows: terminal.rows,
             cols: terminal.cols,
             initialCommand: command,
@@ -419,6 +448,8 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
           agent: { ...nextAgent, command: resumedCommand },
           profile: target,
           conversationId: plan.conversation_id,
+          // Fork: troca de conta continua na mesma pasta (worktree da branch, se for o caso).
+          cwd: launch?.cwd ?? pastaDaSessaoRef.current,
         });
       } catch (reason) {
         if (!cancelled) {
@@ -468,6 +499,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
         if (firstPoll && dead && snapshot.next_seq === 0) void revive(sessionRef.current);
         firstPoll = false;
         if (snapshot.from_seq > sequenceRef.current) terminal.write("\r\n[scrollback anterior descartado]\r\n");
+        vazias = snapshot.data ? 0 : vazias + 1;
         if (snapshot.data) {
           // Primeira leitura desta montagem = histórico. As respostas do xterm a ele são descartadas.
           if (historico || reproduzindo > 0) {
@@ -547,8 +579,11 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
         const ativo = Date.now() - atividadeEm < JANELA_ATIVA_MS;
         const intervalo = falhasRef.current >= FALHAS_ATE_AVISAR
           ? 1_000
-          : ativo ? POLL_ATIVO_MS : POLL_OCIOSO_MS;
-        pollTimer = window.setTimeout(poll, intervalo);
+          : document.hidden ? POLL_OCULTO_MS
+          : ativo ? POLL_ATIVO_MS
+          : vazias >= VAZIAS_ATE_ESPACAR ? (document.hasFocus() ? POLL_CALADO_MS : POLL_CALADO_SEM_FOCO_MS)
+          : POLL_OCIOSO_MS;
+        agendar(intervalo);
       }
     }
 
@@ -556,6 +591,8 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
       if (reproduzindo > 0) return;
       // Digitou: a leitura acelera para o eco aparecer no quadro seguinte, não em até 100ms.
       atividadeEm = Date.now();
+      // Fork (energia): com a leitura espaçada, antecipa a próxima em vez de esperar até 500 ms.
+      if (agendado && vazias >= VAZIAS_ATE_ESPACAR) { window.clearTimeout(pollTimer); agendar(0); }
       const sessionId = sessionRef.current;
       if (sessionId) void writeTerminal(sessionId, data).catch((reason) => {
         if (String(reason).includes("Consulta de uso")) setInputLocked(true);
@@ -613,12 +650,13 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
     return () => {
       cancelled = true;
       if (pollTimer) window.clearTimeout(pollTimer);
+      document.removeEventListener("visibilitychange", aoVoltar);
       resizeObserver?.disconnect();
       host.removeEventListener("paste", handleImagePaste, { capture: true });
       dataSubscription.dispose();
       terminal.dispose();
     };
-  }, [agent, launch?.profile?.id, paneId, projectId, projectPath, retry, tab.id, onSessionCreated]);
+  }, [agent, launch?.profile?.id, launch?.cwd, paneId, projectId, projectPath, retry, tab.id, onSessionCreated]);
 
   /** Aplica a troca preparada pelo backend: para a sessão atual e relança na conta/IA nova,
    *  mantendo a mesma conversa. Não abre aba nem conversa nova — é a mesma timeline. */
@@ -635,6 +673,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
       agent: { ...nextAgent, command: plan.initial_command },
       profile,
       conversationId: plan.conversation_id,
+      cwd: launch?.cwd ?? pastaDaSessaoRef.current,
     });
   }
 

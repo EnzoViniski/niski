@@ -276,24 +276,41 @@ pub fn submeter_colagem(session: &Arc<LiveSession>) -> Result<()> {
 
 /// Only single-use choices with exact labels. Persistent permission choices are never sent.
 pub fn approval(text: &str, provider: &str) -> Option<(String, String, String)> {
-    let lines: Vec<_> = text.lines().map(str::trim).collect();
-    let (question,yes,no) = match provider {
-        "claude" => ("Do you want to proceed?","1. Yes","3. No"),
-        "codex" => ("Would you like to run the following command?","1. Yes, proceed (y)","3. No, and tell Codex what to do differently (esc)"),
-        _ => return None,
+    // Fork: reescrito. O antigo exigia a opção escrita "3. No" (o Claude Code atual escreve "3. No, and
+    // tell Claude what to do differently (esc)"), só a pergunta "Do you want to proceed?" (editar e
+    // criar arquivo perguntam "Do you want to make this edit to x?") e exatamente um `❯` na tela
+    // inteira — o prompt anterior, que fica na tela como "❯ texto", já derrubava. O pedido ficava só
+    // no terminal e o chat não mostrava nada para aprovar.
+    // Borda de caixa (`│ … │`) sai antes: versões com o diálogo emoldurado.
+    let lines: Vec<String> = text.lines()
+        .map(|l| l.trim().trim_start_matches('│').trim_end_matches('│').trim().to_string()).collect();
+    let pergunta = |l: &str| match provider {
+        "claude" => l.starts_with("Do you want to") && l.ends_with('?'),
+        "codex" => l == "Would you like to run the following command?" || (l.starts_with("Would you like to") && l.ends_with('?')),
+        _ => false,
     };
-    let normalize = |line: &str| line.trim_start_matches(['❯','›',' ']).to_string();
-    let selected = lines.iter().filter(|line| line.starts_with('❯') || line.starts_with('›')).count();
-    if selected != 1 { return None; }
-    if lines.iter().filter(|l| **l == question).count() != 1
-        || lines.iter().filter(|l| normalize(l) == yes).count() != 1
-        || lines.iter().filter(|l| normalize(l) == no).count() != 1 { return None; }
-    let start = lines.iter().position(|l| *l == question)?;
-    // The question and choices must be one contiguous dialog, not old scrollback.
-    let dialog = &lines[start..];
-    if dialog.len() > 24 || !dialog.iter().any(|l| normalize(l) == yes) || !dialog.iter().any(|l| normalize(l) == no) { return None; }
-    Some((if provider == "codex" { "y" } else { "1\r" }.into(),
-        if provider == "codex" { "\x1b" } else { "3\r" }.into(),text.trim().to_owned()))
+    let start = lines.iter().rposition(|l| pergunta(l))?;
+    let opcao = |l: &str| -> Option<(bool, u8, String)> {
+        let selecionada = l.starts_with('❯') || l.starts_with('›');
+        let resto = l.trim_start_matches(['❯', '›', '>', ' ']);
+        let (n, rotulo) = resto.split_once(". ")?;
+        Some((selecionada, n.parse().ok()?, rotulo.trim().to_string()))
+    };
+    // As opções vêm logo abaixo da pergunta, sem outra pergunta no meio, e numeradas desde 1.
+    let opcoes: Vec<(bool, u8, String)> = lines[start + 1..].iter().take(12).filter_map(|l| opcao(l)).collect();
+    if opcoes.len() < 2 || opcoes.iter().enumerate().any(|(i, o)| o.1 as usize != i + 1) { return None; }
+    if opcoes.iter().filter(|o| o.0).count() != 1 { return None; }
+    let sim = &opcoes[0];
+    let sim_ok = match provider { "codex" => sim.2.starts_with("Yes"), _ => sim.2 == "Yes" };
+    let nao = opcoes.iter().find(|o| o.2 == "No" || o.2.starts_with("No,") || o.2.starts_with("No "))?;
+    if !sim_ok { return None; }
+    // Texto mostrado no chat: o diálogo (ferramenta, comando, pergunta e opções), não a tela inteira.
+    let fim = lines[start + 1..].iter().rposition(|l| opcao(l).is_some()).map_or(lines.len(), |i| start + 2 + i);
+    let inicio = lines[..start].iter().rposition(|l| l.chars().count() >= 10 && l.chars().all(|c| matches!(c, '─' | '╭' | '╮' | '╰' | '╯')))
+        .map_or(start.saturating_sub(10), |i| i + 1);
+    let dialogo = lines[inicio..fim.min(lines.len())].iter().map(|l| l.as_str()).filter(|l| !l.is_empty()).collect::<Vec<_>>().join("\n");
+    Some((if provider == "codex" { "y".into() } else { "1\r".into() },
+        if provider == "codex" { "\x1b".into() } else { format!("{}\r", nao.1) }, dialogo))
 }
 
 /// Nome do executável de cada CLI quando difere do id do provider.
@@ -354,8 +371,9 @@ pub fn has_children(pid: Option<u32>) -> bool {
 #[cfg(not(windows))]
 pub fn has_children(pid: Option<u32>) -> bool {
     let Some(pid) = pid else { return false };
-    let Ok(output) = std::process::Command::new("ps").args(["-A", "-o", "ppid="]).output() else { return false };
-    String::from_utf8_lossy(&output.stdout).lines().any(|line| line.trim().parse::<u32>() == Ok(pid))
+    // Fork: `settle` roda em todo snapshot; a leitura do `ps` vale 1 s (`economia.rs`).
+    let Some(output) = crate::economia::ps(&["ppid="]) else { return false };
+    output.lines().any(|line| line.trim().parse::<u32>() == Ok(pid))
 }
 
 #[cfg(not(windows))]
@@ -371,6 +389,18 @@ pub fn provider_running(pid: Option<u32>, provider: &str) -> bool {
         .map(|saida| String::from_utf8_lossy(&saida.stdout).into_owned()).unwrap_or_default();
     agent_descends_from(&format!("{}\n{}", ps("args="), ps("comm=")), pid, provider)
 }
+
+/// Fork: `provider_running` com a lista de processos de até 1 s atrás (`economia::ps`). Para estado
+/// de tela; quem vai digitar ou esperar o CLI sair continua com a leitura na hora.
+#[cfg(not(windows))]
+pub fn provider_running_recente(pid: Option<u32>, provider: &str) -> bool {
+    let provider = executavel(provider);
+    let Some(pid) = pid else { return false };
+    let ps = |coluna: &str| crate::economia::ps(&["pid=", "ppid=", coluna]).map(|s| s.to_string()).unwrap_or_default();
+    agent_descends_from(&format!("{}\n{}", ps("args="), ps("comm=")), pid, provider)
+}
+#[cfg(windows)]
+pub fn provider_running_recente(pid: Option<u32>, provider: &str) -> bool { provider_running(pid, provider) }
 
 /// Linhas `pid ppid comando` do `ps` (de `args` e de `comm`, misturadas). O agente conta quando o
 /// executável ou o script que o node roda se chama `provider` e o processo descende da PTY.
@@ -397,7 +427,8 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
     let context = session.interaction.lock().expect("screen poisoned");
     let meta = session.meta.lock().expect("metadata poisoned");
     let provider = meta.provider.as_deref().unwrap_or("");
-    let available = !session.reserved.load(Ordering::SeqCst) && provider_running(meta.pid,provider);
+    // Fork: `capabilities` entra em cada leitura da conversa; aqui o `ps` de até 1 s atrás basta.
+    let available = !session.reserved.load(Ordering::SeqCst) && provider_running_recente(meta.pid,provider);
     let dialog = approval(&context.parser.screen().contents(),provider);
     let approve = available && dialog.is_some();
     let prompt = available && ready(context.parser.screen(),provider);
@@ -407,9 +438,34 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
         // ponytail: diagnóstico detalhado enquanto a tela do agy não está calibrada em todos os casos;
         // volta para o texto genérico quando a Conversa do Antigravity estiver estável.
         "antigravity" => motivo_antigravity(context.parser.screen(), available, session.reserved.load(Ordering::SeqCst)),
-        _ => "Entrada do CLI não reconhecida ou sessão ocupada".into(),
+        // Fork: diz qual condição falhou (e grava no log, só metadados) — o texto genérico não dava
+        // pista nenhuma de por que a conversa travava. O chat se destrava sozinho (`destravar`).
+        _ => motivo_geral(context.parser.screen(), provider, available, session.reserved.load(Ordering::SeqCst), &meta.id),
     });
     Capabilities { prompt, approve, revision: context.revision(session), approval_text: dialog.map(|d|d.2), reason, enfileirar, escolha }
+}
+
+/// Fork: por que o campo do Claude/Codex não foi reconhecido. Mesma ideia do `motivo_antigravity`.
+fn motivo_geral(screen: &vt100::Screen, provider: &str, rodando: bool, reservada: bool, sessao: &str) -> String {
+    let texto = screen.contents();
+    let mut faltas = Vec::new();
+    if reservada { faltas.push("consulta de uso em andamento"); }
+    if !rodando { faltas.push("o agente não está rodando no terminal"); }
+    if trabalhando(&texto) { faltas.push("agente trabalhando ou com menu aberto"); }
+    if approval(&texto,provider).is_some() { faltas.push("pedido de aprovação na tela"); }
+    if provider == "codex" && !texto.contains("OpenAI Codex") { faltas.push("cabeçalho do Codex fora da tela"); }
+    if !screen.bracketed_paste() { faltas.push("modo de colar desligado"); }
+    if !composer_vazio(screen) { faltas.push("campo de digitação com texto ou cursor fora dele"); }
+    if faltas.is_empty() { faltas.push("tela não reconhecida"); }
+    let motivo = faltas.join(" · ");
+    omni_core::registro::aviso_sem_repetir(&format!("sem_entrada:{sessao}:{motivo}"), "conversa_sem_entrada",
+        &[("sessao", sessao), ("provider", provider), ("motivo", &motivo)]);
+    format!("Entrada não reconhecida: {motivo}")
+}
+
+/// Turno ou menu em andamento: interromper aqui mataria o trabalho.
+pub fn trabalhando(texto: &str) -> bool {
+    texto.contains("Esc to cancel") || texto.contains("esc to cancel") || texto.to_lowercase().contains("esc to interrupt")
 }
 
 /// Por que o campo do Antigravity não foi reconhecido, em palavras: qual das condições do `ready`
@@ -1047,5 +1103,24 @@ Ready to submit your answers?
         assert!(approval("Allow? (y/n)","claude").is_none());
         assert!(approval("Do you want to proceed?\n1. Always allow\n3. No","claude").is_none());
         assert_eq!(approval("Do you want to proceed?\n❯ 1. Yes\n2. Yes, always\n3. No","claude").unwrap().0,"1\r");
+    }
+    /// Fork: telas do Claude Code atual. O prompt anterior fica na tela com `❯`, a opção "No" vem
+    /// com explicação, e editar/criar arquivo perguntam outra coisa.
+    #[test] fn aprovacao_do_claude_atual() {
+        let bash = "❯ roda os testes\n\n⏺ Bash(npm test)\n\n────────────────────────────────────────\n Bash command\n\n   npm test\n   Run the test suite\n\n Do you want to proceed?\n ❯ 1. Yes\n   2. Yes, and don't ask again for npm test commands in /Users/x/app\n   3. No, and tell Claude what to do differently (esc)\n";
+        let (sim, nao, texto) = approval(bash, "claude").expect("pedido do Bash");
+        assert_eq!((sim.as_str(), nao.as_str()), ("1\r", "3\r"));
+        assert!(texto.starts_with("Bash command") && texto.contains("npm test") && !texto.contains("roda os testes"));
+
+        let edicao = " Edit file\n src/App.tsx\n Do you want to make this edit to App.tsx?\n ❯ 1. Yes\n   2. Yes, allow all edits during this session (shift+tab)\n   3. No, and tell Claude what to do differently (esc)\n";
+        assert_eq!(approval(edicao, "claude").unwrap().1, "3\r");
+
+        let duas = "│ Do you want to allow Claude to fetch this content? │\n│ ❯ 1. Yes │\n│   2. No, and tell Claude what to do differently (esc) │";
+        assert_eq!(approval(duas, "claude").unwrap().1, "2\r");
+
+        // Opção 1 que não é "Yes" (sempre permitir) nunca vira o botão de aprovar.
+        assert!(approval("Do you want to proceed?\n❯ 1. Yes, and don't ask again\n2. No", "claude").is_none());
+        // Pergunta que ficou no histórico, sem opções embaixo, não conta.
+        assert!(approval("Do you want to proceed?\n\n⏺ Feito.\n\n❯ ", "claude").is_none());
     }
 }

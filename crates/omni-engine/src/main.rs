@@ -1,6 +1,10 @@
+// Fork: cache curto do `ps` e da busca de rollouts do Codex (energia).
+mod economia;
 mod fluxos;
 mod interaction;
 mod mobile;
+// Fork: reinício do Codex retoma a mesma conversa (`codex resume <id>`).
+mod retomar_codex;
 use anyhow::{anyhow, Context, Result};
 use omni_core::{registro, targets};
 use omni_protocol::{
@@ -341,7 +345,8 @@ fn list_sessions(state: &EngineState) -> Result<EngineResponse> {
     let conversas = state.state_file.parent().map(|dir| {
         let mut conversas = omni_core::conversations::read_index(dir);
         let profiles = omni_core::profiles(dir);
-        if omni_core::conversations::discover_codex_transcripts(&mut conversas, &profiles) {
+        // Fork: a lista é lida a cada 1 s; a busca abre o começo de cada rollout — no máximo a cada 15 s.
+        if economia::pode_descobrir_codex(dir) && omni_core::conversations::discover_codex_transcripts(&mut conversas, &profiles) {
             // Descoberta é reparo de índice: se a persistência falhar, o nome ainda aparece nesta
             // leitura e a próxima tentativa pode gravar. Listar sessões não deve derrubar o app.
             let _ = omni_core::conversations::write_index(dir, &conversas);
@@ -922,6 +927,12 @@ fn comando_ao_reiniciar(meta: &TerminalSession) -> Option<String> {
     Some(original.replacen(&criar, &format!("--resume {id}"), 1))
 }
 
+/// Fork: `comando_ao_reiniciar` + Codex retomando a mesma conversa (ver `retomar_codex`).
+fn comando_ao_reiniciar_com_codex(state: &EngineState, meta: &TerminalSession) -> Option<String> {
+    let comando = comando_ao_reiniciar(meta)?;
+    Some(state.state_file.parent().and_then(|dir| retomar_codex::comando(dir, meta, &comando)).unwrap_or(comando))
+}
+
 /// Config do Antigravity. Só existe a conta nativa (o agy não aceita trocar o diretório).
 fn config_do_antigravity() -> Option<PathBuf> {
     env::var_os("USERPROFILE").or_else(|| env::var_os("HOME")).map(|home| PathBuf::from(home).join(".gemini").join("antigravity-cli"))
@@ -1019,7 +1030,7 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
             };
             state.persist()?;
             // Reabre o mesmo agente; conversa Claude com histórico volta com `--resume`.
-            spawn_initial_command_thread(session.clone(), comando_ao_reiniciar(&meta));
+            spawn_initial_command_thread(session.clone(), comando_ao_reiniciar_com_codex(state, &meta));
             spawn_reader_thread(state.clone(), session, reader, pid);
             Ok(EngineResponse::Session { session: updated })
         }
@@ -1028,7 +1039,7 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
         // LiveSession (same id) via spawn_terminal_inner is the whole job.
         RestartTarget::Historical(meta) => {
             let origin = SessionOrigin::of(&meta);
-            let comando = comando_ao_reiniciar(&meta);
+            let comando = comando_ao_reiniciar_com_codex(state, &meta);
             let metadata = spawn_terminal_inner(
                 state,
                 meta.id,
@@ -1646,6 +1657,23 @@ mod tests {
         fs::create_dir_all(transcript.parent().unwrap()).unwrap();
         fs::write(&transcript, "{}\n").unwrap();
         assert_eq!(comando_ao_reiniciar(&sessao).as_deref(), Some("claude --resume abc-123"));
+    }
+
+    /// Fork: projeto de caminho longo (a CLI corta a pasta em 200 caracteres + hash). O engine não
+    /// achava o transcript e repetia `--session-id`, que a CLI recusa por já estar em uso: a sessão
+    /// revivida depois de reiniciar o engine não voltava para a conversa.
+    #[test]
+    fn reiniciar_conversa_claude_de_caminho_longo_retoma_a_mesma() {
+        let dir = tempfile::tempdir().unwrap();
+        let cwd = format!("/Users/ana/Library/Application Support/{}/projeto", "x".repeat(200));
+        let mut sessao = sessao_claude(dir.path(), "claude --session-id abc-123 --model opus");
+        sessao.cwd = cwd.clone();
+        let slug = omni_core::conversations::claude_project_slug(&cwd);
+        let pasta = dir.path().join("projects").join(&slug);
+        fs::create_dir_all(&pasta).unwrap();
+        fs::write(pasta.join("abc-123.jsonl"), "{}\n").unwrap();
+        assert_eq!(slug.len(), 200 + 1 + slug.rsplit('-').next().unwrap().len(), "pasta cortada como a da CLI");
+        assert_eq!(comando_ao_reiniciar(&sessao).as_deref(), Some("claude --resume abc-123 --model opus"));
     }
 
     #[test]

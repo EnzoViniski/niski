@@ -22,7 +22,8 @@ export function dropZone(rect: Pick<DOMRect, "left" | "top" | "width" | "height"
   return distance < EDGE ? zone : "center";
 }
 
-function targetAt(x: number, y: number): TabDropTarget | null {
+// Fork: exportado — a lateral usa para soltar uma conversa no layout (`projects/arrastarLinha.ts`).
+export function targetAt(x: number, y: number): TabDropTarget | null {
   const element = document.elementFromPoint(x, y);
   const pane = element?.closest<HTMLElement>("[data-drop-pane]");
   if (!pane) return null;

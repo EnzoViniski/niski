@@ -565,3 +565,25 @@ it("imagem colada que a CLI trocou por [Image #N] não vira texto cru", () => {
   expect(separado.anexos).toEqual([]);
   expect(semMarcasDeImagem(separado.texto)).toBe("olha isso");
 });
+
+// Fork: tela não reconhecida não trava mais o campo: o envio destrava (limpa/reabre) e manda.
+it("com a tela não reconhecida, mandar destrava a sessão e envia com a versão nova da tela", async () => {
+  const posts: { url: string; cabecalhos: HeadersInit | undefined }[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === "POST") {
+      posts.push({ url, cabecalhos: init.headers });
+      return new Response(JSON.stringify(url.endsWith("/destravar") ? { estado: "limpa", revision: '"novo"' } : { id: "a" }));
+    }
+    const conversa = conversaPronta({ live: true, capabilities: { prompt: false, approve: false, revision: '"velho"', approval_text: null,
+      reason: "Entrada não reconhecida: campo de digitação com texto ou cursor fora dele" } });
+    return new Response(JSON.stringify(
+      url.includes("timeline") ? { ...TIMELINE_VAZIA, conversation: conversa }
+        : url === "/projetos" ? PROJETOS : url === "/atencao" ? [] : [conversa]));
+  }));
+  render(<MobileApp />);
+  await abrirConversa();
+  expect(screen.getByLabelText("Sua resposta")).toHaveAttribute("placeholder", "Mensagem para o agente…");
+  await act(async () => { await userEvent.type(screen.getByLabelText("Sua resposta"), "oi"); await userEvent.click(screen.getByRole("button", { name: "Enviar resposta" })); });
+  await waitFor(() => expect(posts.map((p) => p.url.split("/").pop())).toEqual(["destravar", "prompt"]));
+  expect((posts[1].cabecalhos as Record<string, string>)["If-Match"]).toBe('"novo"');
+});

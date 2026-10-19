@@ -7,6 +7,7 @@ import { GlifoFechar, GlifoMaximizar, GlifoMinimizar, GlifoRestaurar } from "./u
 import { NOME_DO_PRODUTO } from "../lib/identidade";
 import { NO_MAC } from "../lib/plataforma";
 import { GavetaDeUso } from "../features/terminal/GavetaDeUso";
+import { AvisoDeAtualizacao } from "./AvisoDeAtualizacao";
 
 /*
  * Barra superior própria (a janela nasce sem a moldura do Windows: `decorations: false`).
@@ -114,6 +115,9 @@ export function TitleBar({
       <span data-tauri-drag-region className="flex-1 self-stretch" />
 
       {acoes}
+
+      {/* Fork: build novo no disco → botão que reabre o app. */}
+      <AvisoDeAtualizacao />
 
       <GavetaDeUso />
 

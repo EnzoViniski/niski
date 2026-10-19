@@ -219,6 +219,8 @@ export interface AgentLaunch {
   /** Já preenchido quando o lançamento veio de uma troca de conta/IA: a conversa existe, então
    *  não se abre outra. Ausente no primeiro lançamento. */
   conversationId?: string;
+  /** Fork: pasta onde o agente roda quando não é a do projeto (worktree de outra branch). */
+  cwd?: string;
 }
 
 /** Flag de retomar a última conversa de cada CLI SEM picker interativo — carrega direto as

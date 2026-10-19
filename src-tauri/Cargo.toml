@@ -13,7 +13,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset"] }
+# Fork: `unstable` = webview filho (aba Navegador, `src/navegador.rs`).
+tauri = { version = "2", features = ["protocol-asset", "unstable"] }
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
@@ -35,3 +36,16 @@ tempfile = "3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
+# Fork: voz no chat. Microfone (cpal) e transcrição local com whisper.cpp; Metal no Mac.
+cpal = "0.18"
+whisper-rs = "0.16"
+
+
+[target.'cfg(target_os = "macos")'.dependencies]
+whisper-rs = { version = "0.16", features = ["metal"] }
+# Fork: tela cheia com o conteúdo descendo junto da barra do macOS (src/tela_cheia.rs).
+# Já vêm na árvore via tao/wry; só ligamos os módulos usados.
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "block2", "NSNotification", "NSOperation", "NSGeometry", "NSObject", "NSString"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSView", "NSViewController", "NSTitlebarAccessoryViewController", "NSWindow", "NSLayoutConstraint"] }

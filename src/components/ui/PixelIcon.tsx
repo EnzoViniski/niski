@@ -4,7 +4,7 @@ import type { SVGProps } from "react";
  * ARQUIVO GERADO — não editar à mão.
  * Rode `node scripts/gen-pixel-icons.mjs` depois de mexer na lista ICONS do script.
  *
- * Ícones pixel-art de `pixelarticons` v2.4.1 (MIT), inlineados: o app usa ~106 dos
+ * Ícones pixel-art de `pixelarticons` v2.4.1 (MIT), inlineados: o app usa ~107 dos
  * 1036 do pacote, e nenhum runtime externo entra no bundle por causa disso.
  */
 type IconProps = SVGProps<SVGSVGElement> & { size?: number | string };
@@ -105,6 +105,10 @@ export const PlayIcon = makeIcon(
 
 export const StopIcon = makeIcon(
   "M20 20H4V4H20V20ZM6 18H18V6H6V18ZM14 14H10V10H14V14Z"
+);
+
+export const MicIcon = makeIcon(
+  "M10 2h4v2h-4zM8 4h2v10H8zm2 10h4v2h-4zm4-10h2v10h-2zM4 10h2v6H4zm2 6h2v2H6zm2 2h8v2H8zm8-2h2v2h-2zm2-6h2v6h-2zm-7 10h2v2h-2z"
 );
 
 export const TrashIcon = makeIcon(

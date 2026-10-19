@@ -14,12 +14,25 @@ mod extensoes;
 mod relatorio;
 mod agentes;
 mod fluxos;
+mod voz;
+mod atualizacao;
+// Fork: abrir no app padrão o arquivo que o agente gerou (cartão na Conversa).
+mod abrir_entregavel;
+// Fork: caminho citado na Conversa vira link (abre pasta/arquivo sem executar nada).
+mod abrir_caminho;
+// Fork: aba Navegador e trava de link que tomava a janela.
+mod navegador;
+// Fork: agente numa branch própria (worktree do git).
+mod worktree;
+#[cfg(target_os = "macos")]
+mod tela_cheia;
 
 pub fn run() {
     if let Ok(dir) = engine_client::engine_dir() {
         omni_core::registro::iniciar("app", &dir);
     }
     omni_core::registro::registrar_panicos();
+    atualizacao::marcar_abertura();
     let inicio = std::time::Instant::now();
     #[cfg(unix)]
     let path_do_shell = engine_client::import_login_shell_path();
@@ -35,9 +48,33 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(navegador::plugin())
         .plugin(tauri_plugin_notification::init())
+        // Fork: em tela cheia no Mac, o conteúdo desce junto da barra revelada (tela_cheia.rs).
+        .setup(|_app| {
+            #[cfg(target_os = "macos")]
+            tela_cheia::instalar(_app);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             engine_client::engine_status,
+            abrir_entregavel::abrir_entregavel,
+            abrir_entregavel::mostrar_entregavel_na_pasta,
+            abrir_caminho::abrir_caminho_da_conversa,
+            navegador::navegador_abrir,
+            navegador::navegador_posicionar,
+            navegador::navegador_acao,
+            navegador::navegador_fechar,
+            navegador::navegador_abrir_fora,
+            worktree::git_worktree_da_branch,
+            voz::voz_estado,
+            voz::voz_baixar_modelo,
+            voz::voz_gravar,
+            voz::voz_transcrever,
+            voz::voz_previa,
+            voz::voz_cancelar,
+            atualizacao::versao_nova_no_disco,
+            atualizacao::reiniciar_para_atualizar,
             engine_client::registrar_evento_da_ui,
             account_usage::account_usage,
             extensoes::listar_extensoes,
@@ -114,8 +151,12 @@ pub fn run() {
             fluxos::fluxos_apagar,
             fluxos::fluxos_validar,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        // Fork: solta o modelo de voz antes de sair. Com ele carregado na GPU, a limpeza do Metal do
+        // whisper.cpp no `exit` aborta (`GGML_ASSERT` em ggml-metal-device.m) e o macOS mostra
+        // "encerrou inesperadamente" na próxima abertura.
+        .run(|_, evento| if let tauri::RunEvent::Exit = evento { voz::liberar() });
 }
 
 /// Metadados da subida: o que costuma faltar quando o app é aberto pelo Finder (PATH, TERM, LANG) e

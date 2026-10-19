@@ -43,7 +43,13 @@ export function GitContaStatus({ projectPath }: { projectPath: string | null }) 
 /** Branch do projeto em foco no rodapé, com pull, troca de branch e criação ao lado. O status vem
  *  do mesmo `git_status` do painel lateral; relê sozinho porque quem troca de branch costuma ser o
  *  agente, no terminal. */
-export function GitBranchStatus({ projectPath }: { projectPath: string | null }) {
+export function GitBranchStatus({ projectPath, abrirPara = "cima", atalho = true }: {
+  projectPath: string | null;
+  /** Fork: na faixa do agente (topo do painel) o menu abre para baixo. */
+  abrirPara?: "cima" | "baixo";
+  /** Fork: só o do rodapé responde ao atalho de branch nova — senão cada agente abriria o seu. */
+  atalho?: boolean;
+}) {
   const [branch, setBranch] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -54,7 +60,7 @@ export function GitBranchStatus({ projectPath }: { projectPath: string | null })
   const botaoRef = useRef<HTMLButtonElement>(null);
   /** Posição do popover em coordenadas de tela. O rodapé é `h-7` com `overflow-hidden`: um popover
    *  `absolute` nasce dentro dele e é recortado até sumir — `fixed` escapa do recorte. */
-  const [ancora, setAncora] = useState({ left: 0, bottom: 0 });
+  const [ancora, setAncora] = useState<{ left: number; bottom?: number; top?: number }>({ left: 0, bottom: 0 });
 
   const refresh = useCallback(() => {
     if (!projectPath) {
@@ -70,7 +76,8 @@ export function GitBranchStatus({ projectPath }: { projectPath: string | null })
     refresh();
     // Em projeto remoto cada leitura é um `wsl`/`ssh` — 3s viraria tráfego constante à toa.
     const ritmo = isRemoteProject(projectPath) ? 10_000 : 3_000;
-    const timer = window.setInterval(refresh, ritmo);
+    // Fork: com a janela oculta não roda `git status` (o próximo tique depois de voltar relê).
+    const timer = window.setInterval(() => { if (!document.hidden) refresh(); }, ritmo);
     return () => window.clearInterval(timer);
   }, [refresh, projectPath]);
 
@@ -78,14 +85,14 @@ export function GitBranchStatus({ projectPath }: { projectPath: string | null })
   // justamente onde o usuário está quando decide abrir uma branch nova.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (!matchesShortcut(event, "newBranch") || !projectPath) return;
+      if (!atalho || !matchesShortcut(event, "newBranch") || !projectPath) return;
       event.preventDefault();
       event.stopPropagation();
       setOpen(true);
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [projectPath]);
+  }, [projectPath, atalho]);
 
   // A lista é relida a cada abertura: branch criada no terminal aparece sem precisar reabrir o app.
   useEffect(() => {
@@ -93,12 +100,12 @@ export function GitBranchStatus({ projectPath }: { projectPath: string | null })
     setNome("");
     setBranches(null);
     const rect = botaoRef.current?.getBoundingClientRect();
-    if (rect) setAncora({ left: rect.left, bottom: window.innerHeight - rect.top + 4 });
+    if (rect) setAncora(abrirPara === "baixo" ? { left: rect.left, top: rect.bottom + 4 } : { left: rect.left, bottom: window.innerHeight - rect.top + 4 });
     gitBranches(projectPath)
       .then(setBranches)
       .catch(() => setBranches([]));
     inputRef.current?.focus();
-  }, [open, projectPath]);
+  }, [open, projectPath, abrirPara]);
 
   if (!projectPath || !branch) return null;
 
@@ -163,7 +170,7 @@ export function GitBranchStatus({ projectPath }: { projectPath: string | null })
           <div
             role="dialog"
             aria-label="Branches"
-            style={{ left: ancora.left, bottom: ancora.bottom }}
+            style={ancora}
             className="popover fixed z-50 flex w-64 flex-col gap-1 p-1"
           >
             <input

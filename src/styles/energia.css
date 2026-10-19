@@ -1,0 +1,63 @@
+/* Fork: economia de energia (2026-10-19). Ver src/lib/energia.ts.
+
+   1. Pausa das animações decorativas infinitas com a janela oculta, sem foco ou parada há 8 s
+      (`html[data-energia="pausa"]`, ligado por useEconomiaDeEnergia). `paused` congela no quadro
+      em que estava e retoma dali — nada some. Só as **infinitas**: uma animação de entrada pausada
+      deixaria uma mensagem nova invisível até mexer o mouse. Fora de propósito: gravação de voz e
+      alvo de arrastar (há gente usando).
+   2. Contenção do terminal: o host do xterm é `absolute inset-0` (tamanho vem de fora), então
+      `contain: strict` não muda nada na tela e faz cada linha nova da PTY recalcular só o terminal,
+      não o app inteiro (antes cada saída de agente relayoutava lateral, abas e conversa). */
+
+:root[data-energia="pausa"] :is(
+  .bell-ring, .badge-pulse, .neon, .neon-glow, .neon-bar, .neon-idle, .historico-esqueleto,
+  .lateral-avatar-vivo, .vazio-painel *, .lz-card *, .lz-card, .lz-heroi *,
+  .fx-ponto, .fx-no, .fx-linha-tempo li,
+  .m-dot-ativo, .working-verb, .anexo-girando, .composer-modo, .composer-parar-icone,
+  .bubble-imagem-carregando, .xterm-cursor-blink
+),
+:root[data-energia="pausa"] :is(.shimmer, .lz-abrir, .fx-linha-tempo li, .composer, .composer-enviar)::before,
+:root[data-energia="pausa"] :is(.shimmer, .lz-abrir, .fx-linha-tempo li, .composer, .composer-enviar)::after {
+  animation-play-state: paused !important;
+}
+
+[data-omni-context="terminal"] {
+  contain: strict;
+}
+
+/* 3. Isolamento de layout (2ª rodada). Com o agente transmitindo, o `sample` do WebContent mostrou o
+      layout descendo do RenderView por toda a cadeia de flex a cada atualização da conversa.
+      `contain: size layout` faz do bloco uma fronteira de layout (WebKit exige tamanho + layout);
+      os três têm tamanho vindo de fora: a conversa é `absolute inset-0`, a lista de mensagens é
+      `flex: 1` com `min-height: 0` dentro dela, a lateral tem `width` fixo e é esticada pela linha.
+      Sem `paint` na lateral: a borda de arrastar sai um pouco para fora dela. */
+.aba-conversa-tela { contain: strict; }
+.aba-conversa-tela .w-painel-central .chat { contain: strict; }
+#root aside.glass-strong.shrink-0 { contain: size layout style; }
+
+/* 4. O que fica sempre na tela não anima sozinho (cada quadro de `filter`/`box-shadow` é repintura
+      na thread principal e mantém o display link ligado a 60 Hz):
+      - neon da nav ativa: brilho parado no quadro de repouso; pulsa só no hover;
+      - contadores e sino: pulsam 3 vezes ao aparecer e param;
+      - avatar "vivo", botão parar e brilho do "trabalhando": em degraus (poucas repinturas por
+        segundo, o WebKit só agenda quadro na troca de degrau);
+      - reflexo do enviar: `transform` (compositor) em vez de `left` (layout a cada degrau). */
+.neon, .neon-glow {
+  animation: none;
+  filter: drop-shadow(0 0 3px rgb(var(--c-selected) / 0.75)) drop-shadow(0 0 9px rgb(var(--c-selected) / 0.4));
+}
+.neon-bar {
+  animation: none;
+  box-shadow: 0 0 4px rgb(var(--c-selected) / 0.8), 0 0 10px rgb(var(--c-selected) / 0.45);
+}
+button:hover > .neon, button:focus-visible > .neon { animation: neon-pulse 2.4s ease-in-out infinite; }
+button:hover > .neon-bar, button:focus-visible > .neon-bar { animation: neon-bar-pulse 2.4s ease-in-out infinite; }
+:root :is(.badge-pulse, .bell-ring) { animation-iteration-count: 3; }
+:root .lateral-avatar-vivo { animation-timing-function: steps(8); }
+:root .composer-parar-icone { animation-timing-function: steps(6); }
+:root .working-verb { animation-timing-function: steps(24); }
+:root .aba-conversa-tela .composer-enviar:not(:disabled)::after { left: -40%; animation-name: energia-reflexo; }
+@keyframes energia-reflexo {
+  0% { transform: translateX(0) skewX(-20deg); }
+  40%, 100% { transform: translateX(378%) skewX(-20deg); }
+}

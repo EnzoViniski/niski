@@ -1,5 +1,7 @@
 import { Renderer, Program, Mesh, Color, Triangle } from 'ogl';
 import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+// Fork: pausa de energia (janela oculta/sem foco/parada) — `src/lib/energia.ts`.
+import { cancelarQuadro, proximoQuadro } from '../lib/energia';
 
 type Vec2 = [number, number];
 
@@ -358,7 +360,7 @@ export default function FaultyTerminal({
     resize();
 
     const update = (t: number) => {
-      rafRef.current = requestAnimationFrame(update);
+      rafRef.current = proximoQuadro(update);
 
       if (pageLoadAnimation && loadAnimationStartRef.current === 0) {
         loadAnimationStartRef.current = t;
@@ -393,13 +395,13 @@ export default function FaultyTerminal({
 
       renderer.render({ scene: mesh });
     };
-    rafRef.current = requestAnimationFrame(update);
+    rafRef.current = proximoQuadro(update);
     ctn.appendChild(gl.canvas);
 
     if (mouseReact) ctn.addEventListener('mousemove', handleMouseMove);
 
     return () => {
-      cancelAnimationFrame(rafRef.current);
+      cancelarQuadro(rafRef.current);
       resizeObserver.disconnect();
       if (mouseReact) ctn.removeEventListener('mousemove', handleMouseMove);
       if (gl.canvas.parentElement === ctn) ctn.removeChild(gl.canvas);

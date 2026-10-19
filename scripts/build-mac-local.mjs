@@ -7,6 +7,7 @@
 //
 // Uso: node scripts/build-mac-local.mjs   (só a arquitetura da máquina, só o .app)
 import { execFileSync } from "node:child_process";
+import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import { gravarSobreposicao, lerIdentidade, sobreposicaoDoTauri } from "./identidade.mjs";
 
@@ -44,6 +45,17 @@ const rodar = (cmd, args) => execFileSync(cmd, args, { stdio: "inherit", env });
 rodar(process.execPath, ["scripts/sync-version.mjs"]);
 rodar(process.execPath, ["scripts/build-engine.mjs", "--release"]);
 rodar(process.execPath, [resolve("node_modules/@tauri-apps/cli/tauri.js"), "build", "--bundles", "app", "--config", configLocal]);
+
+// Fork (energia, 2026-10-19): o .app de 13:13 saiu com o engine de **debug** (31 MB, sem otimização,
+// ~8% de CPU parado): um `npm run build:engine` rodado no meio do build trocou
+// `src-tauri/binaries/` antes do bundle copiar. O release tem ~4 MB; acima do dobro, é debug.
+const engineDoBundle = resolve("target/release/bundle/macos", `${identidade.nome}.app`, "Contents/MacOS/omni-engine");
+const engineRelease = resolve("target/release/omni-engine");
+if (statSync(engineDoBundle).size > 2 * statSync(engineRelease).size) {
+  console.error(`\nbuild-mac-local: o engine dentro do .app é o de debug (${engineDoBundle}).`);
+  console.error("Algo rodou `npm run build:engine` durante o build. Rode este script de novo sem nada em paralelo.");
+  process.exit(1);
+}
 
 console.log(`\nPronto: target/release/bundle/macos/${identidade.nome}.app`);
 console.log(`Porta ${identidade.porta}, dados em ~/Library/Application Support/${identidade.pasta}, logs em ~/Library/Logs/${identidade.pasta}/`);

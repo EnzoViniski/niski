@@ -1,6 +1,6 @@
 import { emptyWorkspace } from "../../services/workspaceService";
 import type { WorkspaceCollection, WorkspacesAction } from "../../types/workspace";
-import { workspaceReducer } from "./workspaceReducer";
+import { collectResourceIds, workspaceReducer } from "./workspaceReducer";
 
 let sequence = 0;
 
@@ -46,7 +46,10 @@ export function workspacesReducer(state: WorkspaceCollection, action: Workspaces
       // Sem o projeto dentro do workspace alvo, o SELECT_PROJECT abaixo viraria no-op e o
       // ATTACH_TERMINAL grudaria a sessão no projeto errado — o bug que essa ação existe pra matar.
       if (!target?.projects.some((project) => project.id === action.projectId)) return state;
-      const selected = workspaceReducer(target, { type: "SELECT_PROJECT", projectId: action.projectId });
+      // Fork: conversa já aberta no layout de outro projeto (arrastada para lá pela lateral) é
+      // focada onde está — abrir de novo no projeto dela deixaria duas abas na mesma sessão.
+      const ondeEsta = target.projects.find((project) => collectResourceIds(project.layout).includes(action.sessionId));
+      const selected = workspaceReducer(target, { type: "SELECT_PROJECT", projectId: ondeEsta?.id ?? action.projectId });
       // Ordem importa: ATTACH_TERMINAL passa por `updateActiveProject`, então só acha a pane certa
       // depois que o projeto alvo já é o ativo.
       const focused = workspaceReducer(selected, {

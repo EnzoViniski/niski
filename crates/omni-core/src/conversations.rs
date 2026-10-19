@@ -140,15 +140,14 @@ pub fn write_index(dir: &Path, conversations: &[Conversation]) -> std::io::Resul
 /// com todo caractere não-alfanumérico virando `-`, caixa preservada.
 /// `D:\PROGRAMACAO\...\OMNI-AGENTS` -> `D--PROGRAMACAO-...-OMNI-AGENTS`
 pub fn claude_project_slug(cwd: &str) -> String {
-    cwd.trim_end_matches(['\\', '/'])
-        .chars()
-        .map(|character| if character.is_ascii_alphanumeric() { character } else { '-' })
-        .collect()
+    // Fork: acima de 200 caracteres a CLI corta e põe um hash (ver `pasta_do_claude`).
+    crate::pasta_do_claude::slug(cwd)
 }
 
 /// Onde o transcript de uma sessão do Claude vai parar, dado o config dir daquela conta.
 pub fn claude_transcript_path(config_dir: &Path, cwd: &str, session_id: &str) -> PathBuf {
-    config_dir.join("projects").join(claude_project_slug(cwd)).join(format!("{session_id}.jsonl"))
+    // Fork: caminho longo pode estar numa pasta de hash diferente (CLI no Bun); procura pelo prefixo.
+    crate::pasta_do_claude::localizar(config_dir, cwd, session_id)
 }
 
 pub(crate) fn timestamp(value: &Value) -> Option<u64> {
@@ -167,6 +166,9 @@ pub fn resolve_transcript(
     conversation: &Conversation,
     profiles: &[crate::Profile],
 ) -> Option<PathBuf> {
+    // Fork: índice antigo guardou o caminho sem o corte da CLI para projeto de caminho longo.
+    let corrigido = crate::pasta_do_claude::trecho_com_transcript_atual(segment, conversation, profiles);
+    let segment = corrigido.as_ref().unwrap_or(segment);
     let profile = profiles.iter().find(|p| Some(&p.id) == segment.profile_id.as_ref() && p.provider == segment.provider)?;
     let root = Path::new(&profile.config_dir).canonicalize().ok()?;
     // Antigravity: o log da própria sessão diz a conversa na tela agora — vale mais que o ponteiro
@@ -263,6 +265,9 @@ pub struct Message {
     /// Imagens coladas nesta mensagem; o conteúdo vem por `GET …/imagens/{n}/{k}`.
     #[serde(skip_serializing_if = "sem_imagens")]
     pub imagens: usize,
+    /// Fork: documentos que o agente gerou; o conteúdo vem por `GET …/arquivos/{n}/{k}`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub arquivos: Vec<String>,
 }
 fn sem_imagens(n: &usize) -> bool { *n == 0 }
 #[derive(Serialize)]
@@ -313,8 +318,10 @@ pub fn timeline(conversation: &Conversation, profiles: &[crate::Profile], cursor
 /// de novo uma mensagem pelo número — ver `feed::imagem`.
 pub fn fontes(conversation: &Conversation, profiles: &[crate::Profile]) -> Vec<(std::path::PathBuf, String)> {
     conversation.segments.iter()
+        // Fork: caminho guardado sem o corte da CLI (projeto de caminho longo) volta corrigido.
+        .map(|segment| crate::pasta_do_claude::trecho_com_transcript_atual(segment, conversation, profiles).unwrap_or_else(|| segment.clone()))
         .filter(|segment| !segment.transcript_path.as_deref().is_some_and(|path| !Path::new(path).exists()))
-        .filter_map(|segment| resolve_transcript(segment, conversation, profiles).map(|path| (path, segment.provider.clone())))
+        .filter_map(|segment| resolve_transcript(&segment, conversation, profiles).map(|path| (path, segment.provider.clone())))
         .collect()
 }
 
@@ -332,6 +339,10 @@ pub fn timeline_cached(
     let mut itens: Vec<(String, crate::feed::Item)> = Vec::new();
     let mut seen = HashSet::new();
     for (segment_index, segment) in conversation.segments.iter().enumerate() {
+        // Fork: sem isto, projeto de caminho longo caía no `continue` abaixo e a Conversa ficava
+        // vazia com o agente trabalhando (o caminho guardado não tinha o corte da CLI).
+        let corrigido = crate::pasta_do_claude::trecho_com_transcript_atual(segment, conversation, profiles);
+        let segment = corrigido.as_ref().unwrap_or(segment);
         // O Claude só grava o `.jsonl` depois da primeira mensagem. Conversa recém-aberta tem o
         // caminho já fixado (`--session-id`) mas nenhum arquivo: isso é "vazia", não "indisponível".
         // Antes caía no aviso de histórico perdido logo na primeira abertura. Nada é lido aqui, então
@@ -413,6 +424,8 @@ fn aviso_de_troca(anterior: &Segment, novo: &Segment, profiles: &[crate::Profile
         tool: None,
         timestamp: chrono::DateTime::from_timestamp_millis(novo.started_at_ms as i64).map(|d| d.to_rfc3339()),
         imagens: 0,
+        midia: Vec::new(),
+        arquivos: Vec::new(),
     }
 }
 
@@ -432,6 +445,7 @@ pub fn page(conversation_id: &str, itens: Vec<(String, crate::feed::Item)>, curs
         kind: item.kind,
         tool: item.tool,
         imagens: item.imagens,
+        arquivos: item.arquivos,
     }).collect();
     Timeline {
         messages,

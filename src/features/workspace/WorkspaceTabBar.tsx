@@ -1,7 +1,7 @@
 import { GlifoFechar, GlifoMais } from "../../components/ui/PixelGlyph";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChatIcon, KanbanIcon, ListIcon, TerminalIcon, GitBranchIcon } from "../../components/ui/PixelIcon";
+import { ChatIcon, KanbanIcon, ListIcon, TerminalIcon, GitBranchIcon, GlobeIcon } from "../../components/ui/PixelIcon";
 import { AGENT_ICON } from "../../components/ui/AgentIcon";
 import { useSession, useSessionProvider } from "../terminal/sessionProviders";
 import { EditableLabel } from "../../components/ui/EditableLabel";
@@ -9,6 +9,7 @@ import { renameSession } from "../terminal/terminalService";
 import { iconForPath } from "../files/fileIcons";
 import type { PaneKind, PaneNode, WorkspaceAction } from "../../types/workspace";
 import { startTabDrag } from "./tabPointerDrag";
+import { EtiquetaDoProjeto, useProjetoDeFora } from "./projetosDasAbas";
 
 interface WorkspaceTabBarProps {
   pane: PaneNode;
@@ -93,6 +94,8 @@ function TabLabel({
 }) {
   const session = useSession(item.resourceId);
   const [editando, setEditando] = useState(false);
+  // Fork: conversa de outro projeto mostra o nome dele na aba (`projetosDasAbas.tsx`).
+  const deFora = useProjetoDeFora(item.resourceId);
 
   function renomear(nome: string) {
     dispatch({
@@ -134,6 +137,7 @@ function TabLabel({
       {/* Ícone no lugar do rótulo do kind: "MARKDOWN" comia 8 caracteres de uma aba que já
           é estreita, e o tipo do ARQUIVO diz mais do que o tipo do painel. */}
       <TabIcon item={item} className="mr-1.5 inline-block h-3 w-3 shrink-0 align-[-2px] text-accent" />
+      {deFora && <EtiquetaDoProjeto projeto={deFora} className="mr-1.5" />}
       {item.title}
       {dirtyTabIds?.has(item.id) && (
         <span className="ml-1.5 text-accent" title="Alterações não salvas" aria-label="Alterações não salvas">•</span>
@@ -226,6 +230,7 @@ const ICONE_POR_KIND: Partial<Record<PaneNode["tabs"][number]["kind"], React.Com
   kanban: KanbanIcon,
   "git-graph": GitBranchIcon,
   "git-diff": GitBranchIcon,
+  web: GlobeIcon,
 };
 
 function TabIcon({ item, className }: { item: PaneNode["tabs"][number]; className?: string }) {

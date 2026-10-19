@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import { App } from "./App";
 import "./index.css";
 import "./styles/fork.css";
+// Fork: pausa de animações com a janela parada e contenção de layout (energia).
+import "./styles/energia.css";
 import { usarTransporte } from "./mobile/api";
 import { transporteDoEngine } from "./features/conversa/transporteDoEngine";
 import { instalarRegistroDeErros } from "./lib/registroDeErros";

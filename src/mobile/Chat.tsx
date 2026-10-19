@@ -13,6 +13,9 @@ import { iconForPath } from "../features/files/fileIcons";
 import { nomeDoCaminho, semMarcasDeImagem, separarAnexos } from "./anexos";
 import { request, type Mensagem } from "./api";
 import { NOME_DO_PRODUTO } from "../lib/identidade";
+import { energiaPausada } from "../lib/energia";
+import { ArquivosDoAgente, type ArquivosDaMensagem } from "./ArquivosDoAgente";
+import { CodigoOuCaminho } from "./CaminhoClicavel";
 
 /** Os quadros do spinner do Claude Code, em vai-e-volta — é o que faz parecer que ele "respira". */
 const QUADROS = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
@@ -147,6 +150,8 @@ interface MessageBubbleProps {
   /** Mais uma fala do agente no mesmo turno: sem cabeçalho, colada na anterior. */
   continua?: boolean;
   imagens?: ImagensDaMensagem;
+  /** Fork: documentos que o agente gerou, como cartões que abrem/baixam. */
+  arquivos?: ArquivosDaMensagem;
 }
 
 /**
@@ -156,7 +161,7 @@ interface MessageBubbleProps {
  * com o mesmo `rehype-sanitize`. Mensagem do usuário fica em texto puro — reinterpretar o que a
  * pessoa digitou mudaria o que ela vê do próprio prompt — e a lista de anexos vira cartões.
  */
-export const MessageBubble = memo(function MessageBubble({ lado, provider, texto, horario, pendente, anexosLocais, continua, imagens }: MessageBubbleProps) {
+export const MessageBubble = memo(function MessageBubble({ lado, provider, texto, horario, pendente, anexosLocais, continua, imagens, arquivos }: MessageBubbleProps) {
   const doUsuario = lado === "user";
   const separado = doUsuario ? separarAnexos(texto) : { texto, anexos: [] as string[] };
   const corpo = doUsuario ? semMarcasDeImagem(separado.texto) : separado.texto;
@@ -177,7 +182,7 @@ export const MessageBubble = memo(function MessageBubble({ lado, provider, texto
       {corpo && (doUsuario
         ? <div className="mobile-message">{corpo}</div>
         : <div className="bubble-markdown prose prose-sm max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={{ pre: BlocoDeCodigo }}>{corpo}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={{ pre: BlocoDeCodigo, img: ImagemDoMarkdown, code: CodigoOuCaminho }}>{corpo}</ReactMarkdown>
           </div>)}
       {imagens && imagens.total > 0 && (
         <ul className="bubble-imagens" aria-label="Imagens da mensagem">
@@ -188,6 +193,7 @@ export const MessageBubble = memo(function MessageBubble({ lado, provider, texto
         </ul>
       )}
       <CartoesDeAnexo anexos={cartoes} />
+      {arquivos && <ArquivosDoAgente {...arquivos} />}
       {!doUsuario && corpo && <BotaoCopiar texto={corpo} rotulo="Copiar resposta" className="bubble-copiar" />}
     </article>
   );
@@ -209,6 +215,16 @@ function BotaoCopiar({ texto, rotulo, className }: { texto: string | (() => stri
       <span>{copiado ? "Copiado" : "Copiar"}</span>
     </button>
   );
+}
+
+/**
+ * Fork: `![…](/Users/…/x.png)` que o agente escreve aponta para um arquivo local, que o webview não
+ * carrega (aparecia um quadro com "?"). A imagem de verdade já vem embaixo do balão (o engine acha o
+ * caminho citado), então aqui só passa imagem da web.
+ */
+export function ImagemDoMarkdown({ src, alt }: { src?: string; alt?: string }) {
+  if (!src || !/^https?:\/\//i.test(src)) return null;
+  return <img src={src} alt={alt ?? ""} loading="lazy" />;
 }
 
 /** Bloco de código do markdown com a linguagem no topo e um "Copiar", como num editor. */
@@ -278,8 +294,10 @@ function LinhaDeAcao({ acao }: { acao: Mensagem }) {
  * ficam resumidas ("7 ações · Rodou npm test") e abrem num toque. O bloco do turno em andamento
  * nasce aberto — é o que mostra, ao vivo, o que o agente está fazendo agora.
  */
-export const BlocoDeAcoes = memo(function BlocoDeAcoes({ acoes, aoVivo }: {
+export const BlocoDeAcoes = memo(function BlocoDeAcoes({ acoes, aoVivo, conversa }: {
   acoes: Mensagem[]; provider?: string | null; aoVivo?: boolean;
+  /** Fork: com a conversa, o documento que uma ação criou (`Write`) aparece como cartão abaixo. */
+  conversa?: string;
 }) {
   const [aberto, setAberto] = useState(Boolean(aoVivo));
   useEffect(() => { if (aoVivo) setAberto(true); }, [aoVivo]);
@@ -299,6 +317,10 @@ export const BlocoDeAcoes = memo(function BlocoDeAcoes({ acoes, aoVivo }: {
         )}
       </button>
       {aberto && <ul className="acoes-lista">{visiveis.map((acao) => <LinhaDeAcao key={acao.id} acao={acao} />)}</ul>}
+      {/* Fork: fora do recolhido — o arquivo gerado é o resultado, não um passo. */}
+      {conversa && acoes.map((acao) => acao.arquivos?.length
+        ? <ArquivosDoAgente key={`arq-${acao.id}`} conversa={conversa} n={Number(acao.id.slice(acao.id.lastIndexOf(":") + 1))} caminhos={acao.arquivos} />
+        : null)}
     </section>
   );
 });
@@ -345,7 +367,8 @@ export function AgentWorking({ desde, provider, tokens }: AgentWorkingProps) {
 
   useEffect(() => {
     const parado = reduzirMovimento();
-    const spinner = parado ? undefined : window.setInterval(() => setQuadro((q) => (q + 1) % QUADROS.length), 120);
+    // Fork: com a pausa de energia (janela sem foco/parada) o quadro fica parado; o relógio segue.
+    const spinner = parado ? undefined : window.setInterval(() => { if (!energiaPausada()) setQuadro((q) => (q + 1) % QUADROS.length); }, 120);
     const troca = parado ? undefined : window.setInterval(() => setFrase(sortearOutra), 2800);
     const relogio = window.setInterval(() => setAgora(Date.now()), 1000);
     return () => { window.clearInterval(spinner); window.clearInterval(troca); window.clearInterval(relogio); };

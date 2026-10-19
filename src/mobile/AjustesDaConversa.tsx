@@ -23,12 +23,17 @@ const ESFORCO: Record<string, string> = {
   low: "Baixo", medium: "Médio", high: "Alto", xhigh: "Muito alto", max: "Máximo", ultra: "Ultra",
 };
 
-/** `claude-opus-5-5` → `opus`: o transcript grava o id completo, a lista oferece o apelido. */
-function modeloDaLista(opcoes: Opcoes): string {
+/**
+ * O modelo do transcript na lista: igual (`claude-opus-4-8`) ou o mais específico que ele contém
+ * (`claude-opus-4-5-20251101` → `claude-opus-4-5`, não o apelido `opus`). Fork: a lista do Claude
+ * passou a ter versões fixas além dos apelidos.
+ */
+export function modeloDaLista(opcoes: Pick<Opcoes, "model" | "models">): string {
   const atual = opcoes.model?.toLowerCase();
   if (!atual) return "";
   return opcoes.models.find((m) => m.id.toLowerCase() === atual)?.id
-    ?? opcoes.models.find((m) => atual.includes(m.id.toLowerCase()))?.id
+    ?? opcoes.models.filter((m) => atual.includes(m.id.toLowerCase()))
+      .sort((a, b) => b.id.length - a.id.length)[0]?.id
     ?? "";
 }
 

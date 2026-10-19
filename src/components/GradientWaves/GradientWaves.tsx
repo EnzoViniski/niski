@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Renderer, Program, Mesh, Triangle } from 'ogl';
+// Fork: pausa de energia (janela oculta/sem foco/parada) — `src/lib/energia.ts`.
+import { cancelarQuadro, proximoQuadro } from '../../lib/energia';
 
 export type GradientWavesDetail = 'low' | 'medium' | 'high';
 
@@ -283,15 +285,15 @@ const GradientWaves: React.FC<GradientWavesProps> = ({
       m[0] = currentMouse[0];
       m[1] = currentMouse[1];
       renderer.render({ scene: mesh });
-      raf = requestAnimationFrame(loop);
+      raf = proximoQuadro(loop);
     };
 
     const tryStart = () => {
-      if (isVisible && isPageVisible && raf === 0) raf = requestAnimationFrame(loop);
+      if (isVisible && isPageVisible && raf === 0) raf = proximoQuadro(loop);
     };
     const tryStop = () => {
       if (raf !== 0) {
-        cancelAnimationFrame(raf);
+        cancelarQuadro(raf);
         raf = 0;
       }
     };

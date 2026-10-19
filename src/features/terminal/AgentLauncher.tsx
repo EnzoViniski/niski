@@ -7,6 +7,8 @@ import { Mascote } from "../workspace/PainelVazio";
 import { targetLabel } from "../../lib/paths";
 import { contaDoAgente, lembrarAgente, lembrarConta, ultimoAgente } from "../../lib/escolhasSalvas";
 import { levarParaConta, resumeCommand, type HistoryEntry, type HistoryProvider } from "../history/historyService";
+import { gitBranches, gitWorktreeDaBranch, type GitBranch } from "../git/gitService";
+import { isRemoteProject } from "../projects/targetState";
 import {
   AGENT_RESUME_FLAG,
   listAgentClis,
@@ -38,6 +40,23 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  // Fork: branch em que o agente vai trabalhar. Outra que não a atual roda numa worktree própria.
+  const [branches, setBranches] = useState<GitBranch[]>([]);
+  const [branch, setBranch] = useState<string>("");
+  const [branchNova, setBranchNova] = useState("");
+  const [preparando, setPreparando] = useState(false);
+  useEffect(() => {
+    if (isRemoteProject(projectPath)) return;
+    let vivo = true;
+    gitBranches(projectPath).then((lista) => {
+      if (!vivo) return;
+      setBranches(lista);
+      setBranch(lista.find((item) => item.current)?.name ?? "");
+    }).catch(() => undefined);
+    return () => { vivo = false; };
+  }, [projectPath]);
+  const branchAtual = branches.find((item) => item.current)?.name ?? "";
+  const NOVA = "__nova__";
 
   useEffect(() => {
     let cancelled = false;
@@ -90,11 +109,20 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
     hint: item.authenticated ? "conectado" : "sem login",
   }));
 
-  function launch(command?: string) {
+  async function launch(command?: string) {
     if (!agent) return;
     lembrarAgente(agent.id);
     if (profile) lembrarConta(agent.id, profile.id);
-    onLaunch({ agent: command ? { ...agent, command } : agent, profile });
+    let cwd: string | undefined;
+    const alvoBranch = branch === NOVA ? branchNova.trim() : branch;
+    if (alvoBranch && alvoBranch !== branchAtual) {
+      setPreparando(true);
+      setError(null);
+      try { cwd = await gitWorktreeDaBranch(projectPath, alvoBranch, branch === NOVA); }
+      catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setPreparando(false); return; }
+      setPreparando(false);
+    }
+    onLaunch({ agent: command ? { ...agent, command } : agent, profile, cwd });
   }
 
   // Reabre na conta escolhida no histórico (por padrão, a que gravou a conversa). Outra conta
@@ -116,7 +144,7 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
           onResume={resume}
           actions={
             <>
-              <Button variant="ghost" size="sm" onClick={() => launch(`${agent.command} ${AGENT_RESUME_FLAG[agent.id]}`)}>
+              <Button variant="ghost" size="sm" onClick={() => void launch(`${agent.command} ${AGENT_RESUME_FLAG[agent.id]}`)}>
                 Continuar a última
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setPicking(false)}>
@@ -221,6 +249,32 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
             />
           </div>
         )}
+        {branches.length > 0 && (
+          <div className="launcher-campo">
+            <label htmlFor="agent-branch" className="launcher-rotulo">Branch</label>
+            <Select
+              id="agent-branch"
+              value={branch}
+              searchable={branches.length > 6}
+              options={[
+                ...branches.map((item) => ({ value: item.name, label: item.name, hint: item.current ? "atual da pasta" : "pasta separada" })),
+                { value: NOVA, label: "Nova branch…", hint: `a partir de ${branchAtual}` },
+              ]}
+              onChange={setBranch}
+              disabled={loading || preparando}
+            />
+            {branch === NOVA && (
+              <input className="launcher-branch-nova" autoFocus value={branchNova} onChange={(e) => setBranchNova(e.target.value)}
+                placeholder="nome-da-branch" aria-label="Nome da branch nova" spellCheck={false} />
+            )}
+          </div>
+        )}
+        {branch && branch !== branchAtual && (
+          <p className="launcher-nota">
+            O agente trabalha numa cópia da pasta só dele (worktree do git) na branch {branch === NOVA ? (branchNova.trim() || "nova") : branch}.
+            Os agentes desta pasta continuam em {branchAtual}, sem nada mudar debaixo deles.
+          </p>
+        )}
         {profile && !profile.authenticated && (
           <p className="launcher-alerta is-aviso">
             A conta “{profile.name}” ainda não tem login. O CLI vai pedir autenticação ao abrir.
@@ -238,9 +292,11 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
         )}
 
         <div className="launcher-acoes">
-          <Button variant="primary" className="flex-1 lz-abrir" disabled={loading || !agent?.available} onClick={() => launch()}>
+          <Button variant="primary" className="flex-1 lz-abrir" disabled={loading || preparando || !agent?.available || (branch === NOVA && !branchNova.trim())} onClick={() => void launch()}>
             {loading ? (
               "Detectando CLIs…"
+            ) : preparando ? (
+              "Preparando a branch…"
             ) : (
               <span className="inline-flex items-center gap-1.5">
                 {agent && <AgentIcon provider={agent.id} size={14} className="shrink-0" />}

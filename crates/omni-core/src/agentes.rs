@@ -221,15 +221,14 @@ pub const SISTEMA_CRIAR_AGENTE: &str = include_str!("../prompts/criar-agente.md"
 #[derive(Serialize, Clone, Debug)]
 pub struct ModeloDaCli { pub id: String, pub label: String, pub esforcos: Vec<String> }
 
-const MODELOS_CLAUDE: [(&str, &str); 4] = [("fable", "Fable"), ("opus", "Opus"), ("sonnet", "Sonnet"), ("haiku", "Haiku")];
-const ESFORCOS_CLAUDE: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
 
-/// Modelos por CLI: os do Claude são fixos; os do Codex vêm do `models_cache.json` da primeira conta
+/// Modelos por CLI: os do Claude são fixos (`modelos_claude`); os do Codex vêm do `models_cache.json` da primeira conta
 /// que tiver um (é a lista que a própria CLI baixou).
 pub fn modelos_disponiveis(perfis: &[crate::Profile]) -> std::collections::BTreeMap<String, Vec<ModeloDaCli>> {
     let mut mapa = std::collections::BTreeMap::new();
-    mapa.insert("claude".to_owned(), MODELOS_CLAUDE.iter().map(|(id, label)| ModeloDaCli {
-        id: (*id).into(), label: (*label).into(), esforcos: ESFORCOS_CLAUDE.iter().map(|e| (*e).into()).collect() }).collect());
+    // Fork: apelidos e versões fixas (`modelos_claude`), cada um com os esforços que aceita.
+    mapa.insert("claude".to_owned(), crate::modelos_claude::MODELOS.iter().map(|(id, label, esforcos)| ModeloDaCli {
+        id: (*id).into(), label: (*label).into(), esforcos: esforcos.iter().map(|e| (*e).into()).collect() }).collect());
     let codex = perfis.iter().filter(|p| p.provider == "codex").find_map(|p| {
         let cache: serde_json::Value = serde_json::from_slice(&fs::read(Path::new(&p.config_dir).join("models_cache.json")).ok()?).ok()?;
         let lista: Vec<ModeloDaCli> = cache["models"].as_array()?.iter()

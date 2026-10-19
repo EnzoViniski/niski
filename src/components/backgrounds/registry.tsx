@@ -24,6 +24,9 @@ import type { CoresEfeito } from "../../lib/palettes";
  *   `TS2540: Cannot assign to 'current'`. Os dois refs viraram
  *   `useRef<X | null>(null)`. Se um `shadcn add` reverter isso, o
  *   `npm run typecheck` reprova na hora — é só refazer.
+ *   Fork (energia): os três efeitos pedem quadro por `proximoQuadro`/`cancelarQuadro`
+ *   (`src/lib/energia.ts`) em vez de `requestAnimationFrame`, para parar com a janela oculta, sem
+ *   foco ou parada. Um `shadcn add` desfaz isso em silêncio: refazer as duas trocas.
  * - O componente ocupa 100% do container e não recebe ponteiro (o
  *   AppBackground já cuida de posição, veil e pointer-events).
  * - `lazy` é obrigatório: cada efeito arrasta WebGL (ogl ~50 kB) e só deve

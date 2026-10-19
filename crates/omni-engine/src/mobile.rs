@@ -562,7 +562,10 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/conversas/{id}/timeline",get(timeline))
         .route("/conversas/{id}/terminal",get(terminal))
         .route("/conversas/{id}/imagens/{n}/{k}",get(imagem_da_mensagem))
+        // Fork: documento que o agente gerou (PDF, planilha…), para o celular baixar.
+        .route("/conversas/{id}/arquivos/{n}/{k}",get(arquivo_da_mensagem))
         .route("/conversas/{id}/teclas",post(teclas))
+        .route("/conversas/{id}/destravar",post(destravar_rota))
         .route("/conversas/{id}/prompt",post(prompt))
         .route("/conversas/{id}/aprovar",post(approve))
         .route("/conversas/{id}/escolher",post(escolher))
@@ -1086,24 +1089,40 @@ async fn timeline(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePat
 /// Imagem colada numa mensagem, lida do transcript (a CLI a guarda lá em base64). Vai em JSON
 /// (`{tipo, dados}`) e não como arquivo: o app do PC chega aqui pelo protocolo do engine, que só
 /// carrega texto, e a web precisa do cabeçalho de token, que um `<img src>` não manda.
+/// Os transcripts de uma conversa aberta ou do histórico, na ordem do timeline.
+fn fontes_da_conversa(state: &EngineState, id: &str) -> Result<Vec<(std::path::PathBuf, String)>, ApiError> {
+    let dir = state.state_file.parent().unwrap();
+    let profiles = omni_core::profiles(dir);
+    Ok(match current(state,id) {
+        Ok((conversation,_)) => omni_core::conversations::fontes(&conversation,&profiles),
+        Err(_) => {
+            let entry = historical_entries(state).into_iter().find(|entry|history_id(entry) == id)
+                .ok_or_else(||error(StatusCode::NOT_FOUND,"Conversa não encontrada"))?;
+            let caminho = omni_core::history::validated(Path::new(&entry.path),&entry.provider,&profiles)
+                .ok_or_else(||error(StatusCode::NOT_FOUND,"Histórico não encontrado"))?;
+            vec![(caminho, entry.provider)]
+        }
+    })
+}
+
 async fn imagem_da_mensagem(State(state): State<Arc<EngineState>>, RoutePath((id, n, k)): RoutePath<(String, usize, usize)>) -> Result<Json<Value>, ApiError> {
     tokio::task::spawn_blocking(move || {
-        let dir = state.state_file.parent().unwrap();
-        let profiles = omni_core::profiles(dir);
-        let fontes = match current(&state,&id) {
-            Ok((conversation,_)) => omni_core::conversations::fontes(&conversation,&profiles),
-            Err(_) => {
-                let entry = historical_entries(&state).into_iter().find(|entry|history_id(entry) == id)
-                    .ok_or_else(||error(StatusCode::NOT_FOUND,"Conversa não encontrada"))?;
-                let caminho = omni_core::history::validated(Path::new(&entry.path),&entry.provider,&profiles)
-                    .ok_or_else(||error(StatusCode::NOT_FOUND,"Histórico não encontrado"))?;
-                vec![(caminho, entry.provider)]
-            }
-        };
+        let fontes = fontes_da_conversa(&state,&id)?;
         let mut feeds = state.mobile.feeds.lock().expect("feeds poisoned");
         let (tipo, dados) = omni_core::feed::imagem(&fontes,n,k,&mut feeds).ok_or_else(||error(StatusCode::NOT_FOUND,"Imagem não encontrada"))?;
         Ok(Json(json!({"tipo":tipo,"dados":dados})))
     }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ler a imagem"))?
+}
+
+/// Fork: o documento `k` da mensagem `n` (`omni_core::feed::arquivo`), em base64.
+async fn arquivo_da_mensagem(State(state): State<Arc<EngineState>>, RoutePath((id, n, k)): RoutePath<(String, usize, usize)>) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let fontes = fontes_da_conversa(&state,&id)?;
+        let mut feeds = state.mobile.feeds.lock().expect("feeds poisoned");
+        let (nome, tipo, dados) = omni_core::feed::arquivo(&fontes,n,k,&mut feeds)
+            .ok_or_else(||error(StatusCode::NOT_FOUND,"Arquivo não encontrado ou grande demais para baixar"))?;
+        Ok(Json(json!({"nome":nome,"tipo":tipo,"dados":dados})))
+    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ler o arquivo"))?
 }
 
 /// Quanto do histórico do terminal vai na primeira leitura. O engine guarda até 5 MB; mandar tudo
@@ -1234,6 +1253,56 @@ async fn teclas(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<
         Ok(Json(json!({"ok":true})))
     }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao enviar teclas"))?
 }
+/// Fork: deixa a conversa pronta para receber mensagem quando a tela não foi reconhecida ("Entrada não
+/// reconhecida"). Com o agente trabalhando ou perguntando algo, recusa (interromper mataria o turno).
+/// 1. Agente fora do ar no terminal: reabre a sessão (`--resume`, mesma conversa).
+/// 2. Senão, um Ctrl+C limpa o campo (rascunho digitado no terminal, menu perdido).
+/// 3. Se nem assim, reabre a sessão.
+/// Devolve a versão da tela pronta, para o prompt sair logo em seguida sem esbarrar no `If-Match`.
+async fn destravar_rota(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>) -> Result<Json<Value>, ApiError> {
+    tokio::task::spawn_blocking(move || destravar(&state,&id)).await
+        .map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao destravar"))?
+}
+
+fn destravar(state: &Arc<EngineState>, id: &str) -> Result<Json<Value>, ApiError> {
+    let pronta = |state: &Arc<EngineState>, espera: std::time::Duration| -> Option<String> {
+        let limite = std::time::Instant::now() + espera;
+        loop {
+            if let Ok((_, Some(sessao))) = current(state,id) {
+                let cap = interaction::capabilities(&sessao);
+                if cap.prompt { return Some(cap.revision); }
+            }
+            if std::time::Instant::now() >= limite { return None; }
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+    };
+    let (_, sessao) = current(state,id)?;
+    let sessao = sessao.ok_or_else(||error(StatusCode::CONFLICT,"Sessão não está aberta no PC"))?;
+    let cap = interaction::capabilities(&sessao);
+    if cap.prompt { return Ok(Json(json!({"estado":"pronta","revision":cap.revision}))); }
+    if cap.approve || cap.escolha.is_some() { return Err(error(StatusCode::CONFLICT,"Responda a pergunta do agente primeiro")); }
+    if sessao.reserved.load(Ordering::SeqCst) { return Err(error(StatusCode::CONFLICT,"Consulta de uso em andamento; tente de novo em alguns segundos")); }
+    let (sessao_id, pid, provider) = sessao.meta.lock().map(|m| (m.id.clone(), m.pid, m.provider.clone().unwrap_or_default()))
+        .map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Sessão indisponível"))?;
+    let texto = sessao.interaction.lock().map(|c| c.parser.screen().contents()).unwrap_or_default();
+    let rodando = interaction::provider_running(pid,&provider);
+    if rodando && interaction::trabalhando(&texto) { return Err(error(StatusCode::CONFLICT,"O agente está trabalhando; a mensagem entra quando ele terminar")); }
+    let reabrir = |state: &Arc<EngineState>| -> Result<Json<Value>, ApiError> {
+        omni_core::registro::info("conversa_destravada", &[("sessao", &sessao_id), ("como", "reabriu")]);
+        restart_session(state,&sessao_id).map_err(|erro|error(StatusCode::CONFLICT,&erro.to_string()))?;
+        let revision = pronta(state, std::time::Duration::from_secs(40))
+            .ok_or_else(||error(StatusCode::CONFLICT,"Reabri o agente, mas ele ainda não está pronto; tente de novo em instantes"))?;
+        Ok(Json(json!({"estado":"reaberta","revision":revision})))
+    };
+    if !rodando { return reabrir(state); }
+    write_terminal(state,&sessao_id,"\u{3}").map_err(|erro|error(StatusCode::CONFLICT,&erro.to_string()))?;
+    if let Some(revision) = pronta(state, std::time::Duration::from_secs(3)) {
+        omni_core::registro::info("conversa_destravada", &[("sessao", &sessao_id), ("como", "limpou")]);
+        return Ok(Json(json!({"estado":"limpa","revision":revision})));
+    }
+    reabrir(state)
+}
+
 /// Renomear a conversa. Vale para o celular e para a web de computador; o desktop chega aqui pelo
 /// `EngineRequest::RenameConversation`, para o índice ter **um** escritor só.
 #[derive(Deserialize)] struct NomeBody { nome: String }
@@ -1496,8 +1565,6 @@ fn execute(state:&Arc<EngineState>, action:&Action) -> Result<()> {
    esforço na linha de comando; trocar por comando interno (`/model`) muda de versão para versão.
    Trocar de conta leva o transcript junto para o config dir da conta nova, como o failover. */
 
-const MODELOS_CLAUDE: [(&str, &str); 4] = [("fable","Fable"),("opus","Opus"),("sonnet","Sonnet"),("haiku","Haiku")];
-const ESFORCOS_CLAUDE: [&str; 5] = ["low","medium","high","xhigh","max"];
 
 /// Só letras, números e `._-[]`: o valor vira argumento de um comando digitado num shell.
 fn valor_seguro(valor: &str) -> bool {
@@ -1580,7 +1647,8 @@ fn opcoes_da_conversa(state: &EngineState, id: &str) -> Result<Value, ApiError> 
         _ => (None, None),
     };
     let modelos: Vec<Value> = match segmento.provider.as_str() {
-        "claude" => MODELOS_CLAUDE.iter().map(|(id,label)| json!({"id":id,"label":label,"efforts":ESFORCOS_CLAUDE})).collect(),
+        // Fork: apelidos e versões fixas, cada um com os esforços que aceita (`omni_core::modelos_claude`).
+        "claude" => omni_core::modelos_claude::MODELOS.iter().map(|(id,label,esforcos)| json!({"id":id,"label":label,"efforts":esforcos})).collect(),
         "codex" => atual.map(|perfil| modelos_codex(Path::new(&perfil.config_dir))).unwrap_or_default(),
         "antigravity" => omni_core::antigravity::familias(&saida_agy).into_iter()
             .map(|f| json!({"id":f.id,"label":f.label,"efforts":f.esforcos})).collect(),

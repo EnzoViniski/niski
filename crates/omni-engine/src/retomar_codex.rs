@@ -1,0 +1,87 @@
+//! Fork: reiniciar (ou reviver depois de o engine reiniciar) uma sessão do Codex volta para a mesma
+//! conversa.
+//!
+//! O `comando_ao_reiniciar` do autor só sabe retomar o Claude: o Codex era redigitado como na
+//! abertura (`codex ...`) e começava uma conversa nova — no terminal o histórico "sumia" e a Conversa
+//! seguia lendo o rollout antigo, sem o que o agente fazia agora. Uma sessão bifurcada (`codex fork
+//! <id>`) bifurcava de novo a cada reinício. O id nativo vem do índice de conversas (a descoberta de
+//! rollouts o preenche assim que o primeiro prompt cria o arquivo); sem ele, nada a retomar.
+
+use omni_core::conversations::{discover_codex_transcripts, read_index};
+use omni_protocol::TerminalSession;
+use std::path::Path;
+
+/// `codex resume <id>` com as opções do comando original (modelo, esforço). `None` quando não é
+/// Codex, quando a sessão ainda não tem rollout ou quando o comando tem algo que não dá para
+/// reaproveitar com segurança (um prompt entre aspas, por exemplo).
+pub fn comando(dir: &Path, meta: &TerminalSession, original: &str) -> Option<String> {
+    if meta.provider.as_deref() != Some("codex") { return None; }
+    let mut indice = read_index(dir);
+    discover_codex_transcripts(&mut indice, &omni_core::profiles(dir));
+    let sessao = indice.iter()
+        .filter(|c| meta.conversation_id.as_deref().is_none_or(|id| id == c.id))
+        .flat_map(|c| c.segments.iter())
+        .filter(|s| s.provider == "codex" && s.terminal_session_id.as_deref() == Some(meta.id.as_str()))
+        .filter_map(|s| s.external_session_id.clone())
+        .next_back()?;
+    com_resume(original, &sessao)
+}
+
+fn com_resume(original: &str, sessao: &str) -> Option<String> {
+    if original.contains(['"', '\'']) { return None; }
+    let mut partes = original.split_whitespace();
+    let binario = partes.next()?;
+    let mut resto: Vec<&str> = partes.collect();
+    // Já é retomada ou bifurcação: tira o subcomando e o id antigos; vale o id desta sessão.
+    if let Some(posicao) = resto.iter().position(|p| *p == "resume" || *p == "fork") {
+        let fim = (posicao + 2).min(resto.len());
+        resto.drain(posicao..fim);
+    }
+    let opcoes = if resto.is_empty() { String::new() } else { format!(" {}", resto.join(" ")) };
+    Some(format!("{binario} resume {sessao}{opcoes}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omni_core::conversations::{write_index, Conversation, Segment, TitleSource};
+
+    fn sessao(id: &str, provider: &str) -> TerminalSession {
+        serde_json::from_value(serde_json::json!({
+            "id": id, "project_id": "p", "name": "Codex", "cwd": "/projeto", "shell": "zsh",
+            "state": "stopped", "pid": null, "created_at_ms": 0, "last_activity_at_ms": 0, "output_seq": 0,
+            "rows": 24, "cols": 80, "provider": provider, "conversation_id": "c",
+        })).unwrap()
+    }
+
+    fn indice(dir: &Path, externo: Option<&str>) {
+        let trecho = Segment { provider: "codex".into(), profile_id: None, external_session_id: externo.map(str::to_owned),
+            transcript_path: None, terminal_session_id: Some("t".into()), started_at_ms: 0, ended_at_ms: None };
+        let conversa = Conversation { id: "c".into(), project_id: "p".into(), cwd: "/projeto".into(), title: "x".into(),
+            title_source: TitleSource::Auto, created_at_ms: 0, segments: vec![trecho] };
+        write_index(dir, &[conversa]).unwrap();
+    }
+
+    #[test]
+    fn codex_com_rollout_volta_para_a_mesma_conversa() {
+        let dir = tempfile::tempdir().unwrap();
+        indice(dir.path(), Some("019a-codex"));
+        let meta = sessao("t", "codex");
+        assert_eq!(comando(dir.path(), &meta, "codex -m gpt-x -c model_reasoning_effort=high").as_deref(),
+            Some("codex resume 019a-codex -m gpt-x -c model_reasoning_effort=high"));
+        assert_eq!(comando(dir.path(), &meta, "codex").as_deref(), Some("codex resume 019a-codex"));
+        // Fork reiniciado retoma a cópia, não bifurca de novo.
+        assert_eq!(comando(dir.path(), &meta, "codex fork original").as_deref(), Some("codex resume 019a-codex"));
+    }
+
+    #[test]
+    fn sem_rollout_ou_sem_codex_fica_o_comando_original() {
+        let dir = tempfile::tempdir().unwrap();
+        indice(dir.path(), None);
+        assert_eq!(comando(dir.path(), &sessao("t", "codex"), "codex"), None, "nenhum prompt ainda: abre como antes");
+        indice(dir.path(), Some("019a-codex"));
+        assert_eq!(comando(dir.path(), &sessao("outra", "codex"), "codex"), None, "trecho de outra sessão");
+        assert_eq!(comando(dir.path(), &sessao("t", "claude"), "claude"), None);
+        assert_eq!(comando(dir.path(), &sessao("t", "codex"), "codex \"faça x\""), None);
+    }
+}

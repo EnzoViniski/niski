@@ -38,6 +38,8 @@ export interface Mensagem {
   tool?: string;
   /** Imagens coladas na mensagem; cada uma vem por `GET /conversas/{id}/imagens/{n}/{k}`. */
   imagens?: number;
+  /** Fork: documentos que o agente gerou (caminho absoluto); baixam por `GET /conversas/{id}/arquivos/{n}/{k}`. */
+  arquivos?: string[];
 }
 export interface Projects {
   /** 0 = o desktop nunca publicou; a lista veio só das conversas já registradas. */

@@ -12,6 +12,8 @@ const PANE_KINDS = new Set([
   "kanban",
   "logs",
   "docker-logs",
+  // Fork: aba Navegador.
+  "web",
 ]);
 
 export function emptyWorkspace(): WorkspaceState {

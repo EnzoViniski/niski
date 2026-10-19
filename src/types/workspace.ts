@@ -8,7 +8,9 @@ export type PaneKind =
   | "git-graph"
   | "kanban"
   | "logs"
-  | "docker-logs";
+  | "docker-logs"
+  /** Fork: página da web aberta de um link (`features/navegador`). `resourceId` = endereço. */
+  | "web";
 
 export interface WorkspaceTab {
   id: string;
@@ -101,7 +103,11 @@ export type WorkspaceAction =
       position: "before" | "after";
     }
   | { type: "SWAP_PANE"; sourcePaneId: string; targetPaneId: string }
-  | { type: "APPLY_LAYOUT_PRESET"; preset: LayoutPreset };
+  | { type: "APPLY_LAYOUT_PRESET"; preset: LayoutPreset }
+  /** Fork: conversa arrastada da lateral para um painel (`features/workspace/colocarConversa.ts`). */
+  /** Fork: link clicado abre numa aba de navegador ao lado (`features/workspace/abrirLink.ts`). */
+  | { type: "ABRIR_LINK"; url: string; title: string; paneId?: string }
+  | { type: "PLACE_SESSION"; sessionId: string; title: string; targetPaneId: string; zone: "center" | "left" | "right" | "top" | "bottom" };
 
 /** Layouts prontos (estilo Snap Layouts do Windows) — `buildPresetLayout` em
  * `workspaceReducer.ts` monta a árvore de splits correspondente a partir das panes atuais. */

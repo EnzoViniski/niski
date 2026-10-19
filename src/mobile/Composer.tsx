@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type 
 import { AttachmentIcon, CloseIcon, LoaderIcon, SendIcon, StopIcon, WarningIcon } from "../components/ui/PixelIcon";
 import { iconForPath } from "../features/files/fileIcons";
 import { tamanhoLegivel, type Anexo } from "./anexos";
+import { BotaoDeVoz, juntarDitado, VOZ_DISPONIVEL } from "./BotaoDeVoz";
 
 interface ComposerProps {
   texto: string;
@@ -88,6 +89,9 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
   const [sugestoes, setSugestoes] = useState<string[]>([]);
   const [escolhida, setEscolhida] = useState(0);
   const ultimaLista = useRef<string[]>([]);
+  // Fork: o ditado chega depois da transcrição; junta ao texto de agora, não ao do clique.
+  const textoAtual = useRef(texto);
+  textoAtual.current = texto;
 
   // Busca com um respiro curto: digitar "@src/comp" não dispara uma consulta por letra.
   useEffect(() => {
@@ -228,6 +232,10 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
                 event.target.value = "";
               }} />
           </label>
+          {VOZ_DISPONIVEL && <BotaoDeVoz travado={ocupado} onDitado={(ditado) => {
+            onTexto(juntarDitado(textoAtual.current, ditado));
+            requestAnimationFrame(() => campo.current?.focus());
+          }} />}
           <div className="composer-chips">{chips}</div>
           <div className="composer-direita">
             {direita}

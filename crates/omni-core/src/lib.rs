@@ -13,6 +13,11 @@ pub mod agentes;
 pub mod fluxos;
 pub mod registro;
 pub mod antigravity;
+// Fork: pasta dos transcripts do Claude igual à da CLI (caminho longo é cortado com hash).
+pub mod pasta_do_claude;
+// Fork: modelos do Claude com versão (não só os apelidos) e arquivos que o agente gerou.
+pub mod modelos_claude;
+pub mod entregaveis;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};

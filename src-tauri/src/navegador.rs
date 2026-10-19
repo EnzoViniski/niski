@@ -1,0 +1,150 @@
+//! Fork: aba "Navegador" do layout e a trava contra link que tomava a janela inteira.
+//!
+//! - Link clicado no app (`<a href>` da conversa, de um markdown…) navegava a própria janela do app:
+//!   a página cobria tudo e não havia como voltar. O plugin `navegacao` recusa qualquer navegação da
+//!   janela principal para fora do app e manda o endereço para a interface (`abrir-link`), que abre
+//!   uma aba de navegador no layout (`features/navegador`).
+//! - A aba é um **webview filho de verdade** (não iframe: a maioria dos sites recusa iframe),
+//!   posicionado por cima do retângulo do painel. A interface informa posição e tamanho; esconde o
+//!   webview quando a aba sai da tela.
+//! - A página externa não tem IPC: as capabilities valem só para a origem local do app (sem `remote`).
+
+use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, Runtime, Url, Webview, WebviewBuilder, WebviewUrl};
+
+const PREFIXO: &str = "nav-";
+
+#[derive(Clone, serde::Serialize)]
+struct Endereco { rotulo: String, url: String }
+
+#[derive(Clone, serde::Serialize)]
+struct Titulo { rotulo: String, titulo: String }
+
+/// Endereço do próprio app (dev e build), que a janela principal pode carregar.
+fn eh_do_app(url: &Url) -> bool {
+    match url.scheme() {
+        "tauri" | "asset" | "ipc" | "about" | "data" | "blob" => true,
+        "http" | "https" => matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "tauri.localhost" | "asset.localhost" | "ipc.localhost")),
+        _ => false,
+    }
+}
+
+fn externo(url: &Url) -> bool { matches!(url.scheme(), "http" | "https") }
+
+/// Plugin com a trava: a janela principal nunca sai do app.
+pub fn plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("navegacao")
+        .on_navigation(|webview: &Webview<R>, url: &Url| {
+            if webview.label().starts_with(PREFIXO) || eh_do_app(url) { return true; }
+            if externo(url) {
+                omni_core::registro::info("link_aberto_em_aba", &[]);
+                let _ = webview.app_handle().emit_to("main", "abrir-link", url.as_str());
+            }
+            false
+        })
+        .build()
+}
+
+fn rotulo_valido(rotulo: &str) -> Result<(), String> {
+    let ok = rotulo.starts_with(PREFIXO) && rotulo.len() <= 80
+        && rotulo.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if ok { Ok(()) } else { Err("Aba de navegador inválida".into()) }
+}
+
+fn url_valida(url: &str) -> Result<Url, String> {
+    let url = Url::parse(url).map_err(|_| "Endereço inválido".to_string())?;
+    if externo(&url) { Ok(url) } else { Err("Só endereços http e https abrem na aba".into()) }
+}
+
+/// Abre (ou reposiciona e mostra) o webview da aba `rotulo` no retângulo dado, em pixels lógicos.
+#[tauri::command]
+pub fn navegador_abrir<R: Runtime>(app: tauri::AppHandle<R>, rotulo: String, url: String, x: f64, y: f64, largura: f64, altura: f64) -> Result<(), String> {
+    rotulo_valido(&rotulo)?;
+    let url = url_valida(&url)?;
+    let posicao = LogicalPosition::new(x.max(0.0), y.max(0.0));
+    let tamanho = LogicalSize::new(largura.max(1.0), altura.max(1.0));
+    if let Some(existente) = app.get_webview(&rotulo) {
+        existente.set_position(posicao).map_err(|e| e.to_string())?;
+        existente.set_size(tamanho).map_err(|e| e.to_string())?;
+        return existente.show().map_err(|e| e.to_string());
+    }
+    let janela = app.get_window("main").ok_or("Janela principal não encontrada")?;
+    let app_titulo = app.clone();
+    let rotulo_titulo = rotulo.clone();
+    let app_url = app.clone();
+    let rotulo_url = rotulo.clone();
+    let app_nova = app.clone();
+    let rotulo_nova = rotulo.clone();
+    let builder = WebviewBuilder::new(&rotulo, WebviewUrl::External(url))
+        .on_navigation(move |destino| {
+            let _ = app_url.emit_to("main", "navegador-endereco", Endereco { rotulo: rotulo_url.clone(), url: destino.to_string() });
+            true
+        })
+        .on_document_title_changed(move |_, titulo| {
+            let _ = app_titulo.emit_to("main", "navegador-titulo", Titulo { rotulo: rotulo_titulo.clone(), titulo });
+        })
+        // `target="_blank"` dentro da página abre na própria aba, em vez de não fazer nada.
+        .on_new_window(move |destino, _| {
+            let (app, rotulo) = (app_nova.clone(), rotulo_nova.clone());
+            // Fora do callback: navegar de dentro dele reentra no webview.
+            std::thread::spawn(move || { if let Some(w) = app.get_webview(&rotulo) { let _ = w.navigate(destino); } });
+            tauri::webview::NewWindowResponse::Deny
+        });
+    janela.add_child(builder, posicao, tamanho).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn navegador_posicionar<R: Runtime>(app: tauri::AppHandle<R>, rotulo: String, x: f64, y: f64, largura: f64, altura: f64, visivel: bool) -> Result<(), String> {
+    rotulo_valido(&rotulo)?;
+    let Some(webview) = app.get_webview(&rotulo) else { return Ok(()) };
+    if !visivel { return webview.hide().map_err(|e| e.to_string()); }
+    webview.set_position(LogicalPosition::new(x.max(0.0), y.max(0.0))).map_err(|e| e.to_string())?;
+    webview.set_size(LogicalSize::new(largura.max(1.0), altura.max(1.0))).map_err(|e| e.to_string())?;
+    webview.show().map_err(|e| e.to_string())
+}
+
+/// `voltar`, `avancar`, `recarregar` ou `ir` (com `url`).
+#[tauri::command]
+pub fn navegador_acao<R: Runtime>(app: tauri::AppHandle<R>, rotulo: String, acao: String, url: Option<String>) -> Result<(), String> {
+    rotulo_valido(&rotulo)?;
+    let webview = app.get_webview(&rotulo).ok_or("Aba de navegador fechada")?;
+    match acao.as_str() {
+        "voltar" => webview.eval("history.back()").map_err(|e| e.to_string()),
+        "avancar" => webview.eval("history.forward()").map_err(|e| e.to_string()),
+        "recarregar" => webview.reload().map_err(|e| e.to_string()),
+        "ir" => webview.navigate(url_valida(url.as_deref().unwrap_or(""))?).map_err(|e| e.to_string()),
+        _ => Err("Ação desconhecida".into()),
+    }
+}
+
+#[tauri::command]
+pub fn navegador_fechar<R: Runtime>(app: tauri::AppHandle<R>, rotulo: String) -> Result<(), String> {
+    rotulo_valido(&rotulo)?;
+    if let Some(webview) = app.get_webview(&rotulo) { webview.close().map_err(|e| e.to_string())?; }
+    Ok(())
+}
+
+/// "Abrir no navegador do Mac": só http/https.
+#[tauri::command]
+pub fn navegador_abrir_fora(url: String) -> Result<(), String> {
+    let url = url_valida(&url)?;
+    tauri_plugin_opener::open_url(url.as_str(), None::<&str>).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn so_o_app_fica_na_janela_e_so_http_vai_para_a_aba() {
+        assert!(eh_do_app(&Url::parse("tauri://localhost/index.html").unwrap()));
+        assert!(eh_do_app(&Url::parse("http://localhost:1420/").unwrap()));
+        assert!(!eh_do_app(&Url::parse("https://claude.ai/artifact/x").unwrap()));
+        assert!(url_valida("https://claude.ai/x").is_ok());
+        assert!(url_valida("file:///etc/passwd").is_err());
+        assert!(url_valida("javascript:alert(1)").is_err());
+        assert!(rotulo_valido("nav-tab-abc_1").is_ok());
+        assert!(rotulo_valido("main").is_err());
+        assert!(rotulo_valido("nav-../x").is_err());
+    }
+}

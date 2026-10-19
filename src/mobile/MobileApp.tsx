@@ -657,10 +657,11 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const marcar = (id: string, mudanca: Partial<Anexo>) =>
     setAnexos(lista => lista.map(a => (a.id === id ? { ...a, ...mudanca } : a)));
 
-  async function post(kind: "prompt" | "aprovar" | "escolher" | "modo" | "ajustes", body: Record<string, unknown>) {
+  async function post(kind: "prompt" | "aprovar" | "escolher" | "modo" | "ajustes", body: Record<string, unknown>, revisao?: string) {
     const capability = conversation.capabilities!;
     const signature = JSON.stringify([kind, body]);
-    if (pending.current?.signature !== signature) pending.current = { signature, key: actionKey(), revision: capability.revision };
+    if (pending.current?.signature !== signature) pending.current = { signature, key: actionKey(), revision: revisao ?? capability.revision };
+    else if (revisao) pending.current.revision = revisao;
     const enviar = () => request<{ id?: string }>(`/conversas/${encodeURIComponent(conversation.id)}/${kind}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Idempotency-Key": pending.current!.key, "If-Match": pending.current!.revision },
@@ -810,6 +811,18 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     setBusy(true); setError(null); setFalhaEnvio(null);
     const lista = anexosVivos.current;
     try {
+      // Fork: tela não reconhecida ("Entrada não reconhecida"): o engine limpa o campo ou reabre o
+      // agente e devolve a versão da tela já pronta. Antes o campo travava e não havia o que fazer.
+      let revisao: string | undefined;
+      if (!conversation.capabilities.prompt && !paraFila) {
+        try {
+          const pronta = await request<{ revision?: string }>(`/conversas/${encodeURIComponent(conversation.id)}/destravar`, { method: "POST" });
+          revisao = pronta.revision;
+        } catch (motivo) {
+          // Engine antigo ainda rodando (troca adiada pela atualização): sem a rota, tenta enviar direto.
+          if (!(motivo instanceof ApiError && motivo.status === 404)) throw motivo;
+        }
+      }
       // Sobe o que ainda não subiu. O caminho fica guardado no anexo: se o prompt der timeout, o
       // reenvio monta o mesmo texto — e a mesma chave de idempotência — sem duplicar arquivo.
       const caminhos: string[] = [];
@@ -827,7 +840,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
         }
       }
       const texto = montarPrompt(text, caminhos);
-      const acao = await post("prompt", paraFila ? { texto, fila: true } : { texto });
+      const acao = await post("prompt", paraFila ? { texto, fila: true } : { texto }, revisao);
       const item: Enviado = {
         texto, em: Date.now(), acao: acao?.id ?? null,
         base: Math.max(-1, ...mensagens.map(m => indiceDaMensagem(m.id))),
@@ -847,21 +860,25 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const capability = conversation.capabilities;
   const temConteudo = text.trim().length > 0 || anexos.length > 0;
   const anexoGrande = anexos.some(a => a.arquivo.size > ANEXO_MAX_BYTES);
-  const podeEnviar = Boolean(capability?.prompt || capability?.enfileirar) && !busy && temConteudo && !anexoGrande;
+  // Fork: com a sessão aberta e o agente parado, dá para mandar mesmo com a tela não reconhecida — o
+  // envio destrava antes (`enviarPrompt`). Só pergunta/aprovação na tela continua bloqueando.
+  const destravavel = Boolean(capability && conversation.live && !trabalhando && !capability.approve && !capability.escolha);
+  const podeEnviar = Boolean(capability?.prompt || capability?.enfileirar || destravavel) && !busy && temConteudo && !anexoGrande;
   const timeline = data?.timeline;
   const ultimoBloco = blocos[blocos.length - 1];
 
   function renderizarBloco(bloco: Bloco, indice: number) {
     if (bloco.tipo === "acoes") {
       return <BlocoDeAcoes key={bloco.id} acoes={bloco.acoes} provider={bloco.acoes[0]?.provider}
-        aoVivo={ativo && bloco === ultimoBloco} />;
+        aoVivo={ativo && bloco === ultimoBloco} conversa={conversation.id} />;
     }
     if (bloco.tipo === "comando") return <LinhaDeComando key={bloco.mensagem.id} texto={bloco.mensagem.text} />;
     if (bloco.tipo === "aviso") return <LinhaDeAviso key={bloco.mensagem.id} texto={bloco.mensagem.text} />;
     const message = bloco.mensagem;
     return <MessageBubble key={message.id} lado={message.role === "user" ? "user" : "agent"}
       provider={message.provider} texto={message.text} horario={message.timestamp} continua={continuacoes.has(indice)}
-      imagens={message.imagens ? { conversa: conversation.id, n: indiceDaMensagem(message.id), total: message.imagens } : undefined} />;
+      imagens={message.imagens ? { conversa: conversation.id, n: indiceDaMensagem(message.id), total: message.imagens } : undefined}
+      arquivos={message.arquivos?.length ? { conversa: conversation.id, n: indiceDaMensagem(message.id), caminhos: message.arquivos } : undefined} />;
   }
 
   return <section className="chat-tela" ref={telaRef}
@@ -940,13 +957,14 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     {anexoGrande && <p className="m-aviso">Tire o anexo acima de 25 MB para enviar.</p>}
     {/* O motivo genérico só aparece com o agente parado: trabalhando, o "ocupado" é esperado e o
         indicador acima já explica. */}
-    {!ativo && capability?.reason && <p className="m-dica">{capability.reason}</p>}
+    {!ativo && !destravavel && capability?.reason && <p className="m-dica">{capability.reason}</p>}
 
     <Composer texto={text} onTexto={setText} anexos={anexos} onAdicionar={adicionar} onRemover={remover}
       onEnviar={() => void enviarPrompt()} podeEnviar={podeEnviar} ocupado={busy}
       placeholder={!capability?.prompt ? (capability?.escolha ? "Responda a pergunta acima para continuar"
         : capability?.enfileirar ? "Agente trabalhando… sua mensagem entra na fila"
         : trabalhando ? "Agente trabalhando… escreva a próxima mensagem"
+        : destravavel ? "Mensagem para o agente…"
         : conversation.capabilities ? "Sem sessão ativa" : "Conversa fechada — escolha conta, modelo e esforço e retome abaixo") : "Mensagem para o agente…"}
       toolbar={editandoNome ? <RenomearConversa nome={conversation.title} onFechar={() => setEditandoNome(false)}
         onSalvar={(nome) => { setEditandoNome(false); void renomear(nome); }} /> : null}

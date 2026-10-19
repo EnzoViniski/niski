@@ -12,10 +12,14 @@ import { RodapeDoProjeto, WorkspaceView } from "./features/workspace/WorkspaceVi
 import { useKanban } from "./features/kanban/useKanban";
 import { useKanbanDispatcher } from "./features/kanban/useKanbanDispatcher";
 import { SessionProvidersContext } from "./features/terminal/sessionProviders";
+import { ProjetosDasAbasContext, montarProjetosDasAbas } from "./features/workspace/projetosDasAbas";
+import { useLinksEmAba } from "./features/navegador/useLinksEmAba";
 import { useTerminalSessions } from "./features/terminal/useTerminalSessions";
 import { latestPerConversation, useAttention, type AttentionItem } from "./features/terminal/useAttention";
 import { useAttentionNotifier } from "./features/terminal/useAttentionNotifier";
 import { useJanelaEmFoco } from "./hooks/useJanelaEmFoco";
+// Fork: pausa animações e fundos WebGL com a janela oculta, sem foco ou parada (energia).
+import { useEconomiaDeEnergia } from "./hooks/useEconomiaDeEnergia";
 import {
   closeTerminal,
   duplicateTerminal,
@@ -26,7 +30,8 @@ import {
   spawnTerminal,
 } from "./features/terminal/terminalService";
 import { HistoryView } from "./features/history/HistoryView";
-import { FluxosView } from "./features/fluxos/FluxosView";
+// Fork: React Flow só ao abrir a tela de Fluxos.
+import { FluxosView } from "./features/fluxos/FluxosViewTardio";
 import { levarParaConta, resumeCommand, samePath, type HistoryEntry } from "./features/history/historyService";
 import { rememberProject } from "./services/recentProjectsService";
 import { primeSshDrives } from "./features/projects/targetState";
@@ -57,6 +62,7 @@ export function App() {
   // Com as Configurações abertas nenhuma pane está na tela, e com a janela fora de foco ninguém
   // está olhando para ela — nos dois casos nada pode ser marcado como visto.
   const janelaEmFoco = useJanelaEmFoco();
+  useEconomiaDeEnergia();
   const { items: attention, all: allAttention, countByWorkspace, dismiss: dismissAttention } = useAttention(
     sessions,
     workspaces,
@@ -72,6 +78,11 @@ export function App() {
     () => Object.fromEntries(sessions.map((session) => [session.id, session])),
     [sessions]
   );
+
+  // Fork: nomes dos projetos e quantas abas cada sessão tem, para as abas (`projetosDasAbas.tsx`).
+  const projetosDasAbas = useMemo(() => montarProjetosDasAbas(workspace), [workspace]);
+  // Fork: link clicado abre numa aba de navegador ao lado, não na janela do app.
+  useLinksEmAba(workspaces, dispatch, () => setView("workspace"));
 
   function closeSettings() {
     setView(viewBeforeSettings);
@@ -196,6 +207,7 @@ export function App() {
 
   return (
     <SessionProvidersContext.Provider value={sessionsById}>
+    <ProjetosDasAbasContext.Provider value={projetosDasAbas}>
     <div className="flex h-screen flex-col overflow-hidden">
       <AppBackground settings={settings} />
       <TitleBar
@@ -277,6 +289,11 @@ export function App() {
         onAbrirConversa={(projectId, sessionId, title) => {
           if (!activeWorkspaceId) return;
           dispatch({ type: "FOCUS_SESSION", workspaceId: activeWorkspaceId, projectId, sessionId, title });
+          setView("workspace");
+        }}
+        onSoltarConversaNoLayout={(sessionId, title, targetPaneId, zone) => {
+          // Fork: arrastar da lateral para o layout (`features/workspace/colocarConversa.ts`).
+          dispatch({ type: "PLACE_SESSION", sessionId, title, targetPaneId, zone });
           setView("workspace");
         }}
         onAttachTerminal={(sessionId, title) => {
@@ -369,6 +386,7 @@ export function App() {
       </div>
       </div>
     </div>
+    </ProjetosDasAbasContext.Provider>
     </SessionProvidersContext.Provider>
   );
 }

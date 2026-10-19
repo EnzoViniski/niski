@@ -6,7 +6,8 @@ import type { ErrorInfo, ReactNode } from "react";
 import type { PaneNode, SplitNode, WorkspaceAction } from "../../types/workspace";
 import type { KanbanAction, KanbanState } from "../../types/kanban";
 import { isImagePath } from "../files/filesService";
-import { FilePane } from "../files/FilePane";
+// Fork: editor (Monaco) carregado só quando abre a primeira aba de arquivo.
+import { FilePane } from "../files/FilePaneTardio";
 import { ImagePane } from "../files/ImagePane";
 import { MarkdownPane } from "../files/MarkdownPane";
 import { GitDiffPane } from "../git/GitDiffPane";
@@ -14,12 +15,15 @@ import { GitGraphPane } from "../git/GitGraphPane";
 import { KanbanBoard } from "../kanban/KanbanBoard";
 import { TerminalPane } from "../terminal/TerminalPane";
 import { AbaDeAgente } from "../conversa/AbaDeAgente";
+// Fork: aba de navegador (link clicado).
+import { NavegadorPane } from "../navegador/NavegadorPane";
 import { closeTerminal } from "../terminal/terminalService";
 import { PANE_DRAG_TYPE } from "./tabDrag";
 import { TAB_DRAG_EVENT, type DropZone, type TabDragState } from "./tabPointerDrag";
 import { TabDropOverlay } from "./TabDropOverlay";
 import { WorkspaceTabBar } from "./WorkspaceTabBar";
 import { PainelVazio } from "./PainelVazio";
+import { EtiquetaDoProjeto, useProjetoDeFora, useProjetosDasAbas } from "./projetosDasAbas";
 
 interface PaneViewProps {
   pane: PaneNode;
@@ -66,6 +70,7 @@ export function PaneView({
   const [dirtyTabIds, setDirtyTabIds] = useState<Set<string>>(new Set());
   const tab = pane.tabs.find((item) => item.id === pane.activeTabId) ?? pane.tabs[0];
   const tabId = tab?.id;
+  const deFora = useProjetoDeFora(tab?.kind === "agent" || tab?.kind === "terminal" ? tab.resourceId : null);
   const dropZone = tabDrag?.target?.paneId === pane.id ? tabDrag.target.zone : null;
   // Soltar no próprio painel só faz algo quando divide e sobra aba para trás.
   const showDrop = dropZone !== null
@@ -85,14 +90,24 @@ export function PaneView({
     dispatch({ type: "SPLIT_PANE", paneId: pane.id, direction });
   }
 
+  // Fork: fechar aba ou painel **não apaga conversa**. Aba de agente só sai da tela: a sessão segue
+  // viva e continua na lateral, de onde reabre. Apagar é só pelo "Encerrar e remover" da lateral.
+  // Terminal puro (shell) ainda é encerrado, mas só quando nenhuma outra aba (em qualquer painel ou
+  // projeto) continua presa a ele (`projetosDasAbas.tsx`).
+  const { abasDaSessao } = useProjetosDasAbas();
+  const ehSessao = (item: PaneNode["tabs"][number]) => Boolean(item.resourceId && item.kind === "terminal");
+  const nestePainel = (resourceId: string) => pane.tabs.filter((item) => item.resourceId === resourceId).length;
+
   function closeTab(item: PaneNode["tabs"][number]) {
-    const close = item.resourceId && (item.kind === "agent" || item.kind === "terminal")
-      ? closeTerminal(item.resourceId).catch(() => undefined) : Promise.resolve();
+    const close = ehSessao(item) && abasDaSessao(item.resourceId!) <= 1
+      ? closeTerminal(item.resourceId!).catch(() => undefined) : Promise.resolve();
     void close.then(() => dispatch({ type: "CLOSE_TAB", paneId: pane.id, tabId: item.id }));
   }
 
   function closePane() {
-    const sessions = pane.tabs.flatMap((item) => item.resourceId && (item.kind === "agent" || item.kind === "terminal") ? [closeTerminal(item.resourceId)] : []);
+    const sessions = [...new Set(pane.tabs.filter(ehSessao).map((item) => item.resourceId!))]
+      .filter((id) => abasDaSessao(id) <= nestePainel(id))
+      .map((id) => closeTerminal(id));
     void Promise.allSettled(sessions).then(() => dispatch({ type: "CLOSE_PANE", paneId: pane.id }));
   }
 
@@ -156,6 +171,13 @@ export function PaneView({
         </div>
       </header>
 
+      {/* Fork: conversa de outro projeto solta neste layout — deixa claro de onde ela é. */}
+      {deFora && (
+        <div className="faixa-outro-projeto" style={{ "--cor-projeto": deFora.cor } as React.CSSProperties}>
+          <span>Conversa de outro projeto</span>
+          <EtiquetaDoProjeto projeto={deFora} />
+        </div>
+      )}
       <div className="flex-1 min-h-0">
         <PaneErrorBoundary key={tab?.id ?? pane.id}>
         {!tab ? (
@@ -178,6 +200,8 @@ export function PaneView({
             tab={tab}
             onSessionCreated={bindSession}
           />
+        ) : tab.kind === "web" ? (
+          <NavegadorPane tab={tab} onTitulo={(titulo) => dispatch({ type: "RENAME_TAB_RESOURCE", fromResourceId: tab.resourceId ?? "", toResourceId: tab.resourceId ?? "", title: titulo.slice(0, 60) })} />
         ) : tab?.kind === "file" && tab.resourceId && isImagePath(tab.resourceId) ? (
           <ImagePane tab={tab} />
         ) : tab?.kind === "file" ? (
@@ -213,7 +237,8 @@ export function PaneView({
           data-zone={dropZone}
           className={`pointer-events-none absolute z-30 flex items-center justify-center border-2 border-accent bg-accent/25 transition-all duration-150 motion-reduce:transition-none ${DROP_PREVIEW[dropZone].box}`}
         >
-          <span className="bg-bg-elevated/90 px-2 py-1 text-[11px] text-text-primary">{DROP_PREVIEW[dropZone].label}</span>
+          <span className="bg-bg-elevated/90 px-2 py-1 text-[11px] text-text-primary">{/* Fork: conversa vinda da lateral (`projects/arrastarLinha.ts`) abre, não "move". */}
+            {dropZone === "center" && tabDrag?.tab.paneId === "lateral" ? "Abrir neste painel" : DROP_PREVIEW[dropZone].label}</span>
         </div>
       )}
     </section>

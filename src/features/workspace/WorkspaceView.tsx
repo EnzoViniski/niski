@@ -6,6 +6,7 @@ import { AgentUsageStatus } from "../terminal/AgentUsageStatus";
 import { GitBranchStatus, GitContaStatus } from "../git/GitBranchStatus";
 import { findPane } from "./workspaceReducer";
 import { PaneTree } from "./PaneTree";
+import { PreviaDoLayout } from "./PreviaDoLayout";
 import { useWorkspaceKeymap } from "./useWorkspaceKeymap";
 
 interface WorkspaceViewProps {
@@ -53,7 +54,7 @@ export function WorkspaceView({
     <div className="h-full min-h-0 flex flex-col">
       {/* Nome, caminho e layouts do projeto ficam na barra superior (`TitleBar`). */}
       <h1 className="sr-only">{project.name}</h1>
-      <div className="flex flex-1 min-h-0 p-2">
+      <div className="relative flex flex-1 min-h-0 p-2">
         <PaneTree
           node={project.layout}
           activePaneId={project.activePaneId}
@@ -67,6 +68,8 @@ export function WorkspaceView({
           kanbanDispatch={kanbanDispatch}
           dispatch={dispatch}
         />
+        {/* Fork: arrastando uma aba ou conversa, mostra o layout já como vai ficar. */}
+        <PreviaDoLayout project={project} />
       </div>
 
       <RodapeDoProjeto projectPath={project.path} engineOnline={engineOnline} activeSessionId={abaAtiva?.resourceId ?? null} />

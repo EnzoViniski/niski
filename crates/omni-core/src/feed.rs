@@ -42,6 +42,13 @@ pub struct Item {
     /// só `[Image #N]` no texto; o conteúdo vem sob demanda por [`imagem`].
     #[serde(skip_serializing_if = "sem_imagens")]
     pub imagens: usize,
+    /// Fork: imagens do agente (citadas ou geradas pelo Codex), na ordem de `imagens`.
+    #[serde(skip)]
+    pub midia: Vec<PathBuf>,
+    /// Fork: documentos que o agente gerou ou citou (PDF, planilha…), em caminho absoluto. O
+    /// conteúdo vem por [`arquivo`]; ver `entregaveis`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub arquivos: Vec<String>,
 }
 
 fn sem_imagens(n: &usize) -> bool { *n == 0 }
@@ -243,43 +250,63 @@ fn blocos_de_imagem(message: &Value) -> impl Iterator<Item = &Value> {
 /// A imagem `k` da mensagem `n` (a mesma numeração do timeline: `fontes` na ordem dos segmentos,
 /// sem repetir identidade). Devolve `(tipo, base64)`. Lê só a linha da mensagem de novo.
 pub fn imagem(fontes: &[(PathBuf, String)], n: usize, k: usize, cache: &mut FeedCache) -> Option<(String, String)> {
+    let (entrada, caminho) = entrada_numero(fontes, n, cache)?;
+    if entrada.item.imagens <= k { return None; }
+    if entrada.item.role == "assistant" {
+        use base64::Engine as _;
+        // Fork: o caminho já foi achado na leitura (citado no texto ou gerado pelo Codex).
+        let arquivo = entrada.item.midia.get(k)?;
+        let tipo = crate::entregaveis::tipo(arquivo).filter(|t| t.starts_with("image/"))?;
+        return Some((tipo.to_owned(), base64::engine::general_purpose::STANDARD.encode(std::fs::read(arquivo).ok()?)));
+    }
+    let uuid = entrada.identity.split_once(':')?.1.rsplit_once('#')?.0.to_owned();
+    let arquivo = std::io::BufReader::new(File::open(caminho).ok()?);
+    let linha = std::io::BufRead::lines(arquivo).map_while(Result::ok)
+        .find(|linha| linha.contains(&uuid) && serde_json::from_str::<Value>(linha).is_ok_and(|v| v["uuid"] == uuid.as_str()))?;
+    let valor: Value = serde_json::from_str(&linha).ok()?;
+    let bloco = blocos_de_imagem(&valor["message"]).nth(k)?;
+    let tipo = bloco["source"]["media_type"].as_str().filter(|t| t.starts_with("image/"))?.to_owned();
+    Some((tipo, bloco["source"]["data"].as_str()?.to_owned()))
+}
+
+/// A mensagem `n` do timeline e o transcript de onde veio.
+fn entrada_numero(fontes: &[(PathBuf, String)], n: usize, cache: &mut FeedCache) -> Option<(Entry, PathBuf)> {
     let mut vistos = std::collections::HashSet::new();
     let mut indice = 0;
     for (caminho, provider) in fontes {
         let Ok(entradas) = cache.read(caminho, provider) else { continue };
-        let mut alvo = None;
         for entrada in entradas {
             if !vistos.insert(entrada.identity.clone()) { continue; }
-            if indice == n { alvo = Some(entrada.clone()); break; }
+            if indice == n { return Some((entrada.clone(), caminho.clone())); }
             indice += 1;
         }
-        let Some(entrada) = alvo else { continue };
-        if entrada.item.imagens <= k { return None; }
-        if entrada.item.role == "assistant" {
-            use base64::Engine as _;
-            let caminho = caminhos_de_imagem(&entrada.item.text).into_iter().nth(k)?;
-            let nome = caminho.to_string_lossy().to_ascii_lowercase();
-            let tipo = EXTENSOES_DE_IMAGEM.iter().find(|(ext, _)| nome.ends_with(ext))?.1;
-            return Some((tipo.to_owned(), base64::engine::general_purpose::STANDARD.encode(std::fs::read(&caminho).ok()?)));
-        }
-        let uuid = entrada.identity.split_once(':')?.1.rsplit_once('#')?.0.to_owned();
-        let arquivo = std::io::BufReader::new(File::open(caminho).ok()?);
-        let linha = std::io::BufRead::lines(arquivo).map_while(Result::ok)
-            .find(|linha| linha.contains(&uuid) && serde_json::from_str::<Value>(linha).is_ok_and(|v| v["uuid"] == uuid.as_str()))?;
-        let valor: Value = serde_json::from_str(&linha).ok()?;
-        let bloco = blocos_de_imagem(&valor["message"]).nth(k)?;
-        let tipo = bloco["source"]["media_type"].as_str().filter(|t| t.starts_with("image/"))?.to_owned();
-        return Some((tipo, bloco["source"]["data"].as_str()?.to_owned()));
     }
     None
 }
 
+/// Fork: o documento `k` da mensagem `n` (ver `Item::arquivos`): `(nome, tipo, base64)`. Só caminhos
+/// que vieram do transcript, nunca de quem pede pela rede.
+pub fn arquivo(fontes: &[(PathBuf, String)], n: usize, k: usize, cache: &mut FeedCache) -> Option<(String, String, String)> {
+    use base64::Engine as _;
+    let (entrada, _) = entrada_numero(fontes, n, cache)?;
+    let caminho = PathBuf::from(entrada.item.arquivos.get(k)?);
+    let tipo = crate::entregaveis::tipo(&caminho)?;
+    let tamanho = std::fs::metadata(&caminho).ok().filter(|m| m.is_file())?.len();
+    if tamanho > crate::entregaveis::ARQUIVO_MAX_BYTES { return None; }
+    let nome = caminho.file_name()?.to_string_lossy().into_owned();
+    Some((nome, tipo.to_owned(), base64::engine::general_purpose::STANDARD.encode(std::fs::read(&caminho).ok()?)))
+}
+
 fn item(kind: Kind, role: &str, text: String, tool: Option<String>, value: &Value) -> Item {
-    Item { kind, role: role.into(), text, tool, timestamp: value["timestamp"].as_str().map(str::to_owned), imagens: 0 }
+    Item { kind, role: role.into(), text, tool, timestamp: value["timestamp"].as_str().map(str::to_owned), imagens: 0,
+        midia: Vec::new(), arquivos: Vec::new() }
 }
 
 /// Itens de uma linha do transcript, na ordem em que aparecem nela.
-pub fn items(value: &Value, provider: &str) -> Vec<Item> {
+pub fn items(value: &Value, provider: &str) -> Vec<Item> { items_em(value, provider, None) }
+
+/// Fork: [`items`] sabendo a pasta da conversa, para achar arquivo citado por caminho relativo.
+pub fn items_em(value: &Value, provider: &str, cwd: Option<&Path>) -> Vec<Item> {
     if value["isSidechain"] == true { return Vec::new(); }
     let mut saida = Vec::new();
     match provider {
@@ -320,7 +347,11 @@ pub fn items(value: &Value, provider: &str) -> Vec<Item> {
                                 saida.push(item(Kind::Text, "assistant", texto.to_owned(), None, value));
                             },
                         Some("tool_use") => if let Some((nome, detalhe)) = ferramenta_claude(bloco["name"].as_str().unwrap_or(""), &bloco["input"]) {
-                            saida.push(item(Kind::Tool, "assistant", detalhe, Some(nome), value));
+                            // Fork: documento escrito pelo agente vira cartão na conversa.
+                            let criado = (nome == "Write").then(|| bloco["input"]["file_path"].as_str()).flatten()
+                                .and_then(|c| crate::entregaveis::criado(c, cwd));
+                            saida.push(Item { arquivos: criado.map(|c| c.to_string_lossy().into_owned()).into_iter().collect(),
+                                ..item(Kind::Tool, "assistant", detalhe, Some(nome), value) });
                         },
                         _ => {}
                     }
@@ -346,7 +377,23 @@ pub fn items(value: &Value, provider: &str) -> Vec<Item> {
                 if texto.trim().is_empty() || (role == "user" && injetado(&texto)) { return saida; }
                 saida.push(item(Kind::Text, role, texto, None, value));
             } else if let Some((nome, detalhe)) = ferramenta_codex(payload) {
-                saida.push(item(Kind::Tool, "assistant", detalhe, Some(nome), value));
+                // Fork: `*** Add File:` de um documento vira cartão na conversa.
+                let criados = payload["input"].as_str().unwrap_or("").lines()
+                    .filter_map(|linha| linha.strip_prefix("*** Add File: "))
+                    .filter_map(|c| crate::entregaveis::criado(c, cwd))
+                    .map(|c| c.to_string_lossy().into_owned()).collect();
+                saida.push(Item { arquivos: criados, ..item(Kind::Tool, "assistant", detalhe, Some(nome), value) });
+            }
+        }
+        // Fork: imagem gerada pelo Codex. Ela não é citada no texto ("gerei a imagem"), só fica em
+        // `$CODEX_HOME/generated_images/…`; sem isto a conversa não mostrava nada.
+        "codex" if value["type"] == "event_msg" && value["payload"]["type"] == "item_completed"
+            && value["payload"]["item"]["type"] == "Extension"
+            && value["payload"]["item"]["kind"].as_str().is_some_and(|k| k.starts_with("image_gen")) => {
+            let gerada = value["payload"]["item"]["savedPath"].as_str().map(PathBuf::from)
+                .filter(|c| crate::entregaveis::eh_imagem(c) && std::fs::metadata(c).is_ok_and(|m| m.is_file() && m.len() <= IMAGEM_MAX_BYTES));
+            if let Some(caminho) = gerada {
+                saida.push(Item { midia: vec![caminho], ..item(Kind::Text, "assistant", String::new(), None, value) });
             }
         }
         "codex" if value["type"] == "event_msg" && value["payload"]["type"] == "turn_aborted" => {
@@ -356,22 +403,29 @@ pub fn items(value: &Value, provider: &str) -> Vec<Item> {
     }
     // Print ou imagem que o agente cita pelo caminho ("salvei em C:\…\tela.png") vira imagem na
     // conversa, como as coladas pelo usuário.
+    // Fork: documentos citados (PDF, planilha…) também, e caminho relativo à pasta da conversa.
     for it in saida.iter_mut().filter(|it| it.role == "assistant" && it.kind == Kind::Text) {
-        it.imagens = caminhos_de_imagem(&it.text).len();
+        let (imagens, documentos) = crate::entregaveis::citados(&it.text, cwd);
+        for caminho in imagens { if !it.midia.contains(&caminho) { it.midia.push(caminho); } }
+        it.imagens = it.midia.len();
+        it.arquivos = documentos.into_iter().map(|c| c.to_string_lossy().into_owned()).collect();
     }
     saida
 }
 
-const EXTENSOES_DE_IMAGEM: [(&str, &str); 5] =
-    [(".png", "image/png"), (".jpg", "image/jpeg"), (".jpeg", "image/jpeg"), (".gif", "image/gif"), (".webp", "image/webp")];
+pub const EXTENSOES_DE_IMAGEM: &[(&str, &str)] =
+    &[(".png", "image/png"), (".jpg", "image/jpeg"), (".jpeg", "image/jpeg"), (".gif", "image/gif"), (".webp", "image/webp")];
 /// Maior imagem citada que a conversa mostra (o JSON leva o arquivo inteiro em base64).
-const IMAGEM_MAX_BYTES: u64 = 15 * 1024 * 1024;
+pub(crate) const IMAGEM_MAX_BYTES: u64 = 15 * 1024 * 1024;
 
 /// Caminhos absolutos de imagens que existem, citados num texto, na ordem e sem repetir. Aceita
 /// `C:\…`, `C:/…` e `/…`, com espaços (`C:\Users\Fulano de Tal\…`; no Mac o print padrão é
 /// "Screenshot 2026-10-19 at 01.09.png"): o arquivo precisa existir, então texto solto não passa.
 /// O caminho vem do texto do agente, nunca de quem pede pela rede, e só imagens comuns passam.
-pub fn caminhos_de_imagem(texto: &str) -> Vec<PathBuf> {
+pub fn caminhos_de_imagem(texto: &str) -> Vec<PathBuf> { caminhos_citados(texto, EXTENSOES_DE_IMAGEM, IMAGEM_MAX_BYTES) }
+
+/// Fork: o mesmo de [`caminhos_de_imagem`] para outras extensões (documentos, em `entregaveis`).
+pub(crate) fn caminhos_citados(texto: &str, extensoes: &[(&str, &str)], max_bytes: u64) -> Vec<PathBuf> {
     let mut achados: Vec<PathBuf> = Vec::new();
     for linha in texto.lines() {
         let minusculo = linha.to_ascii_lowercase();
@@ -384,7 +438,7 @@ pub fn caminhos_de_imagem(texto: &str) -> Vec<PathBuf> {
             let raiz = bytes[i] == b'/' && matches!(antes, b' ' | b'`' | b'(' | b'"' | b'\'' | b'<' | b'[' | b'*');
             if !(drive || raiz) { i += 1; continue; }
             // O fim é a primeira extensão de imagem seguida de algo que não continua o nome.
-            let fim = EXTENSOES_DE_IMAGEM.iter().filter_map(|(ext, _)| {
+            let fim = extensoes.iter().filter_map(|(ext, _)| {
                 let mut de = i;
                 while let Some(pos) = minusculo[de..].find(ext) {
                     let f = de + pos + ext.len();
@@ -397,7 +451,7 @@ pub fn caminhos_de_imagem(texto: &str) -> Vec<PathBuf> {
             let candidato = &linha[i..fim];
             if !candidato.contains(['`', '"', '<', '>', '|', '*', '?']) {
                 let caminho = PathBuf::from(candidato);
-                let cabe = std::fs::metadata(&caminho).is_ok_and(|m| m.is_file() && m.len() <= IMAGEM_MAX_BYTES);
+                let cabe = std::fs::metadata(&caminho).is_ok_and(|m| m.is_file() && m.len() <= max_bytes);
                 if cabe && !achados.contains(&caminho) { achados.push(caminho); }
                 i = fim;
             } else { i += 1; }
@@ -411,11 +465,19 @@ fn hash(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0xcbf29ce484222325_u64, |h, b| (h ^ u64::from(*b)).wrapping_mul(0x100000001b3))
 }
 
-fn entradas(linha: &[u8], provider: &str) -> Vec<Entry> {
+fn entradas(linha: &[u8], provider: &str, cwd: &mut Option<PathBuf>) -> Vec<Entry> {
     if linha.iter().all(u8::is_ascii_whitespace) { return Vec::new(); }
     let Ok(value) = serde_json::from_slice::<Value>(linha) else { return Vec::new() };
+    // Fork: a pasta da conversa, para caminho relativo citado pelo agente. O Claude grava em cada
+    // linha; o Codex no `session_meta` e a cada `turn_context`.
+    let pasta = match provider {
+        "claude" => value["cwd"].as_str(),
+        "codex" if value["type"] == "session_meta" || value["type"] == "turn_context" => value["payload"]["cwd"].as_str(),
+        _ => None,
+    };
+    if let Some(pasta) = pasta.filter(|p| Path::new(p).is_absolute()) { *cwd = Some(PathBuf::from(pasta)); }
     let base = value["uuid"].as_str().map(str::to_owned).unwrap_or_else(|| format!("{:016x}", hash(linha)));
-    items(&value, provider).into_iter().enumerate()
+    items_em(&value, provider, cwd.as_deref()).into_iter().enumerate()
         .map(|(i, item)| Entry { identity: format!("{provider}:{base}#{i}"), item })
         .collect()
 }
@@ -430,6 +492,8 @@ pub struct Feed {
     /// linha é relida (e eles refeitos) na próxima leitura.
     provisorios: usize,
     usado_em: u64,
+    /// Fork: última pasta da conversa vista no transcript (ver `entradas`).
+    cwd: Option<PathBuf>,
 }
 
 /// Transcripts abertos recentemente. Limitado: só a conversa aberta e poucas outras são lidas.
@@ -465,13 +529,13 @@ impl FeedCache {
             file.take(tamanho - feed.offset).read_to_end(&mut novo)?;
             let completo = novo.iter().rposition(|b| *b == b'\n').map_or(0, |i| i + 1);
             for linha in novo[..completo].split(|b| *b == b'\n') {
-                feed.entries.extend(entradas(linha, provider));
+                feed.entries.extend(entradas(linha, provider, &mut feed.cwd));
             }
             feed.offset += completo as u64;
             // Sem `\n` no fim a última linha pode estar no meio da escrita — ou o arquivo
             // simplesmente terminou assim. Se já é um JSON inteiro ela aparece, mas fica provisória:
             // a próxima leitura recomeça dela, então nada duplica quando a CLI completar a linha.
-            let resto = entradas(&novo[completo..], provider);
+            let resto = entradas(&novo[completo..], provider, &mut feed.cwd.clone());
             feed.provisorios = resto.len();
             feed.entries.extend(resto);
         }

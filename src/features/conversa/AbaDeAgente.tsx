@@ -9,9 +9,11 @@ import type { TerminalSession } from "../terminal/terminalService";
 import { EVENTO_ANEXAR, EVENTO_ARRASTANDO, tipoPelaExtensao } from "../../mobile/anexos";
 import { ConversationDetail } from "../../mobile/MobileApp";
 import { listTerminalSessions } from "../terminal/terminalService";
-import { useSessionProvider } from "../terminal/sessionProviders";
+import { useSession, useSessionProvider } from "../terminal/sessionProviders";
 import { temConversa } from "../../mobile/api";
 import type { AgentView } from "../../types/settings";
+import { PastaDaConversaContext } from "../../mobile/CaminhoClicavel";
+import { GitBranchStatus } from "../git/GitBranchStatus";
 import "../../mobile/mobile.css";
 import "../../web/web.css";
 
@@ -80,6 +82,7 @@ function useConversaDaSessao(sessionId: string) {
 function FaixaDoTerminal({ sessionId, abas }: { sessionId: string; abas: ReactNode }) {
   const conversa = useConversaDaSessao(sessionId);
   const [erro, setErro] = useState<string | null>(null);
+  const pasta = useSession(sessionId)?.cwd ?? null;
 
   async function aplicar(ajustes: Ajustes) {
     if (!conversa?.capabilities) return;
@@ -94,10 +97,12 @@ function FaixaDoTerminal({ sessionId, abas }: { sessionId: string; abas: ReactNo
     });
   }
 
-  if (!conversa?.capabilities && !abas) return null;
+  if (!conversa?.capabilities && !abas && !pasta) return null;
   return (
     <div className="aba-agente-topo">
       {abas}
+      {/* Fork: branch em que este agente trabalha (a pasta dele), com troca e criação. */}
+      <span className="aba-agente-branch"><GitBranchStatus projectPath={pasta} abrirPara="baixo" atalho={false} /></span>
       <span className="flex-1" />
       {erro && <span role="alert" className="text-[11px] text-danger">{erro}</span>}
       {conversa?.capabilities && (
@@ -207,6 +212,7 @@ function ChatDaSessao({ sessionId, onVerTerminal }: { sessionId: string; onVerTe
   useSoltarArquivos(area);
   // O estado no topo acompanha o agente (a conversa acima é lida uma vez, para montar o chat).
   const aoVivo = useConversaDaSessao(sessionId);
+  const pasta = useSession(sessionId)?.cwd ?? null;
 
   const carregar = useCallback(async () => {
     // Sessão recém-aberta: o engine pode ainda estar subindo o processo (wsl.exe frio leva ~3 s) ou
@@ -243,13 +249,18 @@ function ChatDaSessao({ sessionId, onVerTerminal }: { sessionId: string; onVerTe
     <div ref={area} className="aba-conversa-tela absolute inset-0 z-20 flex flex-col bg-bg-surface">
       <div className="aba-agente-topo">
         <AbasDoAgente vendo="conversa" onTrocar={(aba) => { if (aba === "terminal") onVerTerminal(); }} />
+        {/* Fork: branch em que este agente trabalha. */}
+        <span className="aba-agente-branch"><GitBranchStatus projectPath={pasta} abrirPara="baixo" atalho={false} /></span>
         <span className="flex-1" />
         {(aoVivo ?? conversa) && <ResumoDaConversa conversa={(aoVivo ?? conversa)!} />}
       </div>
       {conversa ? (
+        // Fork: caminho relativo citado na conversa abre relativo à pasta dela (`CaminhoClicavel.tsx`).
+        <PastaDaConversaContext.Provider value={pasta}>
         <div className="w-painel-central">
           <ConversationDetail key={conversa.id} conversation={conversa} refresh={carregar} />
         </div>
+        </PastaDaConversaContext.Provider>
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="text-xs text-text-secondary">{erro ?? "Abrindo a conversa…"}</p>

@@ -39,6 +39,7 @@ import { DockerPanel } from "./DockerPanel";
 import { KanbanPanel } from "./KanbanPanel";
 import { SkillsList } from "./SkillsList";
 import { PastasDeProjetos } from "../features/projects/PastasDeProjetos";
+import type { DropZone } from "../features/workspace/tabPointerDrag";
 /* O mesmo arquivo que o Tauri usa como ícone do app (tauri.conf.json →
    bundle.icon). Importado em vez de copiado para src/assets: uma cópia
    dessincronizaria do ícone real na próxima troca de marca. */
@@ -109,6 +110,8 @@ interface SidebarProps {
   onAttachTerminal: (sessionId: string, title: string) => void;
   /** Abre uma conversa de qualquer projeto (pasta) — seleciona o projeto e foca a aba dela. */
   onAbrirConversa?: (projectId: string, sessionId: string, title: string) => void;
+  /** Fork: conversa arrastada da lateral para um painel (centro abre ali, borda divide). */
+  onSoltarConversaNoLayout?: (sessionId: string, title: string, paneId: string, zone: DropZone) => void;
   onCloseTerminal: (sessionId: string) => void;
   onDuplicateTerminal: (sessionId: string) => void;
   onRestartTerminal: (sessionId: string) => void;
@@ -150,6 +153,7 @@ export function Sidebar({
   onCloseProject,
   onAttachTerminal,
   onAbrirConversa,
+  onSoltarConversaNoLayout,
   onCloseTerminal,
   onDuplicateTerminal,
   onRestartTerminal,
@@ -260,6 +264,9 @@ export function Sidebar({
             naoVistas={naoVistas}
             onSelectProject={onSelectProject}
             onCloseProject={onCloseProject}
+            onSoltarNoLayout={onSoltarConversaNoLayout
+              ? (_projectId, session, alvo) => onSoltarConversaNoLayout(session.id, session.name, alvo.paneId, alvo.zone)
+              : undefined}
             onAbrirConversa={(projectId, session) => (onAbrirConversa
               ? onAbrirConversa(projectId, session.id, session.name)
               : onAttachTerminal(session.id, session.name))}

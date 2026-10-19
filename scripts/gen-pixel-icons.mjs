@@ -50,6 +50,7 @@ const ICONS = {
   // Estado das sessões
   PlayIcon: "play",
   StopIcon: "stop",
+  MicIcon: "mic",
   TrashIcon: "trash",
   AlertIcon: "square-alert",
   WarningIcon: "warning-diamond",

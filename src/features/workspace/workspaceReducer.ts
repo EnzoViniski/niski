@@ -1,4 +1,6 @@
 import { samePath } from "../../lib/paths";
+import { colocarConversa } from "./colocarConversa";
+import { abrirLink } from "./abrirLink";
 import type {
   LayoutNode,
   LayoutPreset,
@@ -222,6 +224,12 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
           : state.activeProjectId;
       return { ...state, projects, activeProjectId, updatedAt: new Date().toISOString() };
     }
+    // Fork: conversa solta da lateral num painel (centro abre, borda divide).
+    case "PLACE_SESSION":
+      return colocarConversa(state, action, workspaceReducer);
+    // Fork: link clicado vira aba de navegador ao lado de quem o mostrou.
+    case "ABRIR_LINK":
+      return abrirLink(state, action, workspaceReducer);
     case "FOCUS_PANE":
       return updateActiveProject(state, (project) =>
         findPane(project.layout, action.paneId)
@@ -281,12 +289,17 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         const paneId = project.activePaneId;
         const pane = findPane(project.layout, paneId);
         if (!pane) return project;
-        const existing = pane.tabs.find((tab) => tab.resourceId === action.sessionId);
-        if (existing) {
+        // Fork: procura a sessão em **todos** os painéis, não só no ativo. Clicar na lateral numa
+        // conversa aberta no outro painel criava uma segunda aba na mesma PTY: o que se digitava numa
+        // aparecia na outra, e fechar qualquer uma encerrava a conversa das duas.
+        const dona = collectPanes(project.layout).find((item) => item.tabs.some((tab) => tab.resourceId === action.sessionId));
+        const existing = dona?.tabs.find((tab) => tab.resourceId === action.sessionId);
+        if (dona && existing) {
           return {
             ...project,
+            activePaneId: dona.id,
             layout: mapNode(project.layout, (node) =>
-              node.type === "pane" && node.id === paneId ? { ...node, activeTabId: existing.id } : node
+              node.type === "pane" && node.id === dona.id ? { ...node, activeTabId: existing.id } : node
             ),
           };
         }

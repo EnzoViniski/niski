@@ -4,7 +4,8 @@ import remarkGfm from "remark-gfm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "../../components/ui";
 import type { WorkspaceTab } from "../../types/workspace";
-import { FilePane } from "./FilePane";
+// Fork: Monaco só ao entrar no modo de edição.
+import { FilePane } from "./FilePaneTardio";
 import { fileMtime, readTextFile } from "./filesService";
 
 const POLL_INTERVAL_MS = 1_000;
