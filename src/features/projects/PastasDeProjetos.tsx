@@ -3,6 +3,8 @@ import { ChevronDownIcon, CloseIcon, FolderIcon, GitBranchIcon, ReloadIcon } fro
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { IconeDoStatus, rotuloDoStatus, statusDaConversa } from "../../components/ConversaStatus";
 import { conversationKey } from "../terminal/useAttention";
+// Fork: atalho para o fluxo na linha da conversa orquestradora.
+import { IconeDaOrquestradora } from "../orquestracao/IconeDaOrquestradora";
 import { corDoAgente, nomeDoAgente } from "../../lib/coresDosAgentes";
 import type { Project } from "../../types/workspace";
 import type { TerminalSession } from "../terminal/terminalService";
@@ -188,6 +190,7 @@ export function PastasDeProjetos({
                         <span className="min-w-0 flex-1 truncate">{session.name}</span>
                         <IconeDoStatus status={status} className="h-3 w-3" />
                       </button>
+                      <IconeDaOrquestradora conversa={chave} titulo={session.name} />
                       <span className="conversa-acoes" data-nao-arrasta>
                         <button type="button" aria-label={`Bifurcar conversa ${session.name}`} title="Bifurcar: conversa nova com todo o histórico desta"
                           onClick={() => onBifurcar(session.id)}><GitBranchIcon aria-hidden className="h-3 w-3" /></button>

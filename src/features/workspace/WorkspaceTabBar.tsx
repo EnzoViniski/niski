@@ -1,7 +1,7 @@
 import { GlifoFechar, GlifoMais } from "../../components/ui/PixelGlyph";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChatIcon, KanbanIcon, ListIcon, TerminalIcon, GitBranchIcon, GlobeIcon } from "../../components/ui/PixelIcon";
+import { ChatIcon, KanbanIcon, ListIcon, TerminalIcon, GitBranchIcon, GlobeIcon, BlocksIcon } from "../../components/ui/PixelIcon";
 import { AGENT_ICON } from "../../components/ui/AgentIcon";
 import { useSession, useSessionProvider } from "../terminal/sessionProviders";
 import { EditableLabel } from "../../components/ui/EditableLabel";
@@ -233,6 +233,8 @@ const ICONE_POR_KIND: Partial<Record<PaneNode["tabs"][number]["kind"], React.Com
   "git-graph": GitBranchIcon,
   "git-diff": GitBranchIcon,
   web: GlobeIcon,
+  // Fork: fluxo do orquestrador.
+  orquestracao: BlocksIcon,
 };
 
 function TabIcon({ item, className }: { item: PaneNode["tabs"][number]; className?: string }) {

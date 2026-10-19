@@ -17,6 +17,8 @@ import { TerminalPane } from "../terminal/TerminalPane";
 import { AbaDeAgente } from "../conversa/AbaDeAgente";
 // Fork: aba de navegador (link clicado).
 import { NavegadorPane } from "../navegador/NavegadorPane";
+// Fork: fluxo ao vivo do orquestrador (React Flow carregado tardio).
+import { FluxoAoVivo } from "../orquestracao/FluxoAoVivoTardio";
 import { closeTerminal } from "../terminal/terminalService";
 import { PANE_DRAG_TYPE } from "./tabDrag";
 import { TAB_DRAG_EVENT, type DropZone, type TabDragState } from "./tabPointerDrag";
@@ -209,6 +211,8 @@ export function PaneView({
           />
         ) : tab.kind === "web" ? (
           <NavegadorPane tab={tab} onTitulo={(titulo) => dispatch({ type: "RENAME_TAB_RESOURCE", fromResourceId: tab.resourceId ?? "", toResourceId: tab.resourceId ?? "", title: titulo.slice(0, 60) })} />
+        ) : tab.kind === "orquestracao" && tab.resourceId ? (
+          <FluxoAoVivo orquestrador={tab.resourceId} paneId={pane.id} />
         ) : tab?.kind === "file" && tab.resourceId && isImagePath(tab.resourceId) ? (
           <ImagePane tab={tab} />
         ) : tab?.kind === "file" ? (
