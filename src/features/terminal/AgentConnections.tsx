@@ -19,6 +19,7 @@ const DESCRIPTIONS: Record<AgentCliId, string> = {
   cursor: "Cursor Agent CLI",
   claude: "Claude Code · Claude ou Anthropic Console",
   codex: "OpenAI Codex CLI",
+  antigravity: "Google Antigravity CLI (agy) · só a conta do computador",
 };
 
 type Connection = "connected" | "installed" | "missing";

@@ -7,6 +7,7 @@ import { resetShort, usageTone } from "../../lib/uso";
 import type { Usage, UsageWindow } from "./AccountUsage";
 import { listProfiles, type Profile } from "./terminalService";
 import { timeAgo } from "./AgentUsageStatus";
+import { AGENTES_COM_USO } from "../../mobile/api";
 
 const AGENTE: Record<string, string> = { claude: "Claude", codex: "Codex" };
 
@@ -49,7 +50,7 @@ export function UsoDeTodasAsContas({ engineOnline, contaAtiva }: { engineOnline:
     let cancelado = false;
     void listProfiles().then((lista) => {
       if (cancelado) return;
-      const comUso = lista.filter((conta) => conta.provider === "claude" || conta.provider === "codex");
+      const comUso = lista.filter((conta) => AGENTES_COM_USO.includes(conta.provider));
       setContas(comUso);
       for (const conta of comUso) {
         invoke<Usage>("account_usage", { profileId: conta.id, refresh: false })

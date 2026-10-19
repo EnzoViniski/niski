@@ -152,12 +152,14 @@ pub fn spawn_terminal(
 
 /// Providers suportados: id, rótulo, candidatos de binário no PATH, args do comando de login.
 /// Fonte única — `agent_cli_statuses` e `connect_agent_cli` leem daqui.
-const AGENT_CLIS: [(&str, &str, &[&str], &[&str]); 3] = [
+const AGENT_CLIS: [(&str, &str, &[&str], &[&str]); 4] = [
     ("claude", "Claude", &["claude"], &[]),
     ("codex", "Codex", &["codex"], &["login"]),
     // `agent` é o nome atual do CLI do Cursor; `cursor-agent` é o antigo, mantido no fim da lista
     // para quem ainda não atualizou. Quem tiver os dois no PATH abre pelo novo.
     ("cursor", "Cursor", &["agent", "cursor-agent"], &["login"]),
+    // Antigravity CLI (Google). Sem subcomando de login: o primeiro `agy` abre o navegador.
+    ("antigravity", "Antigravity", &["agy"], &[]),
 ];
 
 #[derive(Serialize)]
@@ -318,8 +320,16 @@ fn open_login_console(command: &str, arguments: &[&str], env: &[(String, String)
 pub fn ensure_agent_trust(agent_id: String, cwd: String, profile_id: Option<String>) -> Result<(), String> {
     match agent_id.as_str() {
         "claude" => trust_claude(&cwd, profile_id.as_deref()),
+        "antigravity" => trust_antigravity(&cwd),
         _ => Ok(()),
     }
+}
+
+/// O `agy` pergunta "confiar nesta pasta?" em todo projeto novo; na visão Conversa a pergunta fica
+/// escondida, então a pasta entra em `trustedWorkspaces` antes de abrir.
+fn trust_antigravity(cwd: &str) -> Result<(), String> {
+    let config = crate::profiles::native_config_dir("antigravity").ok_or("diretório do usuário não encontrado")?;
+    omni_core::antigravity::confiar(&config, cwd).map_err(|error| error.to_string())
 }
 
 /// Onde o Claude Code guarda o `.claude.json`. Com `CLAUDE_CONFIG_DIR` setado ele vai para dentro

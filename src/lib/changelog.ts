@@ -14,6 +14,20 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.7.2",
+    date: "2026-10-19",
+    changes: [
+      "Novo agente: Antigravity, do Google. Instale pelo próprio app, converse na visão Conversa, veja quanto resta de uso e troque o modelo e o esforço.",
+      "Quando o agente faz uma pergunta, ela aparece na conversa num cartão novo, com a explicação de cada opção. Antes algumas perguntas só podiam ser respondidas no terminal.",
+      "Perguntas de marcar várias opções: marque quantas quiser e toque em Continuar. Com várias perguntas seguidas, você vê em qual está e revisa as respostas antes de enviar.",
+      "Perguntas com prévia lado a lado agora funcionam pela conversa.",
+      "Corrigido: a pergunta às vezes vinha misturada com texto da conversa, e às vezes o clique dava \"Sessão ocupada\" por alguns segundos.",
+      "Imagens citadas pelo agente aparecem na conversa como miniatura: quando ele tira um print ou menciona uma imagem do seu computador, é só tocar para ver ampliada.",
+      "Corrigido no Mac: a conversa ficava travada em \"Entrada do CLI não reconhecida\" e não dava para mandar mensagem nem trocar o modelo.",
+      "No navegador do celular a página não arrasta mais para os lados.",
+    ],
+  },
+  {
     version: "0.7.1",
     date: "2026-10-17",
     changes: [

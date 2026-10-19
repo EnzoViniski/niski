@@ -26,6 +26,7 @@ const FALLBACK_AGENTS: AgentCliStatus[] = [
   { id: "claude", label: "Claude", command: "claude", path: null, available: false, authenticated: false },
   { id: "codex", label: "Codex", command: "codex", path: null, available: false, authenticated: false },
   { id: "cursor", label: "Cursor", command: "agent", path: null, available: false, authenticated: false },
+  { id: "antigravity", label: "Antigravity", command: "agy", path: null, available: false, authenticated: false },
 ];
 
 export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLauncherProps) {

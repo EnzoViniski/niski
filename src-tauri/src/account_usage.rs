@@ -13,7 +13,8 @@ fn read_usage(profile_id: String, refresh: bool) -> Result<AccountUsage, String>
     let profile = omni_core::profiles(&crate::engine_client::engine_dir()?).into_iter()
         .find(|profile|profile.id == profile_id).ok_or("Perfil não encontrado")?;
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-    if profile.provider == "claude" {
+    // Claude e Antigravity: só a tela da CLI tem o uso, e quem digita `/usage` é o engine.
+    if profile.provider == "claude" || profile.provider == "antigravity" {
         return match crate::engine_client::authenticated_request(|token| EngineRequest::AccountUsage { token, profile_id: profile_id.clone(), refresh })? {
             EngineResponse::AccountUsage { usage } => Ok(usage),
             EngineResponse::Error { message, .. } => Err(message),

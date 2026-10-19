@@ -113,14 +113,14 @@ function ImagemDaMensagem({ caminho, numero }: { caminho: string; numero: number
     <li className="bubble-imagem">
       {src
         ? <button type="button" className="bubble-imagem-botao" aria-label={`Ampliar imagem ${numero}`} onClick={() => setAberta(true)}>
-            <img src={src} alt={`Imagem ${numero} enviada`} />
+            <img src={src} alt={`Imagem ${numero}`} />
           </button>
         : <span className="bubble-imagem-carregando" role="status" aria-label={`Carregando imagem ${numero}`} />}
       {/* No `body`: dentro do painel, um ancestral com transform prendia o `fixed` na área do chat. */}
       {aberta && src && createPortal(
         <div className="imagem-ampliada" role="dialog" aria-label={`Imagem ${numero}`} onClick={() => setAberta(false)}
           onKeyDown={(evento) => { if (evento.key === "Escape") setAberta(false); }}>
-          <img src={src} alt={`Imagem ${numero} enviada`} />
+          <img src={src} alt={`Imagem ${numero}`} />
           <button type="button" className="imagem-ampliada-fechar" autoFocus onClick={() => setAberta(false)}>Fechar</button>
         </div>,
         document.body,

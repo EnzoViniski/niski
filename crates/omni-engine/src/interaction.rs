@@ -39,37 +39,147 @@ pub struct Capabilities {
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
-pub struct Escolha { pub pergunta: String, pub detalhe: Option<String>, pub opcoes: Vec<Opcao> }
+pub struct Escolha {
+    pub pergunta: String,
+    /// Texto entre a pergunta e as opções, uma linha da tela por linha.
+    pub detalhe: Option<String>,
+    pub opcoes: Vec<Opcao>,
+    /// Marcar várias (AskUserQuestion com `multiSelect`): o número marca/desmarca e "avançar" (Tab)
+    /// segue para a próxima pergunta ou para a revisão.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub multipla: bool,
+    /// Abas de várias perguntas seguidas ("☐ Cor  ☒ Fruta"), sem a de enviar.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub etapas: Vec<Etapa>,
+    /// Pergunta com prévia ("n to add notes"): ali o número só move a seleção, e é o Enter que escolhe.
+    #[serde(skip)]
+    pub previa: bool,
+}
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
-pub struct Opcao { pub numero: u8, pub rotulo: String }
+pub struct Opcao {
+    pub numero: u8,
+    pub rotulo: String,
+    /// A linha de explicação embaixo da opção, quando o agente escreveu uma.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub descricao: Option<String>,
+    /// Só em `multipla`: se está marcada agora.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub marcada: Option<bool>,
+}
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub struct Etapa { pub titulo: String, pub respondida: bool }
+
+/// Texto da tela com uma linha por linha do terminal. O `contents()` junta linha que quebrou por
+/// largura com a de baixo — a pergunta do agente ocupa a largura toda e a opção "1." colava nela,
+/// e o menu inteiro deixava de ser reconhecido.
+pub fn linha_a_linha(screen: &vt100::Screen) -> String {
+    screen.rows(0, screen.size().1).collect::<Vec<_>>().join("\n")
+}
 
 /// Menu numerado da CLI com o rodapé "Enter to confirm · Esc to cancel": a caixa vai da última
 /// linha de borda (`────`) acima do rodapé até ele. Precisa de pelo menos duas opções numeradas em
 /// sequência a partir de 1. Pedido de permissão ("Do you want to…") fica de fora: é o `approval`,
 /// que só aceita as escolhas de uso único — a conversa nunca manda "não perguntar de novo".
 pub fn escolha(text: &str) -> Option<Escolha> {
-    let linhas: Vec<&str> = text.lines().collect();
-    let rodape = linhas.iter().rposition(|linha| {
-        let linha = linha.trim().to_lowercase();
-        linha.contains("esc to cancel") && linha.contains("enter")
-    })?;
+    // Linha da largura do terminal quebra sem `\n` no texto da tela e cola na de baixo: a borda
+    // gruda na barra de abas ("────… ☐ Cor") e, depois de um turno, também no prompt destacado de
+    // cima ("❯ manda de novo…   ────… ☐ Cor"). Cada sequência longa de `─` vira linha própria.
+    let linhas: Vec<&str> = text.lines().flat_map(|linha| {
+        let mut partes = Vec::new();
+        let mut resto = linha;
+        while let Some(inicio) = resto.find("──────────") {
+            let fim = resto[inicio..].find(|c| c != '─').map_or(resto.len(), |i| inicio + i);
+            if !resto[..inicio].trim().is_empty() { partes.push(&resto[..inicio]); }
+            partes.push(&resto[inicio..fim]);
+            resto = &resto[fim..];
+        }
+        if partes.is_empty() || !resto.trim().is_empty() { partes.push(resto); }
+        partes
+    }).collect();
     let borda = |linha: &str| { let linha = linha.trim(); linha.chars().count() >= 10 && linha.chars().all(|c| c == '─') };
-    let inicio = linhas[..rodape].iter().rposition(|l| borda(l)).map(|i| i + 1).unwrap_or(rodape.saturating_sub(20));
-    let caixa = &linhas[inicio..rodape];
-    if caixa.iter().any(|l| l.contains("Do you want to")) { return None; }
+    // Pergunta com prévia (`preview` do AskUserQuestion): o desenho fica à direita das opções, na
+    // mesma linha ("1. Lado a lado     ┌────┐"), e embaixo delas ("│ | claude | │"). Corta no
+    // primeiro caractere de caixa ou num vão largo.
+    const CAIXA: [char; 11] = ['│', '┌', '┐', '└', '┘', '├', '┤', '┬', '┴', '┼', '─'];
+    let sem_previa = |texto: &str| -> String {
+        let fim = [texto.find(CAIXA), texto.find("   ")].into_iter().flatten().min().unwrap_or(texto.len());
+        texto[..fim].trim().to_owned()
+    };
     let opcao = |linha: &str| -> Option<Opcao> {
-        let linha = linha.trim().trim_start_matches(['❯', '›']).trim();
+        let linha = linha.trim().trim_start_matches(['❯', '›', '>']).trim();
         let (numero, rotulo) = linha.split_once(". ")?;
         let numero: u8 = numero.parse().ok()?;
-        (!rotulo.trim().is_empty()).then(|| Opcao { numero, rotulo: rotulo.trim().to_owned() })
+        let rotulo = sem_previa(rotulo);
+        let rotulo = rotulo.as_str();
+        // Caixa de marcar ("[ ] Uva", "[✔] Uva"): vira `marcada`.
+        let (marcada, rotulo) = match rotulo.strip_prefix('[').and_then(|r| r.split_once("] ")) {
+            Some((dentro, resto)) if dentro.chars().count() == 1 => (Some(dentro != " "), resto.trim()),
+            _ => (None, rotulo),
+        };
+        (!rotulo.is_empty()).then(|| Opcao { numero, rotulo: rotulo.to_owned(), descricao: None, marcada })
     };
-    let opcoes: Vec<Opcao> = caixa.iter().filter_map(|l| opcao(l)).collect();
-    if opcoes.len() < 2 || opcoes.len() > 9 || opcoes.iter().enumerate().any(|(i, o)| o.numero as usize != i + 1) { return None; }
-    let primeira = caixa.iter().position(|l| opcao(l).is_some())?;
-    let mut textos = caixa[..primeira].iter().map(|l| l.trim()).filter(|l| !l.is_empty());
-    let pergunta = textos.next()?.to_owned();
-    let detalhe = textos.collect::<Vec<_>>().join(" ");
-    Some(Escolha { pergunta, detalhe: (!detalhe.is_empty()).then_some(detalhe), opcoes })
+    let rodape = linhas.iter().rposition(|linha| {
+        let linha = linha.trim().to_lowercase();
+        (linha.contains("esc to cancel") && linha.contains("enter"))
+            // Antigravity: "↑/↓ Navigate · enter Select · esc Skip".
+            || (linha.contains("enter select") && linha.contains("navigate"))
+    }).or_else(|| {
+        // Revisão no fim de várias perguntas ("Submit answers / Cancel") vem sem rodapé: a caixa vai
+        // até a última opção depois de "Ready to submit your answers?".
+        let pronto = linhas.iter().rposition(|l| l.trim() == "Ready to submit your answers?")?;
+        (pronto + 1..linhas.len()).filter(|&i| opcao(linhas[i]).is_some()).last().map(|i| i + 1)
+    })?;
+    // A caixa começa na borda acima da opção 1: a pergunta do agente (AskUserQuestion) tem outra
+    // borda antes de "Chat about this", e começar na última deixava só essa opção.
+    let um = linhas[..rodape].iter().rposition(|l| opcao(l).is_some_and(|o| o.numero == 1))?;
+    let inicio = linhas[..um].iter().rposition(|l| borda(l)).map(|i| i + 1).unwrap_or(um.saturating_sub(20));
+    let caixa: Vec<&str> = linhas[inicio..rodape].iter().copied().filter(|l| !borda(l)).collect();
+    if caixa.iter().any(|l| l.contains("Do you want to")) { return None; }
+    // Opções só da opção 1 para baixo: o que vem antes é a pergunta, mesmo que tenha lista numerada.
+    let primeira = caixa.iter().rposition(|l| opcao(l).is_some_and(|o| o.numero == 1))?;
+    // Cada opção com a explicação das linhas de baixo (até a próxima opção). Uma borda encerra a
+    // explicação: o que vem depois dela ("Chat about this" sem número, na prévia) não é da opção.
+    let mut todas: Vec<Opcao> = Vec::new();
+    let mut explicando = false;
+    for linha in &linhas[um..rodape] {
+        if borda(linha) { explicando = false; continue; }
+        match opcao(linha) {
+            Some(nova) => { todas.push(nova); explicando = true; }
+            None => if let (true, Some(atual)) = (explicando, todas.last_mut()) {
+                let texto = sem_previa(linha.trim());
+                if !texto.is_empty() && !texto.starts_with("Notes:") {
+                    atual.descricao = Some(match atual.descricao.take() { Some(antes) => format!("{antes} {texto}"), None => texto });
+                }
+            },
+        }
+    }
+    if todas.len() < 2 || todas.len() > 9 || todas.iter().enumerate().any(|(i, o)| o.numero as usize != i + 1) { return None; }
+    let multipla = todas.iter().any(|o| o.marcada.is_some());
+    // "Type something" abre um campo de texto dentro do menu, que a conversa não preenche; para
+    // responder livre existe "Chat about this", que volta ao campo normal. A linha "Submit" do
+    // marcar-várias fica pendurada nele e some junto.
+    // "Write-in..." é o mesmo campo livre no Antigravity.
+    let opcoes: Vec<Opcao> = todas.into_iter().filter(|o| !o.rotulo.starts_with("Type something") && !o.rotulo.starts_with("Write-in")).collect();
+    // A barra de abas das perguntas ("← ☐ Cor  ☒ Fruta  ✔ Submit →") não é texto da pergunta; as
+    // respostas da revisão ("→ Azul") são, e vão no detalhe.
+    let aba = |l: &str| l.contains(['☐', '☒', '✔']);
+    let etapas: Vec<Etapa> = caixa[..primeira].iter().find(|l| aba(l)).map(|barra| {
+        barra.split(['☐', '☒']).skip(1).zip(barra.match_indices(['☐', '☒']))
+            .map(|(resto, (_, marca))| Etapa {
+                titulo: resto.split("  ").next().unwrap_or("").split('✔').next().unwrap_or("").trim().to_owned(),
+                respondida: marca == "☒",
+            })
+            .filter(|e| !e.titulo.is_empty()).collect()
+    }).filter(|e: &Vec<Etapa>| e.len() > 1).unwrap_or_default();
+    let mut textos = caixa[..primeira].iter().filter(|l| !aba(l)).map(|l| l.trim()).filter(|l| !l.is_empty());
+    // Antigravity numera as perguntas ("Question 1/1: O que…"): a numeração não é texto da pergunta.
+    let pergunta = textos.next()?;
+    let pergunta = pergunta.strip_prefix("Question ").and_then(|resto| resto.split_once(": "))
+        .filter(|(n, _)| n.contains('/') && n.chars().all(|c| c.is_ascii_digit() || c == '/'))
+        .map_or(pergunta, |(_, texto)| texto).to_owned();
+    let detalhe = textos.collect::<Vec<_>>().join("\n");
+    let previa = linhas[um..].iter().take(rodape + 1 - um).any(|l| l.contains("to add notes"));
+    Some(Escolha { pergunta, detalhe: (!detalhe.is_empty()).then_some(detalhe), opcoes, multipla, etapas, previa })
 }
 
 /// Require provider chrome plus an empty composer at the actual terminal cursor.
@@ -79,9 +189,10 @@ pub fn ready(screen: &vt100::Screen, provider: &str) -> bool {
     // the first exchange, so requiring it here made this permanently false for any session with
     // history (confirmed against a real running session — the idle composer never re-shows it).
     // The structural checks below are strict enough on their own to recognize the composer.
-    let brand = match provider { "claude" => true, "codex" => text.contains("OpenAI Codex"), _ => false };
+    // Antigravity: "? for shortcuts" no rodapé só existe parado; trabalhando vira "esc to cancel".
+    let brand = match provider { "claude" => true, "codex" => text.contains("OpenAI Codex"), "antigravity" => text.contains("? for shortcuts"), _ => false };
     brand && screen.bracketed_paste() && composer_vazio(screen)
-        && !text.contains("Esc to cancel") && !text.contains("esc to interrupt")
+        && !text.contains("Esc to cancel") && !text.contains("esc to interrupt") && !text.contains("esc to cancel")
         && approval(&text,provider).is_none()
 }
 
@@ -185,8 +296,14 @@ pub fn approval(text: &str, provider: &str) -> Option<(String, String, String)> 
         if provider == "codex" { "\x1b" } else { "3\r" }.into(),text.trim().to_owned()))
 }
 
+/// Nome do executável de cada CLI quando difere do id do provider.
+fn executavel(provider: &str) -> &str {
+    match provider { "antigravity" => "agy", outro => outro }
+}
+
 #[cfg(windows)]
 pub fn provider_running(pid: Option<u32>, provider: &str) -> bool {
+    let provider = executavel(provider);
     use windows_sys::Win32::{Foundation::{CloseHandle, INVALID_HANDLE_VALUE}, System::Diagnostics::ToolHelp::*};
     let Some(pid) = pid else { return false };
     // A PTY shell survives when its CLI exits. Confirm the CLI is still its descendant.
@@ -243,23 +360,32 @@ pub fn has_children(pid: Option<u32>) -> bool {
 
 #[cfg(not(windows))]
 pub fn provider_running(pid: Option<u32>, provider: &str) -> bool {
+    let provider = executavel(provider);
     let Some(pid) = pid else { return false };
-    // `ps` existe igual no macOS e no Linux (não há /proc no macOS). `args`, não `comm`: instalado
-    // pelo npm o CLI roda como `node .../claude`, e `comm` diria só `node`.
-    let Ok(output) = std::process::Command::new("ps").args(["-A", "-o", "pid=", "-o", "ppid=", "-o", "args="]).output() else { return false };
-    agent_descends_from(&String::from_utf8_lossy(&output.stdout), pid, provider)
+    // `ps` existe igual no macOS e no Linux (não há /proc no macOS). Duas leituras:
+    // - `args`: instalado pelo npm o CLI roda como `node .../claude`, e `comm` diria só `node`;
+    // - `comm`: o Claude Code troca o `process.title` pelo título da conversa, e no macOS/Linux isso
+    //   reescreve o `args` ("✳ Corrigir login") — sem o `comm` (no macOS, o caminho do executável)
+    //   o agente "sumia" depois do primeiro título e a conversa travava em "entrada não reconhecida".
+    let ps = |coluna: &str| std::process::Command::new("ps").args(["-A", "-o", "pid=", "-o", "ppid=", "-o", coluna]).output()
+        .map(|saida| String::from_utf8_lossy(&saida.stdout).into_owned()).unwrap_or_default();
+    agent_descends_from(&format!("{}\n{}", ps("args="), ps("comm=")), pid, provider)
 }
 
-/// Linhas `pid ppid args` do `ps`. O agente conta quando o executável ou o script que o node roda
-/// se chama `provider` e o processo descende da PTY.
+/// Linhas `pid ppid comando` do `ps` (de `args` e de `comm`, misturadas). O agente conta quando o
+/// executável ou o script que o node roda se chama `provider` e o processo descende da PTY.
 #[cfg(any(not(windows), test))]
 fn agent_descends_from(ps: &str, pid: u32, provider: &str) -> bool {
     let mut parents = HashMap::new(); let mut candidates = Vec::new();
     for line in ps.lines() {
-        let mut fields = line.split_whitespace();
-        let (Some(Ok(child)), Some(Ok(parent))) = (fields.next().map(str::parse::<u32>), fields.next().map(str::parse::<u32>)) else { continue };
+        fn campo(s: &str) -> (Result<u32, std::num::ParseIntError>, &str) { let s = s.trim_start(); let fim = s.find(char::is_whitespace).unwrap_or(s.len()); (s[..fim].parse(), &s[fim..]) }
+        let (Ok(child), resto) = campo(line) else { continue };
+        let (Ok(parent), resto) = campo(resto) else { continue };
+        let resto = resto.trim();
         parents.insert(child, parent);
-        if fields.take(2).any(|arg| arg.rsplit('/').next() == Some(provider)) { candidates.push(child); }
+        // `comm` do macOS é o caminho inteiro e pode ter espaço ("/Users/Ana Lima/.local/bin/claude").
+        if resto.rsplit('/').next() == Some(provider)
+            || resto.split_whitespace().take(2).any(|arg| arg.rsplit('/').next() == Some(provider)) { candidates.push(child); }
     }
     candidates.into_iter().any(|mut child| { for _ in 0..32 {
         if child == pid { return true; }
@@ -276,9 +402,28 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
     let approve = available && dialog.is_some();
     let prompt = available && ready(context.parser.screen(),provider);
     let enfileirar = available && !prompt && pode_enfileirar(context.parser.screen(),provider);
-    let escolha = (available && !approve && !prompt).then(|| escolha(&context.parser.screen().contents())).flatten();
-    Capabilities { prompt, approve, revision: context.revision(session), approval_text: dialog.map(|d|d.2),
-        reason: (!(approve || prompt || escolha.is_some())).then(|| "Entrada do CLI não reconhecida ou sessão ocupada".into()), enfileirar, escolha }
+    let escolha = (available && !approve && !prompt).then(|| escolha(&linha_a_linha(context.parser.screen()))).flatten();
+    let reason = (!(approve || prompt || escolha.is_some())).then(|| match provider {
+        // ponytail: diagnóstico detalhado enquanto a tela do agy não está calibrada em todos os casos;
+        // volta para o texto genérico quando a Conversa do Antigravity estiver estável.
+        "antigravity" => motivo_antigravity(context.parser.screen(), available, session.reserved.load(Ordering::SeqCst)),
+        _ => "Entrada do CLI não reconhecida ou sessão ocupada".into(),
+    });
+    Capabilities { prompt, approve, revision: context.revision(session), approval_text: dialog.map(|d|d.2), reason, enfileirar, escolha }
+}
+
+/// Por que o campo do Antigravity não foi reconhecido, em palavras: qual das condições do `ready`
+/// falhou. Sem isso a única pista era "não reconhecida", e a tela do terminal parecia normal.
+fn motivo_antigravity(screen: &vt100::Screen, rodando: bool, reservada: bool) -> String {
+    let texto = screen.contents();
+    let mut faltas = Vec::new();
+    if reservada { faltas.push("consulta de uso em andamento"); }
+    if !rodando { faltas.push("processo agy não encontrado"); }
+    if texto.contains("esc to cancel") { faltas.push("agente trabalhando ou com pergunta aberta"); }
+    else if !texto.contains("? for shortcuts") { faltas.push("rodapé \"? for shortcuts\" fora da tela"); }
+    if !screen.bracketed_paste() { faltas.push("modo de colar desligado"); }
+    if !composer_vazio(screen) { faltas.push("campo de digitação vazio não encontrado no cursor"); }
+    if faltas.is_empty() { "Antigravity: entrada não reconhecida".into() } else { format!("Antigravity: {}", faltas.join(" · ")) }
 }
 
 /// Uso da conta Claude. A fonte é o `cachedUsageUtilization` que o próprio Claude Code grava no
@@ -292,6 +437,9 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
 /// - Falhou: devolve a última leitura do arquivo com o motivo, em vez de sumir com os números.
 pub fn account_usage(state: &Arc<EngineState>, profile_id: &str, refresh: bool) -> Result<EngineResponse> {
     let dir = state.state_file.parent().ok_or_else(|| anyhow!("engine dir unavailable"))?.to_path_buf();
+    if let Some(perfil) = omni_core::profiles(&dir).into_iter().find(|p| p.id == profile_id && p.provider == "antigravity") {
+        return uso_antigravity(state, &dir, &perfil, refresh);
+    }
     let profile = omni_core::profiles(&dir).into_iter().find(|p| p.id == profile_id && p.provider == "claude");
     let state_path = profile.as_ref().map(omni_core::usage::claude_state_path);
     let read_cache = || state_path.as_deref().and_then(|path| omni_core::usage::read_claude_cache(profile_id, path, now_ms()));
@@ -341,16 +489,109 @@ pub fn account_usage(state: &Arc<EngineState>, profile_id: &str, refresh: bool) 
         if !wait_claude_ready(&session, Duration::from_secs(25)) { return Ok(None); }
         run_usage_command(state, &session, profile_id, &read_cache, previous_fetch)
     });
-    end_hidden_claude(state, &id);
+    end_hidden(state, &id, "claude");
     match result? {
         Some(usage) => Ok(EngineResponse::AccountUsage { usage }),
         None => with_reason(before, "O Claude não trouxe o uso a tempo; mostrando a última leitura."),
     }
 }
 
-/// Encerra o Claude oculto. Só matar a sessão não basta no Windows: o shell morre e o `claude.exe`
-/// neto fica órfão (visto no teste). `/exit` primeiro; se ele ainda estiver vivo, derruba a árvore.
-fn end_hidden_claude(state: &Arc<EngineState>, id: &str) {
+/// Uso da conta do Antigravity. A CLI não grava o uso em arquivo nenhum: só o painel do `/usage`
+/// mostra. Então a leitura é a tela, e a última fica em `uso-antigravity-<conta>.json` no engine para
+/// o rodapé abrir com número sem digitar nada (`refresh: false`).
+/// - `refresh: true`: usa um agy ocioso da conta; sem nenhum, abre um **oculto e temporário** na pasta
+///   do engine (confiada antes, senão ele para perguntando), consulta e encerra. `/usage` não manda
+///   mensagem ao modelo e não cria conversa.
+fn uso_antigravity(state: &Arc<EngineState>, dir: &Path, perfil: &omni_core::Profile, refresh: bool) -> Result<EngineResponse> {
+    let arquivo = dir.join(format!("uso-antigravity-{}.json", perfil.id));
+    let salvo = || std::fs::read(&arquivo).ok().and_then(|bytes| serde_json::from_slice::<AccountUsage>(&bytes).ok());
+    let com_motivo = |uso: Option<AccountUsage>, motivo: &str| {
+        let mut uso = uso.unwrap_or_else(|| AccountUsage::unavailable(&perfil.id, "antigravity", motivo));
+        uso.reason = Some(motivo.into());
+        Ok(EngineResponse::AccountUsage { usage: uso })
+    };
+    let antes = salvo();
+    if !refresh {
+        return match antes { Some(usage) => Ok(EngineResponse::AccountUsage { usage }), None => com_motivo(None, "Sem consulta de uso ainda. Clique em atualizar.") };
+    }
+    if let Some(usage) = antes.as_ref().filter(|u| u.observed_at_ms.is_some_and(|at| now_ms().saturating_sub(at) < 60_000)) {
+        return Ok(EngineResponse::AccountUsage { usage: usage.clone() });
+    }
+    let ocioso = state.sessions.lock().map_err(|_|anyhow!("sessions poisoned"))?.values().filter_map(|entry| {
+        let SessionEntry::Live(session) = entry else { return None };
+        let meta = session.meta.lock().ok()?;
+        (meta.provider.as_deref() == Some("antigravity")).then(|| session.clone())
+    }).find(|session| capabilities(session).prompt);
+    let lido = match ocioso {
+        Some(session) => consultar_usage_antigravity(state, &session, &perfil.id)?,
+        None => {
+            let pasta = dir.to_string_lossy().into_owned();
+            let _ = omni_core::antigravity::confiar(Path::new(&perfil.config_dir), &pasta);
+            let id = state.next_id();
+            let oculto = spawn_terminal_inner(state, id.clone(), String::new(), "Antigravity · consulta de uso".into(),
+                pasta, None, Some("agy".into()), 40, 120, now_ms(),
+                SessionOrigin { headless: true, env: omni_core::env_for(perfil), provider: Some("antigravity".into()),
+                    profile_id: Some(perfil.id.clone()), conversation_id: None, external_session_id: None });
+            let resultado = oculto.and_then(|_| {
+                let session = match state.sessions.lock().map_err(|_|anyhow!("sessions poisoned"))?.get(&id) {
+                    Some(SessionEntry::Live(session)) => session.clone(),
+                    _ => return Ok(None),
+                };
+                let inicio = Instant::now();
+                while inicio.elapsed() < Duration::from_secs(40) && !capabilities(&session).prompt {
+                    if session.meta.lock().map(|meta| meta.pid.is_none()).unwrap_or(true) { return Ok(None); }
+                    std::thread::sleep(Duration::from_millis(300));
+                }
+                consultar_usage_antigravity(state, &session, &perfil.id)
+            });
+            end_hidden(state, &id, "antigravity");
+            resultado?
+        }
+    };
+    match lido {
+        Some(usage) => {
+            if let Ok(json) = serde_json::to_vec(&usage) { let _ = std::fs::write(&arquivo, json); }
+            Ok(EngineResponse::AccountUsage { usage })
+        }
+        None => com_motivo(antes, "O Antigravity não mostrou o uso a tempo; mostrando a última leitura."),
+    }
+}
+
+/// Digita `/usage` num agy ocioso, lê o painel "Models & Quota" e fecha com Esc.
+fn consultar_usage_antigravity(state: &Arc<EngineState>, session: &Arc<LiveSession>, profile_id: &str) -> Result<Option<AccountUsage>> {
+    {
+        let sessions = state.sessions.lock().map_err(|_|anyhow!("sessions poisoned"))?;
+        if !sessions.values().any(|entry| matches!(entry,SessionEntry::Live(s) if Arc::ptr_eq(s,session))) { return Ok(None); }
+        let mut context = session.interaction.lock().map_err(|_|anyhow!("screen poisoned"))?;
+        if !ready(context.parser.screen(),"antigravity") || session.reserved.swap(true,Ordering::SeqCst) { return Ok(None); }
+        context.input_revision += 1;
+    }
+    struct Release<'a>(&'a LiveSession);
+    impl Drop for Release<'_> { fn drop(&mut self) { self.0.reserved.store(false,Ordering::SeqCst); } }
+    let _release = Release(session);
+    let write = |bytes: &[u8]| -> Result<()> {
+        let mut writer = session.writer.lock().map_err(|_|anyhow!("writer poisoned"))?;
+        writer.write_all(bytes)?; writer.flush()?; Ok(())
+    };
+    write(b"/usage")?;
+    // Enter separado (mesmo motivo do Claude: na mesma rajada vira texto colado).
+    std::thread::sleep(Duration::from_millis(300));
+    write(b"\r")?;
+    let inicio = Instant::now();
+    let mut resultado = None;
+    while inicio.elapsed() < Duration::from_secs(15) {
+        std::thread::sleep(Duration::from_millis(300));
+        let tela = session.interaction.lock().map_err(|_|anyhow!("screen poisoned"))?.parser.screen().contents();
+        let uso = omni_core::usage::parse_antigravity_screen(&tela, profile_id, now_ms());
+        if uso.status == "available" { resultado = Some(uso); break; }
+    }
+    write(b"\x1b")?;
+    Ok(resultado)
+}
+
+/// Encerra a CLI oculta. Só matar a sessão não basta no Windows: o shell morre e o `.exe` neto fica
+/// órfão (visto no teste com o Claude). `/exit` primeiro; se ele ainda estiver vivo, derruba a árvore.
+fn end_hidden(state: &Arc<EngineState>, id: &str, provider: &str) {
     let session = match state.sessions.lock().ok().as_ref().and_then(|sessions| sessions.get(id)) {
         Some(SessionEntry::Live(session)) => Some(session.clone()),
         _ => None,
@@ -364,11 +605,11 @@ fn end_hidden_claude(state: &Arc<EngineState>, id: &str) {
         std::thread::sleep(Duration::from_millis(250));
         write(b"\r");
         let started = Instant::now();
-        while provider_running(pid, "claude") && started.elapsed() < Duration::from_secs(3) {
+        while provider_running(pid, provider) && started.elapsed() < Duration::from_secs(3) {
             std::thread::sleep(Duration::from_millis(200));
         }
         #[cfg(windows)]
-        if let Some(pid) = pid.filter(|pid| provider_running(Some(*pid), "claude")) {
+        if let Some(pid) = pid.filter(|pid| provider_running(Some(*pid), provider)) {
             use std::os::windows::process::CommandExt;
             let _ = std::process::Command::new("taskkill").args(["/T", "/F", "/PID", &pid.to_string()])
                 .stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null())
@@ -590,6 +831,14 @@ fn run_usage_command(state: &Arc<EngineState>, session: &Arc<LiveSession>, profi
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Pergunta do Antigravity 1.4.2 (`ask_question`), copiada da tela real.
+    #[test] fn escolha_do_antigravity() {
+        let tela = "> me pergunte alguma coisa pra eu escolher alguma opcao\n\n? O que você gostaria de fazer agora?\n\nQuestion\n────────────────────────────────────────\n\nQuestion 1/1: O que você gostaria de fazer agora?\n\n> 1. (Recommended) Criar um novo projeto do zero\n  2. Corrigir um bug ou melhorar um código existente\n  3. Aprender sobre uma tecnologia ou ferramenta nova\n  4. Automatizar alguma tarefa repetitiva\n  5. Write-in...\n\n  ↑/↓ Navigate · enter Select · esc Skip\nesc to cancel                                   Gemini 4 Argon · medium\n";
+        let menu = escolha(tela).expect("menu do agy");
+        assert_eq!(menu.pergunta, "O que você gostaria de fazer agora?");
+        assert_eq!(menu.opcoes.iter().map(|o| o.numero).collect::<Vec<_>>(), vec![1, 2, 3, 4]);
+        assert_eq!(menu.opcoes[0].rotulo, "(Recommended) Criar um novo projeto do zero");
+    }
     #[test] fn shell_com_filho_vivo_conta_como_ocupado() {
         let mut filho = if cfg!(windows) {
             std::process::Command::new("cmd").args(["/c", "ping -n 4 127.0.0.1 >nul"]).spawn()
@@ -665,6 +914,83 @@ mod tests {
         assert_eq!(escolha("● ok\n❯ \n"), None);
     }
 
+    /// Pergunta do agente (AskUserQuestion, Claude Code 2.1.302): abas no topo, descrição embaixo de
+    /// cada opção e uma borda antes de "Chat about this". Antes a conversa não mostrava nada.
+    #[test] fn pergunta_do_agente_vira_escolha() {
+        let borda = "─".repeat(40);
+        let tela = format!("● Antes de começar, preciso de uma decisão.\n{borda}\n ←  ☐ Banco  ✔ Submit  →\n\nQual banco de dados usar?\n\n❯ 1. Postgres\n     Relacional, já usado no projeto\n  2. SQLite\n     Arquivo local, sem servidor\n  3. Type something.\n{borda}\n  4. Chat about this\n\nEnter to select · Tab/Arrow keys to navigate · Esc to cancel\n");
+        let menu = escolha(&tela).expect("pergunta reconhecida");
+        assert_eq!(menu.pergunta, "Qual banco de dados usar?");
+        assert_eq!(menu.opcoes.iter().map(|o| (o.numero, o.rotulo.as_str())).collect::<Vec<_>>(), vec![(1, "Postgres"), (2, "SQLite"), (4, "Chat about this")]);
+        // Borda da largura toda colada na linha de baixo, como sai do texto da tela.
+        let colada = tela.replacen(&format!("{borda}\n ←"), &format!("{borda} ←"), 1);
+        assert_eq!(escolha(&colada).expect("pergunta com borda colada").pergunta, "Qual banco de dados usar?");
+        // Revisão no fim de duas perguntas: sem rodapé (tela real, 2.1.302).
+        let revisao = format!("{borda}
+←  ☒ Cor  ☒ Fruta  ✔ Submit  →
+
+Review your answers
+
+ ● Qual cor?
+   → Azul
+ ● Qual fruta?
+   → Manga
+
+Ready to submit your answers?
+
+❯ 1. Submit answers
+  2. Cancel
+");
+        let menu = escolha(&revisao).expect("revisão reconhecida");
+        assert_eq!(menu.pergunta, "Review your answers");
+        assert_eq!(menu.detalhe.as_deref(), Some("● Qual cor?\n→ Azul\n● Qual fruta?\n→ Manga\nReady to submit your answers?"));
+        assert_eq!(menu.opcoes.iter().map(|o| o.rotulo.as_str()).collect::<Vec<_>>(), vec!["Submit answers", "Cancel"]);
+        assert_eq!(menu.etapas, vec![Etapa { titulo: "Cor".into(), respondida: true }, Etapa { titulo: "Fruta".into(), respondida: true }]);
+    }
+
+    /// Marcar várias (multiSelect), tela real do 2.1.302 depois de marcar a 1 e a 3.
+    #[test] fn pergunta_de_marcar_varias() {
+        let borda = "─".repeat(40);
+        let tela = format!("{borda}\n←  ☐ Frutas  ✔ Submit  →\n\nQuais frutas você gosta?\n\n❯ 1. [✔] Manga\n         Doce e suculenta\n  2. [ ] Uva\n         Pequena, em cachos\n  3. [✔] Banana\n         Prática e energética\n  4. [ ] Type something\n     Submit\n{borda}\n  5. Chat about this\n\nEnter to select · ↑/↓ to navigate · Esc to cancel\n");
+        let menu = escolha(&tela).expect("marcar várias reconhecido");
+        assert!(menu.multipla);
+        assert!(menu.etapas.is_empty(), "uma pergunta só não mostra etapas");
+        assert_eq!(menu.opcoes.iter().map(|o| (o.numero, o.rotulo.as_str(), o.marcada, o.descricao.as_deref())).collect::<Vec<_>>(), vec![
+            (1, "Manga", Some(true), Some("Doce e suculenta")),
+            (2, "Uva", Some(false), Some("Pequena, em cachos")),
+            (3, "Banana", Some(true), Some("Prática e energética")),
+            (5, "Chat about this", None, None),
+        ]);
+    }
+
+    /// Print do usuário: depois de um turno, o prompt destacado (largura toda), a borda e a barra de
+    /// abas chegam numa linha só. Sem achar a borda, a "pergunta" virava 20 linhas da conversa — e,
+    /// com uma lista numerada antiga na janela, o menu sumia no clique ("Sessão ocupada…").
+    #[test] fn pergunta_depois_de_um_turno_nao_pega_a_conversa() {
+        let borda = "─".repeat(120);
+        let tela = format!("● Testei três tipos:\n  1. Escolha única\n  2. Seleção múltipla\n\n✻ Baked for 11s · done 0:02\n\n❯ manda de novo a primeira pergunta{}{borda}←  ☐ Cor  ✔ Submit  →\n\nQual cor você mais gosta?\n\n❯ 1. Azul\n     Calma, céu e mar\n  2. Verde\n     Natureza e equilíbrio\n  3. Type something.\n{borda}\n  4. Chat about this\n\nEnter to select · ↑/↓ to navigate · Esc to cancel\n", " ".repeat(85));
+        let menu = escolha(&tela).expect("pergunta reconhecida");
+        assert_eq!(menu.pergunta, "Qual cor você mais gosta?");
+        assert!(!menu.previa, "sem prévia o número já escolhe: Enter extra cairia na tela seguinte");
+        assert_eq!(menu.detalhe, None);
+        assert_eq!(menu.opcoes.iter().map(|o| (o.numero, o.rotulo.as_str(), o.descricao.as_deref())).collect::<Vec<_>>(), vec![
+            (1, "Azul", Some("Calma, céu e mar")), (2, "Verde", Some("Natureza e equilíbrio")), (4, "Chat about this", None),
+        ]);
+    }
+
+    /// Print do usuário: pergunta com prévia lado a lado. O desenho não é rótulo nem explicação, e o
+    /// "Chat about this" sem número (depois da borda) não gruda na última opção.
+    #[test] fn pergunta_com_previa_ignora_o_desenho() {
+        let borda = "─".repeat(120);
+        let tela = format!("{borda}\n☐ Layout\n\nQual layout de painel você prefere?\n\n❯ 1. Lado a lado          ┌────────────────────────────┐\n  2. Empilhado            │ +-----------+-----------+  │\n  3. Grade 2x2            │ | claude    | codex     |  │\n                          │ |  > _      |  > _      |  │\n                          │ +-----------+-----------+  │\n                          └────────────────────────────┘\n\n                          Notes: press n to add notes\n\n{borda}\n  Chat about this\n\nEnter to select · ↑/↓ to navigate · n to add notes · Esc to cancel\n");
+        let menu = escolha(&tela).expect("pergunta com prévia reconhecida");
+        assert_eq!(menu.pergunta, "Qual layout de painel você prefere?");
+        assert!(menu.previa, "com prévia o número só move: precisa de Enter");
+        assert_eq!(menu.opcoes.iter().map(|o| (o.numero, o.rotulo.as_str(), o.descricao.as_deref())).collect::<Vec<_>>(), vec![
+            (1, "Lado a lado", None), (2, "Empilhado", None), (3, "Grade 2x2", None),
+        ]);
+    }
+
     #[test] fn le_os_tokens_do_turno_da_linha_de_status() {
         assert_eq!(tokens_do_turno("· Propagating… (5s · ↓ 113 tokens · thinking with low effort)").as_deref(), Some("113"));
         assert_eq!(tokens_do_turno("✻ Pensando… (1m 12s · ↑ 1.2k tokens · esc to interrupt)").as_deref(), Some("1.2k"));
@@ -711,6 +1037,11 @@ mod tests {
         assert!(agent_descends_from(ps, 10, "claude"));
         assert!(!agent_descends_from(ps, 10, "codex")); // codex existe, mas fora desta PTY
         assert!(!agent_descends_from("  40    10 vim notes/claude.md", 10, "claude"));
+        // Claude Code com título de conversa: o `args` vira o título; o `comm` do macOS (caminho
+        // inteiro, com espaço no nome da pasta) é o que ainda diz quem é.
+        let titulo = "  10     1 -zsh\n  20    10 ✳ Corrigir login\n  10     1 -zsh\n  20    10 /Users/Ana Lima/.local/bin/claude";
+        assert!(agent_descends_from(titulo, 10, "claude"));
+        assert!(!agent_descends_from("  20    10 ✳ Corrigir login", 10, "claude"));
     }
     #[test] fn never_approves_generic_output_or_persistent_choice() {
         assert!(approval("Allow? (y/n)","claude").is_none());

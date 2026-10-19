@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AgentIcon } from "../components/ui/AgentIcon";
 import { ReloadIcon } from "../components/ui/PixelIcon";
-import { request } from "../mobile/api";
+import { AGENTES_COM_USO, request } from "../mobile/api";
 import { usePoll } from "../mobile/usePoll";
 import { resetShort, usageTone, type UsageWindow } from "../lib/uso";
 
@@ -68,7 +68,7 @@ export function UsoDasContas({ contaAtiva }: { contaAtiva: string | null }) {
 
   if (contas.length === 0) return null;
   // Só Claude e Codex sabem reler o uso na hora; o Cursor não tem leitura.
-  const atualizaveis = contas.filter((conta) => conta.provider === "claude" || conta.provider === "codex");
+  const atualizaveis = contas.filter((conta) => AGENTES_COM_USO.includes(conta.provider));
   const todasLendo = atualizaveis.length > 0 && atualizaveis.every((conta) => atualizando.has(conta.id));
   return (
     <>
@@ -99,7 +99,7 @@ export function UsoDasContas({ contaAtiva }: { contaAtiva: string | null }) {
             ) : (
               <span className="w-uso-vazio">{conta.usage?.reason ?? "Sem leitura de uso ainda"}</span>
             )}
-            {(conta.provider === "claude" || conta.provider === "codex") && (
+            {AGENTES_COM_USO.includes(conta.provider) && (
               <button type="button" className="w-uso-atualizar" disabled={atualizando.has(conta.id)}
                 aria-label={`Atualizar uso de ${conta.name}`} title="Buscar o uso de novo"
                 onClick={() => void atualizar(conta.id)}>

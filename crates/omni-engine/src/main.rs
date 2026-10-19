@@ -63,13 +63,18 @@ const ANSWERED_IDLE_MS: u64 = 1_500;
 /// um log de dev server ou uma pausa do agente viravam "terminou" e disparavam aviso. Outros CLIs
 /// e shells puros continuam no palpite por tempo ocioso — e nunca contam `attention_seq`.
 fn screen_tracked(provider: Option<&str>) -> bool {
-    matches!(provider, Some("claude" | "codex"))
+    matches!(provider, Some("claude" | "codex" | "antigravity"))
 }
 
 /// Claude Code e Codex mostram "esc to interrupt" durante o turno inteiro (inclusive rodando
-/// ferramenta) e tiram quando acabam.
-fn in_turn(screen_text: &str) -> bool {
-    screen_text.to_ascii_lowercase().contains("esc to interrupt")
+/// ferramenta) e tiram quando acabam. O Antigravity (1.4.2) troca o rodapé "? for shortcuts" por
+/// "esc to cancel" enquanto trabalha — e também enquanto espera você responder uma pergunta dele.
+fn in_turn(screen_text: &str, provider: &str) -> bool {
+    let texto = screen_text.to_ascii_lowercase();
+    match provider {
+        "antigravity" => texto.contains("esc to cancel"),
+        _ => texto.contains("esc to interrupt"),
+    }
 }
 
 /// Novo estado depois de `idle_ms` sem saída, e se isso encerra um turno de verdade (= aviso).
@@ -92,7 +97,7 @@ fn settle(session: &LiveSession) -> TerminalSession {
     let mut interaction = session.interaction.lock().expect("screen poisoned");
     let mut meta = session.meta.lock().expect("session metadata poisoned");
     let tracked = screen_tracked(meta.provider.as_deref());
-    let screen_in_turn = tracked && in_turn(&interaction.parser.screen().contents());
+    let screen_in_turn = tracked && in_turn(&interaction.parser.screen().contents(), meta.provider.as_deref().unwrap_or(""));
     let idle_ms = now_ms().saturating_sub(meta.last_activity_at_ms);
     // Shell puro calado mas com filho vivo (dev server) continua rodando. Só consulta os processos
     // quando ia virar `Answered`: shell no prompt sai do `Working` e não paga mais nada.
@@ -698,6 +703,9 @@ pub(crate) fn spawn_terminal_inner(
 ) -> Result<TerminalSession> {
     let shell = shell.unwrap_or_else(default_shell);
     let headless = origin.headless;
+    let initial_command = if origin.provider.as_deref() == Some("antigravity") {
+        initial_command.map(|comando| com_log_do_antigravity(&comando, &id))
+    } else { initial_command };
     compartilhar_extensoes(state, origin.provider.as_deref(), origin.profile_id.as_deref());
     let (pid, writer, master, child, reader) =
         open_pty_and_spawn(&cwd, &shell, rows, cols, &origin.env, origin.provider.is_some())?;
@@ -887,6 +895,17 @@ fn bifurcar(state: &Arc<EngineState>, source: TerminalSession, provider: &str, h
 /// mensagem foi mandada ainda — o `--resume` falharia, então fica o comando original.
 fn comando_ao_reiniciar(meta: &TerminalSession) -> Option<String> {
     let original = meta.initial_command.clone()?;
+    // Antigravity reaberto sem `--conversation` começa uma conversa nova — era o que fazia a Conversa
+    // mostrar a anterior depois de reiniciar o app. O log da sessão diz qual retomar.
+    if meta.provider.as_deref() == Some("antigravity") {
+        let comando = com_log_do_antigravity(&original, &meta.id);
+        let base = comando.split(" --conversation ").next().unwrap_or(&comando).to_owned();
+        // Sem conversa no log ainda, vale a que já estava na linha (a de "trocar modelo", por exemplo).
+        return Some(match config_do_antigravity().and_then(|dir| omni_core::antigravity::conversa_da_sessao(&dir, &meta.id)) {
+            Some((conversa, _)) => format!("{base} --conversation {conversa}"),
+            None => comando,
+        });
+    }
     if meta.provider.as_deref() != Some("claude") {
         return Some(original);
     }
@@ -901,6 +920,24 @@ fn comando_ao_reiniciar(meta: &TerminalSession) -> Option<String> {
         return Some(original);
     }
     Some(original.replacen(&criar, &format!("--resume {id}"), 1))
+}
+
+/// Config do Antigravity. Só existe a conta nativa (o agy não aceita trocar o diretório).
+fn config_do_antigravity() -> Option<PathBuf> {
+    env::var_os("USERPROFILE").or_else(|| env::var_os("HOME")).map(|home| PathBuf::from(home).join(".gemini").join("antigravity-cli"))
+}
+
+/// `agy` com `--log-file` próprio da sessão (ver `omni_core::antigravity::log_da_sessao`). Barras
+/// normais e aspas duplas: o caminho tem espaço e o mesmo texto roda em bash, PowerShell ou cmd.
+fn com_log_do_antigravity(comando: &str, sessao: &str) -> String {
+    let Some(dir) = config_do_antigravity() else { return comando.to_owned() };
+    if comando.contains("--log-file") { return comando.to_owned(); }
+    let log = omni_core::antigravity::log_da_sessao(&dir, sessao);
+    if let Some(pasta) = log.parent() { let _ = fs::create_dir_all(pasta); }
+    // A opção vai logo depois do binário: o resto da linha pode ter um prompt entre aspas.
+    let (binario, resto) = comando.split_once(' ').map_or((comando, ""), |(b, r)| (b, r));
+    let caminho = log.to_string_lossy().replace('\\', "/");
+    format!("{binario} --log-file \"{caminho}\"{}{resto}", if resto.is_empty() { "" } else { " " })
 }
 
 /// O transcript mora no config dir da conta da sessão: `CLAUDE_CONFIG_DIR` do perfil quando há, senão
@@ -1110,7 +1147,7 @@ fn append_output(session: &LiveSession, bytes: &[u8], watched_pid: Option<u32>) 
         // O diálogo real, reconhecido estrito — não "do you want to" solto numa resposta do agente.
         Some(provider) => {
             let dialog = interaction::approval(&screen_text, provider).is_some();
-            let trabalhando = in_turn(&screen_text);
+            let trabalhando = in_turn(&screen_text, provider);
             // Turno novo começando: o que já estava na tela é passado.
             if trabalhando && !interaction.turn_active {
                 interaction.avisos_antes_do_turno = notice_counts(&screen_text);
@@ -1137,7 +1174,7 @@ fn append_output(session: &LiveSession, bytes: &[u8], watched_pid: Option<u32>) 
     };
     // No meio do turno ("esc to interrupt" na tela) o agente está trabalhando: o que aparecer é
     // saída dele, não a CLI avisando que parou.
-    let em_turno = tracked_provider.is_some() && in_turn(&screen_text);
+    let em_turno = tracked_provider.as_deref().is_some_and(|provider| in_turn(&screen_text, provider));
     let notice = if em_turno { None } else { notice_since(counts, *base) };
     if let Ok(mut output) = session.output.lock() {
         let sequence = output.next_seq;
@@ -1626,6 +1663,17 @@ mod tests {
         let mut codex = sessao_claude(dir.path(), "codex");
         codex.provider = Some("codex".into());
         assert_eq!(comando_ao_reiniciar(&codex).as_deref(), Some("codex"));
+        let agy = com_log_do_antigravity("agy", "terminal-9");
+        assert!(agy.starts_with("agy --log-file \"") && agy.ends_with("/log/omni-terminal-9.log\""), "{agy}");
+        assert!(!agy.contains('\\'), "barras normais: {agy}");
+        assert_eq!(com_log_do_antigravity(&agy, "terminal-9"), agy, "não repete o --log-file");
+        // Trocar modelo: o reinício mantém modelo, esforço e conversa (sem log da sessão ainda).
+        let mut trocar = codex.clone();
+        trocar.id = "terminal-sem-log-xyz".into();
+        trocar.provider = Some("antigravity".into());
+        trocar.initial_command = Some("agy --model gemini-4-argon --effort high --conversation c1".into());
+        let reaberto = comando_ao_reiniciar(&trocar).unwrap();
+        assert!(reaberto.starts_with("agy --log-file \"") && reaberto.ends_with(" --model gemini-4-argon --effort high --conversation c1"), "{reaberto}");
 
         // Terminal puro: sem comando inicial, nada é injetado.
         let mut shell = sessao_claude(dir.path(), "x");
@@ -1822,6 +1870,12 @@ mod tests {
         assert_eq!(settle_state(&SessionState::Working, idle, true, false, true), (SessionState::Answered, true));
         // Ocioso sem turno (acabou de abrir, pessoa digitando no composer): sem aviso.
         assert_eq!(settle_state(&SessionState::Working, idle, true, false, false), (SessionState::Answered, false));
-        assert!(in_turn("✻ Thinking… (esc to interrupt)") && in_turn("Working (5s • Esc to interrupt)"));
+        assert!(in_turn("✻ Thinking… (esc to interrupt)", "claude") && in_turn("Working (5s • Esc to interrupt)", "codex"));
+        assert!(in_turn("⣿  Working...
+>
+esc to cancel      Gemini 4 Argon · medium", "antigravity"));
+        assert!(!in_turn(">
+? for shortcuts      Gemini 4 Argon · medium", "antigravity"));
+        assert!(!in_turn("Enter to confirm · Esc to cancel", "claude"), "menu do Claude não é turno");
     }
 }

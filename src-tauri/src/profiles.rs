@@ -22,6 +22,9 @@ fn credential_rule(provider: &str) -> Option<(&'static str, &'static str)> {
         "claude" => Some((".credentials.json", "ANTHROPIC_API_KEY")),
         "codex" => Some(("auth.json", "OPENAI_API_KEY")),
         "cursor" => Some(("cli-config.json", "")),
+        // ponytail: o token do Antigravity fica no cofre do SO (Credential Manager/Keychain), não em
+        // arquivo. `settings.json` só prova que o `agy` já foi aberto e configurado aqui.
+        "antigravity" => Some(("settings.json", "")),
         _ => None,
     }
 }
@@ -34,6 +37,7 @@ pub fn native_config_dir(provider: &str) -> Option<PathBuf> {
         "claude" => home.join(".claude"),
         "codex" => home.join(".codex"),
         "cursor" => home.join(".cursor"),
+        "antigravity" => home.join(".gemini").join("antigravity-cli"),
         _ => return None,
     };
     Some(config_dir_var(provider).and_then(env::var_os).map_or(default, PathBuf::from))
@@ -119,8 +123,9 @@ fn save(store: &ProfileStore) -> Result<(), String> {
 }
 
 /// Providers que o app suporta hoje. O Gemini saiu em 2026-09: o Google desligou o login por
-/// conta individual do Gemini CLI em 18/06/2026 e migrou para o Antigravity CLI.
-pub const SUPPORTED_PROVIDERS: [&str; 3] = ["claude", "codex", "cursor"];
+/// conta individual do Gemini CLI em 18/06/2026 e migrou para o Antigravity CLI, que entrou aqui.
+/// Antigravity e Cursor só têm a conta nativa: nenhum dos dois aceita trocar o diretório de config.
+pub const SUPPORTED_PROVIDERS: [&str; 4] = ["claude", "codex", "cursor", "antigravity"];
 
 /// Garante um profile `default` por provider suportado, apontando para o diretório nativo do CLI.
 /// Também descarta profiles de provider que o app não suporta mais — senão o `profiles.json` de
