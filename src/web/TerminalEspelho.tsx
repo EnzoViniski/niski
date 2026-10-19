@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { ApiError, request } from "../mobile/api";
+import { FONTE_MONO } from "../lib/fontes";
 
 interface Saida {
   live: boolean;
@@ -71,7 +72,7 @@ export default function TerminalEspelho({ saida: rotaSaida, teclas: rotaTeclas, 
     const terminal = new Terminal({
       convertEol: true,
       cursorBlink: true,
-      fontFamily: "Cascadia Code, Consolas, ui-monospace, monospace",
+      fontFamily: FONTE_MONO,
       fontSize: 13,
       scrollback: 10_000,
       theme: { background: "#0e0e14", foreground: "#e2e2ec", cursor: "#f97316", selectionBackground: "#f973164d" },

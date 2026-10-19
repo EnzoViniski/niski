@@ -41,7 +41,7 @@ export default {
       },
       fontFamily: {
         sans: ["Segoe UI", "system-ui", "-apple-system", "sans-serif"],
-        mono: ["Cascadia Code", "Consolas", "monospace"],
+        mono: ["Cascadia Code", "Consolas", "ui-monospace", "SF Mono", "Menlo", "Monaco", "monospace"],
       },
       boxShadow: {
         glow: "0 0 0 1px rgb(var(--c-accent) / 0.35), 0 8px 28px rgb(var(--c-accent) / 0.28)",
