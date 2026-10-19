@@ -6,6 +6,11 @@
 //! o token só enxerga os subagentes da própria conversa.
 
 use super::*;
+use omni_core::orquestracao::briefing;
+
+fn caminhos(descricao: &str) -> Value {
+    json!({"type": "array", "items": {"type": "string"}, "description": format!("{descricao}. Relativos à pasta do orquestrador")})
+}
 
 pub(super) fn lista() -> Value {
     let agente = json!({"type": "string", "description": "Id do subagente (o campo `agente` devolvido por criar_agente ou listar_agentes)"});
@@ -14,14 +19,23 @@ pub(super) fn lista() -> Value {
          "description": "Lista as plataformas de agente que o app suporta (Claude Code, Codex, Antigravity…), as contas de cada uma e os modelos conhecidos. Um modelo fora da lista também é aceito.",
          "inputSchema": {"type": "object", "properties": {}}},
         {"name": "criar_agente",
-         "description": "Abre um subagente na mesma pasta deste orquestrador e manda a tarefa assim que a CLI dele ficar pronta. Respeita o limite de subagentes vivos. Depois use esperar e ler_conversa.",
+         "description": "Abre um subagente focado numa tarefa, na mesma pasta deste orquestrador. O engine monta o briefing dele (tarefa, contexto, arquivos para ler, para editar e para criar, o que é dos outros subagentes, critérios de pronto e regras) e manda assim que a CLI ficar pronta. Arquivos de `editar`/`criar` não podem sobrepor os de outro subagente vivo: divida o trabalho em pedaços disjuntos. Respeita o limite de subagentes vivos. Depois use esperar e ler_conversa.",
          "inputSchema": {"type": "object", "required": ["plataforma", "tarefa"], "properties": {
             "plataforma": {"type": "string", "description": "Id da plataforma (ex.: claude, codex, antigravity)"},
             "conta": {"type": "string", "description": "Id ou nome da conta; sem ela, a conta padrão da plataforma"},
             "modelo": {"type": "string", "description": "Modelo para a CLI (ex.: haiku). Sem ele, o padrão da CLI"},
             "esforco": {"type": "string", "description": "Esforço de raciocínio (ex.: low, medium, high)"},
-            "tarefa": {"type": "string", "description": "Primeira mensagem para o subagente"},
+            "tarefa": {"type": "string", "description": "O objetivo do subagente, claro e único"},
+            "contexto": {"type": "string", "description": "O que ele precisa saber: decisões, interfaces, convenções, comandos de teste"},
+            "ler": caminhos("Arquivos para ler antes de começar"),
+            "editar": caminhos("Arquivos ou pastas (`src/x/`) que ele pode EDITAR — só estes"),
+            "criar": caminhos("Arquivos ou pastas que ele pode CRIAR — só estes"),
+            "criterios": {"type": "array", "items": {"type": "string"}, "description": "Como saber que acabou (ex.: 'npm test passa')"},
+            "somente_leitura": {"type": "boolean", "description": "Tarefa só de leitura/análise, sem editar nem criar"},
             "titulo": {"type": "string", "description": "Nome da conversa do subagente"}}}},
+        {"name": "conferir_arquivos",
+         "description": "Cruza os arquivos alterados na pasta (git status) com o que cada subagente podia mexer: por subagente, sem dono (fora de todas as listas) e em disputa.",
+         "inputSchema": {"type": "object", "properties": {}}},
         {"name": "mandar_prompt",
          "description": "Manda uma mensagem a um subagente. Com ele trabalhando, entra na fila da CLI dele.",
          "inputSchema": {"type": "object", "required": ["agente", "texto"], "properties": {"agente": agente, "texto": {"type": "string"}}}},
@@ -76,6 +90,7 @@ pub(super) async fn chamar(state: &Arc<EngineState>, orquestrador: &str, nome: &
         "criar_agente" => bloqueante(move || criar(&state, &orquestrador, &args)).await,
         "ler_conversa" => bloqueante(move || ler(&state, &orquestrador, &args)).await,
         "listar_agentes" => bloqueante(move || Ok(em_json(listar_agentes(&state, &orquestrador)))).await,
+        "conferir_arquivos" => bloqueante(move || conferir(&state, &orquestrador)).await,
         "parar_agente" => {
             let agente = obrigatorio(&args, "agente")?.to_owned();
             bloqueante(move || parar(&state, &orquestrador, &agente)).await
@@ -122,6 +137,27 @@ fn catalogo(state: &EngineState) -> Value {
 
 /* ── criar_agente ────────────────────────────────────────────────────────────────────────────── */
 
+/// Campo que é lista de textos (aceita também um texto só).
+fn textos(args: &Value, campo: &str) -> Vec<String> {
+    match args.get(campo) {
+        Some(Value::Array(itens)) => itens.iter().filter_map(Value::as_str).map(str::trim).filter(|t| !t.is_empty()).map(str::to_owned).collect(),
+        Some(Value::String(texto)) if !texto.trim().is_empty() => vec![texto.trim().to_owned()],
+        _ => Vec::new(),
+    }
+}
+
+/// Nome curto de um subagente para mensagens e para o "não mexa" do briefing.
+fn nome_do_agente(a: &regra::Agente) -> String {
+    format!("{} · {}", a.plataforma, regra::resumir(&a.tarefa, 40))
+}
+
+/// `(nome, caminhos)` dos subagentes vivos deste orquestrador que têm arquivos.
+fn arquivos_dos_vivos(state: &EngineState, orquestrador: &str) -> Vec<(String, Vec<String>)> {
+    ler_registro(state).orquestrador(orquestrador).map(|o| o.agentes.iter()
+        .filter(|a| a.arquivos().next().is_some() && estado_de(state, &a.conversation_key).0.vivo())
+        .map(|a| (nome_do_agente(a), a.arquivos().cloned().collect())).collect()).unwrap_or_default()
+}
+
 fn vivos(state: &EngineState, orquestrador: &str) -> usize {
     ler_registro(state).orquestrador(orquestrador).map(|o| o.agentes.iter()
         .filter(|a| estado_de(state, &a.conversation_key).0.vivo()).count()).unwrap_or(0)
@@ -129,13 +165,16 @@ fn vivos(state: &EngineState, orquestrador: &str) -> usize {
 
 fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<String, String> {
     let plataforma = obrigatorio(args, "plataforma")?.to_owned();
-    let tarefa = obrigatorio(args, "tarefa")?.to_owned();
-    regra::texto_valido(&tarefa)?;
+    let objetivo = obrigatorio(args, "tarefa")?.to_owned();
     let modelo = texto_do_campo(args, "modelo").map(str::to_owned);
     let esforco = texto_do_campo(args, "esforco").map(str::to_owned);
     let extras = regra::argumentos_de_modelo(&plataforma, modelo.as_deref(), esforco.as_deref())?;
     let titulo = texto_do_campo(args, "titulo").map(str::to_owned);
     let (mae, _) = current(state, orquestrador).map_err(mensagem_do_erro)?;
+    // Harness: o que ele pode mexer, relativo à pasta do orquestrador.
+    let editar = briefing::normalizar_lista(&textos(args, "editar"), &mae.cwd)?;
+    let criar_ = briefing::normalizar_lista(&textos(args, "criar"), &mae.cwd)?;
+    let ler = briefing::normalizar_lista(&textos(args, "ler"), &mae.cwd)?;
 
     let publicados = state.mobile.workspace.lock().expect("workspace poisoned").agents.clone();
     let Some(publicado) = publicados.iter().find(|a| a.id == plataforma) else {
@@ -154,6 +193,21 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
     static CRIANDO: Mutex<()> = Mutex::new(());
     let _criando = CRIANDO.lock().expect("criando poisoned");
     regra::pode_criar(vivos(state, orquestrador), ler_registro(state).limite())?;
+    // Dois subagentes vivos nunca dividem um caminho; o que é dos outros entra no briefing como "não mexa".
+    let outros = arquivos_dos_vivos(state, orquestrador);
+    let pedidos: Vec<String> = editar.iter().chain(criar_.iter()).cloned().collect();
+    let choques = briefing::conflitos(&pedidos, &outros);
+    if !choques.is_empty() {
+        let lista: Vec<String> = choques.iter().map(|(pedido, dele, dono)| format!("{pedido} (já é de {dono}: {dele})")).collect();
+        return Err(format!("Arquivos de outro subagente vivo: {}. Divida o trabalho em arquivos disjuntos, espere o outro terminar \
+            (parar_agente) ou faça essa parte você.", lista.join("; ")));
+    }
+    let tarefa = briefing::montar(&briefing::Pedido {
+        objetivo: objetivo.clone(), contexto: texto_do_campo(args, "contexto").map(str::to_owned), ler, editar: editar.clone(),
+        criar: criar_.clone(), criterios: textos(args, "criterios"),
+        somente_leitura: args.get("somente_leitura").and_then(Value::as_bool).unwrap_or(false),
+        de_outros: outros.iter().flat_map(|(dono, caminhos)| caminhos.iter().map(move |c| (c.clone(), dono.clone()))).collect(),
+    })?;
 
     let corpo = SpawnBody { project_id: mae.project_id.clone(), provider: plataforma.clone(), profile_id: conta,
         titulo: Some(titulo.clone().unwrap_or_else(|| format!("{} · subagente", publicado.label))) };
@@ -175,7 +229,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
     spawn_from_mobile(state, &acao, &plano).map_err(|e| format!("Não consegui abrir o subagente: {e}"))?;
 
     let agente = regra::Agente { conversation_key: conversa.clone(), plataforma: plataforma.clone(), conta: plano.profile_id.clone(),
-        modelo: modelo.clone(), esforco: esforco.clone(), tarefa: tarefa.clone(), criado_em: now_ms() };
+        modelo: modelo.clone(), esforco: esforco.clone(), tarefa: objetivo.clone(), criado_em: now_ms(), editar, criar: criar_ };
     mudar_registro(state, |r| r.adicionar(orquestrador, agente)).map_err(|_| "Abri o subagente, mas não consegui gravar o registro".to_owned())?;
     drop(_criando);
     registro::info("orquestracao_agente_criado", &[("orquestrador", orquestrador), ("agente", &conversa), ("provider", &plataforma),
@@ -249,14 +303,16 @@ pub(super) fn mandar_tarefa_quando_pronta(state: &Arc<EngineState>, conversa: &s
     }
 }
 
-/// Depois de digitar: a CLI começou um turno (ou saiu do campo vazio) em até 10 s?
+/// Depois de digitar: a CLI começou um turno (ou pediu algo ao usuário) em até 10 s?
 fn comecou_turno(state: &EngineState, conversa: &str) -> bool {
     let antes = state.mobile.orquestracao.enviado_em.lock().expect("enviado poisoned").get(conversa).map(|(_, t)| *t).unwrap_or(0);
     let limite = std::time::Instant::now() + std::time::Duration::from_secs(10);
     while std::time::Instant::now() < limite {
         std::thread::sleep(std::time::Duration::from_millis(250));
         let Ok((_, Some(sessao))) = current(state, conversa) else { return false };
-        if turnos(&sessao) > antes || !interaction::capabilities(&sessao).prompt { return true; }
+        // Só sinal de turno de verdade: campo com texto pode ser a colagem parada, sem o Enter.
+        let cap = interaction::capabilities(&sessao);
+        if turnos(&sessao) > antes || cap.approve || cap.escolha.is_some() { return true; }
     }
     false
 }
@@ -355,10 +411,34 @@ pub(super) fn listar_agentes(state: &EngineState, orquestrador: &str) -> Value {
         let (estado, _, _) = estado_de(state, &a.conversation_key);
         json!({"agente": a.conversation_key, "plataforma": a.plataforma, "conta": nome_da_conta(&perfis, a.conta.as_deref()),
             "modelo": a.modelo, "tarefa": regra::resumir(&a.tarefa, 200), "estado": estado.texto(),
+            "editar": a.editar, "criar": a.criar,
             "ultima_mensagem": ultima_do_agente(state, &a.conversation_key).map(|t| regra::resumir(&t, 300))})
     }).collect()).unwrap_or_default();
     let vivos = agentes.iter().filter(|a| !matches!(a["estado"].as_str(), Some("parado" | "erro"))).count();
     json!({"agentes": agentes, "vivos": vivos, "limite": registro.limite()})
+}
+
+/// `git status` da pasta do orquestrador cruzado com a posse de cada subagente (vivos ou não).
+fn conferir(state: &EngineState, orquestrador: &str) -> Result<String, String> {
+    let (mae, _) = current(state, orquestrador).map_err(mensagem_do_erro)?;
+    let saida = std::process::Command::new("git").args(["status", "--porcelain=v1", "-uall"]).current_dir(&mae.cwd)
+        .stdin(std::process::Stdio::null()).output().map_err(|_| "Não consegui rodar o git nesta pasta".to_owned())?;
+    if !saida.status.success() { return Err("A pasta do orquestrador não é um repositório git: não dá para conferir".into()); }
+    let mudados = briefing::caminhos_do_git_status(&String::from_utf8_lossy(&saida.stdout));
+    let agentes: Vec<(String, Vec<String>)> = ler_registro(state).orquestrador(orquestrador)
+        .map(|o| o.agentes.iter().map(|a| (format!("{} ({})", nome_do_agente(a), a.conversation_key), a.arquivos().cloned().collect())).collect())
+        .unwrap_or_default();
+    let mut por_agente: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+    let (mut sem_dono, mut em_disputa) = (Vec::new(), Vec::new());
+    for arquivo in mudados.iter().take(500) {
+        match briefing::donos(arquivo, &agentes).as_slice() {
+            [] => sem_dono.push(arquivo.clone()),
+            [dono] => por_agente.entry((*dono).to_owned()).or_default().push(arquivo.clone()),
+            varios => em_disputa.push(json!({"arquivo": arquivo, "donos": varios})),
+        }
+    }
+    Ok(em_json(json!({"alterados": mudados.len(), "por_agente": por_agente, "sem_dono": sem_dono, "em_disputa": em_disputa,
+        "nota": "sem_dono inclui o que você ou o usuário mudaram, e o que já estava alterado antes dos subagentes."})))
 }
 
 /// Encerra a CLI do subagente (a mesma parada do botão do terminal). Também usado pela tela.

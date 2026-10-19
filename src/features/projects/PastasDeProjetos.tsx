@@ -5,6 +5,7 @@ import { IconeDoStatus, rotuloDoStatus, statusDaConversa } from "../../component
 import { conversationKey } from "../terminal/useAttention";
 // Fork: atalho para o fluxo na linha da conversa orquestradora.
 import { IconeDaOrquestradora } from "../orquestracao/IconeDaOrquestradora";
+import { useResumoDaOrquestracao } from "../orquestracao/orquestracaoService";
 import { corDoAgente, nomeDoAgente } from "../../lib/coresDosAgentes";
 import type { Project } from "../../types/workspace";
 import type { TerminalSession } from "../terminal/terminalService";
@@ -40,10 +41,16 @@ function classeDeSoltura(soltura: Soltura, lista: string, id: string): string {
 }
 
 const CHAVE_ABERTAS = "omni-pastas-abertas";
+/** Fork: orquestradoras com os subagentes recolhidos na lateral. */
+const CHAVE_RECOLHIDOS = "medza-orquestradoras-recolhidas";
 
 function lerAbertas(): Set<string> | null {
+  return lerConjunto(CHAVE_ABERTAS);
+}
+
+function lerConjunto(chave: string): Set<string> | null {
   try {
-    const salvo = JSON.parse(localStorage.getItem(CHAVE_ABERTAS) ?? "null");
+    const salvo = JSON.parse(localStorage.getItem(chave) ?? "null");
     return Array.isArray(salvo) ? new Set(salvo.filter((id): id is string => typeof id === "string")) : null;
   } catch {
     return null;
@@ -97,6 +104,19 @@ export function PastasDeProjetos({
     return nova;
   });
 
+  // Fork: quem é subagente de quem (orquestrador), para aninhar na lateral.
+  const resumo = useResumoDaOrquestracao();
+  const donoDe = new Map<string, string>();
+  for (const o of resumo.orquestradores) for (const sub of o.subagentes) donoDe.set(sub, o.orquestrador);
+  const filhosDe = (chave: string) => agentSessions.filter((session) => donoDe.get(conversationKey(session)) === chave);
+  const [recolhidos, setRecolhidos] = useState<Set<string>>(() => lerConjunto(CHAVE_RECOLHIDOS) ?? new Set());
+  const alternarRecolhido = (chave: string) => setRecolhidos((atual) => {
+    const novo = new Set(atual);
+    if (novo.has(chave)) novo.delete(chave); else novo.add(chave);
+    try { localStorage.setItem(CHAVE_RECOLHIDOS, JSON.stringify([...novo])); } catch { /* vale só agora */ }
+    return novo;
+  });
+
   if (projects.length === 0) {
     return <p data-nav-item className="px-3 py-1.5 text-xs text-text-muted">Nenhum projeto ainda.</p>;
   }
@@ -106,14 +126,79 @@ export function PastasDeProjetos({
   const idsDosProjetos = projetosEmOrdem.map((p) => p.id);
   const projetosNaTela = emPrevia(idsDosProjetos, soltura, "projetos").map((id) => projetosEmOrdem.find((p) => p.id === id)!);
 
+  /** Uma conversa da lateral. `sub`: subagente embaixo da orquestradora (sem reordenar nem arrastar). */
+  function linha(project: Project, session: TerminalSession, idsDasConversas: string[], conversas: TerminalSession[],
+    soltaNoLayout: Props["onSoltarNoLayout"], extra: { sub?: boolean; ultimo?: boolean; filhos?: number; recolhido?: boolean }) {
+    const sub = Boolean(extra.sub);
+    const posicao = conversas.indexOf(session);
+    const status = statusDaConversa(session, naoVistas.has(conversationKey(session)));
+    const emFoco = session.id === activeSessionId;
+    const chave = conversationKey(session);
+    return (
+                    <li key={session.id} data-reordenar={sub ? undefined : ""}
+                      className={`conversa-linha group${emFoco ? " is-ativa" : ""}${sub ? ` is-subagente${extra.ultimo ? " is-ultimo" : ""}` : ""}${classeDeSoltura(soltura, project.id, chave)}`}
+                      style={{ "--cor-agente": corDoAgente(session.provider) } as React.CSSProperties}
+                      onPointerDown={sub ? undefined : (evento) => iniciarArraste(evento, evento.currentTarget.closest("ul"), {
+                        aoMudar: (posicao) => setSoltura({ lista: project.id, id: chave, posicao }),
+                        aoTerminar: () => setSoltura(null),
+                        aoSoltar: (posicao) => ordenarConversas(project.id, colocar(idsDasConversas, chave, posicao)),
+                        layout: soltaNoLayout ? {
+                          aoMudar: (alvo) => avisarLayout(session.id, alvo),
+                          aoSoltar: (alvo) => soltaNoLayout(project.id, session, alvo),
+                        } : undefined,
+                      })}>
+                      {Boolean(extra.filhos) && (
+                        <button type="button" data-nao-arrasta className="orq-recolher" aria-expanded={!extra.recolhido}
+                          aria-label={`${extra.recolhido ? "Mostrar" : "Esconder"} os subagentes de ${session.name}`} onClick={() => alternarRecolhido(chave)}>
+                          <ChevronDownIcon aria-hidden className={`h-3 w-3 transition-transform ${extra.recolhido ? "-rotate-90" : ""}`} />
+                        </button>
+                      )}
+                      <button type="button" data-nav-item onClick={() => onAbrirConversa(project.id, session)}
+                        title={sub ? `Subagente · ${nomeDoAgente(session.provider)} · ${rotuloDoStatus(status)}`
+                          : `${nomeDoAgente(session.provider)} · ${rotuloDoStatus(status)}\nArraste (ou ⌥↑/⌥↓) para mudar a ordem${soltaNoLayout ? "; solte num painel para abrir lá" : ""}`}
+                        onKeyDown={(evento) => {
+                          if (sub) return;
+                          const passo = setaComOption(evento);
+                          if (!passo) return;
+                          evento.preventDefault();
+                          ordenarConversas(project.id, mover(idsDasConversas, chave, passo < 0 ? posicao - 1 : posicao + 2));
+                        }}
+                        className="conversa-botao">
+                        <AgentIcon provider={session.provider} size={13} className="shrink-0" />
+                        <span className="min-w-0 flex-1 truncate">{session.name}</span>
+                        <IconeDoStatus status={status} className="h-3 w-3" />
+                      </button>
+                      <IconeDaOrquestradora conversa={chave} titulo={session.name} />
+                      <span className="conversa-acoes" data-nao-arrasta>
+                        <button type="button" aria-label={`Bifurcar conversa ${session.name}`} title="Bifurcar: conversa nova com todo o histórico desta"
+                          onClick={() => onBifurcar(session.id)}><GitBranchIcon aria-hidden className="h-3 w-3" /></button>
+                        <button type="button" aria-label={`Reiniciar agente ${session.name}`} title="Reiniciar sessão"
+                          onClick={() => onReiniciar(session.id)}><ReloadIcon aria-hidden className="h-3 w-3" /></button>
+                        <button type="button" aria-label={apagando === session.id ? `Confirmar: apagar conversa ${session.name}` : `Apagar conversa ${session.name}`}
+                          title={apagando === session.id ? "Clique de novo para apagar" : "Apagar conversa (encerra o agente e tira da lista)"}
+                          onClick={() => {
+                            if (apagando !== session.id) { setApagando(session.id); return; }
+                            setApagando(null);
+                            onFechar(session.id);
+                          }}
+                          className={apagando === session.id ? "conversa-apagar-confirmar" : "hover:text-danger"}>
+                          {apagando === session.id ? "Apagar?" : <CloseIcon aria-hidden className="h-3 w-3" />}</button>
+                      </span>
+                    </li>
+    );
+  }
+
   return (
     <ul className="pastas space-y-0.5" aria-label="Projetos">
       {projetosNaTela.map((project) => {
         const indice = idsDosProjetos.indexOf(project.id);
         const aberta = abertas.has(project.id);
         const ativa = project.id === activeProjectId;
-        const conversas = ordenar(agentSessions.filter((session) => session.project_id === project.id),
+        const todas = ordenar(agentSessions.filter((session) => session.project_id === project.id),
           conversationKey, ordem.conversas[project.id] ?? []);
+        // Fork: subagente cuja orquestradora está nesta pasta não entra solto na lista (vai embaixo dela).
+        const chavesDaPasta = new Set(todas.map(conversationKey));
+        const conversas = todas.filter((session) => !chavesDaPasta.has(donoDe.get(conversationKey(session)) ?? ""));
         const idsDasConversas = conversas.map(conversationKey);
         const conversasNaTela = emPrevia(idsDasConversas, soltura, project.id).map((id) => conversas.find((c) => conversationKey(c) === id)!);
         // Fork: conversa de qualquer projeto pode cair no layout que está na tela; a aba mostra de
@@ -147,7 +232,7 @@ export function PastasDeProjetos({
                 <ChevronDownIcon aria-hidden className={`h-3 w-3 shrink-0 transition-transform ${aberta ? "" : "-rotate-90"}`} />
                 <FolderIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-accent" />
                 <span className="min-w-0 flex-1 truncate">{project.name}</span>
-                {conversas.length > 0 && <span className="pasta-contagem">{conversas.length}</span>}
+                {todas.length > 0 && <span className="pasta-contagem">{todas.length}</span>}
               </button>
               <button type="button" data-nao-arrasta aria-label={`Fechar projeto ${project.name}`} title="Fechar projeto"
                 onClick={() => onCloseProject(project.id)} className="pasta-acao hover:text-danger">
@@ -157,57 +242,13 @@ export function PastasDeProjetos({
 
             {aberta && (
               <ul className="pasta-conversas" aria-label={`Conversas de ${project.name}`}>
-                {conversas.length === 0 && <li className="px-2 py-1 text-[11px] text-text-muted">Nenhuma conversa aberta.</li>}
-                {conversasNaTela.map((session) => {
-                  const posicao = conversas.indexOf(session);
-                  const status = statusDaConversa(session, naoVistas.has(conversationKey(session)));
-                  const emFoco = session.id === activeSessionId;
-                  const chave = conversationKey(session);
-                  // Conversa só muda de lugar dentro do próprio projeto: o arraste fica preso a esta lista.
-                  return (
-                    <li key={session.id} data-reordenar
-                      className={`conversa-linha group${emFoco ? " is-ativa" : ""}${classeDeSoltura(soltura, project.id, chave)}`}
-                      style={{ "--cor-agente": corDoAgente(session.provider) } as React.CSSProperties}
-                      onPointerDown={(evento) => iniciarArraste(evento, evento.currentTarget.closest("ul"), {
-                        aoMudar: (posicao) => setSoltura({ lista: project.id, id: chave, posicao }),
-                        aoTerminar: () => setSoltura(null),
-                        aoSoltar: (posicao) => ordenarConversas(project.id, colocar(idsDasConversas, chave, posicao)),
-                        layout: soltaNoLayout ? {
-                          aoMudar: (alvo) => avisarLayout(session.id, alvo),
-                          aoSoltar: (alvo) => onSoltarNoLayout(project.id, session, alvo),
-                        } : undefined,
-                      })}>
-                      <button type="button" data-nav-item onClick={() => onAbrirConversa(project.id, session)}
-                        title={`${nomeDoAgente(session.provider)} · ${rotuloDoStatus(status)}\nArraste (ou ⌥↑/⌥↓) para mudar a ordem${soltaNoLayout ? "; solte num painel para abrir lá" : ""}`}
-                        onKeyDown={(evento) => {
-                          const passo = setaComOption(evento);
-                          if (!passo) return;
-                          evento.preventDefault();
-                          ordenarConversas(project.id, mover(idsDasConversas, chave, passo < 0 ? posicao - 1 : posicao + 2));
-                        }}
-                        className="conversa-botao">
-                        <AgentIcon provider={session.provider} size={13} className="shrink-0" />
-                        <span className="min-w-0 flex-1 truncate">{session.name}</span>
-                        <IconeDoStatus status={status} className="h-3 w-3" />
-                      </button>
-                      <IconeDaOrquestradora conversa={chave} titulo={session.name} />
-                      <span className="conversa-acoes" data-nao-arrasta>
-                        <button type="button" aria-label={`Bifurcar conversa ${session.name}`} title="Bifurcar: conversa nova com todo o histórico desta"
-                          onClick={() => onBifurcar(session.id)}><GitBranchIcon aria-hidden className="h-3 w-3" /></button>
-                        <button type="button" aria-label={`Reiniciar agente ${session.name}`} title="Reiniciar sessão"
-                          onClick={() => onReiniciar(session.id)}><ReloadIcon aria-hidden className="h-3 w-3" /></button>
-                        <button type="button" aria-label={apagando === session.id ? `Confirmar: apagar conversa ${session.name}` : `Apagar conversa ${session.name}`}
-                          title={apagando === session.id ? "Clique de novo para apagar" : "Apagar conversa (encerra o agente e tira da lista)"}
-                          onClick={() => {
-                            if (apagando !== session.id) { setApagando(session.id); return; }
-                            setApagando(null);
-                            onFechar(session.id);
-                          }}
-                          className={apagando === session.id ? "conversa-apagar-confirmar" : "hover:text-danger"}>
-                          {apagando === session.id ? "Apagar?" : <CloseIcon aria-hidden className="h-3 w-3" />}</button>
-                      </span>
-                    </li>
-                  );
+                {todas.length === 0 && <li className="px-2 py-1 text-[11px] text-text-muted">Nenhuma conversa aberta.</li>}
+                {conversasNaTela.flatMap((session) => {
+                  // Fork: subagentes logo abaixo da orquestradora, como subpasta (recolhível).
+                  const filhos = filhosDe(conversationKey(session));
+                  const recolhido = recolhidos.has(conversationKey(session));
+                  return [linha(project, session, idsDasConversas, conversas, soltaNoLayout, { filhos: filhos.length, recolhido }),
+                    ...(recolhido ? [] : filhos.map((filho, i) => linha(project, filho, idsDasConversas, conversas, undefined, { sub: true, ultimo: i === filhos.length - 1 })))];
                 })}
               </ul>
             )}

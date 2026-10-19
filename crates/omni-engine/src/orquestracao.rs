@@ -167,10 +167,21 @@ async fn mcp(State(state): State<Arc<EngineState>>, headers: HeaderMap, corpo: a
 /// Versões do protocolo MCP que este servidor fala (o subconjunto usado não mudou entre elas).
 const VERSOES: [&str; 4] = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 
-const INSTRUCOES: &str = "Ferramentas do Medza Agents para orquestrar subagentes. Use listar_plataformas_e_contas para ver \
-plataformas, contas e modelos; criar_agente para abrir um subagente na mesma pasta já com a tarefa; esperar e depois \
-ler_conversa para ver a resposta; mandar_prompt para dar mais instruções; parar_agente quando terminar. O usuário vê tudo \
-num fluxo visual e pode aprovar permissões por lá. Há limite de subagentes vivos.";
+/// Fork (harness): o método que o orquestrador segue. Vai no `initialize` (as CLIs põem no contexto) e,
+/// resumido, na descrição do `criar_agente`.
+const INSTRUCOES: &str = "Ferramentas do Medza Agents para orquestrar subagentes de qualquer plataforma (Claude Code, Codex…). \
+O usuário acompanha tudo num fluxo visual e aprova permissões por lá. Método:\n\
+1. Entenda o pedido e explore o projeto antes de criar subagentes: estrutura, arquivos envolvidos, convenções, como testar.\n\
+2. Divida em tarefas independentes que possam correr em paralelo, cada uma com arquivos próprios e DISJUNTOS. O engine recusa \
+um subagente que peça arquivo ou pasta de outro subagente vivo. O que for compartilhado (tipos, interfaces), faça você antes ou \
+dê a um subagente só.\n\
+3. Em criar_agente, prepare o subagente por completo: tarefa clara e única; contexto (decisões, interfaces, convenções, comandos de \
+teste); ler (arquivos para ler antes); editar e criar (exatamente o que ele pode mexer); criterios (como saber que acabou). O \
+engine monta o briefing, inclui o que é dos outros como 'não mexa' e as regras.\n\
+4. Plataforma e modelo pelo tamanho da tarefa (listar_plataformas_e_contas): modelo menor para tarefa simples.\n\
+5. esperar e ler_conversa; revise o resultado (rode os testes você mesmo) e use conferir_arquivos para ver se alguém mexeu fora \
+do que era dele; corrija com mandar_prompt.\n\
+6. parar_agente quando cada um terminar (libera vaga no limite) e responda ao usuário com o resumo.";
 
 async fn responder(state: &Arc<EngineState>, orquestrador: &str, mensagem: Value) -> Option<Value> {
     let metodo = mensagem["method"].as_str().unwrap_or("").to_owned();
@@ -259,6 +270,8 @@ fn no(state: &EngineState, conversa: &str, perfis: &[omni_core::Profile], agente
         "modelo": agente.and_then(|a| a.modelo.clone()),
         "esforco": agente.and_then(|a| a.esforco.clone()),
         "tarefa": agente.map(|a| a.tarefa.clone()),
+        "editar": agente.map(|a| a.editar.clone()).unwrap_or_default(),
+        "criar": agente.map(|a| a.criar.clone()).unwrap_or_default(),
         "criado_em": agente.map(|a| a.criado_em),
         "estado": estado,
         "estado_texto": estado.texto(),

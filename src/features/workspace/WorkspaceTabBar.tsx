@@ -1,6 +1,7 @@
 import { GlifoFechar, GlifoMais } from "../../components/ui/PixelGlyph";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { MarcaDaAba } from "../orquestracao/MarcaDaAba";
 import { ChatIcon, KanbanIcon, ListIcon, TerminalIcon, GitBranchIcon, GlobeIcon, BlocksIcon } from "../../components/ui/PixelIcon";
 import { AGENT_ICON } from "../../components/ui/AgentIcon";
 import { useSession, useSessionProvider } from "../terminal/sessionProviders";
@@ -140,6 +141,8 @@ function TabLabel({
           é estreita, e o tipo do ARQUIVO diz mais do que o tipo do painel. */}
       <TabIcon item={item} className="mr-1.5 inline-block h-3 w-3 shrink-0 align-[-2px] text-accent" />
       {deFora && <EtiquetaDoProjeto projeto={deFora} className="mr-1.5" />}
+      {/* Fork: orquestradora (ORQ) ou subagente (SUB). */}
+      {item.kind === "agent" && <MarcaDaAba sessionId={item.resourceId} />}
       {item.title}
       {dirtyTabIds?.has(item.id) && (
         <span className="ml-1.5 text-accent" title="Alterações não salvas" aria-label="Alterações não salvas">•</span>

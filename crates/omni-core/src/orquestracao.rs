@@ -51,7 +51,7 @@ pub struct Orquestrador {
 
 fn verdadeiro() -> bool { true }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Agente {
     #[serde(rename = "conversationKey")]
     pub conversation_key: String,
@@ -64,7 +64,22 @@ pub struct Agente {
     pub esforco: Option<String>,
     pub tarefa: String,
     pub criado_em: u64,
+    /// Fork (harness): caminhos que o subagente pode editar e criar, relativos à pasta do orquestrador.
+    /// Dois subagentes vivos do mesmo orquestrador nunca dividem um caminho (`briefing::conflitos`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub editar: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub criar: Vec<String>,
 }
+
+impl Agente {
+    /// Tudo o que é dele (editar + criar).
+    pub fn arquivos(&self) -> impl Iterator<Item = &String> { self.editar.iter().chain(self.criar.iter()) }
+}
+
+/// Fork (harness): briefing do subagente e posse de arquivos entre subagentes.
+#[path = "orquestracao_briefing.rs"]
+pub mod briefing;
 
 pub fn ler(dir: &Path) -> Registro {
     std::fs::read(dir.join(ARQUIVO)).ok()
@@ -308,8 +323,8 @@ mod tests {
     use super::*;
 
     fn agente(id: &str) -> Agente {
-        Agente { conversation_key: id.into(), plataforma: "claude".into(), conta: None, modelo: Some("haiku".into()),
-            esforco: None, tarefa: "diga ok".into(), criado_em: 1 }
+        Agente { conversation_key: id.into(), plataforma: "claude".into(), modelo: Some("haiku".into()),
+            tarefa: "diga ok".into(), criado_em: 1, ..Agente::default() }
     }
 
     #[test]

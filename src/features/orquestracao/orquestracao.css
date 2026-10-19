@@ -15,3 +15,21 @@
 /* Lateral: atalho para o fluxo na linha da orquestradora. */
 .orq-lateral { display: inline-flex; align-items: center; gap: .15rem; flex-shrink: 0; padding: 0 .25rem; font-size: .625rem; font-weight: 800; color: rgb(var(--c-accent)); background: transparent; border: 1px solid rgb(var(--c-accent) / .45); cursor: pointer; }
 .orq-lateral:hover { background: rgb(var(--c-accent) / .12); }
+
+/* Lateral: subagentes aninhados embaixo da orquestradora, como subpasta. */
+.conversa-linha.is-subagente { margin-left: 1rem; }
+.conversa-linha.is-subagente::before {
+  content: ""; position: absolute; left: calc(-.6rem - 3px); top: -1px; width: .5rem; height: calc(50% + 1px);
+  border-left: 1px solid rgb(var(--c-border)); border-bottom: 1px solid rgb(var(--c-border));
+}
+.conversa-linha.is-subagente:not(.is-ultimo)::after {
+  content: ""; position: absolute; left: calc(-.6rem - 3px); top: 50%; bottom: -1px; border-left: 1px solid rgb(var(--c-border));
+}
+.conversa-linha.is-subagente .conversa-botao { font-size: .65rem; }
+.orq-recolher { display: grid; place-items: center; width: 1rem; flex-shrink: 0; color: rgb(var(--c-text-muted)); }
+.orq-recolher:hover { color: rgb(var(--c-text-primary)); }
+
+/* Abas do layout: orquestradora × subagente. */
+.orq-marca-aba { display: inline-block; margin-right: .35rem; padding: 0 .2rem; font-size: .5rem; font-weight: 800; letter-spacing: .06em; line-height: 1.4; vertical-align: 1px; border: 1px solid currentColor; }
+.orq-marca-aba.is-orq { color: rgb(var(--c-accent)); }
+.orq-marca-aba.is-sub { color: rgb(var(--c-text-muted)); }

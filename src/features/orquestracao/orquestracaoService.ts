@@ -21,6 +21,9 @@ export interface NoAoVivo {
   esforco: string | null;
   tarefa: string | null;
   criado_em: number | null;
+  /** Harness: o que o subagente pode editar e criar (relativo à pasta do orquestrador). */
+  editar?: string[];
+  criar?: string[];
   estado: EstadoDoNo;
   estado_texto: string;
   /** A tarefa inicial ainda não foi digitada (a CLI está abrindo), ou o motivo de não ter ido. */

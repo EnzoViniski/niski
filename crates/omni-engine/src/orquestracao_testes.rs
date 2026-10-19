@@ -39,8 +39,10 @@ while :; do
   # O "\r\n" que digita o comando deixa um "\n" para trás: a CLI de verdade (modo raw) ignora.
   [ -z "$linha" ] && continue
   # Com `engolir`, a primeira mensagem some sem turno (o Codex 0.163 real fez isso subindo).
-  if [ -f "$(dirname "$0")/engolir" ]; then rm "$(dirname "$0")/engolir"; continue; fi
+  if [ -f "$(dirname "$0")/engolir" ]; then rm "$(dirname "$0")/engolir"; while IFS= read -r -t 1 mais; do :; done; continue; fi
   printf '%s\n' "$linha" >> "$LOG"
+  # Mensagem de várias linhas (o briefing) chega numa colagem só: o resto entra junto, um turno só.
+  while IFS= read -r -t 1 mais; do printf '%s\n' "$mais" >> "$LOG"; linha="$linha $mais"; done
   case "$linha" in
     *trabalhe*) printf '\r\n* Pensando (esc to interrupt)'; sleep 30 ;;
     *) printf '\r\n esc to interrupt'; sleep 1; printf '\r\033[2K ok\r\n' ;;
@@ -115,7 +117,7 @@ async fn token_errado_401_get_405_origem_estranha_403_e_handshake() {
     assert_eq!(status, StatusCode::ACCEPTED);
     let (_, lista) = enviar_mcp(&state, pedido(Some(&token), json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}))).await;
     let nomes: Vec<&str> = lista["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-    assert_eq!(nomes, ["listar_plataformas_e_contas", "criar_agente", "mandar_prompt", "ler_conversa", "esperar", "listar_agentes", "parar_agente"]);
+    assert_eq!(nomes, ["listar_plataformas_e_contas", "criar_agente", "conferir_arquivos", "mandar_prompt", "ler_conversa", "esperar", "listar_agentes", "parar_agente"]);
     let (_, desconhecido) = enviar_mcp(&state, pedido(Some(&token), json!({"jsonrpc": "2.0", "id": 3, "method": "resources/list"}))).await;
     assert_eq!(desconhecido["error"]["code"], -32601);
 }
@@ -126,8 +128,8 @@ async fn token_so_enxerga_os_proprios_subagentes_e_morre_ao_desligar() {
     let token_a = ligar(&state, "orq-a", "claude");
     let token_b = ligar(&state, "orq-b", "codex");
     assert_ne!(token_a, token_b);
-    let agente = |id: &str| regra::Agente { conversation_key: id.into(), plataforma: "claude".into(), conta: None, modelo: None,
-        esforco: None, tarefa: "t".into(), criado_em: 1 };
+    let agente = |id: &str| regra::Agente { conversation_key: id.into(), plataforma: "claude".into(), tarefa: "t".into(), criado_em: 1,
+        ..regra::Agente::default() };
     mudar_registro(&state, |r| { r.adicionar("orq-a", agente("sub-a")); r.adicionar("orq-b", agente("sub-b")); }).unwrap();
 
     for nome in ["ler_conversa", "mandar_prompt", "esperar", "parar_agente"] {
@@ -172,7 +174,7 @@ async fn so_claude_e_codex_orquestram_e_subagente_nao_ganha_token() {
     assert_eq!(digitado.as_deref(), Some("claude --session-id s"));
     assert!(env.is_empty());
     mudar_registro(&state, |r| r.adicionar("orq-b", regra::Agente { conversation_key: "orq-a".into(), plataforma: "claude".into(),
-        conta: None, modelo: None, esforco: None, tarefa: "t".into(), criado_em: 1 })).unwrap();
+        tarefa: "t".into(), criado_em: 1, ..regra::Agente::default() })).unwrap();
     let EngineResponse::Api { status, .. } = ativar("orq-a").await else { panic!() };
     assert_eq!(status, 409, "sem recursão");
 
@@ -203,7 +205,8 @@ async fn cli_falsa_cria_recebe_tarefa_respeita_limite_espera_e_para() {
     assert!(erro, "{texto}");
 
     std::fs::write(dir.path().join("bin").join("engolir"), "").unwrap();
-    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "modelo": "haiku", "tarefa": "diga so ok"})).await;
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "modelo": "haiku", "tarefa": "diga so ok",
+        "contexto": "projeto de teste", "ler": ["README.md"], "editar": ["src/a.ts"], "criar": ["src/novo/"], "criterios": ["responder ok"]})).await;
     assert!(!erro, "{texto}");
     let agente = serde_json::from_str::<Value>(&texto).unwrap()["agente"].as_str().unwrap().to_owned();
     let recebido = dir.path().join("bin").join("recebido.txt");
@@ -218,9 +221,38 @@ async fn cli_falsa_cria_recebe_tarefa_respeita_limite_espera_e_para() {
             state.mobile.orquestracao.pendentes.lock().unwrap().get(&agente));
     }
 
-    assert_eq!(std::fs::read_to_string(&recebido).unwrap().matches("diga so ok").count(), 1, "reenviada só porque a primeira sumiu");
-    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "outro"})).await;
+    let recebida = std::fs::read_to_string(&recebido).unwrap();
+    assert_eq!(recebida.matches("diga so ok").count(), 1, "reenviada só porque a primeira sumiu");
+    // O briefing montado pelo engine chegou inteiro: tarefa, contexto, arquivos, critérios e regras.
+    for trecho in ["## Você pode editar (só estes)", "- src/a.ts", "- src/novo/", "## Leia antes de começar", "## Pronto quando", "## Regras"] {
+        assert!(recebida.contains(trecho), "faltou {trecho:?} no briefing");
+    }
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "outro", "somente_leitura": true})).await;
     assert!(erro && texto.contains("Limite de 1"), "{texto}");
+
+    // Harness: com vaga, o segundo não pode pegar arquivo do primeiro, nem nascer sem dizer o que mexe.
+    let EngineResponse::Api { status, .. } = local(state.clone(), "POST", "/orquestracao/limite", Some(r#"{"limite":3}"#.into()), None, vec![]).await else { panic!() };
+    assert_eq!(status, 200);
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "outro", "editar": ["src/novo/x.ts"]})).await;
+    assert!(erro && texto.contains("Arquivos de outro subagente vivo") && texto.contains("src/novo/x.ts"), "{texto}");
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "outro"})).await;
+    assert!(erro && texto.contains("editar"), "{texto}");
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "outro", "editar": ["../fora.ts"]})).await;
+    assert!(erro && texto.contains(".."), "{texto}");
+
+    // conferir_arquivos: git status cruzado com a posse.
+    let git = |args: &[&str]| assert!(std::process::Command::new("git").args(args).current_dir(&projeto).output().unwrap().status.success());
+    git(&["init", "-q"]);
+    std::fs::create_dir_all(projeto.join("src/novo")).unwrap();
+    std::fs::write(projeto.join("src/a.ts"), "x").unwrap();
+    std::fs::write(projeto.join("src/novo/b.ts"), "x").unwrap();
+    std::fs::write(projeto.join("package.json"), "{}").unwrap();
+    let (erro, texto) = ferramenta(&state, &token, "conferir_arquivos", json!({})).await;
+    assert!(!erro, "{texto}");
+    let conferido: Value = serde_json::from_str(&texto).unwrap();
+    assert_eq!(conferido["sem_dono"], json!(["package.json"]));
+    let do_agente = conferido["por_agente"].as_object().unwrap().values().next().unwrap().clone();
+    assert_eq!(do_agente, json!(["src/a.ts", "src/novo/b.ts"]));
 
     let (erro, texto) = ferramenta(&state, &token, "esperar", json!({"agente": agente, "segundos": 20})).await;
     assert!(!erro && texto.contains("\"pronto\""), "{texto}");
@@ -316,7 +348,7 @@ async fn cli_real_orquestrador() {
     }
     assert!(pronto, "o orquestrador não ficou pronto");
     println!("orquestrador pronto; mandando o pedido");
-    assert!(acao(&state, "orq", ActionKind::Prompt("Use as ferramentas medza: crie 2 subagentes com criar_agente (1: plataforma claude, modelo haiku; 2: plataforma codex, modelo gpt-6-luna, esforco low), os dois com a tarefa \"diga só 'ok'\". Depois chame esperar em cada um e responda numa linha o que cada um disse.".into())));
+    assert!(acao(&state, "orq", ActionKind::Prompt("Use as ferramentas medza: crie 2 subagentes com criar_agente (1: plataforma claude, modelo haiku; 2: plataforma codex, modelo gpt-6-luna, esforco low), os dois com a tarefa \"diga só 'ok'\" e somente_leitura true. Depois chame esperar em cada um e responda numa linha o que cada um disse.".into())));
 
     let inicio = std::time::Instant::now();
     let mut pronto_seguido = 0;

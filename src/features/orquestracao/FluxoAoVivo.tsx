@@ -20,7 +20,7 @@ import { AcoesContext, AcoesDoNo, ParaQuem, useAcoesDoFluxo } from "./InteragirP
 /**
  * Fork: fluxo ao vivo de uma conversa orquestradora, numa aba do layout (`PaneKind "orquestracao"`).
  *
- * O orquestrador fica no centro e cada subagente em volta, com uma seta saindo do centro. Cada nó
+ * O orquestrador fica à esquerda e os subagentes descem em coluna à direita dele, com uma seta para cada. Cada nó
  * mostra a marca da plataforma, a conta, o modelo, o estado ao vivo, a tarefa e a última mensagem.
  * Clicar num nó abre a conversa dele ao lado. Montado do registro do engine (`GET /orquestracao/{id}`),
  * então sobrevive a reabrir o app. Visual do `NoDoFluxo` (classes `fx-*`) e a `ArestaDoFluxo`.
@@ -33,24 +33,38 @@ const INTERVALO_PAUSADO_MS = 8_000;
 
 const NOME_DA_PLATAFORMA: Record<string, string> = { claude: "Claude Code", codex: "Codex", antigravity: "Antigravity", cursor: "Cursor" };
 
-export type DadosDoNoAoVivo = { no: NoAoVivo; centro: boolean; orquestrador: string; lado?: Position };
+export type DadosDoNoAoVivo = { no: NoAoVivo; centro: boolean; orquestrador: string };
 export type NoDoOrquestrador = Node<DadosDoNoAoVivo, "orq">;
 
-/** Lado do centro de onde sai a seta para um nó no ângulo `a` (radianos, 0 = direita). */
-function ladoDoAngulo(a: number): Position {
-  const x = Math.cos(a), y = Math.sin(a);
-  return Math.abs(x) >= Math.abs(y) ? (x >= 0 ? Position.Right : Position.Left) : (y >= 0 ? Position.Bottom : Position.Top);
-}
-const OPOSTO = { [Position.Right]: Position.Left, [Position.Left]: Position.Right, [Position.Top]: Position.Bottom, [Position.Bottom]: Position.Top };
-const LADOS = [Position.Top, Position.Right, Position.Bottom, Position.Left];
+/** Subagentes por coluna antes de abrir a próxima coluna à direita. */
+export const POR_COLUNA = 5;
+const PASSO_X = 330, PASSO_Y = 200, PRIMEIRA_COLUNA_X = 400;
 
-/** Posições em volta do centro. Até 4: um de cada lado; depois, em círculo. */
-export function posicoes(n: number): { x: number; y: number; lado: Position }[] {
-  const raioX = 360, raioY = 250;
-  return Array.from({ length: n }, (_, i) => {
-    const a = n <= 4 ? [0, Math.PI, -Math.PI / 2, Math.PI / 2][i] : -Math.PI / 2 + (2 * Math.PI * i) / n;
-    return { x: Math.round(Math.cos(a) * raioX), y: Math.round(Math.sin(a) * raioY), lado: ladoDoAngulo(a) };
-  });
+/**
+ * Fork (pedido do Enzo): da esquerda para a direita. O orquestrador fica à esquerda, na altura do meio
+ * da primeira coluna; os subagentes descem em coluna à direita dele, na ordem em que foram criados, e
+ * a cada {@link POR_COLUNA} abre-se outra coluna mais à direita.
+ */
+export function posicoes(n: number): { centro: { x: number; y: number }; agentes: { x: number; y: number }[] } {
+  const naPrimeira = Math.min(n, POR_COLUNA);
+  const agentes = Array.from({ length: n }, (_, i) => ({
+    x: PRIMEIRA_COLUNA_X + Math.floor(i / POR_COLUNA) * PASSO_X,
+    y: (i % POR_COLUNA) * PASSO_Y,
+  }));
+  return { centro: { x: 0, y: Math.max(0, (naPrimeira - 1) * PASSO_Y) / 2 }, agentes };
+}
+
+/** Harness: quantos arquivos o subagente pode editar/criar; a lista vai no título. */
+export function ArquivosDoNo({ no }: { no: NoAoVivo }) {
+  const editar = no.editar ?? [], criar = no.criar ?? [];
+  if (editar.length + criar.length === 0) return null;
+  const lista = [...editar.map((c) => `edita ${c}`), ...criar.map((c) => `cria ${c}`)].join("\n");
+  return (
+    <div className="orq-arquivos" title={lista}>
+      {editar.length > 0 && <span>edita {editar.length === 1 ? editar[0] : `${editar.length} caminhos`}</span>}
+      {criar.length > 0 && <span>cria {criar.length === 1 ? criar[0] : `${criar.length} caminhos`}</span>}
+    </div>
+  );
 }
 
 export function rotuloDoNo(no: NoAoVivo): string {
@@ -63,8 +77,8 @@ const NoAoVivoView = memo(function NoAoVivoView({ data }: NodeProps<NoDoOrquestr
   return (
     <div className={`fx-no orq-no st-${no.estado}${centro ? " is-centro" : ""}`} title="Clique para abrir a conversa">
       {centro
-        ? LADOS.map((lado) => <Handle key={lado} id={lado} type="source" position={lado} className="orq-porta" isConnectable={false} />)
-        : <Handle type="target" position={data.lado ?? Position.Left} className="orq-porta" isConnectable={false} />}
+        ? <Handle type="source" position={Position.Right} className="orq-porta" isConnectable={false} />
+        : <Handle type="target" position={Position.Left} className="orq-porta" isConnectable={false} />}
       <div className="fx-no-topo">
         <span className="fx-no-icone"><AgentIcon provider={plataforma} size={14} /></span>
         <span className="fx-no-tipo">{centro ? "Orquestrador" : (NOME_DA_PLATAFORMA[plataforma] ?? plataforma)}</span>
@@ -72,6 +86,7 @@ const NoAoVivoView = memo(function NoAoVivoView({ data }: NodeProps<NoDoOrquestr
       </div>
       <div className="fx-no-titulo">{centro ? (no.titulo ?? "Orquestrador") : (no.tarefa ?? no.titulo ?? "Subagente")}</div>
       <div className="fx-no-sub">{rotuloDoNo(no)}</div>
+      <ArquivosDoNo no={no} />
       {no.pendente && <div className="orq-pendente">{no.pendente}</div>}
       {no.ultima_mensagem && <div className="orq-ultima" title={no.ultima_mensagem}>{no.ultima_mensagem}</div>}
       <AcoesDoNo no={no} orquestrador={orquestrador} centro={centro} />
@@ -112,12 +127,12 @@ function Canvas({ fluxo, orquestrador, paneId }: { fluxo: Fluxo; orquestrador: s
   const { nodes, edges } = useMemo(() => {
     const lugares = posicoes(fluxo.agentes.length);
     const nodes: NoDoOrquestrador[] = [
-      { id: fluxo.orquestrador.id, type: "orq", position: { x: 0, y: 0 }, data: { no: fluxo.orquestrador, centro: true, orquestrador } },
-      ...fluxo.agentes.map((no, i) => ({ id: no.id, type: "orq" as const, position: { x: lugares[i].x, y: lugares[i].y },
-        data: { no, centro: false, orquestrador, lado: OPOSTO[lugares[i].lado] } })),
+      { id: fluxo.orquestrador.id, type: "orq", position: lugares.centro, data: { no: fluxo.orquestrador, centro: true, orquestrador } },
+      ...fluxo.agentes.map((no, i) => ({ id: no.id, type: "orq" as const, position: lugares.agentes[i],
+        data: { no, centro: false, orquestrador } })),
     ];
-    const edges: ArestaOmni[] = fluxo.agentes.map((no, i) => ({
-      id: `${fluxo.orquestrador.id}->${no.id}`, source: fluxo.orquestrador.id, target: no.id, sourceHandle: lugares[i].lado, type: "omni",
+    const edges: ArestaOmni[] = fluxo.agentes.map((no) => ({
+      id: `${fluxo.orquestrador.id}->${no.id}`, source: fluxo.orquestrador.id, target: no.id, type: "omni",
       data: { editavel: false, viva: no.estado === "trabalhando" },
       markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: no.estado === "trabalhando" ? "#f97316" : "#6b6b85" },
     }));
