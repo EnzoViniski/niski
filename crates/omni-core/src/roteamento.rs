@@ -248,3 +248,188 @@ fn idade(cota: &Cota, agora_ms: u64) -> String {
         None => format!("fonte {}, idade desconhecida", cota.fonte),
     }
 }
+
+#[cfg(test)]
+mod testes {
+    use super::*;
+
+    const AGORA: u64 = 1_000_000_000_000;
+    const HORA: u64 = 3_600_000;
+
+    struct Cenario { politica: Politica, contas: Vec<Conta>, cotas: HashMap<String, Cota>, pedido: Pedido }
+
+    fn conta(id: &str, provider: &str) -> Conta {
+        Conta { perfil_id: id.into(), apelido: format!("conta {id}"), provider: provider.into(), tipo: TipoConta::Assinatura,
+            plano: None, uso_extra: false, orcamento_usd: None, gasto_usd: 0.0, expira_em_ms: None,
+            max_concorrencia: None, confidencial_ok: false }
+    }
+
+    fn cota(percentual: f64, reset_em_ms: Option<u64>) -> Cota {
+        Cota { janelas: vec![Janela { nome: "5h".into(), percentual, reset_em_ms }], fonte: "teste".into(),
+            observado_em_ms: Some(AGORA - 10 * 60_000) }
+    }
+
+    /// a (50%), b (20%), c (cota desconhecida, liberada para confidencial), d (codex). Fila a, b, c.
+    fn base() -> Cenario {
+        let mut c = conta("c", "claude");
+        c.confidencial_ok = true;
+        let cotas = HashMap::from([
+            ("a".to_owned(), cota(50.0, Some(AGORA + HORA))),
+            ("b".to_owned(), cota(20.0, Some(AGORA + HORA))),
+            ("d".to_owned(), cota(0.0, Some(AGORA + HORA))),
+        ]);
+        Cenario {
+            politica: Politica { modo: Modo::Fila, etapas: fila(&["a", "b", "c"]) },
+            contas: vec![conta("a", "claude"), conta("b", "claude"), c, conta("d", "codex")],
+            cotas,
+            pedido: Pedido { provider: "claude".into(), agora_ms: AGORA, headless: true, ..Default::default() },
+        }
+    }
+
+    fn mexer(cenario: &mut Cenario, id: &str, ajuste: impl FnOnce(&mut Conta)) {
+        ajuste(cenario.contas.iter_mut().find(|c| c.perfil_id == id).unwrap());
+    }
+
+    fn fila(ids: &[&str]) -> Vec<String> { ids.iter().map(|s| s.to_string()).collect() }
+
+    /// Cada caso: nome, ajuste sobre a base, conta esperada e um trecho que a explicação precisa ter.
+    #[test]
+    fn tabela_de_escolha() {
+        type Ajuste = fn(&mut Cenario);
+        let casos: Vec<(&str, Ajuste, Option<&str>, &str)> = vec![
+            ("fila pega a primeira apta", |_| {}, Some("a"), "primeira da fila"),
+            ("auto pega o menor uso", |c| c.politica.modo = Modo::Auto, Some("b"), "menor uso"),
+            ("auto deixa desconhecida por último", |c| {
+                c.politica = Politica { modo: Modo::Auto, etapas: fila(&["c", "a"]) };
+            }, Some("a"), "cota desconhecida"),
+            ("auto só com desconhecidas segue a fila", |c| {
+                c.politica = Politica { modo: Modo::Auto, etapas: fila(&["c"]) };
+            }, Some("c"), "nenhuma apta tem cota conhecida"),
+            ("auto empata pela ordem da fila", |c| {
+                c.cotas.insert("a".into(), cota(20.0, Some(AGORA + HORA)));
+                c.politica = Politica { modo: Modo::Auto, etapas: fila(&["b", "a"]) };
+            }, Some("b"), "perdeu no modo auto"),
+            ("provider diferente", |c| c.politica.etapas = fila(&["d", "a"]), Some("a"), "provider codex ≠ claude"),
+            ("confidencial só em conta liberada", |c| c.pedido.confidencial = true, Some("c"), "projeto confidencial"),
+            ("conta expirada", |c| mexer(c, "a", |a| a.expira_em_ms = Some(AGORA)), Some("b"), "conta expirada"),
+            ("conta que expira no futuro passa", |c| mexer(c, "a", |a| a.expira_em_ms = Some(AGORA + 1)), Some("a"), "primeira"),
+            ("api com orçamento estourado", |c| mexer(c, "a", |a| {
+                a.tipo = TipoConta::Api; a.orcamento_usd = Some(10.0); a.gasto_usd = 10.0;
+            }), Some("b"), "orçamento estourado"),
+            ("api sem teto passa", |c| mexer(c, "a", |a| { a.tipo = TipoConta::Api; a.gasto_usd = 999.0; }), Some("a"), "primeira"),
+            ("assinatura ignora orçamento fora do uso extra", |c| mexer(c, "a", |a| {
+                a.orcamento_usd = Some(1.0); a.gasto_usd = 5.0;
+            }), Some("a"), "primeira"),
+            ("concorrência no máximo", |c| {
+                mexer(c, "a", |a| a.max_concorrencia = Some(2));
+                c.pedido.sessoes_em_uso.insert("a".into(), 2);
+            }, Some("b"), "concorrência no máximo (2 de 2)"),
+            ("concorrência abaixo do máximo passa", |c| {
+                mexer(c, "a", |a| a.max_concorrencia = Some(2));
+                c.pedido.sessoes_em_uso.insert("a".into(), 1);
+            }, Some("a"), "primeira"),
+            ("janela estourada com reset no futuro", |c| {
+                c.cotas.insert("a".into(), cota(100.0, Some(AGORA + 1)));
+            }, Some("b"), "limite estourado (5h)"),
+            ("janela estourada sem reset conhecido", |c| { c.cotas.insert("a".into(), cota(100.0, None)); }, Some("b"), "limite estourado"),
+            ("reset vencido devolve a conta", |c| {
+                c.cotas.insert("a".into(), cota(100.0, Some(AGORA)));
+            }, Some("a"), "5h reiniciada"),
+            ("reset vencido conta como zero no auto", |c| {
+                c.cotas.insert("a".into(), cota(100.0, Some(AGORA - 1)));
+                c.politica.modo = Modo::Auto;
+            }, Some("a"), "menor uso"),
+            ("uso extra sem orçamento não salva", |c| {
+                c.cotas.insert("a".into(), cota(100.0, Some(AGORA + HORA)));
+                mexer(c, "a", |a| a.uso_extra = true);
+            }, Some("b"), "uso extra sem orçamento"),
+            ("uso extra com orçamento livre é aceito", |c| {
+                c.cotas.insert("a".into(), cota(100.0, Some(AGORA + HORA)));
+                mexer(c, "a", |a| { a.uso_extra = true; a.orcamento_usd = Some(20.0); a.gasto_usd = 5.0; });
+            }, Some("a"), "em uso extra"),
+            ("uso extra com orçamento gasto", |c| {
+                c.cotas.insert("a".into(), cota(100.0, Some(AGORA + HORA)));
+                mexer(c, "a", |a| { a.uso_extra = true; a.orcamento_usd = Some(20.0); a.gasto_usd = 20.0; });
+            }, Some("b"), "uso extra sem orçamento"),
+            ("uso extra perde para conta com folga no auto", |c| {
+                c.cotas.insert("a".into(), cota(100.0, Some(AGORA + HORA)));
+                mexer(c, "a", |a| { a.uso_extra = true; a.orcamento_usd = Some(20.0); });
+                c.politica.modo = Modo::Auto;
+            }, Some("b"), "em uso extra"),
+            ("conta repetida é ignorada", |c| {
+                c.cotas.insert("a".into(), cota(100.0, Some(AGORA + HORA)));
+                c.politica.etapas = fila(&["a", "a", "b"]);
+            }, Some("b"), "a: repetida na fila"),
+            ("perfil fora do cadastro", |c| c.politica.etapas = fila(&["x", "a"]), Some("a"), "x: não está cadastrada"),
+            ("ninguém passa", |c| c.politica.etapas = fila(&["d"]), None, "nenhuma conta da fila passou"),
+            ("fila vazia", |c| c.politica.etapas.clear(), None, "nenhuma conta da fila passou"),
+            ("explicação traz fonte e idade", |_| {}, Some("a"), "fonte teste, há 10 min"),
+        ];
+        for (nome, ajuste, esperado, trecho) in casos {
+            let mut cenario = base();
+            ajuste(&mut cenario);
+            let escolha = escolher(&cenario.politica, &cenario.contas, &cenario.cotas, &cenario.pedido);
+            assert_eq!(escolha.perfil_id.as_deref(), esperado, "{nome}: {:?}", escolha.explicacao);
+            assert!(escolha.explicacao.iter().any(|linha| linha.contains(trecho)),
+                "{nome}: faltou «{trecho}» em {:?}", escolha.explicacao);
+        }
+    }
+
+    /// Repetição não pode dar peso extra: com a mesma conta duas vezes, ela aparece uma vez só
+    /// entre as aptas do modo auto.
+    #[test]
+    fn repeticao_nao_duplica_no_auto() {
+        let mut cenario = base();
+        cenario.politica = Politica { modo: Modo::Auto, etapas: fila(&["b", "a", "b"]) };
+        let escolha = escolher(&cenario.politica, &cenario.contas, &cenario.cotas, &cenario.pedido);
+        assert_eq!(escolha.perfil_id.as_deref(), Some("b"));
+        assert_eq!(escolha.explicacao.iter().filter(|l| l.starts_with("conta b")).count(), 1, "{:?}", escolha.explicacao);
+    }
+
+    #[test]
+    fn queda_automatica_so_em_headless() {
+        let mut cenario = base();
+        let escolha = proxima_apos_falha(&cenario.politica, &cenario.contas, &cenario.cotas, &cenario.pedido, &["a"]);
+        assert_eq!(escolha.perfil_id.as_deref(), Some("b"));
+        assert!(escolha.explicacao.iter().any(|l| l.contains("falhou nesta execução")));
+
+        let escolha = proxima_apos_falha(&cenario.politica, &cenario.contas, &cenario.cotas, &cenario.pedido, &["a", "b"]);
+        assert_eq!(escolha.perfil_id.as_deref(), Some("c"));
+
+        cenario.pedido.headless = false;
+        let escolha = proxima_apos_falha(&cenario.politica, &cenario.contas, &cenario.cotas, &cenario.pedido, &["a"]);
+        assert_eq!(escolha.perfil_id, None);
+        assert!(escolha.explicacao[0].contains("sessão interativa"));
+        // A escolha inicial continua valendo no interativo; só a troca sozinha é que não.
+        assert_eq!(escolher(&cenario.politica, &cenario.contas, &cenario.cotas, &cenario.pedido).perfil_id.as_deref(), Some("a"));
+    }
+
+    #[test]
+    fn routing_json_ida_e_volta_e_padroes() {
+        let politica = Politica { modo: Modo::Auto, etapas: fila(&["claude-a", "codex-b"]) };
+        let texto = politica.salvar();
+        assert!(texto.contains("\"auto\""));
+        assert_eq!(Politica::carregar(&texto).unwrap(), politica);
+        assert_eq!(Politica::carregar("{}").unwrap(), Politica { modo: Modo::Fila, etapas: vec![] });
+        assert_eq!(Politica::de_valor(serde_json::json!({ "modo": "fila", "etapas": ["x"] })).unwrap().etapas, fila(&["x"]));
+        assert!(Politica::carregar("{\"modo\":\"aleatorio\"}").is_err());
+    }
+
+    #[test]
+    fn cota_vem_do_usage_existente() {
+        let janela = |pct, minutos, reset| UsageWindow { used_percent: pct, window_minutes: minutos, resets_at: Some(reset), reset_label: None };
+        let mut uso = AccountUsage::unavailable("a", "codex", "sem dado");
+        assert_eq!(Cota::de_uso(&uso), None);
+        uso.status = "available".into();
+        uso.reason = None;
+        uso.observed_at_ms = Some(AGORA);
+        uso.primary = Some(janela(40.0, 300, 2_000));
+        uso.secondary = Some(janela(70.0, 10080, 3_000));
+        let cota = Cota::de_uso(&uso).unwrap();
+        assert_eq!(cota.fonte, "codex_rollout");
+        assert_eq!(cota.janelas, vec![
+            Janela { nome: "5h".into(), percentual: 40.0, reset_em_ms: Some(2_000_000) },
+            Janela { nome: "semanal".into(), percentual: 70.0, reset_em_ms: Some(3_000_000) },
+        ]);
+    }
+}
