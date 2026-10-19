@@ -26,6 +26,10 @@ const sobreposicao = {
   identifier: identidade.pasta,
   app: { windows: [{ label: "main", title: identidade.nome, width: 1000, height: 720, minWidth: 720, minHeight: 560, resizable: true, fullscreen: false, center: true, decorations: false, shadow: true }] },
   bundle: { createUpdaterArtifacts: false },
+  // Sem isto o build local ainda consultaria o latest.json do autor e, numa release nova dele,
+  // ofereceria trocar este .app pelo build do autor (a assinatura confere). Endereço que nunca
+  // responde: a checagem falha calada.
+  plugins: { updater: { endpoints: ["https://127.0.0.1:9/sem-atualizacao/latest.json"] } },
 };
 const pasta = resolve("target-tauri");
 mkdirSync(pasta, { recursive: true });
