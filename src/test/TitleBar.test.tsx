@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TitleBar } from "../components/TitleBar";
+import { NOME_DO_PRODUTO } from "../lib/identidade";
 
 const janela = { minimize: vi.fn(async () => undefined), toggleMaximize: vi.fn(async () => undefined), close: vi.fn(async () => undefined),
   isMaximized: vi.fn(async () => false), onResized: vi.fn(async () => () => undefined) };
@@ -19,6 +20,6 @@ it("barra superior mostra onde você está e controla a janela", async () => {
   expect(janela.minimize).toHaveBeenCalled();
   expect(janela.toggleMaximize).toHaveBeenCalled();
 
-  await userEvent.click(screen.getByRole("button", { name: /OMNI AGENTS/ }));
+  await userEvent.click(screen.getByRole("button", { name: new RegExp(NOME_DO_PRODUTO) }));
   expect(onHome).toHaveBeenCalled();
 });

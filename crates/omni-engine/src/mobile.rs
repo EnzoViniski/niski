@@ -2185,6 +2185,9 @@ async fn asset(request: Request) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Endereço/origem padrão do celular, da identidade (`MOBILE_PORT`): os testes acompanham a porta.
+    static HOST_LOCAL: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| format!("127.0.0.1:{}", omni_protocol::MOBILE_PORT));
+    static ORIGEM_LOCAL: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| format!("http://{}", *HOST_LOCAL));
     use tower::ServiceExt;
     use axum::body::{Body,to_bytes};
 
@@ -2250,7 +2253,7 @@ mod tests {
         }).await.unwrap();
     }
     fn req(method:&str, uri:&str, origin:&str, body:&str) -> Request {
-        Request::builder().method(method).uri(uri).header("host","127.0.0.1:47322").header("origin",origin)
+        Request::builder().method(method).uri(uri).header("host",&*HOST_LOCAL).header("origin",origin)
             .header("content-type","application/json").header("idempotency-key","test-key").body(Body::from(body.to_owned())).unwrap()
     }
 
@@ -2357,7 +2360,7 @@ mod tests {
         let resposta = app.clone().oneshot(req("GET","/conversas/c/terminal","","")).await.unwrap();
         let corpo: Value = serde_json::from_slice(&axum::body::to_bytes(resposta.into_body(),usize::MAX).await.unwrap()).unwrap();
         assert_eq!(corpo["live"],false);
-        let origem = "http://127.0.0.1:47322";
+        let origem = &*ORIGEM_LOCAL;
         assert_eq!(app.clone().oneshot(req("POST","/conversas/c/teclas",origem,r#"{"dados":"\u001b"}"#)).await.unwrap().status(),StatusCode::CONFLICT);
         assert_eq!(app.clone().oneshot(req("POST","/conversas/c/teclas",origem,r#"{"dados":""}"#)).await.unwrap().status(),StatusCode::BAD_REQUEST);
         assert_eq!(app.oneshot(req("GET","/conversas/nao-existe/terminal","","")).await.unwrap().status(),StatusCode::NOT_FOUND);
@@ -2369,7 +2372,7 @@ mod tests {
         let (dir,state) = fixture();
         let app = router(state.clone());
 
-        let resposta = app.clone().oneshot(req("POST","/conversas/c/nome","http://127.0.0.1:47322",r#"{"nome":"Refatorar login"}"#)).await.unwrap();
+        let resposta = app.clone().oneshot(req("POST","/conversas/c/nome",&*ORIGEM_LOCAL,r#"{"nome":"Refatorar login"}"#)).await.unwrap();
         assert_eq!(resposta.status(),StatusCode::OK);
         let conversas = omni_core::conversations::read_index(dir.path());
         assert_eq!(conversas[0].title,"Refatorar login");
@@ -2380,16 +2383,16 @@ mod tests {
 
         for lixo in [r#"{"nome":"   "}"#, r#"{"nome":"com
 quebra"}"#] {
-            assert_eq!(app.clone().oneshot(req("POST","/conversas/c/nome","http://127.0.0.1:47322",lixo)).await.unwrap().status(),StatusCode::BAD_REQUEST);
+            assert_eq!(app.clone().oneshot(req("POST","/conversas/c/nome",&*ORIGEM_LOCAL,lixo)).await.unwrap().status(),StatusCode::BAD_REQUEST);
         }
-        assert_eq!(app.oneshot(req("POST","/conversas/desconhecida/nome","http://127.0.0.1:47322",r#"{"nome":"x"}"#)).await.unwrap().status(),StatusCode::BAD_REQUEST);
+        assert_eq!(app.oneshot(req("POST","/conversas/desconhecida/nome",&*ORIGEM_LOCAL,r#"{"nome":"x"}"#)).await.unwrap().status(),StatusCode::BAD_REQUEST);
     }
 
     /// Ocultar tira da lista (marca `hidden`), reabrir devolve; id estranho nem chega ao disco.
     #[tokio::test] async fn ocultar_e_reabrir_conversa() {
         let (dir,state) = fixture();
         let app = router(state.clone());
-        let origem = "http://127.0.0.1:47322";
+        let origem = &*ORIGEM_LOCAL;
         assert_eq!(app.clone().oneshot(req("POST","/conversas/c/ocultar",origem,r#"{"oculta":true}"#)).await.unwrap().status(),StatusCode::OK);
         assert_eq!(summaries(&state)[0]["hidden"],true);
         assert_eq!(app.clone().oneshot(req("POST","/conversas/c/ocultar",origem,r#"{"oculta":false}"#)).await.unwrap().status(),StatusCode::OK);
@@ -2404,9 +2407,9 @@ quebra"}"#] {
     #[tokio::test] async fn modo_aceita_so_plan_e_auto() {
         let (_dir,state) = fixture();
         let app = router(state);
-        assert_eq!(app.clone().oneshot(req("POST","/conversas/c/modo","http://127.0.0.1:47322",r#"{"modo":"bypassPermissions"}"#)).await.unwrap().status(),StatusCode::BAD_REQUEST);
-        assert_eq!(app.clone().oneshot(req("POST","/conversas/c/modo","http://127.0.0.1:47322",r#"{"modo":"plan"}"#)).await.unwrap().status(),StatusCode::CONFLICT);
-        assert_eq!(app.oneshot(req("POST","/conversas/c/modo","http://127.0.0.1:47322",r#"{"modo":"auto"}"#)).await.unwrap().status(),StatusCode::CONFLICT);
+        assert_eq!(app.clone().oneshot(req("POST","/conversas/c/modo",&*ORIGEM_LOCAL,r#"{"modo":"bypassPermissions"}"#)).await.unwrap().status(),StatusCode::BAD_REQUEST);
+        assert_eq!(app.clone().oneshot(req("POST","/conversas/c/modo",&*ORIGEM_LOCAL,r#"{"modo":"plan"}"#)).await.unwrap().status(),StatusCode::CONFLICT);
+        assert_eq!(app.oneshot(req("POST","/conversas/c/modo",&*ORIGEM_LOCAL,r#"{"modo":"auto"}"#)).await.unwrap().status(),StatusCode::CONFLICT);
     }
 
     /// A página de computador é servida em `/pc`, com a mesma casca pública do celular — os dados
@@ -2434,7 +2437,7 @@ quebra"}"#] {
             None,
         ).unwrap();
         let app = router(state.clone());
-        let post = |corpo:&str| req("POST","/sessoes","http://127.0.0.1:47322",corpo);
+        let post = |corpo:&str| req("POST","/sessoes",&*ORIGEM_LOCAL,corpo);
 
         // Caminho vindo do celular: recusado como campo desconhecido, não ignorado em silêncio.
         // 422 é o que o axum devolve quando o corpo não desserializa — o que importa é que
@@ -2478,21 +2481,21 @@ quebra"}"#] {
         let response = app.clone().oneshot(req("GET","/conversas/c/timeline","","")).await.unwrap();
         let data:Value = serde_json::from_slice(&to_bytes(response.into_body(),1_000_000).await.unwrap()).unwrap();
         assert_eq!(data["timeline"]["messages"],json!([]));
-        let response = app.clone().oneshot(req("POST","/conversas/c/prompt","http://127.0.0.1:47322",r#"{"texto":"oi"}"#)).await.unwrap();
+        let response = app.clone().oneshot(req("POST","/conversas/c/prompt",&*ORIGEM_LOCAL,r#"{"texto":"oi"}"#)).await.unwrap();
         assert_eq!(response.status(),StatusCode::CONFLICT);
         assert!(state.sessions.lock().unwrap().is_empty(),"HTTP must not spawn a terminal");
-        assert_ne!(app.oneshot(req("POST","/spawn_terminal","http://127.0.0.1:47322","{}")).await.unwrap().status(),StatusCode::OK);
+        assert_ne!(app.oneshot(req("POST","/spawn_terminal",&*ORIGEM_LOCAL,"{}")).await.unwrap().status(),StatusCode::OK);
     }
     #[tokio::test] async fn foreign_origin_unknown_conversation_and_invalid_prompt_are_rejected() {
         let (_dir,state) = fixture(); let app = router(state);
         assert_eq!(app.clone().oneshot(req("POST","/conversas/c/prompt","https://evil.example",r#"{"texto":"oi"}"#)).await.unwrap().status(),StatusCode::FORBIDDEN);
         assert_eq!(app.clone().oneshot(req("GET","/conversas/missing/timeline","","")).await.unwrap().status(),StatusCode::NOT_FOUND);
-        assert_eq!(app.oneshot(req("POST","/conversas/c/prompt","http://127.0.0.1:47322",r#"{"texto":"/exit"}"#)).await.unwrap().status(),StatusCode::BAD_REQUEST);
+        assert_eq!(app.oneshot(req("POST","/conversas/c/prompt",&*ORIGEM_LOCAL,r#"{"texto":"/exit"}"#)).await.unwrap().status(),StatusCode::BAD_REQUEST);
     }
     #[test] fn idempotent_retry_does_not_need_a_live_session_or_enqueue_again() {
         let (_dir,state) = fixture();
         state.mobile.actions.lock().unwrap().push_back(Action { id:"a".into(),conversation_id:"c".into(),session_id:"gone".into(),state:"sent".into(),created_at_ms:now_ms(),error:None,key:"test-key".into(),revision:"old".into(),kind:ActionKind::Prompt("oi".into()) });
-        let headers = req("POST","/conversas/c/prompt","http://127.0.0.1:47322","").headers().clone();
+        let headers = req("POST","/conversas/c/prompt",&*ORIGEM_LOCAL,"").headers().clone();
         assert_eq!(enqueue(&state,"c",&headers,ActionKind::Prompt("oi".into())).unwrap().0,StatusCode::ACCEPTED);
         assert_eq!(state.mobile.actions.lock().unwrap().len(),1);
         assert_eq!(enqueue(&state,"c",&headers,ActionKind::Prompt("outro".into())).unwrap_err().0,StatusCode::CONFLICT);
@@ -2507,7 +2510,7 @@ quebra"}"#] {
         state.mobile.config.lock().unwrap().token = "segredo".into();
         let app = router(state);
         let com_token = |valor:&str| {
-            Request::builder().method("GET").uri("/conversas").header("host","127.0.0.1:47322")
+            Request::builder().method("GET").uri("/conversas").header("host",&*HOST_LOCAL)
                 .header("x-omni-token",valor).body(Body::empty()).unwrap()
         };
         assert_eq!(app.clone().oneshot(req("GET","/conversas","","")).await.unwrap().status(),StatusCode::UNAUTHORIZED);
@@ -2519,16 +2522,16 @@ quebra"}"#] {
 
     #[test] fn habilitar_gera_token_e_o_desktop_nao_escolhe_o_segredo() {
         let (_dir,state) = fixture();
-        let forjado = MobileConfig{enabled:true,bind:"127.0.0.1:47322".into(),token:"escolhido-pelo-desktop".into(),serve:false,totp_secret:String::new(),totp_confirmed:false};
+        let forjado = MobileConfig{enabled:true,bind:HOST_LOCAL.clone(),token:"escolhido-pelo-desktop".into(),serve:false,totp_secret:String::new(),totp_confirmed:false};
         settings(&state,Some(forjado),false).unwrap();
         let gerado = state.mobile.config.lock().unwrap().token.clone();
         assert_eq!(gerado.len(),64,"32 bytes em hex");
         assert_ne!(gerado,"escolhido-pelo-desktop");
 
         // Salvar de novo preserva o token: só `rotate` troca, senão todo "Aplicar" desparearia o celular.
-        settings(&state,Some(MobileConfig{enabled:true,bind:"127.0.0.1:47322".into(),token:String::new(),serve:false,totp_secret:String::new(),totp_confirmed:false}),false).unwrap();
+        settings(&state,Some(MobileConfig{enabled:true,bind:HOST_LOCAL.clone(),token:String::new(),serve:false,totp_secret:String::new(),totp_confirmed:false}),false).unwrap();
         assert_eq!(state.mobile.config.lock().unwrap().token,gerado);
-        settings(&state,Some(MobileConfig{enabled:true,bind:"127.0.0.1:47322".into(),token:String::new(),serve:false,totp_secret:String::new(),totp_confirmed:false}),true).unwrap();
+        settings(&state,Some(MobileConfig{enabled:true,bind:HOST_LOCAL.clone(),token:String::new(),serve:false,totp_secret:String::new(),totp_confirmed:false}),true).unwrap();
         assert_ne!(state.mobile.config.lock().unwrap().token,gerado);
     }
 
@@ -2598,14 +2601,14 @@ quebra"}"#] {
     #[tokio::test] async fn serve_aceita_o_nome_magicdns_e_mais_nenhum() {
         let (_dir,state) = fixture();
         *state.mobile.config.lock().unwrap() =
-            MobileConfig{enabled:true,bind:"127.0.0.1:47322".into(),token:String::new(),serve:true,totp_secret:String::new(),totp_confirmed:false};
+            MobileConfig{enabled:true,bind:HOST_LOCAL.clone(),token:String::new(),serve:true,totp_secret:String::new(),totp_confirmed:false};
         *state.mobile.magic_dns.lock().unwrap() = Some("pc.tail0000.ts.net".into());
         let app = router(state);
         let get = |host:&str| Request::builder().method("GET").uri("/conversas")
             .header("host",host).body(Body::empty()).unwrap();
 
         assert_eq!(app.clone().oneshot(get("pc.tail0000.ts.net")).await.unwrap().status(),StatusCode::OK);
-        assert_eq!(app.clone().oneshot(get("127.0.0.1:47322")).await.unwrap().status(),StatusCode::OK);
+        assert_eq!(app.clone().oneshot(get(&*HOST_LOCAL)).await.unwrap().status(),StatusCode::OK);
         assert_eq!(app.clone().oneshot(get("evil.example")).await.unwrap().status(),StatusCode::FORBIDDEN);
         // Sufixo parecido não basta: a comparação é igualdade, não "termina com".
         assert_eq!(app.oneshot(get("mal.pc.tail0000.ts.net")).await.unwrap().status(),StatusCode::FORBIDDEN);
@@ -2614,7 +2617,7 @@ quebra"}"#] {
     #[test] fn serve_exige_loopback_no_bind() {
         // Escutar num IP roteável **e** publicar pelo Serve dobraria a superfície sem serventia.
         assert!(validate(&MobileConfig{enabled:true,bind:"100.64.0.1:47322".into(),token:String::new(),serve:true,totp_secret:String::new(),totp_confirmed:false}).is_err());
-        assert!(validate(&MobileConfig{enabled:true,bind:"127.0.0.1:47322".into(),token:String::new(),serve:true,totp_secret:String::new(),totp_confirmed:false}).is_ok());
+        assert!(validate(&MobileConfig{enabled:true,bind:HOST_LOCAL.clone(),token:String::new(),serve:true,totp_secret:String::new(),totp_confirmed:false}).is_ok());
     }
 
     /// O QR com `127.0.0.1` abria no PC e falhava no 4G. Com Tailscale no ar, o modo direto troca o
@@ -2667,7 +2670,7 @@ quebra"}"#] {
     }
 
     #[test] fn so_desfaz_a_publicacao_quando_este_engine_deixa_de_publicar() {
-        let cfg = |enabled, serve| MobileConfig{enabled,serve,bind:"127.0.0.1:47322".into(),token:String::new(),
+        let cfg = |enabled, serve| MobileConfig{enabled,serve,bind:HOST_LOCAL.clone(),token:String::new(),
             totp_secret:String::new(),totp_confirmed:false};
         // O caso do bug: engine em modo direto (o de dev) nunca desfaz nada, nem ligando nem salvando.
         assert!(!deixou_de_publicar(&cfg(true,false),&cfg(true,false)));
@@ -2708,13 +2711,13 @@ quebra"}"#] {
         atomic_write_json(&dir.path().join("conversations.json"),&json!({"version":1,"conversations":[{
             "id":"c","project_id":"p","cwd":projeto.to_string_lossy(),"title":"Teste","created_at_ms":1,"segments":[]
         }]})).unwrap();
-        *state.mobile.config.lock().unwrap() = MobileConfig{enabled:true,bind:"127.0.0.1:47322".into(),token:"segredo".into(),
+        *state.mobile.config.lock().unwrap() = MobileConfig{enabled:true,bind:HOST_LOCAL.clone(),token:"segredo".into(),
             serve:false,totp_secret:String::new(),totp_confirmed:false};
         let app = router(state.clone());
         // Maior que o limite global de 32 KB: prova que a rota tem o limite dela.
         let conteudo = vec![7_u8; 200 * 1024];
         let pedido = |token: &str| Request::builder().method("POST").uri("/conversas/c/anexos")
-            .header("host","127.0.0.1:47322").header("origin","http://127.0.0.1:47322")
+            .header("host",&*HOST_LOCAL).header("origin",&*ORIGEM_LOCAL)
             .header("x-omni-token",token).header("x-omni-nome","..%2F..%2Ffoto%20nova.png")
             .body(Body::from(conteudo.clone())).unwrap();
 
@@ -2730,13 +2733,13 @@ quebra"}"#] {
 
         // Conversa desconhecida não grava nada em lugar nenhum.
         let outra = Request::builder().method("POST").uri("/conversas/nao-existe/anexos")
-            .header("host","127.0.0.1:47322").header("origin","http://127.0.0.1:47322")
+            .header("host",&*HOST_LOCAL).header("origin",&*ORIGEM_LOCAL)
             .header("x-omni-token","segredo").body(Body::from(vec![1_u8])).unwrap();
         assert_eq!(app.clone().oneshot(outra).await.unwrap().status(),StatusCode::NOT_FOUND);
 
         // Acima do limite da rota: recusado.
         let grande = Request::builder().method("POST").uri("/conversas/c/anexos")
-            .header("host","127.0.0.1:47322").header("origin","http://127.0.0.1:47322")
+            .header("host",&*HOST_LOCAL).header("origin",&*ORIGEM_LOCAL)
             .header("x-omni-token","segredo").body(Body::from(vec![0_u8; ANEXO_MAX_BYTES + 1])).unwrap();
         assert_eq!(app.oneshot(grande).await.unwrap().status(),StatusCode::PAYLOAD_TOO_LARGE);
     }
@@ -2840,7 +2843,7 @@ quebra"}"#] {
         let (_dir,state) = com_authy_confirmado();
         let app = router(state);
         let corpo = r#"{"codigo":"000000"}"#;
-        let status = app.clone().oneshot(req("POST","/parear","http://127.0.0.1:47322",corpo)).await.unwrap().status();
+        let status = app.clone().oneshot(req("POST","/parear",&*ORIGEM_LOCAL,corpo)).await.unwrap().status();
         assert_eq!(status,StatusCode::UNAUTHORIZED,"401 aqui é do código errado, não do token ausente");
         let sem_origem = app.oneshot(req("POST","/parear","https://evil.example",corpo)).await.unwrap().status();
         assert_eq!(sem_origem,StatusCode::FORBIDDEN);
@@ -2852,7 +2855,7 @@ quebra"}"#] {
         let segredo = state.mobile.config.lock().unwrap().totp_secret.clone();
         assert!(!segredo.is_empty());
 
-        let forjado = MobileConfig{enabled:false,bind:"127.0.0.1:47322".into(),token:String::new(),serve:false,
+        let forjado = MobileConfig{enabled:false,bind:HOST_LOCAL.clone(),token:String::new(),serve:false,
             totp_secret:"FORJADO".into(),totp_confirmed:true};
         let EngineResponse::MobileSettings{totp_confirmed,totp_uri,..} = settings(&state,Some(forjado),false).unwrap() else { panic!() };
         assert!(!totp_confirmed,"confirmar só com código do Authy");
@@ -2873,7 +2876,7 @@ quebra"}"#] {
     #[test] fn loopback_default_and_no_wildcard() {
         let config = MobileConfig::default(); assert!(!config.enabled); assert!(validate(&config).is_ok());
         assert!(validate(&MobileConfig{enabled:true,bind:"0.0.0.0:47322".into(),token:String::new(),serve:false,totp_secret:String::new(),totp_confirmed:false}).is_err());
-        assert!(validate(&MobileConfig{enabled:true,bind:"127.0.0.1:47321".into(),token:String::new(),serve:false,totp_secret:String::new(),totp_confirmed:false}).is_err());
+        assert!(validate(&MobileConfig{enabled:true,bind:format!("127.0.0.1:{}", DEFAULT_ENGINE_PORT),token:String::new(),serve:false,totp_secret:String::new(),totp_confirmed:false}).is_err());
     }
 
     #[cfg(windows)]

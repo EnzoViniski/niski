@@ -5,6 +5,7 @@ import { WebApp } from "../web/WebApp";
 import { agruparMensagens } from "../mobile/MobileApp";
 import { semRespostasAutomaticas } from "../web/TerminalEspelho";
 import type { Conversation, Mensagem } from "../mobile/api";
+import { NOME_DO_PRODUTO } from "../lib/identidade";
 
 beforeEach(() => {
   history.replaceState(null, "", "/pc");
@@ -107,7 +108,7 @@ it("lista e catálogo vêm do /painel; 304 mantém a tela sem refazer nada", asy
   // O 304 não apagou a lista.
   expect(screen.getByRole("button", { name: /Abrir conversa Corrigir o login/ })).toBeInTheDocument();
   // Pendências no título da aba do navegador.
-  expect(document.title).toBe("(1) OMNI AGENTS");
+  expect(document.title).toBe(`(1) ${NOME_DO_PRODUTO}`);
 });
 
 it("no computador Enter envia e Shift+Enter quebra linha", async () => {

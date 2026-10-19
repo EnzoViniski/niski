@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi, afterEach } from "vitest";
 import { WebApp } from "../web/WebApp";
 import type { Conversation } from "../mobile/api";
+import { NOME_DO_PRODUTO } from "../lib/identidade";
 
 beforeEach(() => {
   history.replaceState(null, "", "/pc");
@@ -233,7 +234,7 @@ it("abrir a conversa tira de Precisa de você até o agente terminar outro turno
   render(<WebApp />);
   const pendencias = await screen.findByRole("complementary", { name: "Precisa de você" });
   await waitFor(() => expect(within(pendencias).getByTitle("Corrigir o login")).toBeInTheDocument());
-  expect(document.title).toBe("(1) OMNI AGENTS");
+  expect(document.title).toBe(`(1) ${NOME_DO_PRODUTO}`);
 
   await act(async () => {
     await userEvent.click(within(pendencias).getByTitle("Corrigir o login"));
@@ -247,7 +248,7 @@ it("abrir a conversa tira de Precisa de você até o agente terminar outro turno
     await userEvent.click(screen.getByRole("button", { name: "Atualizar" }));
   });
   expect(within(pendencias).getByText("Nada pendente agora.")).toBeInTheDocument();
-  expect(document.title).toBe("OMNI AGENTS");
+  expect(document.title).toBe(NOME_DO_PRODUTO);
 
   // Terminou outro turno: volta — uma vez só, mesmo que a lista traga a conversa de novo.
   lista[0] = conversa({ attention: "s:2" });

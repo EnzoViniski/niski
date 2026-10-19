@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useAttentionNotifier, testarAviso } from "../features/terminal/useAttentionNotifier";
 import type { AttentionItem } from "../features/terminal/useAttention";
+import { NOME_DO_PRODUTO } from "../lib/identidade";
 
 const janela = vi.hoisted(() => ({
   isFocused: vi.fn().mockResolvedValue(false),
@@ -147,7 +148,7 @@ describe("useAttentionNotifier", () => {
 
     await waitFor(() => expect(toast.sendNotification).toHaveBeenCalledTimes(1));
     expect(toast.sendNotification).toHaveBeenCalledWith({
-      title: "OMNI AGENTS",
+      title: NOME_DO_PRODUTO,
       body: "4 agentes precisam de você",
     });
   });

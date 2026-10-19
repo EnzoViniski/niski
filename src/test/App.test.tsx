@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App } from "../App";
+import { NOME_DO_PRODUTO } from "../lib/identidade";
 
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: vi.fn().mockResolvedValue(null) }));
 vi.mock("../features/docker/dockerService", async (importOriginal) => ({
@@ -102,7 +103,7 @@ describe("App shell", () => {
     await userEvent.click(screen.getByRole("button", { name: /^agentes cli/i }));
     expect(screen.getByRole("heading", { name: /conexões de agentes/i })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /omni agents/i }));
+    await userEvent.click(screen.getByRole("button", { name: new RegExp(NOME_DO_PRODUTO, "i") }));
     expect(screen.getByText(/nenhum painel aberto/i)).toBeInTheDocument();
   });
 });

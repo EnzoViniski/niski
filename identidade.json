@@ -1,15 +1,15 @@
 {
   "_leia": "Identidade do produto num lugar só. Mudar aqui e recompilar: Rust (omni-protocol/build.rs), interface (src/lib/identidade.ts) e Tauri (scripts/identidade.mjs) leem deste arquivo. Bundle id = pasta de dados; trocar começa com dados vazios.",
-  "nome": "OMNI AGENTS",
-  "nomeCurto": "OMNI",
-  "bundleId": "com.omni.agents",
-  "portaDoEngine": 47321,
-  "portaDoCelular": 47322,
-  "portaDeDev": 47341,
+  "nome": "Medza Agents",
+  "nomeCurto": "Medza",
+  "bundleId": "ai.medza.agents",
+  "portaDoEngine": 47421,
+  "portaDoCelular": 47422,
+  "portaDeDev": 47441,
   "pastaDePerfis": "OMNI-AGENTS",
-  "repositorio": "FelipeCamposM/OMNI-AGENTS",
+  "repositorio": "EnzoViniski/OMNI-AGENTS",
   "updater": {
-    "endpoint": "https://github.com/FelipeCamposM/OMNI-AGENTS/releases/latest/download/latest.json",
+    "endpoint": "https://github.com/EnzoViniski/OMNI-AGENTS/releases/latest/download/latest.json",
     "pubkey": ""
   }
 }
