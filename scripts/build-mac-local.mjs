@@ -43,5 +43,5 @@ rodar(process.execPath, ["scripts/sync-version.mjs"]);
 rodar(process.execPath, ["scripts/build-engine.mjs", "--release"]);
 rodar(process.execPath, [resolve("node_modules/@tauri-apps/cli/tauri.js"), "build", "--bundles", "app", "--config", configLocal]);
 
-console.log(`\nPronto: src-tauri/target/release/bundle/macos/${identidade.nome}.app`);
+console.log(`\nPronto: target/release/bundle/macos/${identidade.nome}.app`);
 console.log(`Porta ${identidade.porta}, dados em ~/Library/Application Support/${identidade.pasta}, logs em ~/Library/Logs/${identidade.pasta}/`);
