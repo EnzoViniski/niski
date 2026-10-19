@@ -308,6 +308,33 @@ fn executavel(nome: &str) -> Option<PathBuf> {
     env::split_paths(&path).find_map(|d| nomes.iter().map(|n| d.join(n)).find(|p| p.is_file()))
 }
 
+/// Mesma limpeza do terminal (`ambiente_do_terminal_com`), para a CLI sem tela: engine aberto de
+/// dentro de uma sessão do Claude não passa adiante as marcas dela nem o `CLAUDE_CONFIG_DIR` dela
+/// (o perfil Padrão rodaria na conta daquela sessão). A conta vem do perfil, aplicado depois.
+fn ambiente_da_cli_sem_tela(c: &mut Command, env: &[(String, String)], dentro_do_claude: bool) {
+    for nome in VARIAVEIS_DO_ENGINE { c.env_remove(nome); }
+    if dentro_do_claude {
+        for nome in MARCAS_DE_SESSAO_DO_CLAUDE { c.env_remove(nome); }
+        c.env_remove("CLAUDE_CONFIG_DIR");
+    }
+    c.envs(env.iter().map(|(k, v)| (k, v)));
+}
+
+/// Esvazia o stderr numa thread: lido só no fim, um stderr cheio (64 KB no pipe) travava a CLI e,
+/// com ela, a leitura do stdout. Guarda só o fim (é dali que sai a mensagem de erro).
+fn esvaziar_em_segundo_plano(mut fonte: impl Read + Send + 'static) -> std::thread::JoinHandle<String> {
+    const LIMITE: usize = 16 * 1024;
+    std::thread::spawn(move || {
+        let (mut fim, mut bloco) = (Vec::new(), [0u8; 8192]);
+        while let Ok(n) = fonte.read(&mut bloco) {
+            if n == 0 { break; }
+            fim.extend_from_slice(&bloco[..n]);
+            if fim.len() > 2 * LIMITE { fim.drain(..fim.len() - LIMITE); }
+        }
+        String::from_utf8_lossy(&fim).into_owned()
+    })
+}
+
 fn comando_da_cli(exe: &Path) -> Command {
     if exe.extension().is_some_and(|e| e.eq_ignore_ascii_case("cmd")) { let mut c = Command::new("cmd"); c.arg("/C").arg(exe); c } else { Command::new(exe) }
 }
@@ -348,7 +375,8 @@ fn rodar_agente(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &
         }
         outra => return Err(anyhow!("A CLI “{outra}” ainda não roda sem tela nos fluxos")),
     }
-    if let Some(p) = &perfil { c.envs(omni_core::env_for(p)); }
+    let env_do_perfil = perfil.as_ref().map(omni_core::env_for).unwrap_or_default();
+    ambiente_da_cli_sem_tela(&mut c, &env_do_perfil, herdou_sessao_do_claude(|nome| env::var_os(nome).is_some()));
     c.current_dir(pasta).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     sem_janela(&mut c);
     let mut filho = c.spawn().with_context(|| format!("não consegui abrir {}", modelo.cli))?;
@@ -372,6 +400,7 @@ fn rodar_agente(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &
     let mut final_texto = String::new();
     let mut erro_cli: Option<String> = None;
     let stdout = filho.stdout.take().ok_or_else(|| anyhow!("sem stdout"))?;
+    let stderr = filho.stderr.take().map(esvaziar_em_segundo_plano);
     for linha in std::io::BufReader::new(stdout).lines().map_while(std::result::Result::ok) {
         let _ = writeln!(arquivo, "{linha}");
         let Ok(ev) = serde_json::from_str::<Value>(&linha) else { continue };
@@ -395,8 +424,7 @@ fn rodar_agente(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &
     if v.lock().map(|e| e.status != "rodando").unwrap_or(true) { return Err(anyhow!(PAUSADO)); }
     if let Some(erro) = erro_cli { return Err(anyhow!(erro)); }
     if !status.success() && final_texto.is_empty() {
-        let mut erro = String::new();
-        if let Some(mut s) = filho.stderr.take() { let _ = s.read_to_string(&mut erro); }
+        let erro = stderr.and_then(|t| t.join().ok()).unwrap_or_default();
         return Err(anyhow!("{} saiu com erro: {}", modelo.cli, erro.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("sem detalhe")));
     }
     Ok(final_texto)
@@ -558,6 +586,40 @@ mod tests {
         serde_json::from_value(json!({"id": "t", "nome": "T", "nos": [
             {"id": "e", "tipo": "entrada"}, {"id": "a", "tipo": "aprovacao"}, {"id": "f", "tipo": "fim"}],
             "conexoes": [{"de": "e", "para": "a"}, {"de": "a", "para": "f", "saida": "sim"}]})).unwrap()
+    }
+
+    /// CLI sem tela aberta por um engine que nasceu dentro de uma sessão do Claude: sai sem a pasta de
+    /// conta daquela sessão; a do perfil, quando há, vale.
+    #[test]
+    fn cli_sem_tela_nao_herda_a_conta_da_sessao_do_claude() {
+        let removida = |c: &Command, nome: &str| c.get_envs().any(|(k, v)| k == nome && v.is_none());
+        let mut c = Command::new("claude");
+        ambiente_da_cli_sem_tela(&mut c, &[], true);
+        assert!(removida(&c, "CLAUDE_CONFIG_DIR") && removida(&c, "CLAUDECODE") && removida(&c, "OMNI_ENGINE_PORT"));
+
+        let mut c = Command::new("claude");
+        ambiente_da_cli_sem_tela(&mut c, &[("CLAUDE_CONFIG_DIR".into(), "/perfil-certo".into())], true);
+        assert!(c.get_envs().any(|(k, v)| k == "CLAUDE_CONFIG_DIR" && v == Some(std::ffi::OsStr::new("/perfil-certo"))));
+
+        // Fora de uma sessão do Claude, a pasta escolhida pelo usuário é respeitada.
+        let mut c = Command::new("claude");
+        ambiente_da_cli_sem_tela(&mut c, &[], false);
+        assert!(!removida(&c, "CLAUDE_CONFIG_DIR"));
+    }
+
+    /// CLI que escreve mais no stderr do que cabe no pipe antes de terminar o stdout: com o stderr lido
+    /// só no fim, os dois lados esperavam um pelo outro para sempre.
+    #[cfg(unix)]
+    #[test]
+    fn stderr_grande_nao_trava_a_leitura_do_stdout() {
+        let mut filho = Command::new("sh").args(["-c", "head -c 300000 /dev/zero | tr '\\0' x >&2; echo erro final >&2; echo fim"])
+            .stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+        let stderr = esvaziar_em_segundo_plano(filho.stderr.take().unwrap());
+        let linhas: Vec<String> = std::io::BufReader::new(filho.stdout.take().unwrap()).lines().map_while(std::result::Result::ok).collect();
+        assert_eq!(linhas, ["fim"]);
+        assert!(filho.wait().unwrap().success());
+        let erro = stderr.join().unwrap();
+        assert!(erro.len() <= 32 * 1024 && erro.trim_end().ends_with("erro final"));
     }
 
     /// Sem CLI nenhuma: entrada → aprovação para e espera; aprovar segue até o fim. Estado gravado
