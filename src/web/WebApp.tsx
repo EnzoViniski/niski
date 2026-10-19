@@ -11,6 +11,7 @@ import { useDados } from "../mobile/useDados";
 import { usePoll } from "../mobile/usePoll";
 import { request, temConversa, type Conversation } from "../mobile/api";
 import { UsoDasContas } from "./UsoDasContas";
+import { NOME_DO_PRODUTO } from "../lib/identidade";
 
 /** O xterm só baixa quando alguém abre a aba Terminal: quem só conversa não paga por ele. */
 const TerminalEspelho = lazy(() => import("./TerminalEspelho"));
@@ -130,7 +131,7 @@ export function WebApp() {
   // Contador no título da aba do navegador: com a página atrás de outras, dá para ver que algo
   // está esperando por você sem voltar a ela.
   useEffect(() => {
-    document.title = attention.length > 0 ? `(${attention.length}) OMNI AGENTS` : "OMNI AGENTS";
+    document.title = attention.length > 0 ? `(${attention.length}) ${NOME_DO_PRODUTO}` : NOME_DO_PRODUTO;
   }, [attention.length]);
 
   // `/` ou Ctrl+K: vai para a busca, como nos apps de chat. Não rouba a tecla de quem está digitando.
@@ -248,7 +249,7 @@ export function WebApp() {
     <div className="w-tela">
       <header className="w-topo glass glass-strong">
         <OmniLogo className="neon-glow w-logo" />
-        <span className="pixel-text w-marca">OMNI AGENTS</span>
+        <span className="pixel-text w-marca">{NOME_DO_PRODUTO}</span>
         {conversa ? (
           <div className="w-topo-conversa">
             <button type="button" className="btn btn-ghost w-voltar" aria-label="Fechar conversa" title="Fechar conversa" onClick={fecharConversa}>

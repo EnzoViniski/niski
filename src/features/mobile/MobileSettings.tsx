@@ -6,6 +6,7 @@ import { Button, Field, Input } from "../../components/ui";
 import { OmniLogo } from "../../components/ui/OmniLogo";
 import { coresDaPaleta } from "../../lib/palettes";
 import { InstalarFerramenta } from "../terminal/InstalarFerramenta";
+import { NOME_DO_PRODUTO, PORTA_DO_CELULAR } from "../../lib/identidade";
 
 interface Settings {
   config: { enabled: boolean; bind: string; token: string; serve: boolean };
@@ -23,7 +24,7 @@ interface Settings {
   totp_uri: string | null;
 }
 
-const PORTA_PADRAO = "47322";
+const PORTA_PADRAO = String(PORTA_DO_CELULAR);
 
 /** Link da versão de computador (`/pc`), derivado do link do QR que o engine monta: mesmo endereço,
  *  mesmo token no fragmento. `null` se o formato do link mudar — melhor sumir que mandar errado. */
@@ -368,7 +369,7 @@ export function MobileSettings({ accent }: { accent?: string } = {}) {
           <div className="min-w-0 flex-1 space-y-3">
             <ol className="list-decimal space-y-1 pl-4 text-xs text-text-secondary">
               <li>No Authy, toque em <strong>+</strong> e leia este código.</li>
-              <li>Digite abaixo o código de 6 dígitos que aparecer para <strong>OMNI AGENTS</strong>.</li>
+              <li>Digite abaixo o código de 6 dígitos que aparecer para <strong>{NOME_DO_PRODUTO}</strong>.</li>
             </ol>
             <div className="flex flex-wrap items-end gap-2">
               <Field label="Código do Authy" htmlFor="codigo-authy-pc">

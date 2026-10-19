@@ -88,7 +88,7 @@ fn profiles_root() -> Result<PathBuf, String> {
         .map(PathBuf::from)
         .or_else(omni_protocol::local_data_root)
         .ok_or_else(|| "pasta de dados do usuário indisponível".to_string())
-        .map(|base| base.join("OMNI-AGENTS").join("profiles"))
+        .map(|base| base.join(omni_protocol::PASTA_DE_PERFIS).join("profiles"))
 }
 
 fn now_ms() -> u64 {

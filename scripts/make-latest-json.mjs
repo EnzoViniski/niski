@@ -24,7 +24,7 @@ const versao = conf.version;
 // A URL do endpoint aponta para `releases/latest`, mas o asset em si mora numa
 // tag. Convenção: v<versao>. Mudou aqui, muda na hora de criar o Release.
 // Precisa bater com plugins.updater.endpoints no tauri.conf.json.
-const REPO = "FelipeCamposM/OMNI-AGENTS";
+const REPO = JSON.parse(readFileSync(join(RAIZ, "identidade.json"), "utf8")).repositorio;
 const TAG = `v${versao}`;
 
 const notasIdx = process.argv.indexOf("--notes");

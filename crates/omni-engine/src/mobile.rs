@@ -409,7 +409,7 @@ fn totp_de(secret: &str, conta: Option<&str>) -> Option<totp_rs::TOTP> {
     let bytes = totp_rs::Secret::Encoded(secret.to_owned()).to_bytes().ok()?;
     // `:` é separador no `otpauth://`: nome com dois pontos invalida o cadastro.
     let conta = conta.unwrap_or("PC").replace(':', "-");
-    totp_rs::TOTP::new(totp_rs::Algorithm::SHA1, 6, 0, TOTP_PASSO, bytes, Some("OMNI AGENTS".into()), conta).ok()
+    totp_rs::TOTP::new(totp_rs::Algorithm::SHA1, 6, 0, TOTP_PASSO, bytes, Some(omni_protocol::NOME_DO_PRODUTO.into()), conta).ok()
 }
 
 /// Passo aceito para `code` no instante `agora` (segundos), com janela ±`TOTP_JANELA`.

@@ -460,13 +460,13 @@ fn abrir_pr(v: &Viva, no: &fluxos::No) -> Result<String> {
         .unwrap_or_else(|| e.entrada.lines().next().unwrap_or("Mudanças do OMNI").chars().take(72).collect());
     git(&e.pasta, &["add", "-A"])?;
     if !git(&e.pasta, &["status", "--porcelain"])?.is_empty() {
-        git(&e.pasta, &["commit", "-m", &titulo, "-m", &format!("Feito pelo fluxo “{}” do OMNI AGENTS.", e.fluxo.nome)])?;
+        git(&e.pasta, &["commit", "-m", &titulo, "-m", &format!("Feito pelo fluxo “{}” do {}.", e.fluxo.nome, omni_protocol::NOME_DO_PRODUTO)])?;
     }
     git(&e.pasta, &["push", "-u", "origin", &branch])?;
     let resumo = e.fluxo.nos.iter().filter(|n| n.tipo == TipoDeNo::Agente)
         .filter_map(|n| e.nos.get(&n.id).filter(|s| s.status == "concluido").map(|s| format!("- **{}** ({}): {} voltas", fluxos::rotulo(n), n.agente, s.voltas.max(1))))
         .collect::<Vec<_>>().join("\n");
-    let corpo = format!("## Tarefa\n\n{}\n\n## Etapas\n\n{resumo}\n\n---\nAberto pelo fluxo “{}” do OMNI AGENTS.", e.entrada, e.fluxo.nome);
+    let corpo = format!("## Tarefa\n\n{}\n\n## Etapas\n\n{resumo}\n\n---\nAberto pelo fluxo “{}” do {}.", e.entrada, e.fluxo.nome, omni_protocol::NOME_DO_PRODUTO);
     let mut c = Command::new("gh");
     c.args(["pr", "create", "--title", &titulo, "--body", &corpo, "--head", &branch]);
     if let Some(base) = &e.base { c.args(["--base", base]); }

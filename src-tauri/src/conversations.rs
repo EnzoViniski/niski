@@ -400,11 +400,11 @@ fn write_handoff(conversation: &Conversation, body: &str) -> Result<PathBuf, Str
 /// O caminho gracioso (`handoff_prompt`) sempre produz algo melhor.
 fn build_handoff(conversation: &Conversation, segment: &Segment) -> Result<String, String> {
     let header = format!(
-        "# Handoff — {}\n\n> Gerado automaticamente pelo OMNI AGENTS a partir do transcript do \
+        "# Handoff — {}\n\n> Gerado automaticamente pelo {} a partir do transcript do \
          {}. É um resumo das últimas mensagens, não um briefing escrito pelo agente: saída de \
          ferramenta foi descartada e o começo da conversa pode ter sido cortado.\n\n\
          Projeto: `{}`\n\n",
-        conversation.title, segment.provider, conversation.cwd
+        conversation.title, omni_protocol::NOME_DO_PRODUTO, segment.provider, conversation.cwd
     );
 
     let Some(path) = segment.transcript_path.as_deref().filter(|path| Path::new(path).is_file())

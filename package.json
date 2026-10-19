@@ -10,7 +10,7 @@
     "tauri": "tauri",
     "dev": "npm run build:engine && tauri dev",
     "dev:vite": "vite",
-    "build": "node scripts/sync-version.mjs && npm run build:engine:release && tauri build && node scripts/collect-installers.mjs",
+    "build": "node scripts/sync-version.mjs && npm run build:engine:release && node scripts/identidade.mjs && tauri build --config target-tauri/tauri.identidade.conf.json && node scripts/collect-installers.mjs",
     "build:engine": "node scripts/build-engine.mjs",
     "build:mobile": "vite build --config vite.mobile.config.ts",
     "test:mobile": "node scripts/check-mobile-browser.mjs",
@@ -24,7 +24,8 @@
     "installers": "node scripts/collect-installers.mjs",
     "release": "node scripts/make-latest-json.mjs",
     "version:sync": "node scripts/sync-version.mjs",
-    "version:check": "node scripts/sync-version.mjs --check"
+    "version:check": "node scripts/sync-version.mjs --check",
+    "identidade": "node scripts/identidade.mjs"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

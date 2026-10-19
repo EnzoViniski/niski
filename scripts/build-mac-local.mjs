@@ -7,34 +7,32 @@
 //
 // Uso: node scripts/build-mac-local.mjs   (só a arquitetura da máquina, só o .app)
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { gravarSobreposicao, lerIdentidade, sobreposicaoDoTauri } from "./identidade.mjs";
 
 if (process.platform !== "darwin") {
   console.error("build-mac-local: só no macOS.");
   process.exit(1);
 }
 
+// Derivado de `identidade.json`: mesmo produto, com sufixo " Local", bundle id `.local` e porta
+// do engine + 60 (ex.: 47321 → 47381), para nunca encostar no app instalado.
+const base = lerIdentidade();
 const identidade = {
-  porta: process.env.OMNI_PORTA_DO_ENGINE ?? "47381",
-  pasta: process.env.OMNI_PASTA_DE_DADOS ?? "com.omni.agents.local",
-  nome: process.env.OMNI_NOME_LOCAL ?? "OMNI AGENTS Local",
+  porta: process.env.OMNI_PORTA_DO_ENGINE ?? String(base.portaDoEngine + 60),
+  pasta: process.env.OMNI_PASTA_DE_DADOS ?? `${base.bundleId}.local`,
+  nome: process.env.OMNI_NOME_LOCAL ?? `${base.nome} Local`,
 };
 
-const sobreposicao = {
-  productName: identidade.nome,
-  identifier: identidade.pasta,
-  app: { windows: [{ label: "main", title: identidade.nome, width: 1000, height: 720, minWidth: 720, minHeight: 560, resizable: true, fullscreen: false, center: true, decorations: false, shadow: true }] },
+const configLocal = gravarSobreposicao(sobreposicaoDoTauri(base, {
+  nome: identidade.nome,
+  bundleId: identidade.pasta,
   bundle: { createUpdaterArtifacts: false },
-  // Sem isto o build local ainda consultaria o latest.json do autor e, numa release nova dele,
-  // ofereceria trocar este .app pelo build do autor (a assinatura confere). Endereço que nunca
+  // Sem isto o build local ainda consultaria o latest.json do produto e, numa release nova,
+  // ofereceria trocar este .app pelo build publicado (a assinatura confere). Endereço que nunca
   // responde: a checagem falha calada.
-  plugins: { updater: { endpoints: ["https://127.0.0.1:9/sem-atualizacao/latest.json"] } },
-};
-const pasta = resolve("target-tauri");
-mkdirSync(pasta, { recursive: true });
-const configLocal = resolve(pasta, "tauri.local.conf.json");
-writeFileSync(configLocal, JSON.stringify(sobreposicao, null, 2));
+  updater: { endpoints: ["https://127.0.0.1:9/sem-atualizacao/latest.json"] },
+}), "tauri.local.conf.json");
 
 const env = {
   ...process.env,

@@ -12,6 +12,7 @@ import {
 import { iconForPath } from "../features/files/fileIcons";
 import { nomeDoCaminho, semMarcasDeImagem, separarAnexos } from "./anexos";
 import { request, type Mensagem } from "./api";
+import { NOME_DO_PRODUTO } from "../lib/identidade";
 
 /** Os quadros do spinner do Claude Code, em vai-e-volta — é o que faz parecer que ele "respira". */
 const QUADROS = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
@@ -393,11 +394,11 @@ export function PairingScreen({ parear }: PairingScreenProps) {
   return (
     <section className="pairing">
       <OmniLogo className="neon-glow pairing-logo" />
-      <h1 className="pixel-text text-lg text-text-primary">OMNI AGENTS</h1>
+      <h1 className="pixel-text text-lg text-text-primary">{NOME_DO_PRODUTO}</h1>
       <div className="glass pairing-card">
         <h2 className="text-sm font-semibold">Parear este aparelho</h2>
         <p className="text-xs text-text-secondary">
-          Abra o <strong>Authy</strong> e digite o código de 6 dígitos do <strong>OMNI AGENTS</strong>.
+          Abra o <strong>Authy</strong> e digite o código de 6 dígitos do <strong>{NOME_DO_PRODUTO}</strong>.
         </p>
         <form onSubmit={(event) => void enviar(event)} className="pairing-form">
           <label htmlFor="codigo-authy" className="sr-only">Código do Authy</label>

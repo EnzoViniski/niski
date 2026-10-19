@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ATTENTION_LABEL, type AttentionItem } from "./useAttention";
+import { NOME_DO_PRODUTO } from "../../lib/identidade";
 
 /** Um aviso por evento do engine: cada fim de turno ou diálogo de aprovação sobe o `attentionSeq`. */
 function keyOf(item: AttentionItem): string {
@@ -87,7 +88,7 @@ export function useAttentionNotifier(items: AttentionItem[], enabled: boolean, n
             }
           } else {
             sendNotification({
-              title: "OMNI AGENTS",
+              title: NOME_DO_PRODUTO,
               body: `${avisar.length} agentes precisam de você`,
             });
           }
@@ -118,9 +119,9 @@ export async function testarAviso(): Promise<string | null> {
     );
     let permitido = await isPermissionGranted();
     if (!permitido) permitido = (await requestPermission()) === "granted";
-    if (!permitido) return "O Windows negou permissão de notificação para o OMNI AGENTS.";
+    if (!permitido) return `O sistema negou permissão de notificação para o ${NOME_DO_PRODUTO}.`;
 
-    sendNotification({ title: "OMNI AGENTS", body: "Teste de aviso — é assim que um agente te chama." });
+    sendNotification({ title: NOME_DO_PRODUTO, body: "Teste de aviso — é assim que um agente te chama." });
 
     const { getCurrentWindow, UserAttentionType } = await import("@tauri-apps/api/window");
     await getCurrentWindow().requestUserAttention(UserAttentionType.Informational);

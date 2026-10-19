@@ -4,6 +4,7 @@ import { NotificationBell } from "./NotificationBell";
 import { useJanelaEmFoco } from "../hooks/useJanelaEmFoco";
 import type { SettingsSection } from "../hooks/useNotifications";
 import { GlifoFechar, GlifoMaximizar, GlifoMinimizar, GlifoRestaurar } from "./ui/PixelGlyph";
+import { NOME_DO_PRODUTO } from "../lib/identidade";
 
 /*
  * Barra superior própria (a janela nasce sem a moldura do Windows: `decorations: false`).
@@ -91,9 +92,9 @@ export function TitleBar({
 
   return (
     <header data-tauri-drag-region className={`titlebar${emFoco ? "" : " titlebar-sem-foco"}`}>
-      <button type="button" onClick={onHome} className="titlebar-marca" aria-label="OMNI AGENTS — início">
+      <button type="button" onClick={onHome} className="titlebar-marca" aria-label={`${NOME_DO_PRODUTO} — início`}>
         <OmniLogo className="neon-glow h-[18px] w-[18px] shrink-0" />
-        <span className="pixel-text">OMNI AGENTS</span>
+        <span className="pixel-text">{NOME_DO_PRODUTO}</span>
       </button>
 
       {trilha.length > 0 && (

@@ -15,6 +15,7 @@ import { BlocksIcon, BookIcon, BrushIcon, ChartIcon, CloseIcon, SparkleIcon, Gea
 import { RelatoriosIa } from "../features/relatorios/RelatoriosIa";
 import { ModelosDeAgentes } from "../features/agentes/ModelosDeAgentes";
 import { SHORTCUTS, comboFromEvent, setRecordingShortcut, shortcutFor, type ShortcutId } from "../lib/shortcuts";
+import { NOME_DO_PRODUTO } from "../lib/identidade";
 
 type SectionId = "geral" | "aparencia" | "agentes" | "modelos" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
 
@@ -521,7 +522,7 @@ function SobreSection({ onReset }: { onReset: () => void }) {
 
   return (
     <>
-      <Card title="OMNI AGENTS">
+      <Card title={NOME_DO_PRODUTO}>
         <dl className="text-xs space-y-1.5">
           <Info label="Versão" value={version ?? "—"} />
           <Info label="Processamento" value="100% local — nada é enviado para a internet" />

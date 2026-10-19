@@ -23,6 +23,7 @@ import {
 import { useRota, type Rota } from "./rota";
 import { useDados } from "./useDados";
 import { usePoll } from "./usePoll";
+import { NOME_DO_PRODUTO } from "../lib/identidade";
 
 const STATES: Record<string,string> = { working: "Trabalhando", answered: "Resposta disponível", approval_required: "Aprovação pendente", stopped: "Encerrado", orphan: "Sessão anterior", crashed: "Interrompido" };
 const NOME_DO_AGENTE: Record<string, string> = { claude: "Claude", codex: "Codex", cursor: "Cursor" };
@@ -1056,7 +1057,7 @@ export function MobileApp() {
   const pai: Rota = rota.tela === "conversa" && conversa ? { tela: "projeto", projeto: conversa.project_id } : { tela: "inicio" };
   const abrirConversa = (id: string) => ir({ tela: "conversa", conversa: id });
 
-  let titulo: ReactNode = <span className="pixel-text">OMNI AGENTS</span>;
+  let titulo: ReactNode = <span className="pixel-text">{NOME_DO_PRODUTO}</span>;
   let subtitulo: ReactNode = null;
   let conteudo: ReactNode;
 

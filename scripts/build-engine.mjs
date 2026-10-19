@@ -14,8 +14,9 @@ import { resolve } from "node:path";
 //
 // Porta e token de dev são duas travas independentes: mesmo que a porta um dia colida, o engine
 // instalado recusa um token que não é o dele.
-const DEV_ENGINE_PORT = 47_341;
-const DEV_DATA_DIR = "com.omni.agents.dev";
+const IDENTIDADE = JSON.parse(readFileSync(resolve("identidade.json"), "utf8"));
+const DEV_ENGINE_PORT = IDENTIDADE.portaDeDev;
+const DEV_DATA_DIR = `${IDENTIDADE.bundleId}.dev`;
 
 function digest(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");

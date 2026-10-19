@@ -2,13 +2,21 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{fs, io, path::Path};
 
 pub const PROTOCOL_VERSION: u16 = 1;
+
+/// Nome do produto, de `identidade.json` (ver `build.rs`): título, notificações, emissor do TOTP.
+pub const NOME_DO_PRODUTO: &str = env!("OMNI_ID_NOME");
+/// Pasta (dentro da raiz de dados local) onde moram os perfis extras das CLIs, compartilhada entre
+/// as variantes do app (instalado, dev, build local).
+pub const PASTA_DE_PERFIS: &str = env!("OMNI_ID_PERFIS");
+/// Porta padrão do servidor do celular.
+pub const MOBILE_PORT: u16 = porta_valida(env!("OMNI_ID_PORTA_CELULAR"));
 /// Porta do engine de release. `OMNI_PORTA_DO_ENGINE` **na compilação** troca o padrão: um build
 /// local (ou um fork) aberto pelo Finder não recebe variáveis de ambiente, e com a mesma porta ele
 /// conversaria com o engine do app instalado — e o `ensure_engine` derrubaria esse engine por achar
 /// que o binário "mudou".
 pub const DEFAULT_ENGINE_PORT: u16 = match option_env!("OMNI_PORTA_DO_ENGINE") {
     Some(porta) => porta_valida(porta),
-    None => 47_321,
+    None => porta_valida(env!("OMNI_ID_PORTA")),
 };
 
 const fn porta_valida(texto: &str) -> u16 {
@@ -30,16 +38,16 @@ const fn porta_valida(texto: &str) -> u16 {
 /// **Existe para o dev nunca encostar no app instalado.** Com a mesma porta, a mesma pasta e o
 /// mesmo token, `npm run dev` conversava com o engine instalado — e o `build-engine.mjs`, ao achar
 /// o binário travado, mandava `shutdown` para ele, derrubando o app e todas as sessões abertas.
-pub const DEV_ENGINE_PORT: u16 = 47_341;
+pub const DEV_ENGINE_PORT: u16 = porta_valida(env!("OMNI_ID_PORTA_DEV"));
 
 /// Pasta de dados do engine (token, sessões, conversas, perfis). Separada por modo pelo mesmo
 /// motivo da porta: um token diferente faz o engine instalado recusar qualquer pedido do dev.
 /// `OMNI_PASTA_DE_DADOS` na compilação troca o nome, pelo mesmo motivo da porta.
 pub const DATA_DIR: &str = match option_env!("OMNI_PASTA_DE_DADOS") {
     Some(nome) => nome,
-    None => "com.omni.agents",
+    None => env!("OMNI_ID_BUNDLE"),
 };
-pub const DEV_DATA_DIR: &str = "com.omni.agents.dev";
+pub const DEV_DATA_DIR: &str = concat!(env!("OMNI_ID_BUNDLE"), ".dev");
 
 /// Data de modificação em ms desde a época — compartilhada para engine e app medirem igual.
 pub fn modified_ms(path: &Path) -> Option<u64> {
@@ -371,6 +379,22 @@ pub enum TotpAction {
 }
 impl Default for MobileConfig {
     fn default() -> Self {
-        Self { enabled: false, bind: "127.0.0.1:47322".into(), token: String::new(), serve: false, totp_secret: String::new(), totp_confirmed: false }
+        Self { enabled: false, bind: format!("127.0.0.1:{MOBILE_PORT}"), token: String::new(), serve: false, totp_secret: String::new(), totp_confirmed: false }
+    }
+}
+
+#[cfg(test)]
+mod testes_da_identidade {
+    use super::*;
+
+    /// As portas vêm de `identidade.json`: duas iguais fariam o dev ou o celular cair no engine do
+    /// app instalado.
+    #[test]
+    fn portas_da_identidade_sao_distintas() {
+        assert_ne!(DEFAULT_ENGINE_PORT, DEV_ENGINE_PORT);
+        assert_ne!(DEFAULT_ENGINE_PORT, MOBILE_PORT);
+        assert_ne!(DEV_ENGINE_PORT, MOBILE_PORT);
+        assert!(DEV_DATA_DIR.ends_with(".dev") && !NOME_DO_PRODUTO.is_empty());
+        assert_eq!(MobileConfig::default().bind, format!("127.0.0.1:{MOBILE_PORT}"));
     }
 }
