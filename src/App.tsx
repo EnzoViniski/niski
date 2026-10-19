@@ -274,6 +274,11 @@ export function App() {
           const closing = project ? collectResourceIds(project.layout).map((id) => closeTerminal(id)) : [];
           void Promise.allSettled(closing).then(() => dispatch({ type: "CLOSE_PROJECT", projectId }));
         }}
+        onAbrirConversa={(projectId, sessionId, title) => {
+          if (!activeWorkspaceId) return;
+          dispatch({ type: "FOCUS_SESSION", workspaceId: activeWorkspaceId, projectId, sessionId, title });
+          setView("workspace");
+        }}
         onAttachTerminal={(sessionId, title) => {
           dispatch({ type: "ATTACH_TERMINAL", sessionId, title });
           setView("workspace");

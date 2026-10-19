@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { AgentIcon } from "../components/ui/AgentIcon";
-import { OmniLogo } from "../components/ui/OmniLogo";
+import { MarcaDoProduto } from "../components/ui/MarcaDoProduto";
 import { Input } from "../components/ui/Input";
 import { ArrowLeftIcon, BlocksIcon, ChatIcon, FolderIcon, ReloadIcon, TerminalIcon } from "../components/ui/PixelIcon";
 import { ExtensoesSettings } from "../features/extensoes/ExtensoesSettings";
@@ -248,7 +248,7 @@ export function WebApp() {
   return (
     <div className="w-tela">
       <header className="w-topo glass glass-strong">
-        <OmniLogo className="neon-glow w-logo" />
+        <MarcaDoProduto className="w-logo" />
         <span className="pixel-text w-marca">{NOME_DO_PRODUTO}</span>
         {conversa ? (
           <div className="w-topo-conversa">
@@ -420,7 +420,7 @@ export function WebApp() {
             </>
           ) : (
             <div className="w-boas-vindas">
-              <OmniLogo className="neon-glow w-boas-vindas-logo" />
+              <MarcaDoProduto className="w-boas-vindas-logo" />
               <p className="w-vazio">
                 {conversaId && carregado ? "Essa conversa não existe mais no PC." : "Escolha uma conversa à esquerda para acompanhar e responder."}
               </p>

@@ -110,23 +110,42 @@ describe("Sidebar", () => {
     expect(screen.queryByText("aprovar")).not.toBeInTheDocument();
   });
   /** Conversas com IA ficam em CHATS; shells sem IA (npm run dev, git) em TERMINALS. */
-  it("separa as conversas com agente dos terminais", () => {
-    const sessao = (id: string, name: string, provider: string | null): TerminalSession => ({
-      id, name, provider, project_id: "p", cwd: "C:/p", shell: "bash", state: "answered", pid: 1, output_seq: 0, rows: 24, cols: 80,
+  it("conversas ficam na pasta do projeto, com a cor do agente; terminais na seção própria", async () => {
+    localStorage.removeItem("omni-pastas-abertas");
+    const sessao = (id: string, name: string, provider: string | null, project_id = "p"): TerminalSession => ({
+      id, name, provider, project_id, cwd: "C:/p", shell: "bash", state: "answered", pid: 1, output_seq: 0, rows: 24, cols: 80,
     });
+    const onAbrirConversa = vi.fn();
     renderSidebar({
       attention: [],
       attentionByWorkspace: {},
+      projects: [
+        { id: "p", name: "api", path: "C:/p" } as React.ComponentProps<typeof Sidebar>["projects"][number],
+        { id: "q", name: "site", path: "C:/q" } as React.ComponentProps<typeof Sidebar>["projects"][number],
+      ],
       activeProjectId: "p",
       activeProjectPath: "C:/p",
       terminalSessions: [sessao("s1", "Corrigir o login", "claude"), sessao("s2", "npm run dev", null)],
+      agentSessions: [sessao("s1", "Corrigir o login", "claude"), sessao("s3", "Landing", "codex", "q")],
+      onAbrirConversa,
     });
 
-    const chats = screen.getByRole("button", { name: "CHATS" }).parentElement!;
+    // A pasta do projeto ativo nasce aberta; a outra abre no clique e as duas ficam abertas.
+    const daApi = screen.getByRole("list", { name: "Conversas de api" });
+    expect(within(daApi).getByText("Corrigir o login")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Conversas de site" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^site/ }));
+    const doSite = screen.getByRole("list", { name: "Conversas de site" });
+    expect(screen.getByRole("list", { name: "Conversas de api" })).toBeInTheDocument();
+    const linha = within(doSite).getByText("Landing").closest("li")!;
+    expect(linha.style.getPropertyValue("--cor-agente")).toBe("#a78bfa");
+
+    await userEvent.click(within(doSite).getByRole("button", { name: /^Landing/ }));
+    expect(onAbrirConversa).toHaveBeenCalledWith("q", "s3", "Landing");
+
     const terminais = screen.getByRole("button", { name: "TERMINALS" }).parentElement!;
-    expect(within(chats).getByText("Corrigir o login")).toBeInTheDocument();
-    expect(within(chats).queryByText("npm run dev")).not.toBeInTheDocument();
     expect(within(terminais).getByText("npm run dev")).toBeInTheDocument();
     expect(within(terminais).queryByText("Corrigir o login")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "CHATS" })).not.toBeInTheDocument();
   });
 });

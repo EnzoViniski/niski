@@ -6,7 +6,6 @@ import { loadSettings, saveSettings } from "../services/settingsService";
 import { setMotionLevel } from "../lib/motion";
 import { setShortcutOverrides } from "../lib/shortcuts";
 import { aplicarPaleta } from "../lib/aplicarTema";
-import { aplicarIconeDaJanela } from "../features/appIcon";
 import { isBackgroundEffect } from "../components/backgrounds/registry";
 
 export function useSettings() {
@@ -38,10 +37,8 @@ export function useSettings() {
     const root = document.documentElement;
 
     const aplicar = (claro: boolean) => {
-      const logo = aplicarPaleta(root, settings.accent, claro);
-      // A janela (e a barra de tarefas) recebe a mesma logo rasterizada. Assíncrono e sem await:
-      // nada na tela depende disso, e a função já ignora a repintura quando a cor não mudou.
-      void aplicarIconeDaJanela(logo);
+      aplicarPaleta(root, settings.accent, claro);
+      // Fork: o ícone da janela fica o do app (Medza); o upstream repintava a logo do OMNI aqui.
     };
 
     if (settings.theme !== "sistema") {

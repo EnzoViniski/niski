@@ -16,7 +16,7 @@ import {
   SlidersIcon as Sliders,
   TerminalIcon,
 } from "./ui/PixelIcon";
-import { destaqueDaLinha, EtiquetaDoStatus, IconeDoStatus, ResumoDeAgentes, rotuloDoStatus, statusDaConversa } from "./ConversaStatus";
+import { destaqueDaLinha, EtiquetaDoStatus, IconeDoStatus, rotuloDoStatus, statusDaConversa } from "./ConversaStatus";
 import { conversationKey } from "../features/terminal/useAttention";
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
@@ -38,6 +38,7 @@ import { GitPanel } from "./GitPanel";
 import { DockerPanel } from "./DockerPanel";
 import { KanbanPanel } from "./KanbanPanel";
 import { SkillsList } from "./SkillsList";
+import { PastasDeProjetos } from "../features/projects/PastasDeProjetos";
 /* O mesmo arquivo que o Tauri usa como ícone do app (tauri.conf.json →
    bundle.icon). Importado em vez de copiado para src/assets: uma cópia
    dessincronizaria do ícone real na próxima troca de marca. */
@@ -106,6 +107,8 @@ interface SidebarProps {
   onSelectProject: (projectId: string) => void;
   onCloseProject: (projectId: string) => void;
   onAttachTerminal: (sessionId: string, title: string) => void;
+  /** Abre uma conversa de qualquer projeto (pasta) — seleciona o projeto e foca a aba dela. */
+  onAbrirConversa?: (projectId: string, sessionId: string, title: string) => void;
   onCloseTerminal: (sessionId: string) => void;
   onDuplicateTerminal: (sessionId: string) => void;
   onRestartTerminal: (sessionId: string) => void;
@@ -146,6 +149,7 @@ export function Sidebar({
   onSelectProject,
   onCloseProject,
   onAttachTerminal,
+  onAbrirConversa,
   onCloseTerminal,
   onDuplicateTerminal,
   onRestartTerminal,
@@ -247,53 +251,22 @@ export function Sidebar({
               <FolderPlus className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
-          {projects.length === 0 ? (
-            <p data-nav-item className="text-text-muted text-xs px-3 py-1.5">
-              Nenhum projeto ainda.
-            </p>
-          ) : (
-            projects.map((project) => (
-              <div key={project.id}
-                className={`lateral-item group mx-1 flex items-stretch border-l-2 ring-1 ring-inset transition-colors ${
-                  project.id === activeProjectId
-                    ? "lateral-item-ativo border-accent ring-accent/50"
-                    : "border-transparent ring-border-subtle/40 hover:ring-border-subtle"
-                }`}>
-                <button
-                  type="button"
-                  data-nav-item
-                  aria-current={project.id === activeProjectId ? "page" : undefined}
-                  onClick={() => onSelectProject(project.id)}
-                  className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                  title={project.path}
-                >
-                  <span className="lateral-avatar grid h-8 w-8 shrink-0 place-items-center border border-border-subtle">
-                    <FolderIcon className="h-3.5 w-3.5 text-accent" aria-hidden />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className={`block truncate text-xs leading-4 ${
-                      project.id === activeProjectId ? "font-semibold text-text-primary" : "text-text-secondary"
-                    }`}>{project.name}</span>
-                    <span aria-hidden className="mt-0.5 flex">
-                      <ResumoDeAgentes
-                        sessions={agentSessions.filter((session) => session.project_id === project.id)}
-                        naoVistas={naoVistas}
-                      />
-                    </span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Fechar projeto ${project.name}`}
-                  title="Fechar projeto"
-                  onClick={() => onCloseProject(project.id)}
-                  className="grid w-8 shrink-0 place-items-center text-text-muted opacity-60 hover:text-danger hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                >
-                  <CloseIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                </button>
-              </div>
-            ))
-          )}
+          {/* Fork: projetos como pastas que abrem e mostram as conversas (cor = agente). */}
+          <PastasDeProjetos
+            projects={projects}
+            activeProjectId={activeProjectId}
+            activeSessionId={activeSessionId ?? null}
+            agentSessions={agentSessions}
+            naoVistas={naoVistas}
+            onSelectProject={onSelectProject}
+            onCloseProject={onCloseProject}
+            onAbrirConversa={(projectId, session) => (onAbrirConversa
+              ? onAbrirConversa(projectId, session.id, session.name)
+              : onAttachTerminal(session.id, session.name))}
+            onBifurcar={onDuplicateTerminal}
+            onReiniciar={onRestartTerminal}
+            onFechar={onCloseTerminal}
+          />
         </div>
 
         {/* Suas tarefas, não as do agente (Kanban): valem em qualquer workspace/projeto. */}
@@ -301,7 +274,8 @@ export function Sidebar({
           <TodoList {...todos} />
         </SidebarSection>
 
-        {SECTIONS.map((section) => (
+        {/* Fork: sem CHATS — as conversas ficam dentro da pasta de cada projeto (PastasDeProjetos). */}
+        {SECTIONS.filter((section): section is (typeof SECTIONS)[number] => section !== "CHATS").map((section) => (
           <SidebarSection key={section} label={section} icon={SECTION_ICON[section]} disabled={!activeProjectId}
             contagem={section === "CHATS" || section === "TERMINALS"
               ? terminalSessions.filter((session) => Boolean(session.provider) === (section === "CHATS")).length

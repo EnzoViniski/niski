@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { AgentIcon } from "../components/ui/AgentIcon";
-import { OmniLogo } from "../components/ui/OmniLogo";
+import { MarcaDoProduto } from "../components/ui/MarcaDoProduto";
 import {
   BookIcon, CheckIcon, CopyIcon, EditIcon, FileTextIcon, GlobeIcon, ListIcon, RobotIcon, SearchIcon, ToolsIcon,
   ReloadIcon,
@@ -393,7 +393,7 @@ export function PairingScreen({ parear }: PairingScreenProps) {
 
   return (
     <section className="pairing">
-      <OmniLogo className="neon-glow pairing-logo" />
+      <MarcaDoProduto className="pairing-logo" />
       <h1 className="pixel-text text-lg text-text-primary">{NOME_DO_PRODUTO}</h1>
       <div className="glass pairing-card">
         <h2 className="text-sm font-semibold">Parear este aparelho</h2>

@@ -6,7 +6,7 @@ import { Input } from "../components/ui/Input";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { Select } from "../components/ui/Select";
 import { AgentIcon } from "../components/ui/AgentIcon";
-import { OmniLogo } from "../components/ui/OmniLogo";
+import { MarcaDoProduto } from "../components/ui/MarcaDoProduto";
 import { ArchiveIcon, ArrowLeftIcon, AttachmentIcon, ChatIcon, EditIcon, FolderIcon, GitBranchIcon, NotesIcon, PlayIcon, ReloadIcon, WarningIcon } from "../components/ui/PixelIcon";
 import { request, requestSeMudou, esquecerVersao, enviarTeclas, actionKey, ApiError, type Conversation, type Mensagem, type Projects, type Timeline } from "./api";
 import { AgentWorking, BlocoDeAcoes, LinhaDeAviso, LinhaDeComando, MessageBubble, PairingScreen } from "./Chat";
@@ -101,7 +101,7 @@ function TopBar({ titulo, subtitulo, onVoltar, onAtualizar }: {
         ? <button type="button" className="btn btn-ghost m-topo-icone" aria-label="Voltar" onClick={onVoltar}>
             <ArrowLeftIcon aria-hidden className="h-5 w-5" />
           </button>
-        : <OmniLogo className="neon-glow m-topo-logo" />}
+        : <MarcaDoProduto className="m-topo-logo" />}
       <div className="m-topo-texto">
         <div className="m-topo-titulo">{titulo}</div>
         {subtitulo && <div className="m-topo-sub">{subtitulo}</div>}

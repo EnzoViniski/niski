@@ -1,10 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { OmniLogo } from "./ui/OmniLogo";
+import { MarcaDoProduto } from "./ui/MarcaDoProduto";
 import { NotificationBell } from "./NotificationBell";
 import { useJanelaEmFoco } from "../hooks/useJanelaEmFoco";
 import type { SettingsSection } from "../hooks/useNotifications";
 import { GlifoFechar, GlifoMaximizar, GlifoMinimizar, GlifoRestaurar } from "./ui/PixelGlyph";
 import { NOME_DO_PRODUTO } from "../lib/identidade";
+import { NO_MAC } from "../lib/plataforma";
+import { GavetaDeUso } from "../features/terminal/GavetaDeUso";
 
 /*
  * Barra superior própria (a janela nasce sem a moldura do Windows: `decorations: false`).
@@ -91,9 +93,9 @@ export function TitleBar({
   };
 
   return (
-    <header data-tauri-drag-region className={`titlebar${emFoco ? "" : " titlebar-sem-foco"}`}>
+    <header data-tauri-drag-region className={`titlebar${emFoco ? "" : " titlebar-sem-foco"}${NO_MAC ? " titlebar-mac" : ""}`}>
       <button type="button" onClick={onHome} className="titlebar-marca" aria-label={`${NOME_DO_PRODUTO} — início`}>
-        <OmniLogo className="neon-glow h-[18px] w-[18px] shrink-0" />
+        <MarcaDoProduto className="h-[18px] w-[18px] shrink-0" />
         <span className="pixel-text">{NOME_DO_PRODUTO}</span>
       </button>
 
@@ -113,17 +115,20 @@ export function TitleBar({
 
       {acoes}
 
+      <GavetaDeUso />
+
       <span className="titlebar-sino">
         <NotificationBell onOpenSettings={onOpenSettings} />
       </span>
 
-      <span className="titlebar-controles">
+      {/* No Mac os semáforos são os nativos (tauri.macos.conf.json, canto esquerdo). */}
+      {!NO_MAC && <span className="titlebar-controles">
         <BotaoDaJanela rotulo="Minimizar" onClick={agir((janela) => janela.minimize())}><GlifoMinimizar /></BotaoDaJanela>
         <BotaoDaJanela rotulo={maximizada ? "Restaurar" : "Maximizar"} onClick={agir((janela) => janela.toggleMaximize())}>
           {maximizada ? <GlifoRestaurar /> : <GlifoMaximizar />}
         </BotaoDaJanela>
         <BotaoDaJanela rotulo="Fechar" perigo onClick={agir((janela) => janela.close())}><GlifoFechar /></BotaoDaJanela>
-      </span>
+      </span>}
     </header>
   );
 }

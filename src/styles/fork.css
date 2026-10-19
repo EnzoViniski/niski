@@ -1,0 +1,59 @@
+/* Estilos do fork (Medza). Fica fora do index.css do upstream para os merges não conflitarem. */
+
+/* macOS: semáforos nativos sobrepostos à esquerda da barra (tauri.macos.conf.json). */
+.titlebar-mac { padding-left: 78px; }
+:fullscreen .titlebar-mac { padding-left: .5rem; }
+
+/* Pastas de projeto na lateral (PastasDeProjetos). */
+.pasta { display: flex; align-items: stretch; margin: 0 .25rem; border-left: 2px solid transparent; }
+.pasta:hover { background: rgb(var(--c-overlay) / .05); }
+.pasta.is-ativa { border-left-color: rgb(var(--c-accent)); background: rgb(var(--c-accent) / .08); }
+.pasta-botao {
+  display: flex; flex: 1; min-width: 0; align-items: center; gap: .4rem; padding: .4rem .4rem;
+  text-align: left; font-size: .75rem; color: rgb(var(--c-text-secondary));
+}
+.pasta.is-ativa .pasta-botao { color: rgb(var(--c-text-primary)); font-weight: 600; }
+.pasta-botao:focus-visible, .conversa-botao:focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: -2px; }
+.pasta-contagem { font-size: .625rem; color: rgb(var(--c-text-muted)); font-variant-numeric: tabular-nums; }
+.pasta-acao { display: grid; width: 1.5rem; place-items: center; color: rgb(var(--c-text-muted)); opacity: 0; }
+.pasta:hover .pasta-acao, .pasta:focus-within .pasta-acao { opacity: .8; }
+
+.pasta-conversas { margin: .125rem .25rem .375rem 1.25rem; display: flex; flex-direction: column; gap: 1px; }
+.conversa-linha {
+  position: relative; display: flex; align-items: stretch;
+  border-left: 3px solid var(--cor-agente);
+  background: color-mix(in srgb, var(--cor-agente) 7%, transparent);
+}
+.conversa-linha:hover { background: color-mix(in srgb, var(--cor-agente) 14%, transparent); }
+.conversa-linha.is-ativa { background: color-mix(in srgb, var(--cor-agente) 20%, transparent); }
+.conversa-botao {
+  display: flex; flex: 1; min-width: 0; align-items: center; gap: .4rem; padding: .3rem .4rem;
+  text-align: left; font-size: .6875rem; color: rgb(var(--c-text-secondary));
+}
+.conversa-linha.is-ativa .conversa-botao { color: rgb(var(--c-text-primary)); font-weight: 600; }
+.conversa-acoes {
+  position: absolute; inset: 0 0 0 auto; display: none; align-items: stretch;
+  background: rgb(var(--c-bg-elevated)); border-left: 1px solid rgb(var(--c-border-subtle));
+}
+.conversa-acoes button { display: grid; width: 1.375rem; place-items: center; color: rgb(var(--c-text-muted)); }
+.conversa-acoes button:hover { color: rgb(var(--c-text-primary)); }
+.conversa-linha:hover .conversa-acoes, .conversa-linha:focus-within .conversa-acoes { display: flex; }
+
+/* Gaveta de uso das contas: entra da direita. */
+.gaveta-uso {
+  position: fixed; top: 34px; right: 0; bottom: 0; z-index: 150; width: min(400px, 100vw);
+  display: flex; flex-direction: column;
+  background: rgb(var(--c-bg-elevated)); border-left: 2px solid rgb(var(--c-border-subtle));
+  box-shadow: -16px 0 32px rgb(0 0 0 / .3);
+  transform: translateX(100%); visibility: hidden;
+  transition: transform .22s ease, visibility 0s linear .22s;
+}
+.gaveta-uso.is-aberta { transform: none; visibility: visible; transition: transform .22s ease; }
+.gaveta-uso-fundo {
+  position: fixed; inset: 34px 0 0 0; z-index: 149; background: rgb(0 0 0 / .25);
+  opacity: 0; pointer-events: none; transition: opacity .22s ease;
+}
+.gaveta-uso-fundo.is-aberta { opacity: 1; pointer-events: auto; }
+@media (prefers-reduced-motion: reduce) {
+  .gaveta-uso, .gaveta-uso.is-aberta, .gaveta-uso-fundo { transition: none; }
+}

@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import QRCode from "qrcode";
 import { Button, Field, Input } from "../../components/ui";
-import { OmniLogo } from "../../components/ui/OmniLogo";
+import { MarcaDoProduto } from "../../components/ui/MarcaDoProduto";
 import { coresDaPaleta } from "../../lib/palettes";
 import { InstalarFerramenta } from "../terminal/InstalarFerramenta";
 import { NOME_DO_PRODUTO, PORTA_DO_CELULAR } from "../../lib/identidade";
@@ -48,7 +48,7 @@ function QrPersonalizado({ src, alt, tamanho }: { src: string; alt: string; tama
     <div className="relative bg-white p-2">
       <img src={src} alt={alt} width={tamanho} height={tamanho} className="block [image-rendering:pixelated]" />
       <span aria-hidden className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white p-1">
-        <OmniLogo size={Math.round(tamanho * 0.16)} />
+        <MarcaDoProduto size={Math.round(tamanho * 0.16)} />
       </span>
     </div>
   </div>;
@@ -209,7 +209,7 @@ export function MobileSettings({ accent }: { accent?: string } = {}) {
     <div className="glass rounded-none p-5">
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center bg-accent/10">
-          <OmniLogo size={36} aria-hidden />
+          <MarcaDoProduto size={36} aria-hidden />
         </div>
         <div className="min-w-0 flex-1">
           <h2 className="pixel-text text-sm text-text-primary">Acesso remoto: celular e outro computador</h2>
