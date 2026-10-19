@@ -28,10 +28,12 @@ export function lerIdentidade() {
   return id;
 }
 
-/** Janela igual à do `tauri.conf.json`, só com o título trocado (o Tauri substitui o array inteiro). */
+/** Janela igual à do `tauri.conf.json` (ou do `tauri.macos.conf.json` no Mac, que o Tauri aplicaria
+ *  por cima), só com o título trocado: a sobreposição substitui o array inteiro. */
 function janelas(titulo) {
-  const conf = JSON.parse(readFileSync(join(RAIZ, "src-tauri", "tauri.conf.json"), "utf8"));
-  return conf.app.windows.map((janela) => (janela.label === "main" ? { ...janela, title: titulo } : janela));
+  const ler = (nome) => JSON.parse(readFileSync(join(RAIZ, "src-tauri", nome), "utf8"));
+  const base = process.platform === "darwin" ? ler("tauri.macos.conf.json") : ler("tauri.conf.json");
+  return base.app.windows.map((janela) => (janela.label === "main" ? { ...janela, title: titulo } : janela));
 }
 
 /** Sobreposição para `tauri build --config`. `ajuste` permite derivar variantes (build local). */
