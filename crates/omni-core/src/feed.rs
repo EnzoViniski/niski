@@ -368,8 +368,9 @@ const EXTENSOES_DE_IMAGEM: [(&str, &str); 5] =
 const IMAGEM_MAX_BYTES: u64 = 15 * 1024 * 1024;
 
 /// Caminhos absolutos de imagens que existem, citados num texto, na ordem e sem repetir. Aceita
-/// `C:\…` e `C:/…` (com espaços, como `C:\Users\Fulano de Tal\…`) e `/…` sem espaços. O caminho vem
-/// do texto do agente, nunca de quem pede pela rede, e só imagens comuns passam.
+/// `C:\…`, `C:/…` e `/…`, com espaços (`C:\Users\Fulano de Tal\…`; no Mac o print padrão é
+/// "Screenshot 2026-10-19 at 01.09.png"): o arquivo precisa existir, então texto solto não passa.
+/// O caminho vem do texto do agente, nunca de quem pede pela rede, e só imagens comuns passam.
 pub fn caminhos_de_imagem(texto: &str) -> Vec<PathBuf> {
     let mut achados: Vec<PathBuf> = Vec::new();
     for linha in texto.lines() {
@@ -394,7 +395,7 @@ pub fn caminhos_de_imagem(texto: &str) -> Vec<PathBuf> {
             }).min();
             let Some(fim) = fim else { break };
             let candidato = &linha[i..fim];
-            if (drive || !candidato.contains(' ')) && !candidato.contains(['`', '"', '<', '>', '|', '*', '?']) {
+            if !candidato.contains(['`', '"', '<', '>', '|', '*', '?']) {
                 let caminho = PathBuf::from(candidato);
                 let cabe = std::fs::metadata(&caminho).is_ok_and(|m| m.is_file() && m.len() <= IMAGEM_MAX_BYTES);
                 if cabe && !achados.contains(&caminho) { achados.push(caminho); }
