@@ -2,7 +2,29 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{fs, io, path::Path};
 
 pub const PROTOCOL_VERSION: u16 = 1;
-pub const DEFAULT_ENGINE_PORT: u16 = 47_321;
+/// Porta do engine de release. `OMNI_PORTA_DO_ENGINE` **na compilação** troca o padrão: um build
+/// local (ou um fork) aberto pelo Finder não recebe variáveis de ambiente, e com a mesma porta ele
+/// conversaria com o engine do app instalado — e o `ensure_engine` derrubaria esse engine por achar
+/// que o binário "mudou".
+pub const DEFAULT_ENGINE_PORT: u16 = match option_env!("OMNI_PORTA_DO_ENGINE") {
+    Some(porta) => porta_valida(porta),
+    None => 47_321,
+};
+
+const fn porta_valida(texto: &str) -> u16 {
+    let bytes = texto.as_bytes();
+    assert!(!bytes.is_empty(), "OMNI_PORTA_DO_ENGINE vazia");
+    let mut valor: u32 = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        assert!(bytes[i].is_ascii_digit(), "OMNI_PORTA_DO_ENGINE precisa ser um número");
+        valor = valor * 10 + (bytes[i] - b'0') as u32;
+        assert!(valor <= 65_535, "OMNI_PORTA_DO_ENGINE fora da faixa");
+        i += 1;
+    }
+    assert!(valor > 0, "OMNI_PORTA_DO_ENGINE não pode ser 0");
+    valor as u16
+}
 /// Porta do engine quando o app roda em desenvolvimento (`npm run dev`).
 ///
 /// **Existe para o dev nunca encostar no app instalado.** Com a mesma porta, a mesma pasta e o
@@ -12,7 +34,11 @@ pub const DEV_ENGINE_PORT: u16 = 47_341;
 
 /// Pasta de dados do engine (token, sessões, conversas, perfis). Separada por modo pelo mesmo
 /// motivo da porta: um token diferente faz o engine instalado recusar qualquer pedido do dev.
-pub const DATA_DIR: &str = "com.omni.agents";
+/// `OMNI_PASTA_DE_DADOS` na compilação troca o nome, pelo mesmo motivo da porta.
+pub const DATA_DIR: &str = match option_env!("OMNI_PASTA_DE_DADOS") {
+    Some(nome) => nome,
+    None => "com.omni.agents",
+};
 pub const DEV_DATA_DIR: &str = "com.omni.agents.dev";
 
 /// Data de modificação em ms desde a época — compartilhada para engine e app medirem igual.
@@ -193,6 +219,31 @@ impl EngineRequest {
     /// agente, então é escrita disfarçada de leitura.
     pub fn read_only(&self) -> bool {
         matches!(self, Self::Ping { .. } | Self::ListSessions { .. } | Self::Snapshot { .. })
+    }
+
+    /// Nome do pedido para log (o mesmo `type` do JSON). Nunca leva campos.
+    pub fn tipo(&self) -> &'static str {
+        match self {
+            Self::AccountUsage { .. } => "account_usage",
+            Self::MobileSettings { .. } => "mobile_settings",
+            Self::PublishWorkspace { .. } => "publish_workspace",
+            Self::MobileCheck { .. } => "mobile_check",
+            Self::MobileTotp { .. } => "mobile_totp",
+            Self::Ping { .. } => "ping",
+            Self::ListSessions { .. } => "list_sessions",
+            Self::SpawnTerminal { .. } => "spawn_terminal",
+            Self::WriteTerminal { .. } => "write_terminal",
+            Self::ResizeTerminal { .. } => "resize_terminal",
+            Self::StopSession { .. } => "stop_session",
+            Self::CloseSession { .. } => "close_session",
+            Self::DuplicateSession { .. } => "duplicate_session",
+            Self::RestartSession { .. } => "restart_session",
+            Self::Snapshot { .. } => "snapshot",
+            Self::RenameConversation { .. } => "rename_conversation",
+            Self::RenameSession { .. } => "rename_session",
+            Self::Api { .. } => "api",
+            Self::Shutdown { .. } => "shutdown",
+        }
     }
 
     pub fn token(&self) -> &str {
