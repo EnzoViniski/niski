@@ -36,8 +36,11 @@ export default defineConfig({
   },
   envPrefix: ["VITE_", "TAURI_ENV_*"],
   build: {
+    // safari14 (o macOS 11 mínimo já vem com ele): com safari13 o esbuild reescreve o `r ||= {}` do
+    // requestMode do xterm 6 e some com a declaração de `r` → ReferenceError quando a CLI consulta um
+    // modo do terminal (DECRQM; o Antigravity faz isso ao abrir) e a resposta nunca chega.
     target:
-      process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari13",
+      process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari14",
     minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
   },

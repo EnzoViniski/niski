@@ -5,6 +5,7 @@ import { ChatIcon, FolderIcon } from "../../components/ui/PixelIcon";
 import { HistoryView } from "../history/HistoryView";
 import { Mascote } from "../workspace/PainelVazio";
 import { targetLabel } from "../../lib/paths";
+import { contaDoAgente, lembrarAgente, lembrarConta, ultimoAgente } from "../../lib/escolhasSalvas";
 import { levarParaConta, resumeCommand, type HistoryEntry, type HistoryProvider } from "../history/historyService";
 import {
   AGENT_RESUME_FLAG,
@@ -46,7 +47,9 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
         setProfiles(accounts);
         if (statuses.length === 0) return;
         setAgents(statuses);
-        const firstAvailable = statuses.find((item) => item.available);
+        // Fork: volta no último agente usado, se ele ainda estiver instalado.
+        const lembrado = statuses.find((item) => item.available && item.id === ultimoAgente());
+        const firstAvailable = lembrado ?? statuses.find((item) => item.available);
         if (firstAvailable) setSelected(firstAvailable.id);
       })
       // Engolir esta falha em silêncio deixava os quatro providers em `available: false` sem
@@ -73,9 +76,11 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
   // Prefere uma conta já autenticada: abrir no perfil sem login só porque veio primeiro na lista
   // joga o usuário numa tela de autenticação que ele não pediu.
   useEffect(() => {
-    const preferred = accounts.find((item) => item.authenticated) ?? accounts[0];
+    // Fork: a conta escolhida da última vez neste agente vem antes (some se a conta sumir).
+    const preferred = accounts.find((item) => item.id === contaDoAgente(selected))
+      ?? accounts.find((item) => item.authenticated) ?? accounts[0];
     setSelectedProfile(preferred?.id ?? "");
-  }, [accounts]);
+  }, [accounts, selected]);
 
   const profile = accounts.find((item) => item.id === selectedProfile) ?? null;
 
@@ -87,6 +92,8 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
 
   function launch(command?: string) {
     if (!agent) return;
+    lembrarAgente(agent.id);
+    if (profile) lembrarConta(agent.id, profile.id);
     onLaunch({ agent: command ? { ...agent, command } : agent, profile });
   }
 

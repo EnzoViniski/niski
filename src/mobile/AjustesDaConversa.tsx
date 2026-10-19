@@ -3,6 +3,7 @@ import { AgentIcon } from "../components/ui/AgentIcon";
 import { ChartIcon, LoaderIcon, PlayIcon, ReloadIcon, SparkleIcon } from "../components/ui/PixelIcon";
 import { Select } from "../components/ui/Select";
 import { ApiError, request } from "./api";
+import { lembrarAjustes } from "../lib/escolhasSalvas";
 
 /** `GET /conversas/{id}/opcoes`: o que dá para escolher nesta conversa e o que está valendo agora. */
 export interface Opcoes {
@@ -86,6 +87,8 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
     try {
       // O erro já aparece no chat (quem chama mostra); aqui só não marca como aplicado.
       try { await (onRetomar ?? onAplicar)({ profile_id: conta || null, model: modelo || null, effort: esforco || null }); } catch { return; }
+      // Fork: as próximas conversas deste agente já nascem com este modelo/esforço.
+      lembrarAjustes(opcoes!.provider, { model: modelo || null, effort: esforco || null });
       // A sessão reabre em segundo plano; o modelo novo só aparece no transcript depois da próxima
       // resposta, então a escolha fica como está até lá.
       setOpcoes((atual) => atual && { ...atual, profile_id: conta || null, model: modelo || null, effort: esforco || null });

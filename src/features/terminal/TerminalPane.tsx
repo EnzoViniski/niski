@@ -38,6 +38,7 @@ import { AgentLauncher } from "./AgentLauncher";
 import { AgentSwitcher } from "./AgentSwitcher";
 import { AgentRuntimeBadge } from "./AgentRuntimeBadge";
 import { FONTE_MONO } from "../../lib/fontes";
+import { ajustesDoAgente, opcoesDeModelo } from "../../lib/escolhasSalvas";
 
 /** Colar imagem numa CLI de agente: ESC v (meta+v) — o que o Alt+V já mandava e funcionava.
  *  Se alguma CLI passar a escutar ^V (0x16) em vez disso, é aqui que muda. */
@@ -276,7 +277,8 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
                 });
             conversationRef.current = plan?.conversation_id ?? launch?.conversationId ?? null;
             if (plan) {
-              command = plan.initial_command;
+              // Fork: conversa nova já abre no último modelo/esforço aplicado neste agente.
+              command = plan.initial_command + opcoesDeModelo(agent.id, ajustesDoAgente(agent.id));
               externalSessionId = plan.external_session_id ?? undefined;
               planoTitulo = plan.title;
             }
