@@ -1,5 +1,6 @@
 import { CheckIcon as Check, ChevronDownIcon as ChevronDown, SearchIcon as Search } from "./PixelIcon";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import type { FieldSize } from "./Input";
 
@@ -61,6 +62,11 @@ export function Select<T extends string | number>({
   const [ativo, setAtivo] = useState(0);
   const [busca, setBusca] = useState("");
   const [paraCima, setParaCima] = useState(false);
+  // Fork: a lista vai para o `body` com posição fixa, medida do botão. Dentro do painel ela era
+  // cortada pelo `overflow` dele (o seletor de conta/modelo/esforço do chat sumia atrás do painel de
+  // baixo) e tinha a largura do botão — "Esforço padrão" quebrava em duas linhas.
+  const [posicao, setPosicao] = useState<{ left: number; top?: number; bottom?: number; minWidth: number; maxHeight: number } | null>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const raizRef = useRef<HTMLDivElement>(null);
   const listaRef = useRef<HTMLUListElement>(null);
   const buscaRef = useRef<HTMLInputElement>(null);
@@ -90,7 +96,8 @@ export function Select<T extends string | number>({
   useEffect(() => {
     if (!aberto) return;
     function onDown(e: PointerEvent) {
-      if (!raizRef.current?.contains(e.target as Node)) setAberto(false);
+      const alvo = e.target as Node;
+      if (!raizRef.current?.contains(alvo) && !popRef.current?.contains(alvo)) setAberto(false);
     }
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
@@ -105,14 +112,35 @@ export function Select<T extends string | number>({
       setBusca("");
       return;
     }
-    const r = raizRef.current?.getBoundingClientRect();
-    if (r) setParaCima(window.innerHeight - r.bottom < 260 && r.top > 260);
+    medir();
     setAtivo(selecionadoIdx >= 0 ? selecionadoIdx : 0);
     buscaRef.current?.focus();
     // `selecionadoIdx` de propósito fora das deps: ele muda a cada tecla
     // digitada (a lista filtra), e reposicionar o ativo aí atrapalharia a
     // navegação por seta durante a busca.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aberto]);
+
+  function medir() {
+    const r = raizRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const embaixo = window.innerHeight - r.bottom - 8;
+    const cima = r.top > embaixo && embaixo < 260;
+    setParaCima(cima);
+    const espaco = Math.max(120, (cima ? r.top : embaixo) - 12);
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - Math.max(r.width, 200) - 8));
+    setPosicao(cima
+      ? { left, bottom: window.innerHeight - r.top + 6, minWidth: r.width, maxHeight: espaco }
+      : { left, top: r.bottom + 6, minWidth: r.width, maxHeight: espaco });
+  }
+
+  // Fork: a lista é fixa na tela; rolar ou redimensionar com ela aberta realinha ao botão.
+  useEffect(() => {
+    if (!aberto) return;
+    const realinhar = (e: Event) => { if (!popRef.current?.contains(e.target as Node)) medir(); };
+    window.addEventListener("resize", realinhar);
+    window.addEventListener("scroll", realinhar, true);
+    return () => { window.removeEventListener("resize", realinhar); window.removeEventListener("scroll", realinhar, true); };
   }, [aberto]);
 
   // Digitar refaz a lista: o ativo tem de voltar para o topo, senão aponta
@@ -220,13 +248,12 @@ export function Select<T extends string | number>({
         />
       </button>
 
-      {aberto && (
+      {aberto && posicao && createPortal(
         <div
+          ref={popRef}
           data-lado={paraCima ? "cima" : "baixo"}
-          className={[
-            "popover select-pop absolute left-0 right-0 z-50 p-1",
-            paraCima ? "bottom-full mb-1.5" : "top-full mt-1.5",
-          ].join(" ")}
+          style={{ position: "fixed", left: posicao.left, top: posicao.top, bottom: posicao.bottom, minWidth: posicao.minWidth, maxWidth: 360 }}
+          className="popover select-pop z-[200] p-1"
         >
           {searchable && (
             <div className="relative mb-1">
@@ -259,7 +286,8 @@ export function Select<T extends string | number>({
             id={listaId}
             role="listbox"
             aria-label="Opções"
-            className="max-h-56 overflow-y-auto"
+            className="overflow-y-auto"
+            style={{ maxHeight: Math.min(posicao.maxHeight, 320) }}
           >
             {visiveis.map((o, i) => {
             const marcado = o.value === value;
@@ -299,7 +327,8 @@ export function Select<T extends string | number>({
               );
             })}
           </ul>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
