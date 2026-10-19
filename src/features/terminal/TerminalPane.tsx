@@ -37,6 +37,7 @@ import { handleTerminalKey } from "./keyBindings";
 import { AgentLauncher } from "./AgentLauncher";
 import { AgentSwitcher } from "./AgentSwitcher";
 import { AgentRuntimeBadge } from "./AgentRuntimeBadge";
+import { FONTE_MONO } from "../../lib/fontes";
 
 /** Colar imagem numa CLI de agente: ESC v (meta+v) — o que o Alt+V já mandava e funcionava.
  *  Se alguma CLI passar a escutar ^V (0x16) em vez disso, é aqui que muda. */
@@ -206,7 +207,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
     const terminal = new Terminal({
       convertEol: true,
       cursorBlink: true,
-      fontFamily: "Cascadia Code, Consolas, monospace",
+      fontFamily: FONTE_MONO,
       fontSize: 13,
       scrollback: 10_000,
       // Fundo transparente no xterm; a cor sai do container, com a opacidade de Configurações → Fundo.
