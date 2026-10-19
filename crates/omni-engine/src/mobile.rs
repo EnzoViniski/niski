@@ -13,6 +13,11 @@ use tokio::sync::Notify;
 #[cfg(mobile_assets)]
 static ASSETS: include_dir::Dir<'_> = include_dir::include_dir!("$CARGO_MANIFEST_DIR/../../dist-mobile");
 
+// Fork: orquestrador de agentes (servidor MCP + rotas do fluxo). Filho deste módulo para chamar as
+// rotas e planos daqui (spawn, fila, timeline) sem torná-los públicos.
+#[path = "orquestracao.rs"]
+pub(crate) mod orquestracao;
+
 pub struct MobileRuntime {
     config: Mutex<MobileConfig>,
     workspace: Mutex<PublishedWorkspace>,
@@ -37,6 +42,8 @@ pub struct MobileRuntime {
     codex_descoberto_em: Mutex<u64>,
     /// Arquivos de cada pasta de projeto para o `@` do composer: (lido em, lista). Ver `arquivos_da_conversa`.
     arquivos: Mutex<HashMap<String, (u64, Arc<Vec<String>>)>>,
+    /// Fork: tokens e pendências do orquestrador, só em memória (`orquestracao.rs`).
+    orquestracao: orquestracao::Runtime,
 }
 
 #[derive(Default)]
@@ -108,6 +115,8 @@ struct SpawnPlan {
     env: Vec<(String,String)>,
     external_session_id: Option<String>,
     transcript_path: Option<String>,
+    /// Fork: id da conversa escolhido antes (o orquestrador registra o subagente com ele). `None` = novo.
+    conversation_id: Option<String>,
 }
 
 impl MobileRuntime {
@@ -122,7 +131,8 @@ impl MobileRuntime {
             status: Mutex::new((None,None)),changed: Notify::new(),actions: Mutex::new(VecDeque::new()),pending: Notify::new(),
             history: Mutex::new(MobileHistory::default()),
             feeds: Mutex::new(omni_core::feed::FeedCache::default()),
-            codex_descoberto_em: Mutex::new(0), arquivos: Mutex::new(HashMap::new()) }
+            codex_descoberto_em: Mutex::new(0), arquivos: Mutex::new(HashMap::new()),
+            orquestracao: orquestracao::Runtime::default() }
     }
 }
 
@@ -599,6 +609,8 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/atencao",get(attention))
         .route("/sessoes",post(create_session))
         .route("/parear",post(parear))
+        // Fork: fluxo do orquestrador (`orquestracao.rs`).
+        .merge(orquestracao::rotas())
 }
 
 fn router(state: Arc<EngineState>) -> Router {
@@ -1473,7 +1485,7 @@ fn resolve_spawn(state: &Arc<EngineState>, body: &SpawnBody) -> Result<SpawnPlan
         project_id: project.id, cwd: project.path, title: titulo, titulo_do_usuario, provider: body.provider.clone(),
         profile_id: profile.as_ref().map(|p| p.id.clone()),
         env: profile.as_ref().map(omni_core::env_for).unwrap_or_default(),
-        command, external_session_id, transcript_path,
+        command, external_session_id, transcript_path, conversation_id: None,
     })
 }
 
@@ -2071,7 +2083,7 @@ fn spawn_from_mobile(state:&Arc<EngineState>, action:&Action, plan:&SpawnPlan) -
     let dir = state.state_file.parent().unwrap().to_path_buf();
 
     let conversation = omni_core::conversations::Conversation {
-        id: format!("conv-{}",uuid::Uuid::new_v4()),
+        id: plan.conversation_id.clone().unwrap_or_else(|| format!("conv-{}",uuid::Uuid::new_v4())),
         project_id: plan.project_id.clone(),
         cwd: plan.cwd.clone(),
         title: plan.title.clone(),

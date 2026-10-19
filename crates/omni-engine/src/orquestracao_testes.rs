@@ -1,0 +1,248 @@
+//! Fork: testes do orquestrador. Sem rede externa: o servidor MCP roda pelo `oneshot` do axum e os
+//! subagentes são uma **CLI falsa** (`sh`) que imita o campo vazio do Claude Code.
+
+use super::*;
+use axum::body::{to_bytes, Body};
+use tower::ServiceExt;
+
+const PORTA: u16 = 47_999;
+
+fn fixture() -> (tempfile::TempDir, Arc<EngineState>, PathBuf) {
+    let dir = tempfile::tempdir().unwrap();
+    let state = Arc::new(EngineState { persist_lock: Mutex::new(()), mobile: MobileRuntime::new(dir.path()),
+        token: "test-only".into(), state_file: dir.path().join("sessions.json"), sessions: Mutex::new(HashMap::new()),
+        id_sequence: AtomicU64::new(1) });
+    state.mobile.orquestracao.porta.store(PORTA, Ordering::Relaxed);
+    let projeto = dir.path().join("projeto");
+    std::fs::create_dir_all(&projeto).unwrap();
+    let conversa = |id: &str, provider: &str| json!({"id": id, "project_id": "p", "cwd": projeto.to_string_lossy(), "title": id,
+        "created_at_ms": 1, "segments": [{"provider": provider, "profile_id": null, "external_session_id": null,
+        "transcript_path": null, "terminal_session_id": null, "started_at_ms": 1, "ended_at_ms": null}]});
+    atomic_write_json(&dir.path().join("conversations.json"), &json!({"version": 1, "conversations": [
+        conversa("orq-a", "claude"), conversa("orq-b", "codex"), conversa("agy", "antigravity"),
+    ]})).unwrap();
+    (dir, state, projeto)
+}
+
+/// `claude` de mentira: liga a colagem entre colchetes, desenha `❯ ` e grava cada linha recebida em
+/// `recebido.txt`. "trabalhe" deixa o turno aberto ("esc to interrupt") por 30 s.
+fn cli_falsa(dir: &Path) -> String {
+    let pasta = dir.join("bin");
+    std::fs::create_dir_all(&pasta).unwrap();
+    let script = pasta.join("claude");
+    std::fs::write(&script, r#"#!/bin/sh
+LOG="$(dirname "$0")/recebido.txt"
+printf '\033[?2004h'
+while :; do
+  printf '\r\n\342\235\257 '
+  IFS= read -r linha || exit 0
+  # O "\r\n" que digita o comando deixa um "\n" para trás: a CLI de verdade (modo raw) ignora.
+  [ -z "$linha" ] && continue
+  printf '%s\n' "$linha" >> "$LOG"
+  case "$linha" in
+    *trabalhe*) printf '\r\n* Pensando (esc to interrupt)'; sleep 30 ;;
+    *) printf '\r\n esc to interrupt'; sleep 1; printf '\r\033[2K ok\r\n' ;;
+  esac
+done
+"#).unwrap();
+    format!("/bin/sh {}", script.to_string_lossy())
+}
+
+fn publicar(state: &EngineState, projeto: &Path, comando: &str) {
+    publish(state, vec![PublishedProject { id: "p".into(), name: "projeto".into(), path: projeto.to_string_lossy().into_owned() }],
+        vec![PublishedAgent { id: "claude".into(), label: "Claude".into(), command: comando.into(), resume: None },
+             PublishedAgent { id: "codex".into(), label: "Codex".into(), command: "codex".into(), resume: None }], None).unwrap();
+}
+
+/// Liga a orquestradora no registro e devolve o token que a PTY dela receberia.
+fn ligar(state: &EngineState, conversa: &str, provider: &str) -> String {
+    mudar_registro(state, |r| r.definir_ativo(conversa, true)).unwrap();
+    let (comando, env) = preparar(state, Some(conversa), Some(provider), Some(provider.to_owned()));
+    assert!(comando.unwrap().contains("127.0.0.1:47999/mcp"));
+    env.into_iter().find(|(k, _)| k == regra::VARIAVEL_DO_TOKEN).map(|(_, v)| v).expect("token no ambiente")
+}
+
+fn pedido(token: Option<&str>, corpo: Value) -> axum::http::Request<Body> {
+    let mut pedido = axum::http::Request::builder().method("POST").uri("/mcp")
+        .header("host", format!("127.0.0.1:{PORTA}")).header("content-type", "application/json")
+        .header("accept", "application/json, text/event-stream");
+    if let Some(token) = token { pedido = pedido.header("authorization", format!("Bearer {token}")); }
+    pedido.body(Body::from(corpo.to_string())).unwrap()
+}
+
+async fn enviar_mcp(state: &Arc<EngineState>, pedido: axum::http::Request<Body>) -> (StatusCode, Value) {
+    let resposta = router(state.clone()).oneshot(pedido).await.unwrap();
+    let status = resposta.status();
+    let bytes = to_bytes(resposta.into_body(), usize::MAX).await.unwrap();
+    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+}
+
+async fn ferramenta(state: &Arc<EngineState>, token: &str, nome: &str, argumentos: Value) -> (bool, String) {
+    let (status, corpo) = enviar_mcp(state, pedido(Some(token), json!({"jsonrpc": "2.0", "id": 7, "method": "tools/call",
+        "params": {"name": nome, "arguments": argumentos}}))).await;
+    assert_eq!(status, StatusCode::OK, "{corpo}");
+    let resultado = &corpo["result"];
+    (resultado["isError"] == true, resultado["content"][0]["text"].as_str().unwrap_or_default().to_owned())
+}
+
+#[tokio::test]
+async fn token_errado_401_get_405_origem_estranha_403_e_handshake() {
+    let (_dir, state, _) = fixture();
+    let token = ligar(&state, "orq-a", "claude");
+    let inicio = json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}}});
+
+    assert_eq!(enviar_mcp(&state, pedido(None, inicio.clone())).await.0, StatusCode::UNAUTHORIZED);
+    assert_eq!(enviar_mcp(&state, pedido(Some("errado"), inicio.clone())).await.0, StatusCode::UNAUTHORIZED);
+    assert_eq!(enviar_mcp(&state, pedido(Some(&state.token.clone()), inicio.clone())).await.0, StatusCode::UNAUTHORIZED, "engine.token não vale aqui");
+
+    let get = axum::http::Request::builder().method("GET").uri("/mcp").header("host", format!("127.0.0.1:{PORTA}")).body(Body::empty()).unwrap();
+    assert_eq!(router(state.clone()).oneshot(get).await.unwrap().status(), StatusCode::METHOD_NOT_ALLOWED);
+
+    let mut de_fora = pedido(Some(&token), inicio.clone());
+    de_fora.headers_mut().insert("origin", "https://site-malicioso.example".parse().unwrap());
+    assert_eq!(enviar_mcp(&state, de_fora).await.0, StatusCode::FORBIDDEN);
+    let mut outro_host = pedido(Some(&token), inicio.clone());
+    outro_host.headers_mut().insert("host", "evil.example:47999".parse().unwrap());
+    assert_eq!(enviar_mcp(&state, outro_host).await.0, StatusCode::FORBIDDEN);
+
+    let (status, corpo) = enviar_mcp(&state, pedido(Some(&token), inicio)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(corpo["result"]["protocolVersion"], "2025-06-18");
+    assert!(corpo["result"]["capabilities"]["tools"].is_object());
+    let (status, _) = enviar_mcp(&state, pedido(Some(&token), json!({"jsonrpc": "2.0", "method": "notifications/initialized"}))).await;
+    assert_eq!(status, StatusCode::ACCEPTED);
+    let (_, lista) = enviar_mcp(&state, pedido(Some(&token), json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}))).await;
+    let nomes: Vec<&str> = lista["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
+    assert_eq!(nomes, ["listar_plataformas_e_contas", "criar_agente", "mandar_prompt", "ler_conversa", "esperar", "listar_agentes", "parar_agente"]);
+    let (_, desconhecido) = enviar_mcp(&state, pedido(Some(&token), json!({"jsonrpc": "2.0", "id": 3, "method": "resources/list"}))).await;
+    assert_eq!(desconhecido["error"]["code"], -32601);
+}
+
+#[tokio::test]
+async fn token_so_enxerga_os_proprios_subagentes_e_morre_ao_desligar() {
+    let (_dir, state, _) = fixture();
+    let token_a = ligar(&state, "orq-a", "claude");
+    let token_b = ligar(&state, "orq-b", "codex");
+    assert_ne!(token_a, token_b);
+    let agente = |id: &str| regra::Agente { conversation_key: id.into(), plataforma: "claude".into(), conta: None, modelo: None,
+        esforco: None, tarefa: "t".into(), criado_em: 1 };
+    mudar_registro(&state, |r| { r.adicionar("orq-a", agente("sub-a")); r.adicionar("orq-b", agente("sub-b")); }).unwrap();
+
+    for nome in ["ler_conversa", "mandar_prompt", "esperar", "parar_agente"] {
+        let (erro, texto) = ferramenta(&state, &token_a, nome, json!({"agente": "sub-b", "texto": "oi", "segundos": 1})).await;
+        assert!(erro && texto.contains("não é deste orquestrador"), "{nome}: {texto}");
+    }
+    let (erro, texto) = ferramenta(&state, &token_a, "listar_agentes", json!({})).await;
+    assert!(!erro);
+    assert!(texto.contains("sub-a") && !texto.contains("sub-b"), "{texto}");
+
+    // Reabrir a orquestradora troca o token: o antigo para de valer.
+    let novo_a = ligar(&state, "orq-a", "claude");
+    let lista = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"});
+    assert_eq!(enviar_mcp(&state, pedido(Some(&token_a), lista.clone())).await.0, StatusCode::UNAUTHORIZED);
+    assert_eq!(enviar_mcp(&state, pedido(Some(&novo_a), lista.clone())).await.0, StatusCode::OK);
+
+    // "Deixar de orquestrar": flags saem do comando, a PTY não recebe token e o atual é recusado.
+    mudar_registro(&state, |r| r.definir_ativo("orq-a", false)).unwrap();
+    assert_eq!(enviar_mcp(&state, pedido(Some(&novo_a), lista.clone())).await.0, StatusCode::UNAUTHORIZED);
+    let comando = regra::ajustar_comando("claude --resume x", "claude", PORTA, true);
+    let (digitado, env) = preparar(&state, Some("orq-a"), Some("claude"), Some(comando));
+    assert_eq!(digitado.as_deref(), Some("claude --resume x"));
+    assert!(env.is_empty());
+    assert_eq!(enviar_mcp(&state, pedido(Some(&token_b), lista)).await.0, StatusCode::OK, "o outro orquestrador segue");
+}
+
+#[tokio::test]
+async fn so_claude_e_codex_orquestram_e_subagente_nao_ganha_token() {
+    let (_dir, state, _) = fixture();
+    let ativar = |id: &str| { let state = state.clone(); let id = id.to_owned();
+        async move { local(state, "POST", &format!("/orquestracao/{id}/ativar"), Some(r#"{"ativo":true}"#.into()), None, vec![]).await } };
+    let EngineResponse::Api { status, .. } = ativar("agy").await else { panic!() };
+    assert_eq!(status, 409, "antigravity: ainda não suportado como orquestrador");
+    // Sem sessão aberta: só marca; a flag entra na próxima abertura.
+    let EngineResponse::Api { status, body } = ativar("orq-b").await else { panic!() };
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["reaberta"], false);
+    assert!(ler_registro(&state).ativo("orq-b"));
+
+    // Conversa que não é orquestradora (um subagente) nunca recebe token nem flags.
+    let (digitado, env) = preparar(&state, Some("sub"), Some("claude"), Some("claude --session-id s".into()));
+    assert_eq!(digitado.as_deref(), Some("claude --session-id s"));
+    assert!(env.is_empty());
+    mudar_registro(&state, |r| r.adicionar("orq-b", regra::Agente { conversation_key: "orq-a".into(), plataforma: "claude".into(),
+        conta: None, modelo: None, esforco: None, tarefa: "t".into(), criado_em: 1 })).unwrap();
+    let EngineResponse::Api { status, .. } = ativar("orq-a").await else { panic!() };
+    assert_eq!(status, 409, "sem recursão");
+
+    let EngineResponse::Api { status, body } = local(state.clone(), "GET", "/orquestracao/orq-b", None, None, vec![]).await else { panic!() };
+    assert_eq!(status, 200);
+    let fluxo: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(fluxo["ativo"], true);
+    assert_eq!(fluxo["agentes"][0]["id"], "orq-a");
+    assert_eq!(fluxo["agentes"][0]["estado"], "parado");
+}
+
+/// Ponta a ponta com a CLI falsa: criar (a tarefa chega sozinha), limite, mandar mais, `esperar`
+/// estourando com o agente trabalhando, parar e o token e a tarefa fora do `sessions.json`.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn cli_falsa_cria_recebe_tarefa_respeita_limite_espera_e_para() {
+    let (dir, state, projeto) = fixture();
+    // A fila de ações do chat (quem digita na PTY) roda na tarefa do `mobile::start`.
+    start(state.clone());
+    publicar(&state, &projeto, &cli_falsa(dir.path()));
+    let token = ligar(&state, "orq-a", "claude");
+    let EngineResponse::Api { status, .. } = local(state.clone(), "POST", "/orquestracao/limite", Some(r#"{"limite":1}"#.into()), None, vec![]).await else { panic!() };
+    assert_eq!(status, 200);
+
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "cursor", "tarefa": "x"})).await;
+    assert!(erro && texto.contains("Disponíveis: claude, codex"), "{texto}");
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "x", "modelo": "a;b"})).await;
+    assert!(erro, "{texto}");
+
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "modelo": "haiku", "tarefa": "diga so ok"})).await;
+    assert!(!erro, "{texto}");
+    let agente = serde_json::from_str::<Value>(&texto).unwrap()["agente"].as_str().unwrap().to_owned();
+    let recebido = dir.path().join("bin").join("recebido.txt");
+    let chegou = |trecho: &str| std::fs::read_to_string(&recebido).unwrap_or_default().contains(trecho);
+    let limite = std::time::Instant::now() + std::time::Duration::from_secs(40);
+    while !chegou("diga so ok") && std::time::Instant::now() < limite { tokio::time::sleep(std::time::Duration::from_millis(200)).await; }
+    if !chegou("diga so ok") {
+        let (_, Some(sessao)) = current(&state, &agente).unwrap() else { panic!("sem sessão") };
+        let tela = sessao.interaction.lock().unwrap().parser.screen().contents();
+        let cap = interaction::capabilities(&sessao);
+        panic!("a tarefa não chegou na CLI falsa; tela: {tela:?}; motivo: {:?}; pendente: {:?}", cap.reason,
+            state.mobile.orquestracao.pendentes.lock().unwrap().get(&agente));
+    }
+
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "outro"})).await;
+    assert!(erro && texto.contains("Limite de 1"), "{texto}");
+
+    let (erro, texto) = ferramenta(&state, &token, "esperar", json!({"agente": agente, "segundos": 20})).await;
+    assert!(!erro && texto.contains("\"pronto\""), "{texto}");
+    let (erro, texto) = ferramenta(&state, &token, "mandar_prompt", json!({"agente": agente, "texto": "agora trabalhe"})).await;
+    assert!(!erro, "{texto}");
+    assert!(chegou("agora trabalhe"));
+    let (erro, texto) = ferramenta(&state, &token, "esperar", json!({"agente": agente, "segundos": 2})).await;
+    assert!(!erro && texto.starts_with("ainda trabalhando"), "{texto}");
+    let (erro, texto) = ferramenta(&state, &token, "ler_conversa", json!({"agente": agente})).await;
+    assert!(!erro && texto.contains("\"trabalhando\""), "{texto}");
+
+    let EngineResponse::Api { status, body } = local(state.clone(), "GET", "/orquestracao/orq-a", None, None, vec![]).await else { panic!() };
+    assert_eq!(status, 200);
+    let fluxo: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(fluxo["agentes"][0]["modelo"], "haiku");
+    assert_eq!(fluxo["agentes"][0]["tarefa"], "diga so ok");
+    assert_eq!(fluxo["agentes"][0]["estado"], "trabalhando");
+
+    let (erro, texto) = ferramenta(&state, &token, "parar_agente", json!({"agente": agente})).await;
+    assert!(!erro, "{texto}");
+    let (_, texto) = ferramenta(&state, &token, "esperar", json!({"agente": agente, "segundos": 5})).await;
+    assert!(texto.contains("\"parado\""), "{texto}");
+
+    // O token nunca vai para o disco: nem no sessions.json, nem no registro, nem na linha digitada.
+    let sessoes = std::fs::read_to_string(dir.path().join("sessions.json")).unwrap();
+    let registro_bruto = std::fs::read_to_string(dir.path().join(regra::ARQUIVO)).unwrap();
+    assert!(!sessoes.contains(&token) && !registro_bruto.contains(&token));
+    assert!(!sessoes.contains(regra::VARIAVEL_DO_TOKEN), "o ambiente extra não entra no meta");
+}

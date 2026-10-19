@@ -14,6 +14,8 @@ import { temConversa } from "../../mobile/api";
 import type { AgentView } from "../../types/settings";
 import { PastaDaConversaContext } from "../../mobile/CaminhoClicavel";
 import { GitBranchStatus } from "../git/GitBranchStatus";
+// Fork: "Tornar orquestradora" / "Ver fluxo (N)" na faixa da conversa.
+import { FaixaDoOrquestrador } from "../orquestracao/FaixaDoOrquestrador";
 import "../../mobile/mobile.css";
 import "../../web/web.css";
 
@@ -103,6 +105,7 @@ function FaixaDoTerminal({ sessionId, abas }: { sessionId: string; abas: ReactNo
       {abas}
       {/* Fork: branch em que este agente trabalha (a pasta dele), com troca e criação. */}
       <span className="aba-agente-branch"><GitBranchStatus projectPath={pasta} abrirPara="baixo" atalho={false} /></span>
+      <FaixaDoOrquestrador conversaId={conversa?.id ?? null} provider={conversa?.provider} titulo={conversa?.title} />
       <span className="flex-1" />
       {erro && <span role="alert" className="text-[11px] text-danger">{erro}</span>}
       {conversa?.capabilities && (
@@ -251,6 +254,7 @@ function ChatDaSessao({ sessionId, onVerTerminal }: { sessionId: string; onVerTe
         <AbasDoAgente vendo="conversa" onTrocar={(aba) => { if (aba === "terminal") onVerTerminal(); }} />
         {/* Fork: branch em que este agente trabalha. */}
         <span className="aba-agente-branch"><GitBranchStatus projectPath={pasta} abrirPara="baixo" atalho={false} /></span>
+        <FaixaDoOrquestrador conversaId={(aoVivo ?? conversa)?.id ?? null} provider={(aoVivo ?? conversa)?.provider} titulo={(aoVivo ?? conversa)?.title} />
         <span className="flex-1" />
         {(aoVivo ?? conversa) && <ResumoDaConversa conversa={(aoVivo ?? conversa)!} />}
       </div>

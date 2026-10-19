@@ -10,7 +10,9 @@ export type PaneKind =
   | "logs"
   | "docker-logs"
   /** Fork: página da web aberta de um link (`features/navegador`). `resourceId` = endereço. */
-  | "web";
+  | "web"
+  /** Fork: fluxo ao vivo de uma conversa orquestradora (`features/orquestracao`). `resourceId` = id da conversa. */
+  | "orquestracao";
 
 export interface WorkspaceTab {
   id: string;
@@ -110,6 +112,8 @@ export type WorkspaceAction =
   /** Fork: conversa arrastada da lateral para um painel (`features/workspace/colocarConversa.ts`). */
   /** Fork: link clicado abre numa aba de navegador ao lado (`features/workspace/abrirLink.ts`). */
   | { type: "ABRIR_LINK"; url: string; title: string; paneId?: string }
+  /** Fork: fluxo do orquestrador numa aba ao lado (`features/orquestracao/abrirFluxo.ts`). */
+  | { type: "ABRIR_FLUXO"; orquestrador: string; title: string; paneId?: string }
   | { type: "PLACE_SESSION"; sessionId: string; title: string; targetPaneId: string; zone: "center" | "left" | "right" | "top" | "bottom" };
 
 /** Layouts prontos (estilo Snap Layouts do Windows) — `buildPresetLayout` em

@@ -14,6 +14,7 @@ import { useKanbanDispatcher } from "./features/kanban/useKanbanDispatcher";
 import { SessionProvidersContext } from "./features/terminal/sessionProviders";
 import { ProjetosDasAbasContext, montarProjetosDasAbas } from "./features/workspace/projetosDasAbas";
 import { useLinksEmAba } from "./features/navegador/useLinksEmAba";
+import { useAberturasDoOrquestrador } from "./features/orquestracao/abrirFluxo";
 import { useTerminalSessions } from "./features/terminal/useTerminalSessions";
 import { latestPerConversation, useAttention, type AttentionItem } from "./features/terminal/useAttention";
 import { useAttentionNotifier } from "./features/terminal/useAttentionNotifier";
@@ -83,6 +84,8 @@ export function App() {
   const projetosDasAbas = useMemo(() => montarProjetosDasAbas(workspace), [workspace]);
   // Fork: link clicado abre numa aba de navegador ao lado, não na janela do app.
   useLinksEmAba(workspaces, dispatch, () => setView("workspace"));
+  // Fork: "Ver fluxo" e o clique num nó do fluxo do orquestrador.
+  useAberturasDoOrquestrador(workspace, dispatch, () => setView("workspace"));
 
   function closeSettings() {
     setView(viewBeforeSettings);

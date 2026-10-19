@@ -216,6 +216,8 @@ async fn main() -> Result<()> {
     ]);
 
     mobile::start(state.clone());
+    // Fork: servidor MCP do orquestrador (porta do engine + 3, só loopback).
+    mobile::orquestracao::iniciar(state.clone(), port);
     fluxos::carregar(&state);
 
     loop {
@@ -717,8 +719,10 @@ pub(crate) fn spawn_terminal_inner(
         initial_command.map(|comando| com_log_do_antigravity(&comando, &id))
     } else { initial_command };
     compartilhar_extensoes(state, origin.provider.as_deref(), origin.profile_id.as_deref());
+    // Fork: conversa orquestradora digita com as flags de MCP e ganha um token novo só no ambiente da PTY.
+    let (digitado, env_do_orquestrador) = mobile::orquestracao::preparar(state, origin.conversation_id.as_deref(), origin.provider.as_deref(), initial_command.clone());
     let (pid, writer, master, child, reader) =
-        open_pty_and_spawn(&cwd, &shell, rows, cols, &origin.env, origin.provider.is_some())?;
+        open_pty_and_spawn(&cwd, &shell, rows, cols, &[origin.env.clone(), env_do_orquestrador].concat(), origin.provider.is_some())?;
     let metadata = TerminalSession {
         id: id.clone(),
         project_id,
@@ -766,7 +770,7 @@ pub(crate) fn spawn_terminal_inner(
         ("headless", if headless { "sim" } else { "nao" }),
     ]);
 
-    spawn_initial_command_thread(session.clone(), initial_command);
+    spawn_initial_command_thread(session.clone(), digitado);
     spawn_reader_thread(state.clone(), session, reader, pid);
 
     Ok(metadata)
@@ -1018,8 +1022,11 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
             // Reinício e troca de conta do failover também passam aqui: a conta nova recebe as
             // extensões da principal antes de a CLI subir.
             compartilhar_extensoes(state, meta.provider.as_deref(), meta.profile_id.as_deref());
+            // Fork: orquestradora reabre com as flags de MCP e um token novo (só no ambiente da PTY).
+            let (comando, env_do_orquestrador) = mobile::orquestracao::preparar(state, meta.conversation_id.as_deref(), meta.provider.as_deref(),
+                comando_ao_reiniciar_com_codex(state, &meta));
             let (pid, writer, master, child, reader) =
-                open_pty_and_spawn(&meta.cwd, &meta.shell, meta.rows, meta.cols, &meta.env, meta.provider.is_some())?;
+                open_pty_and_spawn(&meta.cwd, &meta.shell, meta.rows, meta.cols, &[meta.env.clone(), env_do_orquestrador].concat(), meta.provider.is_some())?;
             *session.writer.lock().map_err(|_| anyhow!("terminal writer poisoned"))? = writer;
             *session.master.lock().map_err(|_| anyhow!("terminal master poisoned"))? = master;
             *session.child.lock().map_err(|_| anyhow!("terminal child poisoned"))? = child;
@@ -1035,7 +1042,7 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
             };
             state.persist()?;
             // Reabre o mesmo agente; conversa Claude com histórico volta com `--resume`.
-            spawn_initial_command_thread(session.clone(), comando_ao_reiniciar_com_codex(state, &meta));
+            spawn_initial_command_thread(session.clone(), comando);
             spawn_reader_thread(state.clone(), session, reader, pid);
             Ok(EngineResponse::Session { session: updated })
         }

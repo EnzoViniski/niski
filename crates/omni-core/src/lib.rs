@@ -18,6 +18,8 @@ pub mod pasta_do_claude;
 // Fork: modelos do Claude com versão (não só os apelidos) e arquivos que o agente gerou.
 pub mod modelos_claude;
 pub mod entregaveis;
+// Fork: registro e regra pura do orquestrador de agentes (o servidor MCP mora no engine).
+pub mod orquestracao;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};

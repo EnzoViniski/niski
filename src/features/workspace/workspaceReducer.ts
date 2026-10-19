@@ -1,6 +1,7 @@
 import { samePath } from "../../lib/paths";
 import { colocarConversa } from "./colocarConversa";
 import { abrirLink } from "./abrirLink";
+import { abrirFluxo } from "../orquestracao/abrirFluxo";
 import type {
   LayoutNode,
   LayoutPreset,
@@ -230,6 +231,9 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
     // Fork: link clicado vira aba de navegador ao lado de quem o mostrou.
     case "ABRIR_LINK":
       return abrirLink(state, action, workspaceReducer);
+    // Fork: fluxo do orquestrador ao lado da conversa.
+    case "ABRIR_FLUXO":
+      return abrirFluxo(state, action, workspaceReducer);
     case "FOCUS_PANE":
       return updateActiveProject(state, (project) =>
         findPane(project.layout, action.paneId)
