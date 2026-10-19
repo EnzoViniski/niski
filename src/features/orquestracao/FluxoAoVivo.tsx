@@ -158,7 +158,7 @@ export function FluxoAoVivo({ orquestrador, paneId }: { orquestrador: string; pa
         {fluxo && (
           <label className="orq-limite" title="Subagentes vivos ao mesmo tempo, por orquestrador">
             {vivos} vivo(s) · limite
-            <select aria-label="Limite de subagentes" value={fluxo.limite} onChange={(e) => void definirLimite(Number(e.target.value)).then(recarregar)}>
+            <select aria-label="Limite de subagentes" value={fluxo.limite} onChange={(e) => void definirLimite(Number(e.target.value)).then(recarregar).catch(() => undefined)}>
               {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>

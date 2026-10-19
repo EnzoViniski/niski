@@ -193,6 +193,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
 
 /// Põe o prompt na fila de ações do chat (a mesma do celular) e espera ele ser digitado.
 fn enviar(state: &Arc<EngineState>, conversa: &str, kind: ActionKind, revisao: &str) -> Result<(), String> {
+    let antes = current(state, conversa).ok().and_then(|(_, s)| s).map(|s| turnos(&s)).unwrap_or(0);
     let mut headers = HeaderMap::new();
     headers.insert("idempotency-key", format!("orq-{}", uuid::Uuid::new_v4()).parse().expect("chave"));
     headers.insert("if-match", revisao.parse().map_err(|_| "Revisão inválida".to_owned())?);
@@ -204,7 +205,7 @@ fn enviar(state: &Arc<EngineState>, conversa: &str, kind: ActionKind, revisao: &
             .map(|a| (a.state.clone(), a.error.clone()));
         match situacao {
             Some((estado, _)) if estado == "sent" => {
-                state.mobile.orquestracao.enviado_em.lock().expect("enviado poisoned").insert(conversa.to_owned(), now_ms());
+                state.mobile.orquestracao.enviado_em.lock().expect("enviado poisoned").insert(conversa.to_owned(), (now_ms(), antes));
                 return Ok(());
             }
             Some((estado, erro)) if estado == "rejected" => return Err(erro.unwrap_or_else(|| "Recusada".into())),
@@ -226,10 +227,10 @@ pub(super) fn mandar_tarefa_quando_pronta(state: &Arc<EngineState>, conversa: &s
             Ok((_, Some(sessao))) => {
                 let cap = interaction::capabilities(&sessao);
                 if cap.prompt {
-                    match enviar(state, conversa, ActionKind::Prompt(tarefa.to_owned()), &cap.revision) {
-                        Ok(()) => break Ok(()),
-                        // A tela mudou entre ler e digitar: tenta de novo.
-                        Err(_) => {}
+                    // A tela mudou entre ler e digitar: tenta de novo. Digitado mas sem turno (a CLI ainda
+                    // subindo engoliu a colagem — visto no Codex 0.163 real): também.
+                    if enviar(state, conversa, ActionKind::Prompt(tarefa.to_owned()), &cap.revision).is_ok() && comecou_turno(state, conversa) {
+                        break Ok(());
                     }
                 }
             }
@@ -248,6 +249,18 @@ pub(super) fn mandar_tarefa_quando_pronta(state: &Arc<EngineState>, conversa: &s
     }
 }
 
+/// Depois de digitar: a CLI começou um turno (ou saiu do campo vazio) em até 10 s?
+fn comecou_turno(state: &EngineState, conversa: &str) -> bool {
+    let antes = state.mobile.orquestracao.enviado_em.lock().expect("enviado poisoned").get(conversa).map(|(_, t)| *t).unwrap_or(0);
+    let limite = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while std::time::Instant::now() < limite {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        let Ok((_, Some(sessao))) = current(state, conversa) else { return false };
+        if turnos(&sessao) > antes || !interaction::capabilities(&sessao).prompt { return true; }
+    }
+    false
+}
+
 /* ── mandar_prompt, ler_conversa, esperar, listar, parar ─────────────────────────────────────── */
 
 fn mandar(state: &Arc<EngineState>, orquestrador: &str, agente: &str, texto: &str) -> Result<String, String> {
@@ -264,8 +277,12 @@ fn mandar(state: &Arc<EngineState>, orquestrador: &str, agente: &str, texto: &st
     let (kind, como) = if cap.prompt { (ActionKind::Prompt(texto.to_owned()), "enviada") }
         else if cap.enfileirar { (ActionKind::Fila(texto.to_owned()), "na fila da CLI (o agente está trabalhando)") }
         else { return Err(format!("O agente não pode receber mensagem agora: {}", cap.reason.unwrap_or_else(|| "tela não reconhecida".into()))) };
+    let digitada = matches!(kind, ActionKind::Prompt(_));
     enviar(state, agente, kind, &cap.revision)?;
     state.mobile.orquestracao.pendentes.lock().expect("pendentes poisoned").remove(agente);
+    if digitada && !comecou_turno(state, agente) {
+        return Ok("Mensagem digitada, mas a CLI ainda não começou o turno. Confira com ler_conversa antes de mandar de novo.".into());
+    }
     Ok(format!("Mensagem {como}. Use esperar(agente) para a resposta."))
 }
 
@@ -306,8 +323,11 @@ async fn esperar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> 
             let pendente = s.mobile.orquestracao.pendentes.lock().expect("pendentes poisoned").get(&a).cloned();
             (estado_de(&s, &a).0, pendente)
         }).await.map_err(|_| "Falha interna".to_owned())?;
-        let recem_enviado = state.mobile.orquestracao.enviado_em.lock().expect("enviado poisoned").get(&agente)
-            .is_some_and(|quando| now_ms().saturating_sub(*quando) < 5_000);
+        // "Pronto" de antes do turno que a última mensagem abriu não vale (até 20 s depois do envio).
+        let envio = state.mobile.orquestracao.enviado_em.lock().expect("enviado poisoned").get(&agente).copied();
+        let turnos_agora = { let (s, a) = (state.clone(), agente.clone());
+            tokio::task::spawn_blocking(move || current(&s, &a).ok().and_then(|(_, s)| s).map(|s| turnos(&s)).unwrap_or(0)).await.unwrap_or(0) };
+        let recem_enviado = envio.is_some_and(|(quando, antes)| turnos_agora <= antes && now_ms().saturating_sub(quando) < 20_000);
         viu_trabalhando |= estado == regra::Estado::Trabalhando;
         let esperando_tarefa = pendente.as_deref().is_some_and(|m| m.starts_with("esperando"));
         let terminou = match estado {
@@ -328,7 +348,7 @@ async fn esperar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> 
     }
 }
 
-fn listar_agentes(state: &EngineState, orquestrador: &str) -> Value {
+pub(super) fn listar_agentes(state: &EngineState, orquestrador: &str) -> Value {
     let registro = ler_registro(state);
     let perfis = omni_core::profiles(dir(state));
     let agentes: Vec<Value> = registro.orquestrador(orquestrador).map(|o| o.agentes.iter().map(|a| {

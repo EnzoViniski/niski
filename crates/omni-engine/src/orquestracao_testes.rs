@@ -38,6 +38,8 @@ while :; do
   IFS= read -r linha || exit 0
   # O "\r\n" que digita o comando deixa um "\n" para trás: a CLI de verdade (modo raw) ignora.
   [ -z "$linha" ] && continue
+  # Com `engolir`, a primeira mensagem some sem turno (o Codex 0.163 real fez isso subindo).
+  if [ -f "$(dirname "$0")/engolir" ]; then rm "$(dirname "$0")/engolir"; continue; fi
   printf '%s\n' "$linha" >> "$LOG"
   case "$linha" in
     *trabalhe*) printf '\r\n* Pensando (esc to interrupt)'; sleep 30 ;;
@@ -200,12 +202,13 @@ async fn cli_falsa_cria_recebe_tarefa_respeita_limite_espera_e_para() {
     let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "x", "modelo": "a;b"})).await;
     assert!(erro, "{texto}");
 
+    std::fs::write(dir.path().join("bin").join("engolir"), "").unwrap();
     let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "modelo": "haiku", "tarefa": "diga so ok"})).await;
     assert!(!erro, "{texto}");
     let agente = serde_json::from_str::<Value>(&texto).unwrap()["agente"].as_str().unwrap().to_owned();
     let recebido = dir.path().join("bin").join("recebido.txt");
     let chegou = |trecho: &str| std::fs::read_to_string(&recebido).unwrap_or_default().contains(trecho);
-    let limite = std::time::Instant::now() + std::time::Duration::from_secs(40);
+    let limite = std::time::Instant::now() + std::time::Duration::from_secs(60);
     while !chegou("diga so ok") && std::time::Instant::now() < limite { tokio::time::sleep(std::time::Duration::from_millis(200)).await; }
     if !chegou("diga so ok") {
         let (_, Some(sessao)) = current(&state, &agente).unwrap() else { panic!("sem sessão") };
@@ -215,6 +218,7 @@ async fn cli_falsa_cria_recebe_tarefa_respeita_limite_espera_e_para() {
             state.mobile.orquestracao.pendentes.lock().unwrap().get(&agente));
     }
 
+    assert_eq!(std::fs::read_to_string(&recebido).unwrap().matches("diga so ok").count(), 1, "reenviada só porque a primeira sumiu");
     let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "outro"})).await;
     assert!(erro && texto.contains("Limite de 1"), "{texto}");
 
@@ -245,4 +249,109 @@ async fn cli_falsa_cria_recebe_tarefa_respeita_limite_espera_e_para() {
     let registro_bruto = std::fs::read_to_string(dir.path().join(regra::ARQUIVO)).unwrap();
     assert!(!sessoes.contains(&token) && !registro_bruto.contains(&token));
     assert!(!sessoes.contains(regra::VARIAVEL_DO_TOKEN), "o ambiente extra não entra no meta");
+}
+
+/// Põe uma ação na fila do chat com a versão da tela atual (o que o usuário faria clicando).
+#[cfg(unix)]
+fn acao(state: &Arc<EngineState>, conversa: &str, kind: ActionKind) -> bool {
+    let Ok((_, Some(sessao))) = current(state, conversa) else { return false };
+    let mut headers = HeaderMap::new();
+    headers.insert("idempotency-key", format!("teste-{}", uuid::Uuid::new_v4()).parse().unwrap());
+    headers.insert("if-match", interaction::capabilities(&sessao).revision.parse().unwrap());
+    enqueue(state, conversa, &headers, kind).is_ok()
+}
+
+/// **CLI real, uma vez, à mão** (perfil Padrão: `~/.claude` e `~/.codex`, sem `profiles.json`):
+/// orquestrador Claude Haiku numa pasta de rascunho pede 2 subagentes (Claude Haiku + Codex
+/// `gpt-6-luna`, o menor da lista da conta) com "diga só 'ok'". Este teste faz o papel do usuário:
+/// aprova o pedido de permissão da 1ª chamada de cada ferramenta (nada pré-autorizado) e responde o
+/// "confiar na pasta?" do Codex com a opção que pede aprovação. Para tudo no fim.
+///
+/// `cargo test -p omni-engine cli_real_orquestrador -- --ignored --nocapture`
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "CLI real: gasta assento; rodar uma vez, à mão"]
+async fn cli_real_orquestrador() {
+    let dados = tempfile::tempdir().unwrap();
+    let rascunho = tempfile::tempdir().unwrap();
+    // Caminho real (/private/var/…): é o que a CLI grava no transcript.
+    let pasta = std::fs::canonicalize(rascunho.path()).unwrap().to_string_lossy().into_owned();
+    let state = Arc::new(EngineState { persist_lock: Mutex::new(()), mobile: MobileRuntime::new(dados.path()),
+        token: "test-only".into(), state_file: dados.path().join("sessions.json"), sessions: Mutex::new(HashMap::new()),
+        id_sequence: AtomicU64::new(1) });
+    start(state.clone());
+    iniciar(state.clone(), 47_590);
+    // Perfil Padrão como o app registra (builtin = pasta nativa, sem variável de conta).
+    let casa = PathBuf::from(std::env::var("HOME").unwrap());
+    atomic_write_json(&dados.path().join("profiles.json"), &json!({"profiles": [
+        {"id": "claude-padrao", "provider": "claude", "name": "Padrão", "config_dir": casa.join(".claude").to_string_lossy(), "builtin": true, "created_at_ms": 0},
+        {"id": "codex-padrao", "provider": "codex", "name": "Padrão", "config_dir": casa.join(".codex").to_string_lossy(), "builtin": true, "created_at_ms": 0},
+    ]})).unwrap();
+    publish(&state, vec![PublishedProject { id: "p".into(), name: "rascunho".into(), path: pasta.clone() }],
+        vec![PublishedAgent { id: "claude".into(), label: "Claude".into(), command: "claude".into(), resume: None },
+             PublishedAgent { id: "codex".into(), label: "Codex".into(), command: "codex".into(), resume: None }], None).unwrap();
+    let sid = uuid::Uuid::new_v4().to_string();
+    let transcript = omni_core::conversations::claude_transcript_path(&PathBuf::from(std::env::var("HOME").unwrap()).join(".claude"), &pasta, &sid);
+    let segmento = |terminal: Option<String>| omni_core::conversations::Segment { provider: "claude".into(), profile_id: Some("claude-padrao".into()),
+        external_session_id: Some(sid.clone()), transcript_path: Some(transcript.to_string_lossy().into_owned()),
+        terminal_session_id: terminal, started_at_ms: now_ms(), ended_at_ms: None };
+    omni_core::conversations::write_index(dados.path(), &[omni_core::conversations::Conversation { id: "orq".into(), project_id: "p".into(),
+        cwd: pasta.clone(), title: "Orquestrador (teste)".into(), title_source: omni_core::conversations::TitleSource::Manual,
+        created_at_ms: now_ms(), segments: vec![segmento(None)] }]).unwrap();
+    mudar_registro(&state, |r| r.definir_ativo("orq", true)).unwrap();
+    let sessao = spawn_terminal_inner(&state, state.next_id(), "p".into(), "Orquestrador".into(), pasta.clone(), None,
+        Some(format!("claude --session-id {sid} --model haiku")), 40, 140, now_ms(),
+        SessionOrigin { headless: true, env: vec![], provider: Some("claude".into()), profile_id: Some("claude-padrao".into()),
+            conversation_id: Some("orq".into()), external_session_id: Some(sid.clone()) }).unwrap();
+    omni_core::conversations::write_index(dados.path(), &[omni_core::conversations::Conversation { id: "orq".into(), project_id: "p".into(),
+        cwd: pasta.clone(), title: "Orquestrador (teste)".into(), title_source: omni_core::conversations::TitleSource::Manual,
+        created_at_ms: now_ms(), segments: vec![segmento(Some(sessao.id.clone()))] }]).unwrap();
+    passar_pela_confianca(&state, &sessao.id);
+
+    let espera = |segundos: u64| tokio::time::sleep(std::time::Duration::from_secs(segundos));
+    let mut pronto = false;
+    for _ in 0..90 {
+        espera(1).await;
+        if estado_de(&state, "orq").0 == regra::Estado::Pronto { pronto = true; break; }
+    }
+    assert!(pronto, "o orquestrador não ficou pronto");
+    println!("orquestrador pronto; mandando o pedido");
+    assert!(acao(&state, "orq", ActionKind::Prompt("Use as ferramentas medza: crie 2 subagentes com criar_agente (1: plataforma claude, modelo haiku; 2: plataforma codex, modelo gpt-6-luna, esforco low), os dois com a tarefa \"diga só 'ok'\". Depois chame esperar em cada um e responda numa linha o que cada um disse.".into())));
+
+    let inicio = std::time::Instant::now();
+    let mut pronto_seguido = 0;
+    let mut visto_trabalhando = false;
+    while inicio.elapsed() < std::time::Duration::from_secs(480) {
+        espera(1).await;
+        let registro = ler_registro(&state);
+        let agentes: Vec<String> = registro.orquestrador("orq").map(|o| o.agentes.iter().map(|a| a.conversation_key.clone()).collect()).unwrap_or_default();
+        for conversa in std::iter::once("orq".to_owned()).chain(agentes.iter().cloned()) {
+            let (estado, _, cap) = estado_de(&state, &conversa);
+            let Some(cap) = cap else { continue };
+            if cap.approve {
+                println!("[{:>3}s] {conversa}: aprovando pedido: {}", inicio.elapsed().as_secs(),
+                    cap.approval_text.as_deref().unwrap_or("").lines().next().unwrap_or(""));
+                acao(&state, &conversa, ActionKind::Approval(true));
+                espera(2).await;
+            } else if let Some(menu) = &cap.escolha {
+                let opcao = menu.opcoes.iter().find(|o| o.rotulo.to_lowercase().contains("ask")).or(menu.opcoes.first());
+                println!("[{:>3}s] {conversa}: menu \"{}\" → {:?}", inicio.elapsed().as_secs(), menu.pergunta, opcao.map(|o| &o.rotulo));
+                if let Some(opcao) = opcao { acao(&state, &conversa, ActionKind::Escolha(Resposta::Opcao(opcao.numero))); }
+                espera(2).await;
+            }
+            if conversa == "orq" {
+                visto_trabalhando |= estado == regra::Estado::Trabalhando;
+                pronto_seguido = if estado == regra::Estado::Pronto && visto_trabalhando && agentes.len() >= 2 { pronto_seguido + 1 } else { 0 };
+            }
+        }
+        if pronto_seguido >= 5 { break; }
+    }
+    let resumo = ferramentas::listar_agentes(&state, "orq");
+    println!("subagentes: {}", serde_json::to_string_pretty(&resumo).unwrap());
+    println!("orquestrador disse: {:?}", ultima_do_agente(&state, "orq").map(|t| regra::resumir(&t, 400)));
+    // Encerra tudo, terminado ou não.
+    let ids: Vec<String> = state.sessions.lock().unwrap().keys().cloned().collect();
+    for id in ids { let _ = stop_session(&state, &id); }
+    assert!(pronto_seguido >= 5, "não terminou em 8 min");
+    assert_eq!(resumo["agentes"].as_array().map(|a| a.len()), Some(2));
 }

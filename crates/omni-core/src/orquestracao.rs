@@ -206,7 +206,7 @@ pub fn argumento_seguro(valor: &str) -> bool {
 pub fn argumentos_de_modelo(plataforma: &str, modelo: Option<&str>, esforco: Option<&str>) -> Result<String, String> {
     let mut saida = String::new();
     if let Some(modelo) = modelo.filter(|m| !m.is_empty()) {
-        if !argumento_seguro(modelo) { return Err(format!("Modelo com caracteres não aceitos: use só letras, números, ponto, hífen e sublinhado")); }
+        if !argumento_seguro(modelo) { return Err("Modelo com caracteres não aceitos: use só letras, números, ponto, hífen e sublinhado".into()); }
         saida += &match plataforma { "codex" => format!(" -m {modelo}"), _ => format!(" --model {modelo}") };
     }
     if let Some(esforco) = esforco.filter(|e| !e.is_empty()) {

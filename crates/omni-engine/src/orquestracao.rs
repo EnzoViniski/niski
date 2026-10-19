@@ -32,9 +32,9 @@ pub struct Runtime {
     porta: AtomicU16,
     /// Subagentes cuja tarefa inicial ainda não foi enviada (a CLI está subindo), com o motivo.
     pendentes: Mutex<HashMap<String, String>>,
-    /// Quando cada subagente recebeu a última mensagem: `esperar` não aceita "pronto" logo depois de
-    /// um envio, antes de a CLI começar o turno.
-    enviado_em: Mutex<HashMap<String, u64>>,
+    /// Quando cada subagente recebeu a última mensagem e quantos turnos a tela dele já tinha
+    /// começado: `esperar` não aceita "pronto" de antes do turno que essa mensagem abriu.
+    enviado_em: Mutex<HashMap<String, (u64, u64)>>,
 }
 
 impl Runtime {
@@ -228,6 +228,11 @@ fn mensagens(state: &EngineState, conversa: &str) -> Vec<(String, String)> {
     timeline.messages.into_iter()
         .filter(|m| m.kind == omni_core::feed::Kind::Text && !m.text.trim().is_empty())
         .map(|m| (m.role, m.text)).collect()
+}
+
+/// Turnos que a tela da sessão já começou ("esc to interrupt" apareceu), ver `append_output`.
+fn turnos(sessao: &LiveSession) -> u64 {
+    sessao.interaction.lock().map(|c| c.turnos_iniciados).unwrap_or(0)
 }
 
 fn ultima_do_agente(state: &EngineState, conversa: &str) -> Option<String> {
