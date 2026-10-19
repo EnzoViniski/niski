@@ -89,6 +89,7 @@ export function AcoesDoNo({ no, orquestrador, centro }: { no: NoAoVivo; orquestr
     <>
       {no.capabilities?.approve && (
         <div className="orq-pedido nodrag">
+          {no.arriscado && <div className="orq-pedido-alerta">Só você aprova: {no.arriscado}</div>}
           <div className="orq-pedido-texto" title={pedido ?? undefined}>{pedido ?? "Pedido de permissão"}</div>
           <div className="orq-pedido-botoes">
             <button type="button" className="orq-botao is-sim" disabled={ocupado} onClick={() => void acoes.aprovar(no, true)}>Permitir</button>

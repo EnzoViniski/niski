@@ -43,6 +43,16 @@ while :; do
   printf '%s\n' "$linha" >> "$LOG"
   # Mensagem de várias linhas (o briefing) chega numa colagem só: o resto entra junto, um turno só.
   while IFS= read -r -t 1 mais; do printf '%s\n' "$mais" >> "$LOG"; linha="$linha $mais"; done
+  # PEDIR_PERMISSAO/APAGAR_BUILD: pede permissão como o Claude Code (o comando aparece no diálogo) e grava a resposta.
+  cmd=""
+  case "$linha" in *APAGAR_BUILD*) cmd="rm -rf build" ;; *PEDIR_PERMISSAO*) cmd="ls src" ;; esac
+  if [ -n "$cmd" ]; then
+    printf '\r\n Bash command\r\n   %s\r\n\r\n Do you want to proceed?\r\n \342\235\257 1. Yes\r\n   2. Yes, and don'"'"'t ask again\r\n   3. No, and tell Claude what to do differently (esc)\r\n' "$cmd"
+    IFS= read -r resp
+    printf 'resposta %s\n' "$resp" >> "$LOG"
+    printf '\033[2J\033[H ok\r\n'
+    continue
+  fi
   case "$linha" in
     *trabalhe*) printf '\r\n* Pensando (esc to interrupt)'; sleep 30 ;;
     *) printf '\r\n esc to interrupt'; sleep 1; printf '\r\033[2K ok\r\n' ;;
@@ -117,7 +127,7 @@ async fn token_errado_401_get_405_origem_estranha_403_e_handshake() {
     assert_eq!(status, StatusCode::ACCEPTED);
     let (_, lista) = enviar_mcp(&state, pedido(Some(&token), json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}))).await;
     let nomes: Vec<&str> = lista["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-    assert_eq!(nomes, ["listar_plataformas_e_contas", "criar_agente", "conferir_arquivos", "mandar_prompt", "ler_conversa", "esperar", "listar_agentes", "parar_agente"]);
+    assert_eq!(nomes, ["listar_plataformas_e_contas", "criar_agente", "conferir_arquivos", "mandar_prompt", "ler_conversa", "esperar", "listar_agentes", "responder_pedido", "parar_agente"]);
     let (_, desconhecido) = enviar_mcp(&state, pedido(Some(&token), json!({"jsonrpc": "2.0", "id": 3, "method": "resources/list"}))).await;
     assert_eq!(desconhecido["error"]["code"], -32601);
 }
@@ -386,4 +396,50 @@ async fn cli_real_orquestrador() {
     for id in ids { let _ = stop_session(&state, &id); }
     assert!(pronto_seguido >= 5, "não terminou em 8 min");
     assert_eq!(resumo["agentes"].as_array().map(|a| a.len()), Some(2));
+}
+
+/// O orquestrador responde o pedido de permissão do subagente; o arriscado fica para o usuário.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn orquestrador_responde_permissao_do_subagente_e_arriscado_fica_com_o_usuario() {
+    let (dir, state, projeto) = fixture();
+    start(state.clone());
+    publicar(&state, &projeto, &cli_falsa(dir.path()));
+    let token = ligar(&state, "orq-a", "claude");
+    let recebido = dir.path().join("bin").join("recebido.txt");
+    let chegou = |trecho: &str| std::fs::read_to_string(&recebido).unwrap_or_default().contains(trecho);
+
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "PEDIR_PERMISSAO para listar", "somente_leitura": true})).await;
+    assert!(!erro, "{texto}");
+    let agente = serde_json::from_str::<Value>(&texto).unwrap()["agente"].as_str().unwrap().to_owned();
+    let (_, texto) = ferramenta(&state, &token, "esperar", json!({"agente": agente, "segundos": 40})).await;
+    let espera: Value = serde_json::from_str(&texto).unwrap_or(Value::Null);
+    assert_eq!(espera["estado"], "esperando você", "{texto}");
+    assert_eq!(espera["pedido"]["tipo"], "permissao");
+    assert!(espera["pedido"]["texto"].as_str().unwrap().contains("ls src"));
+    assert!(espera["pedido"]["arriscado"].is_null());
+
+    let (erro, texto) = ferramenta(&state, &token, "responder_pedido", json!({"agente": agente, "opcao": 2})).await;
+    assert!(erro && texto.contains("permitir"), "permissão não se responde com opção: {texto}");
+    let (erro, texto) = ferramenta(&state, &token, "responder_pedido", json!({"agente": agente, "permitir": true})).await;
+    assert!(!erro, "{texto}");
+    assert!(chegou("resposta 1"), "a CLI recebeu o 'Yes' de uma vez só");
+    let (_, texto) = ferramenta(&state, &token, "esperar", json!({"agente": agente, "segundos": 20})).await;
+    assert!(texto.contains("\"pronto\""), "{texto}");
+    let (erro, texto) = ferramenta(&state, &token, "responder_pedido", json!({"agente": agente, "permitir": true})).await;
+    assert!(erro && texto.contains("Não há pedido"), "{texto}");
+
+    // Arriscado: aprovar é recusado (fica para o usuário no fluxo); negar pode.
+    let (erro, texto) = ferramenta(&state, &token, "mandar_prompt", json!({"agente": agente, "texto": "agora APAGAR_BUILD"})).await;
+    assert!(!erro, "{texto}");
+    let (_, texto) = ferramenta(&state, &token, "esperar", json!({"agente": agente, "segundos": 20})).await;
+    let espera: Value = serde_json::from_str(&texto).unwrap_or(Value::Null);
+    assert_eq!(espera["pedido"]["arriscado"], "apaga arquivos em massa", "{texto}");
+    let (erro, texto) = ferramenta(&state, &token, "responder_pedido", json!({"agente": agente, "permitir": true})).await;
+    assert!(erro && texto.contains("só o usuário aprova"), "{texto}");
+    assert!(!chegou("resposta 3") && std::fs::read_to_string(&recebido).unwrap().matches("resposta").count() == 1);
+    let (erro, texto) = ferramenta(&state, &token, "responder_pedido", json!({"agente": agente, "permitir": false})).await;
+    assert!(!erro, "{texto}");
+    assert!(chegou("resposta 3"), "negar manda a opção No");
+    let _ = ferramenta(&state, &token, "parar_agente", json!({"agente": agente})).await;
 }

@@ -179,9 +179,13 @@ dê a um subagente só.\n\
 teste); ler (arquivos para ler antes); editar e criar (exatamente o que ele pode mexer); criterios (como saber que acabou). O \
 engine monta o briefing, inclui o que é dos outros como 'não mexa' e as regras.\n\
 4. Plataforma e modelo pelo tamanho da tarefa (listar_plataformas_e_contas): modelo menor para tarefa simples.\n\
-5. esperar e ler_conversa; revise o resultado (rode os testes você mesmo) e use conferir_arquivos para ver se alguém mexeu fora \
+5. Quando esperar devolver 'esperando você' com um pedido: se é permissão dentro da tarefa e dos arquivos do subagente, \
+aprove com responder_pedido(permitir: true); se sai disso, negue e oriente com mandar_prompt; pergunta ou menu da CLI (ex.: \
+confiar na pasta), escolha a opção com responder_pedido(opcao). Pedido arriscado (apagar em massa, push, instalar global, \
+credenciais) fica para o usuário: avise-o.\n\
+6. esperar e ler_conversa; revise o resultado (rode os testes você mesmo) e use conferir_arquivos para ver se alguém mexeu fora \
 do que era dele; corrija com mandar_prompt.\n\
-6. parar_agente quando cada um terminar (libera vaga no limite) e responda ao usuário com o resumo.";
+7. parar_agente quando cada um terminar (libera vaga no limite) e responda ao usuário com o resumo.";
 
 async fn responder(state: &Arc<EngineState>, orquestrador: &str, mensagem: Value) -> Option<Value> {
     let metodo = mensagem["method"].as_str().unwrap_or("").to_owned();
@@ -275,6 +279,9 @@ fn no(state: &EngineState, conversa: &str, perfis: &[omni_core::Profile], agente
         "criado_em": agente.map(|a| a.criado_em),
         "estado": estado,
         "estado_texto": estado.texto(),
+        // Pedido que só o usuário aprova (o orquestrador não pode): o nó destaca.
+        "arriscado": cap.as_ref().filter(|c| c.approve).and_then(|c| c.approval_text.as_deref())
+            .and_then(omni_core::orquestracao::briefing::pedido_arriscado),
         "pendente": pendente,
         "ultima_mensagem": ultima_do_agente(state, conversa).map(|t| regra::resumir(&t, 600)),
         "capabilities": cap,

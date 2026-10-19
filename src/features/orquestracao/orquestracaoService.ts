@@ -28,6 +28,8 @@ export interface NoAoVivo {
   estado_texto: string;
   /** A tarefa inicial ainda não foi digitada (a CLI está abrindo), ou o motivo de não ter ido. */
   pendente: string | null;
+  /** Pedido de permissão que só o usuário aprova (o orquestrador é barrado), com o motivo. */
+  arriscado?: string | null;
   ultima_mensagem: string | null;
   capabilities: Conversation["capabilities"];
 }

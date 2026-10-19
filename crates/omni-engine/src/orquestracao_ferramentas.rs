@@ -50,6 +50,11 @@ pub(super) fn lista() -> Value {
         {"name": "listar_agentes",
          "description": "Os subagentes deste orquestrador, com plataforma, conta, modelo, tarefa, estado e última mensagem.",
          "inputSchema": {"type": "object", "properties": {}}},
+        {"name": "responder_pedido",
+         "description": "Responde um pedido que um subagente fez na tela: permissão (permitir true/false) ou pergunta/menu da CLI (opcao = número). Aprove o que está dentro da tarefa e dos arquivos dele; negue e oriente com mandar_prompt o que sair disso. Pedido arriscado (apagar em massa, push/publicar, instalar global, sudo, credenciais) só o usuário aprova: avise-o, ele responde no fluxo.",
+         "inputSchema": {"type": "object", "required": ["agente"], "properties": {"agente": agente,
+            "permitir": {"type": "boolean", "description": "Para pedido de permissão"},
+            "opcao": {"type": "integer", "minimum": 1, "description": "Para pergunta ou menu: o número da opção"}}}},
         {"name": "parar_agente",
          "description": "Encerra a CLI de um subagente (a conversa continua no histórico). Libera vaga no limite.",
          "inputSchema": {"type": "object", "required": ["agente"], "properties": {"agente": agente}}},
@@ -91,6 +96,7 @@ pub(super) async fn chamar(state: &Arc<EngineState>, orquestrador: &str, nome: &
         "ler_conversa" => bloqueante(move || ler(&state, &orquestrador, &args)).await,
         "listar_agentes" => bloqueante(move || Ok(em_json(listar_agentes(&state, &orquestrador)))).await,
         "conferir_arquivos" => bloqueante(move || conferir(&state, &orquestrador)).await,
+        "responder_pedido" => bloqueante(move || responder(&state, &orquestrador, &args)).await,
         "parar_agente" => {
             let agente = obrigatorio(&args, "agente")?.to_owned();
             bloqueante(move || parar(&state, &orquestrador, &agente)).await
@@ -354,11 +360,12 @@ fn ler(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<Str
     do_orquestrador(state, orquestrador, agente)?;
     let quantas = regra::ultimas(args.get("ultimas").and_then(Value::as_u64).map(|n| n as usize));
     let todas = mensagens(state, agente);
-    let (estado, sessao, _) = estado_de(state, agente);
+    let (estado, sessao, cap) = estado_de(state, agente);
     let ultimas: Vec<Value> = todas[todas.len().saturating_sub(quantas)..].iter().map(|(papel, texto)| json!({
         "de": if papel == "assistant" { "agente" } else { "orquestrador" }, "texto": regra::resumir(texto, 4_000),
     })).collect();
     let mut saida = json!({"agente": agente, "estado": estado.texto(), "mensagens": ultimas});
+    if let Some(pedido) = cap.as_ref().and_then(pedido_de) { saida["pedido"] = pedido; }
     if let Some(motivo) = state.mobile.orquestracao.pendentes.lock().expect("pendentes poisoned").get(agente) { saida["tarefa"] = json!(motivo); }
     if todas.is_empty() { if let Some(sessao) = sessao { saida["tela"] = json!(tela(&sessao)); } }
     Ok(em_json(saida))
@@ -375,9 +382,10 @@ async fn esperar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> 
     let mut viu_trabalhando = false;
     loop {
         let (s, a) = (state.clone(), agente.clone());
-        let (estado, pendente) = tokio::task::spawn_blocking(move || {
+        let (estado, pendente, pedido) = tokio::task::spawn_blocking(move || {
             let pendente = s.mobile.orquestracao.pendentes.lock().expect("pendentes poisoned").get(&a).cloned();
-            (estado_de(&s, &a).0, pendente)
+            let (estado, _, cap) = estado_de(&s, &a);
+            (estado, pendente, cap.as_ref().and_then(pedido_de))
         }).await.map_err(|_| "Falha interna".to_owned())?;
         // "Pronto" de antes do turno que a última mensagem abriu não vale (até 20 s depois do envio).
         let envio = state.mobile.orquestracao.enviado_em.lock().expect("enviado poisoned").get(&agente).copied();
@@ -395,7 +403,7 @@ async fn esperar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> 
             let (s, a) = (state.clone(), agente.clone());
             let ultima = tokio::task::spawn_blocking(move || ultima_do_agente(&s, &a)).await.ok().flatten();
             return Ok(em_json(json!({"agente": agente, "estado": estado.texto(),
-                "ultima_mensagem": ultima.map(|t| regra::resumir(&t, 4_000)), "tarefa": pendente})));
+                "ultima_mensagem": ultima.map(|t| regra::resumir(&t, 4_000)), "tarefa": pendente, "pedido": pedido})));
         }
         if inicio.elapsed().as_secs() >= segundos {
             return Ok(format!("ainda trabalhando (estado: {}). Chame esperar de novo.", estado.texto()));
@@ -408,8 +416,8 @@ pub(super) fn listar_agentes(state: &EngineState, orquestrador: &str) -> Value {
     let registro = ler_registro(state);
     let perfis = omni_core::profiles(dir(state));
     let agentes: Vec<Value> = registro.orquestrador(orquestrador).map(|o| o.agentes.iter().map(|a| {
-        let (estado, _, _) = estado_de(state, &a.conversation_key);
-        json!({"agente": a.conversation_key, "plataforma": a.plataforma, "conta": nome_da_conta(&perfis, a.conta.as_deref()),
+        let (estado, _, cap) = estado_de(state, &a.conversation_key);
+        json!({"agente": a.conversation_key, "pedido": cap.as_ref().and_then(pedido_de), "plataforma": a.plataforma, "conta": nome_da_conta(&perfis, a.conta.as_deref()),
             "modelo": a.modelo, "tarefa": regra::resumir(&a.tarefa, 200), "estado": estado.texto(),
             "editar": a.editar, "criar": a.criar,
             "ultima_mensagem": ultima_do_agente(state, &a.conversation_key).map(|t| regra::resumir(&t, 300))})
@@ -439,6 +447,49 @@ fn conferir(state: &EngineState, orquestrador: &str) -> Result<String, String> {
     }
     Ok(em_json(json!({"alterados": mudados.len(), "por_agente": por_agente, "sem_dono": sem_dono, "em_disputa": em_disputa,
         "nota": "sem_dono inclui o que você ou o usuário mudaram, e o que já estava alterado antes dos subagentes."})))
+}
+
+/// O que o subagente está pedindo na tela, no formato que o orquestrador lê e responde.
+fn pedido_de(cap: &interaction::Capabilities) -> Option<Value> {
+    if cap.approve {
+        let texto = cap.approval_text.clone().unwrap_or_default();
+        return Some(json!({"tipo": "permissao", "texto": regra::resumir(&texto, 3_000),
+            "arriscado": briefing::pedido_arriscado(&texto),
+            "como_responder": "responder_pedido(agente, permitir: true|false)"}));
+    }
+    cap.escolha.as_ref().map(|menu| json!({"tipo": "pergunta", "pergunta": menu.pergunta, "detalhe": menu.detalhe,
+        "opcoes": menu.opcoes.iter().map(|o| json!({"numero": o.numero, "rotulo": o.rotulo, "descricao": o.descricao})).collect::<Vec<_>>(),
+        "como_responder": "responder_pedido(agente, opcao: <número>)"}))
+}
+
+/// Responde o pedido na tela do subagente pela mesma fila do chat (com a versão da tela que foi lida).
+/// Aprovar algo arriscado é recusado: fica para o usuário. Opção que guarda permissão para sempre nunca
+/// é mandada (`interaction::approval` só usa a de uma vez).
+fn responder(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<String, String> {
+    let agente = obrigatorio(args, "agente")?;
+    do_orquestrador(state, orquestrador, agente)?;
+    let (_, sessao, cap) = estado_de(state, agente);
+    let (Some(_), Some(cap)) = (sessao, cap) else { return Err("O agente está parado.".into()) };
+    let (kind, resumo) = match (args.get("permitir").and_then(Value::as_bool), args.get("opcao").and_then(Value::as_u64)) {
+        (Some(permitir), _) if cap.approve => {
+            let texto = cap.approval_text.clone().unwrap_or_default();
+            if let Some(motivo) = briefing::pedido_arriscado(&texto).filter(|_| permitir) {
+                registro::info("orquestracao_pedido_para_o_usuario", &[("orquestrador", orquestrador), ("agente", agente)]);
+                return Err(format!("Este pedido {motivo}: só o usuário aprova. Avise-o (ele responde no fluxo) ou negue com permitir: false."));
+            }
+            (ActionKind::Approval(permitir), if permitir { "permitido" } else { "negado" })
+        }
+        (_, Some(n)) if cap.escolha.as_ref().is_some_and(|m| m.opcoes.iter().any(|o| u64::from(o.numero) == n)) => {
+            (ActionKind::Escolha(Resposta::Opcao(n as u8)), "opção escolhida")
+        }
+        (_, Some(_)) if cap.escolha.is_some() => return Err("Essa opção não existe no menu. Veja as opções com ler_conversa.".into()),
+        _ if cap.approve => return Err("O pedido é de permissão: responda com permitir: true ou false.".into()),
+        _ if cap.escolha.is_some() => return Err("O pedido é uma pergunta: responda com opcao: <número>.".into()),
+        _ => return Err("Não há pedido na tela deste agente agora.".into()),
+    };
+    enviar(state, agente, kind, &cap.revision)?;
+    registro::info("orquestracao_pedido_respondido", &[("orquestrador", orquestrador), ("agente", agente), ("resposta", resumo)]);
+    Ok(format!("Pedido {resumo}. Use esperar(agente) para acompanhar."))
 }
 
 /// Encerra a CLI do subagente (a mesma parada do botão do terminal). Também usado pela tela.

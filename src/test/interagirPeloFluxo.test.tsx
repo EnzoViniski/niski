@@ -35,6 +35,7 @@ beforeEach(() => {
     agentes: [
       no({ id: "sub-1", tarefa: "Revisar o login", estado: "trabalhando", estado_texto: "trabalhando" }),
       no({ id: "sub-2", plataforma: "codex", tarefa: "Escrever testes", estado: "esperando_voce", estado_texto: "esperando você",
+        arriscado: "apaga arquivos em massa",
         capabilities: cap({ approve: true, revision: '"r-aprovar"', approval_text: "Do you want to run npm test?" }) }),
     ],
   };
@@ -64,6 +65,7 @@ describe("interagir pelo fluxo", () => {
   it("aprova o pedido de permissão mostrado no nó, com a versão da tela que estava à vista", async () => {
     montar();
     expect(await screen.findByText("Do you want to run npm test?")).toBeInTheDocument();
+    expect(screen.getByText("Só você aprova: apaga arquivos em massa")).toBeInTheDocument();
     fireEvent.click(botaoDoNo("Permitir"));
     await waitFor(() => expect(posts("/aprovar")).toHaveLength(1));
     const [, caminho, corpo, opcoes] = posts("/aprovar")[0];
