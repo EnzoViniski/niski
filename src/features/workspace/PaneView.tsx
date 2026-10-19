@@ -71,6 +71,13 @@ export function PaneView({
   const tab = pane.tabs.find((item) => item.id === pane.activeTabId) ?? pane.tabs[0];
   const tabId = tab?.id;
   const deFora = useProjetoDeFora(tab?.kind === "agent" || tab?.kind === "terminal" ? tab.resourceId : null);
+  // Fork: de que projeto é este painel. Aba com projeto próprio (criada pelo "+" aqui) ou conversa de
+  // outro projeto: o "+" abre agente **nesse** projeto, não no dono do layout.
+  const { projetos } = useProjetosDasAbas();
+  const projetoDoPainel = tab?.projectId ?? deFora?.id ?? projectId;
+  const projetoDaAba = tab?.projectId && projetos[tab.projectId] ? { id: tab.projectId, path: projetos[tab.projectId].path } : { id: projectId, path: projectPath };
+  const criarAba = (kind: PaneNode["tabs"][number]["kind"], title: string) =>
+    dispatch({ type: "CREATE_TAB", paneId: pane.id, kind, title, projectId: projetoDoPainel !== projectId ? projetoDoPainel : undefined });
   const dropZone = tabDrag?.target?.paneId === pane.id ? tabDrag.target.zone : null;
   // Soltar no próprio painel só faz algo quando divide e sobra aba para trás.
   const showDrop = dropZone !== null
@@ -153,7 +160,7 @@ export function PaneView({
           event.dataTransfer.setData(PANE_DRAG_TYPE, JSON.stringify({ paneId: pane.id }));
         }}
       >
-        <WorkspaceTabBar pane={pane} dispatch={dispatch} onCloseTab={closeTab} dirtyTabIds={dirtyTabIds} />
+        <WorkspaceTabBar pane={pane} dispatch={dispatch} onCloseTab={closeTab} dirtyTabIds={dirtyTabIds} onCriarAba={criarAba} />
 
         <div className="pane-acoes" aria-label="Ações do painel">
           <PaneAction label="Dividir lado a lado" glyph={<GlifoColunas />} onClick={() => split("horizontal")} />
@@ -181,12 +188,12 @@ export function PaneView({
       <div className="flex-1 min-h-0">
         <PaneErrorBoundary key={tab?.id ?? pane.id}>
         {!tab ? (
-          <PainelVazio onCriar={(kind, title) => dispatch({ type: "CREATE_TAB", paneId: pane.id, kind, title })} />
+          <PainelVazio onCriar={criarAba} />
         ) : tab.kind === "agent" ? (
           <AbaDeAgente agentView={agentView} sessionId={tab.resourceId ?? null}>
             <TerminalPane
-              projectId={projectId}
-              projectPath={projectPath}
+              projectId={projetoDaAba.id}
+              projectPath={projetoDaAba.path}
               paneId={pane.id}
               tab={tab}
               onSessionCreated={bindSession}
@@ -194,8 +201,8 @@ export function PaneView({
           </AbaDeAgente>
         ) : tab.kind === "terminal" ? (
           <TerminalPane
-            projectId={projectId}
-            projectPath={projectPath}
+            projectId={projetoDaAba.id}
+            projectPath={projetoDaAba.path}
             paneId={pane.id}
             tab={tab}
             onSessionCreated={bindSession}

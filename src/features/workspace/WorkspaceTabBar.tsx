@@ -16,9 +16,11 @@ interface WorkspaceTabBarProps {
   dispatch: React.Dispatch<WorkspaceAction>;
   onCloseTab: (tab: PaneNode["tabs"][number]) => void;
   dirtyTabIds?: Set<string>;
+  /** Fork: o "+" cria a aba no projeto do painel (`PaneView`). Sem isto, no projeto do layout. */
+  onCriarAba?: (kind: PaneKind, title: string) => void;
 }
 
-export function WorkspaceTabBar({ pane, dispatch, onCloseTab, dirtyTabIds }: WorkspaceTabBarProps) {
+export function WorkspaceTabBar({ pane, dispatch, onCloseTab, dirtyTabIds, onCriarAba }: WorkspaceTabBarProps) {
   return (
     <div
       className="flex-1 min-w-0 flex overflow-x-auto"
@@ -61,7 +63,7 @@ export function WorkspaceTabBar({ pane, dispatch, onCloseTab, dirtyTabIds }: Wor
         </div>
       ))}
       <NewTabMenu
-        onCreate={(kind, title) => dispatch({ type: "CREATE_TAB", paneId: pane.id, kind, title })}
+        onCreate={onCriarAba ?? ((kind, title) => dispatch({ type: "CREATE_TAB", paneId: pane.id, kind, title }))}
       />
     </div>
   );

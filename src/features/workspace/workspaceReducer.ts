@@ -249,7 +249,9 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
     case "CREATE_TAB":
       return updateActiveProject(state, (project) => {
         if (!findPane(project.layout, action.paneId)) return project;
-        const tab = createTab(action.kind, action.title, action.resourceId);
+        const criada = createTab(action.kind, action.title, action.resourceId);
+        // Fork: aba de outro projeto (o "+" de um painel com conversa dele) guarda de qual é.
+        const tab = action.projectId && action.projectId !== project.id ? { ...criada, projectId: action.projectId } : criada;
         return {
           ...project,
           activePaneId: action.paneId,

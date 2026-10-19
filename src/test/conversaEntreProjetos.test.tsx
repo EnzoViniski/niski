@@ -113,3 +113,15 @@ describe("prévia do layout final", () => {
     expect(screen.queryByRole("status", { name: "Prévia do layout" })).not.toBeInTheDocument();
   });
 });
+
+describe("aba nova num painel de outro projeto", () => {
+  it("guarda o projeto dela quando não é o dono do layout, e não guarda quando é", () => {
+    const state = doisProjetos();
+    const painel = state.projects[1].activePaneId;
+    const outro = workspaceReducer(state, { type: "CREATE_TAB", paneId: painel, kind: "agent", projectId: state.projects[0].id });
+    const mesmo = workspaceReducer(state, { type: "CREATE_TAB", paneId: painel, kind: "agent", projectId: state.projects[1].id });
+    const ultima = (s: WorkspaceState) => panes(s.projects[1].layout)[0].tabs.at(-1)!;
+    expect(ultima(outro).projectId).toBe(state.projects[0].id);
+    expect(ultima(mesmo).projectId).toBeUndefined();
+  });
+});
