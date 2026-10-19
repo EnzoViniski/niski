@@ -80,3 +80,28 @@ pub fn rollouts(root: &Path) -> Vec<PathBuf> {
     visit(root, 0, &mut found);
     found
 }
+
+#[cfg(test)]
+mod isolamento_de_conta {
+    use super::*;
+
+    fn perfil(provider: &str, builtin: bool, dir: &str) -> Profile {
+        Profile { id: format!("{provider}-x"), provider: provider.into(), name: "x".into(), config_dir: dir.into(),
+            builtin, created_at_ms: 0, last_used_at_ms: None, authenticated: false, email: None }
+    }
+
+    /// Regra do fork: um perfil nunca pode cair na conta de outro. O padrão não define variável
+    /// nenhuma (no macOS o token dele mora no Keychain sob o nome da conta nativa; definir
+    /// `CLAUDE_CONFIG_DIR`, mesmo para `~/.claude`, faria a CLI procurar outra entrada e pedir login).
+    /// Cada extra aponta para a própria pasta.
+    #[test]
+    fn padrao_nao_define_pasta_e_extras_definem_a_propria() {
+        assert!(env_for(&perfil("claude", true, "/home/u/.claude")).is_empty());
+        assert!(env_for(&perfil("codex", true, "/home/u/.codex")).is_empty());
+        assert_eq!(env_for(&perfil("claude", false, "/dados/claude/team")),
+            vec![("CLAUDE_CONFIG_DIR".to_string(), "/dados/claude/team".to_string())]);
+        assert_eq!(env_for(&perfil("codex", false, "/dados/codex/b")),
+            vec![("CODEX_HOME".to_string(), "/dados/codex/b".to_string())]);
+        assert!(env_for(&perfil("cursor", false, "/dados/cursor/c")).is_empty());
+    }
+}
