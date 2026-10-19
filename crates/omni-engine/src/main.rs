@@ -356,6 +356,30 @@ fn ambiente_do_terminal(command: &mut CommandBuilder, env: &[(String, String)]) 
     ambiente_do_terminal_com(command, env, herdou_sessao_do_claude(|nome| env::var_os(nome).is_some()));
 }
 
+/// App aberto pelo Finder (macOS) ou pelo menu (Linux) herda o ambiente do launchd/sessão gráfica:
+/// **sem `TERM`, `COLORTERM` nem locale**. Ninguém mais os define (o `portable-pty` não define), e
+/// `npm run dev` esconde o defeito porque herda do terminal de quem desenvolve. Sem `TERM` o zsh cai
+/// em edição de linha degradada e o Claude Code desliga todas as cores. O que a tela do OMNI emula é
+/// o xterm.js, daí `xterm-256color` + truecolor. Locale: só o tipo de caractere (`LC_CTYPE`), e só se
+/// nada estiver definido — não muda idioma de mensagens. Valor herdado sempre vence.
+#[cfg(not(windows))]
+fn terminal_e_locale_padrao(command: &mut CommandBuilder) {
+    let falta = |command: &CommandBuilder, nome: &str| command.get_env(nome).is_none_or(|valor| valor.is_empty());
+    if falta(command, "TERM") {
+        command.env("TERM", "xterm-256color");
+    }
+    if falta(command, "COLORTERM") {
+        command.env("COLORTERM", "truecolor");
+    }
+    if ["LANG", "LC_ALL", "LC_CTYPE"].iter().all(|nome| falta(command, nome)) {
+        command.env("LC_CTYPE", if cfg!(target_os = "macos") { "UTF-8" } else { "C.UTF-8" });
+    }
+}
+
+/// No Windows quem desenha é o ConPTY e o shell padrão é PowerShell/Git Bash; nada a completar.
+#[cfg(windows)]
+fn terminal_e_locale_padrao(_command: &mut CommandBuilder) {}
+
 fn ambiente_do_terminal_com(command: &mut CommandBuilder, env: &[(String, String)], dentro_do_claude: bool) {
     for nome in VARIAVEIS_DO_ENGINE {
         command.env_remove(nome);
@@ -370,6 +394,7 @@ fn ambiente_do_terminal_com(command: &mut CommandBuilder, env: &[(String, String
         command.env_remove("CLAUDE_CONFIG_DIR");
     }
     command.env("OMNI_AGENTS", "1");
+    terminal_e_locale_padrao(command);
     // Isolamento de conta: o CLI é digitado no shell, então herda o ambiente daqui.
     for (key, value) in env {
         command.env(key, value);
@@ -1351,6 +1376,27 @@ mod tests {
         comando.env("CLAUDE_CONFIG_DIR", "C:/escolha-do-usuario");
         ambiente_do_terminal_com(&mut comando, &[], false);
         assert_eq!(comando.get_env("CLAUDE_CONFIG_DIR").and_then(|v| v.to_str()), Some("C:/escolha-do-usuario"));
+    }
+
+    /// App aberto pelo Finder: o engine não tem `TERM` nem locale, e o terminal precisa ganhar os dois.
+    /// O que já vem definido (terminal de quem roda `npm run dev`, perfil) não é trocado.
+    #[cfg(not(windows))]
+    #[test]
+    fn terminal_aberto_pelo_finder_ganha_term_e_locale() {
+        let mut comando = CommandBuilder::new("zsh");
+        comando.env_clear();
+        ambiente_do_terminal_com(&mut comando, &[], false);
+        assert_eq!(comando.get_env("TERM").and_then(|v| v.to_str()), Some("xterm-256color"));
+        assert_eq!(comando.get_env("COLORTERM").and_then(|v| v.to_str()), Some("truecolor"));
+        assert!(comando.get_env("LC_CTYPE").is_some());
+
+        let mut comando = CommandBuilder::new("zsh");
+        comando.env_clear();
+        comando.env("TERM", "screen");
+        comando.env("LANG", "pt_BR.UTF-8");
+        ambiente_do_terminal_com(&mut comando, &[], false);
+        assert_eq!(comando.get_env("TERM").and_then(|v| v.to_str()), Some("screen"));
+        assert!(comando.get_env("LC_CTYPE").is_none(), "LANG definido: o locale do usuário vale");
     }
 
     #[test]
