@@ -92,7 +92,7 @@ mod isolamento_de_conta {
 
     /// Regra do fork: um perfil nunca pode cair na conta de outro. O padrão não define variável
     /// nenhuma (no macOS o token dele mora no Keychain sob o nome da conta nativa; definir
-    /// `CLAUDE_CONFIG_DIR`, mesmo para `~/.claude`, faria a CLI procurar outra entrada e pedir login).
+    /// `CLAUDE_CONFIG_DIR`, mesmo para `~/.claude`, pode fazer a CLI procurar outra entrada e pedir login).
     /// Cada extra aponta para a própria pasta.
     #[test]
     fn padrao_nao_define_pasta_e_extras_definem_a_propria() {
