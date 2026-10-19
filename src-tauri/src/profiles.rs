@@ -81,6 +81,9 @@ fn store_path() -> Result<PathBuf, String> {
     crate::engine_client::engine_dir().map(|dir| dir.join("profiles.json"))
 }
 
+/// Fork: a mesma raiz, para o `omni_core` achar contas fora do registro (`perfis_descobertos`).
+pub fn raiz_de_perfis() -> Result<PathBuf, String> { profiles_root() }
+
 /// Raiz dos config dirs criados pelo OMNI, conforme spec §9.3.
 fn profiles_root() -> Result<PathBuf, String> {
     // `APPDATA` só existe no Windows; macOS/Linux caem na pasta de dados local do usuário.
@@ -211,7 +214,11 @@ fn base64url_decode(input: &str) -> Option<Vec<u8>> {
 
 #[tauri::command(async)]
 pub fn list_profiles() -> Vec<Profile> {
-    let store = with_defaults(load());
+    let mut store = with_defaults(load());
+    // Fork: conta com pasta mas fora deste registro (sumiu do `profiles.json` desta variante) volta a
+    // ser listada e é gravada de novo — a conversa feita nela recupera histórico e conta certa.
+    let descobertas = omni_core::perfis_descobertos(&store.profiles);
+    store.profiles.extend(descobertas);
     // Os builtin recém-criados precisam sobreviver ao próximo boot, senão o `last_used_at`
     // gravado depois cairia num arquivo sem eles.
     let _ = save(&store);

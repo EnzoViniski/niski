@@ -65,9 +65,47 @@ pub fn env_for(profile: &Profile) -> Vec<(String, String)> {
 
 pub fn profiles(dir: &Path) -> Vec<Profile> {
     #[derive(Deserialize)] struct Store { profiles: Vec<Profile> }
-    fs::read(dir.join("profiles.json")).ok()
+    let mut lidos: Vec<Profile> = fs::read(dir.join("profiles.json")).ok()
         .and_then(|bytes| serde_json::from_slice::<Store>(&bytes).ok())
-        .map(|store| store.profiles).unwrap_or_default()
+        .map(|store| store.profiles).unwrap_or_default();
+    let descobertos = perfis_descobertos(&lidos);
+    lidos.extend(descobertos);
+    lidos
+}
+
+/// Fork: raiz das pastas de conta criadas pelo app (`<dados>/<PASTA_DE_PERFIS>/profiles`), comum a
+/// todas as variantes (instalado, dev, Local). Definida no começo do engine e do app.
+static RAIZ_DE_PERFIS: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+pub fn definir_raiz_de_perfis(raiz: PathBuf) { let _ = RAIZ_DE_PERFIS.set(raiz); }
+
+/// Fork: contas que têm pasta (`<raiz>/<provider>/<id>`) mas sumiram do `profiles.json` desta pasta
+/// de dados — o registro é por variante e as pastas são compartilhadas. Sem isto a conversa feita
+/// numa delas perdia o histórico no chat ("nenhum transcript foi associado") e o chip mostrava a
+/// conta errada. Só Claude e Codex: os únicos com conta extra.
+pub fn perfis_descobertos(conhecidos: &[Profile]) -> Vec<Profile> {
+    let Some(raiz) = RAIZ_DE_PERFIS.get() else { return Vec::new() };
+    perfis_em(raiz, conhecidos)
+}
+
+fn perfis_em(raiz: &Path, conhecidos: &[Profile]) -> Vec<Profile> {
+    let mut achados = Vec::new();
+    for provider in ["claude", "codex"] {
+        let Ok(entradas) = fs::read_dir(raiz.join(provider)) else { continue };
+        for entrada in entradas.flatten() {
+            if !entrada.file_type().is_ok_and(|t| t.is_dir()) { continue; }
+            let id = entrada.file_name().to_string_lossy().into_owned();
+            if id.starts_with('.') || id.is_empty() { continue; }
+            let pasta = entrada.path().to_string_lossy().into_owned();
+            let ja = conhecidos.iter().any(|p| (p.id == id && p.provider == provider) || p.config_dir == pasta);
+            if ja { continue; }
+            let criado = entrada.metadata().ok().and_then(|m| m.created().or_else(|_| m.modified()).ok())
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_millis() as u64);
+            achados.push(Profile { id: id.clone(), provider: provider.into(), name: id, config_dir: pasta, builtin: false,
+                created_at_ms: criado, last_used_at_ms: None, authenticated: false, email: None });
+        }
+    }
+    achados
 }
 
 /// Only visit ordinary directories/files, never follow profile symlinks into other accounts.
@@ -85,6 +123,25 @@ pub fn rollouts(root: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
     visit(root, 0, &mut found);
     found
+}
+
+#[cfg(test)]
+mod perfis_orfaos {
+    use super::*;
+
+    #[test]
+    fn pasta_de_conta_fora_do_registro_volta_como_perfil() {
+        let raiz = std::env::temp_dir().join(format!("omni-perfis-{}", std::process::id()));
+        fs::create_dir_all(raiz.join("claude").join("trabalho")).unwrap();
+        fs::create_dir_all(raiz.join("claude").join("registrada")).unwrap();
+        fs::create_dir_all(raiz.join("gemini").join("velha")).unwrap();
+        let conhecida = Profile { id: "registrada".into(), provider: "claude".into(), name: "R".into(),
+            config_dir: raiz.join("claude").join("registrada").to_string_lossy().into(), builtin: false,
+            created_at_ms: 0, last_used_at_ms: None, authenticated: false, email: None };
+        let achados = perfis_em(&raiz, &[conhecida]);
+        assert_eq!(achados.iter().map(|p| (p.provider.as_str(), p.id.as_str())).collect::<Vec<_>>(), vec![("claude", "trabalho")]);
+        let _ = fs::remove_dir_all(&raiz);
+    }
 }
 
 #[cfg(test)]

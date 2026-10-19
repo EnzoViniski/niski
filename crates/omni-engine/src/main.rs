@@ -172,6 +172,11 @@ async fn main() -> Result<()> {
     fs::create_dir_all(&engine_dir)?;
     registro::iniciar("engine", &engine_dir);
     registro::registrar_panicos();
+    // Fork: mesma raiz de contas do app (`profiles::profiles_root`): conta com pasta mas fora do
+    // `profiles.json` desta variante continua achando o transcript (`omni_core::perfis_descobertos`).
+    if let Some(base) = std::env::var_os("APPDATA").map(PathBuf::from).or_else(omni_protocol::local_data_root) {
+        omni_core::definir_raiz_de_perfis(base.join(omni_protocol::PASTA_DE_PERFIS).join("profiles"));
+    }
     executable_identity(); // captura antes que uma atualização troque o arquivo
     let token = load_or_create_token(&engine_dir.join("engine.token"))?;
     let state_file = engine_dir.join("sessions.json");

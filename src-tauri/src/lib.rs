@@ -28,6 +28,8 @@ mod worktree;
 mod tela_cheia;
 
 pub fn run() {
+    // Fork: contas com pasta mas fora do `profiles.json` desta variante voltam a ser reconhecidas.
+    if let Ok(raiz) = profiles::raiz_de_perfis() { omni_core::definir_raiz_de_perfis(raiz); }
     if let Ok(dir) = engine_client::engine_dir() {
         omni_core::registro::iniciar("app", &dir);
     }
