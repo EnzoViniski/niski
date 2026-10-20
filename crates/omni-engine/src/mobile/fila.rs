@@ -12,6 +12,7 @@ pub(super) struct Action {
 }
 #[derive(Clone, PartialEq)]
 pub(super) enum ActionKind { Prompt(String), Approval(bool), Spawn(SpawnPlan), Modo(String), Ajustes(Ajustes), Retomar(Retomada),
+    Comando(comandos::Pedido), // Fork: comandos oficiais da Conversa (frente 2C).
     /// Mensagem mandada com o agente no meio de um turno: entra na fila da CLI.
     Fila(String),
     /// Resposta a um menu da CLI (`interaction::escolha`).
@@ -157,6 +158,7 @@ pub(super) fn enqueue(state:&Arc<EngineState>,id:&str,headers:&HeaderMap,kind:Ac
         // reconhecida). Com o agente no meio de um turno, o shift+tab não é para ele.
         // Reabrir no meio de um turno mataria o trabalho em andamento.
         ActionKind::Prompt(_) | ActionKind::Modo(_) | ActionKind::Ajustes(_) => capability.prompt,
+        ActionKind::Comando(_) => capability.prompt, // Fork: comandos oficiais (frente 2C).
         // Fila vale com o agente parado (vira um prompt comum) ou trabalhando com o campo livre.
         ActionKind::Fila(_) => capability.prompt || capability.enfileirar,
         ActionKind::Approval(_) => capability.approve,
@@ -193,6 +195,7 @@ pub(super) fn execute(state:&Arc<EngineState>, action:&Action) -> Result<()> {
         }
         ActionKind::Ajustes(ajustes) => reabrir_com(state,&action.conversation_id,ajustes),
         ActionKind::Retomar(plano) => retomar(state,action,plano),
+        ActionKind::Comando(pedido) => comandos::executar(state,action,pedido), // Fork: frente 2C.
         _ => execute_checked(state,action,interaction::provider_running),
     }
 }

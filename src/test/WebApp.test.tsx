@@ -107,7 +107,7 @@ it("troca de projeto com conversa aberta, pesquisa globalmente e oferece voltar"
   expect(await screen.findByText(/Escolha uma conversa/)).toBeInTheDocument();
 });
 
-it("alterna o modo do agente pelo botão, como o shift+tab faz no terminal", async () => {
+it("alterna o modo do agente pelo seletor, como o shift+tab faz no terminal", async () => {
   const enviados: { url: string; body: unknown }[] = [];
   vi.stubGlobal("fetch", servidor([conversa()], enviados));
   render(<WebApp />);
@@ -116,11 +116,11 @@ it("alterna o modo do agente pelo botão, como o shift+tab faz no terminal", asy
     await userEvent.click(await screen.findByRole("button", { name: /Abrir conversa/ }));
   });
 
-  const plano = await screen.findByRole("button", { name: "Plano" });
+  const seletor = await screen.findByRole("combobox", { name: "Modo do agente" });
   // O modo atual vem do servidor e aparece marcado.
-  expect(screen.getByRole("button", { name: "Auto" })).toHaveAttribute("aria-pressed", "true");
+  expect(seletor).toHaveValue("auto");
   await act(async () => {
-    await userEvent.click(plano);
+    await userEvent.selectOptions(seletor, "plan");
   });
   await waitFor(() => expect(enviados.some((item) => item.url.endsWith("/modo"))).toBe(true));
   expect(enviados.find((item) => item.url.endsWith("/modo"))?.body).toEqual({ modo: "plan" });
@@ -152,7 +152,7 @@ it("troca de modo com a tela redesenhada relê a versão e repete, sem mostrar e
     await userEvent.click(await screen.findByRole("button", { name: /Abrir conversa/ }));
   });
   await act(async () => {
-    await userEvent.click(await screen.findByRole("button", { name: "Plano" }));
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Modo do agente" }), "plan");
   });
   await waitFor(() => expect(pedidos).toHaveLength(2));
   expect(pedidos[1].ifMatch).toBe("r2");
@@ -222,8 +222,7 @@ it("agente trabalhando trava a troca de modo — tecla no meio do turno não é 
     await userEvent.click(await screen.findByRole("button", { name: /Abrir conversa/ }));
   });
 
-  expect(await screen.findByRole("button", { name: "Plano" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Auto" })).toBeDisabled();
+  expect(await screen.findByRole("combobox", { name: "Modo do agente" })).toBeDisabled();
 });
 
 /** O relato: abrir a conversa não tirava o aviso, e ele "voltava do nada". Abrir marca o pedido

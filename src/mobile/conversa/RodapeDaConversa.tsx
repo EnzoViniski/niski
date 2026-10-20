@@ -8,7 +8,7 @@ import { ListaDeTarefas } from "../ListaDeTarefas";
 import { modoVigente, SeloDoModo } from "../SeloDoModo";
 import { AjustesDaConversa, type Ajustes } from "../AjustesDaConversa";
 import type { Anexo } from "../anexos";
-import { ModoDoAgente } from "./ModoDoAgente";
+import { ControlesDaConversa, type ComandoDaConversa, type ModoDePermissao } from "./ControlesDaConversa";
 import { RenomearConversa } from "./RenomearConversa";
 
 export interface RodapeDaConversaProps {
@@ -33,7 +33,8 @@ export interface RodapeDaConversaProps {
   onRenomear: (nome: string) => Promise<void>;
   onAjustar: (ajustes: Ajustes) => Promise<void>;
   onRetomar: (ajustes: Ajustes) => Promise<void>;
-  onModo: (alvo: "plan" | "auto") => Promise<void>;
+  onModo: (alvo: ModoDePermissao) => Promise<void>;
+  onComando: (comando: ComandoDaConversa, argumento?: string) => Promise<void>;
   bifurcando: boolean;
   onBifurcar: () => Promise<void>;
   onOcultar: (oculta: boolean) => Promise<void>;
@@ -45,7 +46,7 @@ export interface RodapeDaConversaProps {
 }
 
 export function RodapeDaConversa({ conversation, timeline, falhaEnvio, error, anexoGrande, ativo, trabalhando, destravavel,
-  texto, onTexto, anexos, onAdicionar, onRemover, onEnviar, podeEnviar, busy, onRenomear, onAjustar, onRetomar, onModo,
+  texto, onTexto, anexos, onAdicionar, onRemover, onEnviar, podeEnviar, busy, onRenomear, onAjustar, onRetomar, onModo, onComando,
   bifurcando, onBifurcar, onOcultar, abrirConversa, onParar, parando, buscarArquivos }: RodapeDaConversaProps) {
   const [editandoNome, setEditandoNome] = useState(false);
   const capability = conversation.capabilities;
@@ -101,7 +102,9 @@ export function RodapeDaConversa({ conversation, timeline, falhaEnvio, error, an
         )}
       </>}
       // Sessão ligada = há `capabilities` (engine antigo não manda `live`).
-      direita={conversation.capabilities && <ModoDoAgente modo={conversation.mode} pronto={Boolean(conversation.capabilities?.prompt) && !busy} onModo={onModo} />}
+      direita={conversation.capabilities && <ControlesDaConversa conversaId={conversation.id} provider={conversation.provider}
+        modo={modoVigente(conversation.mode, timeline?.modo_de_permissao)} fast={conversation.fast}
+        pronto={Boolean(conversation.capabilities?.prompt) && !busy} onModo={onModo} onComando={onComando} />}
       onParar={onParar}
       parando={parando}
       buscarArquivos={buscarArquivos} />

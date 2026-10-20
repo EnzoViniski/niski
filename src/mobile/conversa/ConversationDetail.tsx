@@ -1,3 +1,6 @@
+// Fork: controles oficiais aguardam a execução da ação antes de confirmar a troca.
+import { aguardarAcao } from "./aguardarAcao";
+import type { ComandoDaConversa, ModoDePermissao } from "./ControlesDaConversa";
 // Fork (Onda 2.0): a conversa aberta (celular, web e aba Conversa do PC) saiu do `MobileApp.tsx` sem
 // mudança de lógica. Timeline e rolagem em `useTimeline.ts`, envio em `useEnvio.ts`, `@` em
 // `useMencoes.ts`, aprovação em `CartaoDePermissao.tsx` e o campo com os botões em `RodapeDaConversa.tsx`.
@@ -173,11 +176,22 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   }
 
   /** Alterna entre plano e automático — o que o shift+tab faz no terminal do PC. */
-  async function trocarModo(alvo: "plan" | "auto") {
+  async function trocarModo(alvo: ModoDePermissao) {
     if (!conversation.capabilities?.prompt || busy) return;
     setBusy(true); setError(null); setFalhaEnvio(null);
-    try { await post("modo", { modo: alvo }); await Promise.all([ler(), refresh()]); }
-    catch (reason) { falhou(reason); }
+    try { const acao = await post("modo", { modo: alvo }); await aguardarAcao(conversation.id, acao.id); await Promise.all([ler(), refresh()]); }
+    catch (reason) { falhou(reason); throw reason; }
+    finally { setBusy(false); }
+  }
+
+  async function comandar(comando: ComandoDaConversa, argumento?: string) {
+    if (!conversation.capabilities?.prompt || busy) throw new Error("Espere o agente ficar pronto");
+    setBusy(true); setError(null);
+    try {
+      const acao = await post("comando", { comando, ...(argumento ? { argumento } : {}) });
+      await aguardarAcao(conversation.id, acao.id);
+      await Promise.all([ler(), refresh()]);
+    } catch (reason) { falhou(reason); throw reason; }
     finally { setBusy(false); }
   }
 
@@ -413,7 +427,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
       anexoGrande={anexoGrande} ativo={ativo} trabalhando={trabalhando} destravavel={destravavel}
       texto={text} onTexto={setText} anexos={anexos} onAdicionar={adicionar} onRemover={remover}
       onEnviar={() => void enviarPrompt()} podeEnviar={podeEnviar} busy={busy}
-      onRenomear={renomear} onAjustar={ajustar} onRetomar={retomar} onModo={trocarModo}
+      onRenomear={renomear} onAjustar={ajustar} onRetomar={retomar} onModo={trocarModo} onComando={comandar}
       bifurcando={bifurcando} onBifurcar={bifurcar} onOcultar={ocultar} abrirConversa={abrirConversa}
       onParar={trabalhando && conversation.live ? () => { setParando(true); void interromper().finally(() => setParando(false)); } : undefined}
       parando={parando}

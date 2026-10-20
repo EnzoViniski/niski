@@ -1,5 +1,7 @@
 //! Read-only provider data. Never reads authentication files or calls provider APIs.
 pub mod cli_path;
+// Fork: comandos interativos permitidos nos controles da Conversa.
+pub mod comandos_oficiais;
 pub mod usage;
 pub mod conversations;
 pub mod feed;
