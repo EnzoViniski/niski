@@ -15,6 +15,7 @@ import { ExtensoesSettings } from "../features/extensoes/ExtensoesSettings";
 import { MobileSettings } from "../features/mobile/MobileSettings";
 import { LimiteDeSessoes } from "../features/terminal/LimiteDeSessoes";
 import { testarAviso } from "../features/terminal/useAttentionNotifier";
+import { ConfiguracaoDeAvisos } from "../features/atividade/ConfiguracaoDeAvisos";
 import { BlocksIcon, BookIcon, BrushIcon, ChartIcon, CloseIcon, SparkleIcon, GearIcon, GlobeIcon, KeyboardIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
 import { RelatoriosIa } from "../features/relatorios/RelatoriosIa";
 import { ModelosDeAgentes } from "../features/agentes/ModelosDeAgentes";
@@ -374,16 +375,8 @@ function GeralSection({ settings, onChange }: SectionProps) {
       </Card>
 
       <Card title="Avisos">
-        <Segmented
-          label="Agente pedindo atenção"
-          description="Notificação do Windows e piscada na barra de tarefas quando um agente termina, pede aprovação ou trava — só com o OMNI fora de foco. A seção ATENÇÃO na barra lateral funciona de qualquer jeito."
-          options={[
-            { value: "sim", label: "Notificar" },
-            { value: "nao", label: "Só na barra lateral" },
-          ]}
-          value={settings.notifyAttention ? "sim" : "nao"}
-          onChange={(v) => onChange({ notifyAttention: v === "sim" })}
-        />
+        {/* Fork: regra de foco e som por tipo de atividade. */}
+        <ConfiguracaoDeAvisos settings={settings} onChange={onChange} />
         <TesteDeAviso />
       </Card>
 
@@ -406,7 +399,7 @@ function TesteDeAviso() {
     setResultado(
       erro
         ? { ok: false, texto: erro }
-        : { ok: true, texto: "Aviso enviado. Se nada apareceu, veja Windows → Configurações → Sistema → Notificações." }
+        : { ok: true, texto: "Aviso enviado. Se nada apareceu, confira as notificações do app nas configurações do sistema." }
     );
     setTestando(false);
   }
@@ -417,7 +410,7 @@ function TesteDeAviso() {
         Testar aviso
       </Button>
       <p className="mt-2 text-[11px] text-text-muted">
-        O teste ignora a regra de foco — o aviso de verdade só aparece com o OMNI em segundo plano.
+        O teste ignora a regra de foco. Os avisos seguem as preferências por tipo acima.
       </p>
       {resultado && (
         <p

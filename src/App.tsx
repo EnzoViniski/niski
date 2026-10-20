@@ -47,6 +47,9 @@ import { primeSshDrives } from "./features/projects/targetState";
 import type { SettingsSection } from "./hooks/useNotifications";
 import { useSettings } from "./hooks/useSettings";
 import { matchesShortcut } from "./lib/shortcuts";
+// Fork: caixa do engine usa a mesma navegação da paleta e registra o que está de fato na tela.
+import { useAberturasDaAtividade } from "./features/atividade/navegacao";
+import { useAtividadeDoDesktop } from "./features/atividade/vistas";
 
 type View = "workspace" | "settings" | "history" | "fluxos" | "conversa";
 
@@ -80,14 +83,16 @@ function AppComPaleta() {
   // está olhando para ela — nos dois casos nada pode ser marcado como visto.
   const janelaEmFoco = useJanelaEmFoco();
   useEconomiaDeEnergia();
-  const { items: attention, all: allAttention, countByWorkspace, dismiss: dismissAttention } = useAttention(
+  const { items: attention, countByWorkspace, dismiss: dismissAttention } = useAttention(
     sessions,
     workspaces,
     activeWorkspaceId,
     view === "workspace" && janelaEmFoco
   );
 
-  useAttentionNotifier(allAttention, settings.notifyAttention, attention);
+  useAttentionNotifier(settings.notifyAttention, settings.avisos);
+  useAtividadeDoDesktop(activeProject, sessions, (view === "workspace" || view === "conversa") && janelaEmFoco, view === "conversa" ? conversaSemProjeto : null);
+  useAberturasDaAtividade(abrirConversaDaPaleta);
 
   // Sessões por id: a barra de abas troca o ícone de conversa pela marca do agente, e o rodapé
   // descobre provider, conta e transcript da aba em foco.

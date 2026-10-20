@@ -19,6 +19,9 @@ mod busca_historico;
 // Fork: teto de sessões ativas (agentes e terminais rodando comando), configurável. Sem ele, um toque
 // repetido no botão do celular enche o PC de PTYs.
 pub(crate) mod limite_de_sessoes;
+// Fork: caixa única de atividade do engine, compartilhada por PC e celular.
+#[path = "../atividade.rs"]
+mod caixa_de_atividade;
 
 // Fork (Onda 2.0): o antigo `mobile.rs` dividido por assunto, só movido. Cada filho faz
 // `use super::*` e este módulo traz os itens de volta com `use filho::*`.
@@ -80,6 +83,7 @@ pub struct MobileRuntime {
     arquivos: Mutex<HashMap<String, (u64, Arc<Vec<String>>)>>,
     /// Fork: tokens e pendências do orquestrador, só em memória (`orquestracao.rs`).
     orquestracao: orquestracao::Runtime,
+    atividade: Mutex<caixa_de_atividade::Registro>,
 }
 
 #[derive(Default)]
@@ -101,11 +105,12 @@ impl MobileRuntime {
             history: Mutex::new(MobileHistory::default()),
             feeds: Mutex::new(omni_core::feed::FeedCache::default()),
             codex_descoberto_em: Mutex::new(0), arquivos: Mutex::new(HashMap::new()),
-            orquestracao: orquestracao::Runtime::default() }
+            orquestracao: orquestracao::Runtime::default(), atividade: Mutex::new(caixa_de_atividade::Registro::abrir(dir)) }
     }
 }
 
 pub fn start(state: Arc<EngineState>) {
+    caixa_de_atividade::iniciar(state.clone()); // Fork: observa mesmo sem clientes conectados.
     // A primeira leitura do histórico abre o começo de todo transcript de todas as contas: segundos,
     // numa máquina com muito histórico. Feita já na subida, quando ninguém está esperando, a primeira
     // abertura do celular ou da web encontra tudo pronto em vez de ficar carregando.
@@ -172,6 +177,7 @@ pub fn start(state: Arc<EngineState>) {
 /// ao servidor HTTP (`router`) e ao desktop (`local`).
 fn rotas() -> Router<Arc<EngineState>> {
     Router::new().route("/conversas",get(conversations))
+        .merge(caixa_de_atividade::rotas()) // Fork: atividade e vistos, mesma API nos dois transportes.
         .route("/projetos",get(projects))
         .route("/painel",get(painel))
         .route("/conversas/{id}/timeline",get(timeline))
