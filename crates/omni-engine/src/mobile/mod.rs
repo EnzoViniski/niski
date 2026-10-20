@@ -30,7 +30,11 @@ mod celular;
 use celular::*;
 mod fluxos_rotas;
 use fluxos_rotas::*;
+mod extensoes_rotas;
+use extensoes_rotas::*;
 pub(crate) use celular::{check, settings, totp};
+// `main.rs` também tem um `compartilhar_extensoes` (o do protocolo): o import explícito desempata.
+use extensoes_rotas::compartilhar_extensoes;
 
 pub struct MobileRuntime {
     config: Mutex<MobileConfig>,
@@ -1404,42 +1408,6 @@ async fn levar_do_historico(State(state): State<Arc<EngineState>>, Json(body): J
             .map_err(|e|error(StatusCode::CONFLICT,&format!("Não deu para levar a conversa para a conta {}: {e}",alvo.name)))?;
         Ok(Json(json!({"ok":true})))
     }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao copiar a conversa"))?
-}
-
-/// MCPs, plugins e conectores por IA e conta (a aba Extensões, na web). Já vem sem segredos (ver
-/// `omni_core::extensoes`). O projeto chega por id, nunca por caminho: o engine resolve pela lista
-/// publicada pelo desktop.
-#[derive(Deserialize)] struct ExtensoesQuery { #[serde(default)] projeto: Option<String> }
-async fn extensoes(State(state): State<Arc<EngineState>>, Query(q): Query<ExtensoesQuery>) -> Result<Json<Value>, ApiError> {
-    tokio::task::spawn_blocking(move || {
-        let dir = state.state_file.parent().unwrap().to_path_buf();
-        let pasta = q.projeto.and_then(|id| known_projects(&state).into_iter().find(|p| p.id == id)).map(|p| PathBuf::from(p.path));
-        Json(json!({
-            "contas": omni_core::extensoes::listar(&dir, pasta.as_deref()),
-            "compartilhar": omni_core::compartilhar::ativado(&dir),
-        }))
-    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ler as extensões"))
-}
-
-#[derive(Deserialize)] #[serde(deny_unknown_fields)] struct CompartilharBody { ligado: bool }
-async fn compartilhar_extensoes(State(state): State<Arc<EngineState>>, Json(body): Json<CompartilharBody>) -> Result<Json<Value>, ApiError> {
-    tokio::task::spawn_blocking(move || {
-        let dir = state.state_file.parent().unwrap().to_path_buf();
-        omni_core::compartilhar::definir_e_levar(&dir, body.ligado)
-            .map(|levado| Json(json!({"compartilhar": body.ligado, "levado": levado})))
-            .map_err(|e| error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()))
-    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao salvar"))?
-}
-
-/// Estrela da aba Extensões: qual conta da IA é a principal. Só aceita conta cadastrada.
-#[derive(Deserialize)] #[serde(deny_unknown_fields)] struct PrincipalBody { provider: String, conta: String }
-async fn definir_principal(State(state): State<Arc<EngineState>>, Json(body): Json<PrincipalBody>) -> Result<Json<Value>, ApiError> {
-    tokio::task::spawn_blocking(move || {
-        let dir = state.state_file.parent().unwrap().to_path_buf();
-        omni_core::compartilhar::definir_principal(&dir, &body.provider, &body.conta)
-            .map(|levado| Json(json!({"ok": true, "levado": levado})))
-            .map_err(|e| error(StatusCode::NOT_FOUND, &e.to_string()))
-    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao salvar"))?
 }
 
 /* ── Retomar uma conversa sem sessão aberta ──────────────────────────────────────────────────
