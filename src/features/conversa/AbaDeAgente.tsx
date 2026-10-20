@@ -30,11 +30,14 @@ export function AbaDeAgente({
   agentView,
   sessionId,
   children,
+  // Fork: entrada para o painel de revisão no layout.
+  onRevisao,
 }: {
   agentView: AgentView;
   sessionId: string | null;
   /** O `TerminalPane` da aba. */
   children: ReactNode;
+  onRevisao?: () => void;
 }) {
   const [verTerminal, setVerTerminal] = useState(agentView === "terminal");
   useEffect(() => setVerTerminal(agentView === "terminal"), [agentView]);
@@ -50,7 +53,7 @@ export function AbaDeAgente({
       {/* Terminal na tela e sessão aberta: a faixa com conta/modelo/esforço (e, no modo Conversa,
           o caminho de volta). Faixa e não botão flutuante: nada fica por cima do texto da CLI. */}
       {sessionId !== null && !chatNaTela && (
-        <FaixaDoTerminal sessionId={sessionId}
+        <FaixaDoTerminal sessionId={sessionId} onRevisao={onRevisao}
           abas={conversa ? <AbasDoAgente vendo="terminal" onTrocar={(aba) => setVerTerminal(aba === "terminal")} /> : null} />
       )}
       {/* `invisible`, não desmontado nem `display: none`: o xterm continua com tamanho de verdade
@@ -59,7 +62,7 @@ export function AbaDeAgente({
       <div className={`min-h-0 flex-1${chatNaTela ? " invisible" : ""}`} aria-hidden={chatNaTela || undefined}>
         {children}
       </div>
-      {chatNaTela && <ChatDaSessao sessionId={sessionId} onVerTerminal={() => setVerTerminal(true)} />}
+      {chatNaTela && <ChatDaSessao sessionId={sessionId} onVerTerminal={() => setVerTerminal(true)} onRevisao={onRevisao} />}
     </div>
   );
 }
@@ -81,7 +84,8 @@ function useConversaDaSessao(sessionId: string) {
  * Conta, modelo e esforço no modo Terminal — os mesmos chips da conversa. Trocar reabre a mesma
  * sessão com `--resume` (a aba continua a mesma), só com o agente parado.
  */
-function FaixaDoTerminal({ sessionId, abas }: { sessionId: string; abas: ReactNode }) {
+// Fork: revisão disponível também quando a aba mostra o terminal.
+function FaixaDoTerminal({ sessionId, abas, onRevisao }: { sessionId: string; abas: ReactNode; onRevisao?: () => void }) {
   const conversa = useConversaDaSessao(sessionId);
   const [erro, setErro] = useState<string | null>(null);
   const pasta = useSession(sessionId)?.cwd ?? null;
@@ -99,10 +103,12 @@ function FaixaDoTerminal({ sessionId, abas }: { sessionId: string; abas: ReactNo
     });
   }
 
-  if (!conversa?.capabilities && !abas && !pasta) return null;
+  if (!conversa?.capabilities && !abas && !pasta && !onRevisao) return null;
   return (
     <div className="aba-agente-topo">
       {abas}
+      {/* Fork: revisão do projeto da aba atual. */}
+      {onRevisao && <button className="btn btn-ghost min-h-0 px-2 py-1 text-xs" onClick={onRevisao}>Revisão</button>}
       {/* Fork: branch em que este agente trabalha (a pasta dele), com troca e criação. */}
       <span className="aba-agente-branch"><GitBranchStatus projectPath={pasta} abrirPara="baixo" atalho={false} /></span>
       <FaixaDoOrquestrador conversaId={conversa?.id ?? null} provider={conversa?.provider} titulo={conversa?.title} />
@@ -208,7 +214,8 @@ function useSoltarArquivos(area: React.RefObject<HTMLDivElement | null>) {
   }, [area]);
 }
 
-function ChatDaSessao({ sessionId, onVerTerminal }: { sessionId: string; onVerTerminal: () => void }) {
+// Fork: a entrada de revisão acompanha os dois modos da aba.
+function ChatDaSessao({ sessionId, onVerTerminal, onRevisao }: { sessionId: string; onVerTerminal: () => void; onRevisao?: () => void }) {
   const [conversa, setConversa] = useState<Conversation | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const area = useRef<HTMLDivElement>(null);
@@ -252,6 +259,8 @@ function ChatDaSessao({ sessionId, onVerTerminal }: { sessionId: string; onVerTe
     <div ref={area} className="aba-conversa-tela absolute inset-0 z-20 flex flex-col bg-bg-surface">
       <div className="aba-agente-topo">
         <AbasDoAgente vendo="conversa" onTrocar={(aba) => { if (aba === "terminal") onVerTerminal(); }} />
+        {/* Fork: revisão do projeto da aba atual. */}
+        {onRevisao && <button className="btn btn-ghost min-h-0 px-2 py-1 text-xs" onClick={onRevisao}>Revisão</button>}
         {/* Fork: branch em que este agente trabalha. */}
         <span className="aba-agente-branch"><GitBranchStatus projectPath={pasta} abrirPara="baixo" atalho={false} /></span>
         <FaixaDoOrquestrador conversaId={(aoVivo ?? conversa)?.id ?? null} provider={(aoVivo ?? conversa)?.provider} titulo={(aoVivo ?? conversa)?.title} />

@@ -11,6 +11,8 @@ import { FilePane } from "../files/FilePaneTardio";
 import { ImagePane } from "../files/ImagePane";
 import { MarkdownPane } from "../files/MarkdownPane";
 import { GitDiffPane } from "../git/GitDiffPane";
+// Fork: revisão ligada ao projeto/worktree da sessão.
+import { RevisaoPane } from "../revisao/RevisaoPane";
 import { GitGraphPane } from "../git/GitGraphPane";
 import { KanbanBoard } from "../kanban/KanbanBoard";
 import { TerminalPane } from "../terminal/TerminalPane";
@@ -192,7 +194,9 @@ export function PaneView({
         {!tab ? (
           <PainelVazio onCriar={criarAba} />
         ) : tab.kind === "agent" ? (
-          <AbaDeAgente agentView={agentView} sessionId={tab.resourceId ?? null}>
+          // Fork: a faixa abre revisão ao lado e mantém o destinatário da aba.
+          <AbaDeAgente agentView={agentView} sessionId={tab.resourceId ?? null}
+            onRevisao={tab.resourceId ? () => dispatch({ type: "ABRIR_REVISAO", sessionId: tab.resourceId!, paneId: pane.id, projectId: projetoDoPainel !== projectId ? projetoDoPainel : undefined }) : undefined}>
             <TerminalPane
               projectId={projetoDaAba.id}
               projectPath={projetoDaAba.path}
@@ -226,6 +230,9 @@ export function PaneView({
           />
         ) : tab?.kind === "git-diff" ? (
           <GitDiffPane projectPath={projectPath} tab={tab} />
+        // Fork: revisão usa a pasta da sessão, inclusive worktrees.
+        ) : tab?.kind === "revisao" ? (
+          <RevisaoPane projectPath={projetoDaAba.path} sessionId={tab.resourceId} />
         ) : tab?.kind === "git-graph" ? (
           <GitGraphPane projectPath={projectPath} />
         ) : tab?.kind === "kanban" ? (

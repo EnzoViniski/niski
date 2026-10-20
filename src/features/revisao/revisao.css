@@ -1,0 +1,40 @@
+/* Fork: revisão usa os mesmos tokens do app; números e texto do diff nunca quebram linha. */
+.revisao { height: 100%; display: flex; flex-direction: column; min-width: 0; font-size: 12px; color: rgb(var(--c-text-primary)); }
+.revisao button, .revisao select { border: 1px solid rgb(var(--c-border-subtle)); padding: 4px 8px; background: rgb(var(--c-bg-elevated)); }
+.revisao button:disabled { opacity: .45; cursor: default; }
+.revisao button:focus-visible, .revisao select:focus-visible, .revisao textarea:focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: -2px; }
+.revisao button:hover:enabled { background: rgb(var(--c-bg-surface)); }
+.revisao-topo, .revisao-acoes { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px; }
+.revisao-topo { border-bottom: 1px solid rgb(var(--c-border-subtle)); }
+.revisao-pasta { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: rgb(var(--c-text-muted)); }
+.revisao-corpo { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(140px, 26%) minmax(0, 1fr); }
+.revisao-arquivos { overflow: auto; border-right: 1px solid rgb(var(--c-border-subtle)); }
+.revisao-arquivos button { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid rgb(var(--c-border-subtle)); }
+.revisao-arquivos button[aria-current="true"] { box-shadow: inset 3px 0 rgb(var(--c-accent)); background: rgb(var(--c-bg-elevated)); }
+.revisao-caminho { display: block; overflow-wrap: anywhere; }
+.revisao-arquivos small { display: block; color: rgb(var(--c-text-muted)); }
+.revisao-diff { overflow: auto; min-height: 0; }
+.revisao-acoes strong, .revisao-acoes code { margin-right: auto; overflow-wrap: anywhere; }
+.revisao-trecho { margin-bottom: 12px; border-bottom: 1px solid rgb(var(--c-border-subtle)); }
+.revisao-cabecalho { color: rgb(var(--c-accent)); background: rgb(var(--c-bg-elevated)); }
+.revisao-linhas { min-width: max-content; }
+.revisao .revisao-linha { display: flex; width: 100%; border: 0; padding: 0 8px 0 0; text-align: left; background: transparent; line-height: 1.7; font-family: monospace; white-space: pre; color: inherit; }
+.revisao-linha code { display: block; white-space: pre; }
+.revisao-token-keyword { color: rgb(var(--c-accent)); }
+.revisao-token-string { color: rgb(var(--c-success)); }
+.revisao-token-comment { color: rgb(var(--c-text-muted)); }
+.revisao-token-number { color: rgb(var(--c-warning)); }
+.revisao-numero { flex: 0 0 5ch; text-align: right; padding-right: 1ch; color: rgb(var(--c-text-muted)); user-select: none; }
+.revisao-sinal { flex: 0 0 2ch; }
+.revisao .revisao-adicao { background: color-mix(in srgb, rgb(var(--c-success)) 12%, transparent); }
+.revisao .revisao-remocao { background: color-mix(in srgb, rgb(var(--c-danger)) 12%, transparent); }
+.revisao-adicao .revisao-sinal { color: rgb(var(--c-success)); }
+.revisao-remocao .revisao-sinal { color: rgb(var(--c-danger)); }
+.revisao-comentarios { max-height: 28%; overflow: auto; border-top: 1px solid rgb(var(--c-border-subtle)); }
+.revisao-comentario { display: flex; gap: 8px; padding: 4px 8px; }
+.revisao-comentario button:first-child { flex: 1; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; }
+.revisao-comentar, .revisao-confirmar { padding: 12px; border-top: 1px solid rgb(var(--c-accent)); background: rgb(var(--c-bg-elevated)); }
+.revisao-comentar textarea { display: block; width: 100%; min-height: 60px; margin: 8px 0; padding: 8px; background: rgb(var(--c-bg-surface)); border: 1px solid rgb(var(--c-border-subtle)); }
+.revisao-confirmar button, .revisao-comentar button { margin: 4px 8px 0 0; }
+.revisao-erro { padding: 8px; color: rgb(var(--c-danger)); white-space: pre-wrap; }
+@media (max-width: 600px) { .revisao-corpo { grid-template-columns: 1fr; grid-template-rows: minmax(80px, 28%) 1fr; } .revisao-arquivos { border-bottom: 1px solid rgb(var(--c-border-subtle)); } }

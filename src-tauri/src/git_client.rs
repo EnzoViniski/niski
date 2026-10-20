@@ -40,7 +40,8 @@ fn fora_de_repositorio(erro: &str) -> bool {
 /// Projeto dentro do WSL ou num servidor roda o **git de lá**. O git do Windows até abre a pasta
 /// pela rede, mas é outro git: outro `core.autocrlf`, outro `filemode` e outro `safe.directory` —
 /// commitar por ele suja um repositório Linux com finais de linha e bit de permissão trocados.
-fn git_invocation(cwd: &str, args: &[&str]) -> (String, Vec<String>) {
+// Fork: revisão reutiliza o mesmo roteamento para aplicar patches por stdin.
+pub(crate) fn git_invocation(cwd: &str, args: &[&str]) -> (String, Vec<String>) {
     let conexoes = crate::ssh::connections();
     let alvo = omni_core::targets::resolve(cwd, &conexoes);
     let Some(remoto) = alvo.remote_path() else {
@@ -54,7 +55,8 @@ fn git_invocation(cwd: &str, args: &[&str]) -> (String, Vec<String>) {
         .unwrap_or_else(|| ("git".into(), args.iter().map(|arg| (*arg).to_owned()).collect()))
 }
 
-fn run_git(cwd: &str, args: &[&str]) -> Result<String, String> {
+// Fork: operações de leitura do painel de revisão usam este cliente.
+pub(crate) fn run_git(cwd: &str, args: &[&str]) -> Result<String, String> {
     let (programa, argumentos) = git_invocation(cwd, args);
     let remoto = programa != "git";
     // Projeto remoto: quem entra na pasta é o `--cd`/`cd` do comando montado. Apontar o

@@ -4,6 +4,8 @@ mod agent_runtime;
 mod mobile;
 mod engine_client;
 mod git_client;
+// Fork: revisão por arquivo/trecho.
+mod revisao;
 mod docker_client;
 mod ssh;
 mod target_files;
@@ -118,6 +120,9 @@ pub fn run() {
             docker_client::docker_containers,
             docker_client::docker_container_action,
             git_client::git_diff,
+            // Fork: painel de revisão.
+            revisao::revisao_listar,
+            revisao::revisao_aplicar,
             git_client::git_stage,
             git_client::git_unstage,
             git_client::git_commit,

@@ -8,6 +8,8 @@ const PANE_KINDS = new Set([
   "file",
   "markdown",
   "git-diff",
+  // Fork: painel de revisão persiste como as demais abas.
+  "revisao",
   "git-graph",
   "kanban",
   "logs",
