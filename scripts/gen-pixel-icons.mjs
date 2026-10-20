@@ -157,10 +157,12 @@ function extractPath(name) {
 }
 
 const body = Object.entries(ICONS)
-  .map(([exportName, file]) => `export const ${exportName} = makeIcon(\n  "${extractPath(file)}"\n);`)
+  // Fork: o nome vai junto para o par de traço fino do estilo Minimalista (`iconesDeTraco.ts`).
+  .map(([exportName, file]) => `export const ${exportName} = makeIcon(\n  "${extractPath(file)}",\n  "${exportName}"\n);`)
   .join("\n\n");
 
-const file = `import type { SVGProps } from "react";
+const file = `import { createElement, type SVGProps } from "react";
+import { ICONES_DE_TRACO } from "./iconesDeTraco";
 
 /**
  * ARQUIVO GERADO — não editar à mão.
@@ -173,11 +175,19 @@ const file = `import type { SVGProps } from "react";
  */
 type IconProps = SVGProps<SVGSVGElement> & { size?: number | string };
 
-function makeIcon(path: string) {
+/* Fork: com par de traço (\`iconesDeTraco.ts\`) o <svg> leva os dois desenhos; o CSS mostra o pixel
+   no Clássico e o traço no Minimalista (\`.icone-pixel\`/\`.icone-traco\`). */
+function makeIcon(path: string, nome: string) {
+  const traco = ICONES_DE_TRACO[nome];
   return function Icon({ size = 24, ...props }: IconProps) {
     return (
       <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" {...props}>
-        <path d={path} fill="currentColor" />
+        <path d={path} fill="currentColor" className={traco ? "icone-pixel" : undefined} />
+        {traco && (
+          <g className="icone-traco" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            {traco.map(([tag, attrs], i) => createElement(tag, { key: i, ...attrs }))}
+          </g>
+        )}
       </svg>
     );
   };
