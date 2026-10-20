@@ -366,10 +366,15 @@ fn list_sessions(state: &EngineState) -> Result<EngineResponse> {
         let mut conversas = omni_core::conversations::read_index(dir);
         let profiles = omni_core::profiles(dir);
         // Fork: a lista é lida a cada 1 s; a busca abre o começo de cada rollout — no máximo a cada 15 s.
-        if economia::pode_descobrir_codex(dir) && omni_core::conversations::discover_codex_transcripts(&mut conversas, &profiles) {
+        if economia::pode_descobrir_codex(dir) {
             // Descoberta é reparo de índice: se a persistência falhar, o nome ainda aparece nesta
             // leitura e a próxima tentativa pode gravar. Listar sessões não deve derrubar o app.
-            let _ = omni_core::conversations::write_index(dir, &conversas);
+            // Fork (fix-orquestracao): sob a trava do índice, sobre o índice relido nela.
+            let _ = omni_core::indice_de_conversas::mudar_indice(dir, |indice| {
+                let mudou = omni_core::conversations::discover_codex_transcripts(indice, &profiles);
+                conversas = indice.clone();
+                mudou
+            });
         }
         conversas
     }).unwrap_or_default();
@@ -855,7 +860,7 @@ fn duplicate_session(state: &Arc<EngineState>, session_id: &str) -> Result<Engin
 /// `headless`: bifurcação pedida pela web/celular — ninguém exibe a PTY até o desktop abrir a aba.
 fn bifurcar(state: &Arc<EngineState>, source: TerminalSession, provider: &str, headless: bool) -> Result<EngineResponse> {
     let dir = state.state_file.parent().ok_or_else(|| anyhow!("engine dir unavailable"))?.to_path_buf();
-    let mut indice = omni_core::conversations::read_index(&dir);
+    let indice = omni_core::conversations::read_index(&dir);
     let original = source.conversation_id.as_deref().and_then(|id| indice.iter().find(|c| c.id == id)).cloned();
     let sessao_externa = source.external_session_id.clone()
         .or_else(|| original.as_ref().and_then(|c| c.segments.last()).and_then(|s| s.external_session_id.clone()));
@@ -894,7 +899,7 @@ fn bifurcar(state: &Arc<EngineState>, source: TerminalSession, provider: &str, h
             external_session_id: externo.clone(),
         },
     )?;
-    indice.push(omni_core::conversations::Conversation {
+    let nova = omni_core::conversations::Conversation {
         id: conversation_id,
         project_id: source.project_id,
         cwd: source.cwd,
@@ -911,8 +916,9 @@ fn bifurcar(state: &Arc<EngineState>, source: TerminalSession, provider: &str, h
             started_at_ms: agora,
             ended_at_ms: None,
         }],
-    });
-    omni_core::conversations::write_index(&dir, &indice)?;
+    };
+    // Fork (fix-orquestracao): grava a conversa nova sobre o índice relido sob a trava.
+    omni_core::indice_de_conversas::mudar_indice(&dir, |indice| { indice.push(nova); true })?;
     Ok(EngineResponse::Session { session: metadata })
 }
 

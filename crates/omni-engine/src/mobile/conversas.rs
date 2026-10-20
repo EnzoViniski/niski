@@ -119,8 +119,13 @@ pub(super) fn summaries(state: &EngineState) -> Vec<Value> {
         if vencida { *ultima = agora; }
         vencida
     };
-    if descobrir && omni_core::conversations::discover_codex_transcripts(&mut index, &profiles) {
-        let _ = omni_core::conversations::write_index(dir, &index);
+    if descobrir {
+        // Fork (fix-orquestracao): descoberta grava sob a trava do índice, sobre o índice relido nela.
+        let _ = omni_core::indice_de_conversas::mudar_indice(dir, |indice| {
+            let mudou = omni_core::conversations::discover_codex_transcripts(indice, &profiles);
+            index = indice.clone();
+            mudou
+        });
     }
     let projects = known_projects(state);
     let history = historical_entries(state);

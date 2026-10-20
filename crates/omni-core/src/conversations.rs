@@ -103,16 +103,16 @@ pub fn rename(dir: &Path, conversation_id: &str, title: &str) -> Result<Conversa
     if !valid_title(title) {
         return Err("Título inválido".into());
     }
-    let mut index = read_index(dir);
-    let conversation = index
-        .iter_mut()
-        .find(|item| item.id == conversation_id)
-        .ok_or("Conversa não encontrada")?;
-    conversation.title = title.trim().to_string();
-    conversation.title_source = TitleSource::Manual;
-    let atualizada = conversation.clone();
-    write_index(dir, &index).map_err(|erro| erro.to_string())?;
-    Ok(atualizada)
+    // Fork (fix-orquestracao): uma transação só (trava do índice), sem apagar quem gravou no meio.
+    let mut atualizada = None;
+    crate::indice_de_conversas::mudar_indice(dir, |index| {
+        let Some(conversation) = index.iter_mut().find(|item| item.id == conversation_id) else { return false };
+        conversation.title = title.trim().to_string();
+        conversation.title_source = TitleSource::Manual;
+        atualizada = Some(conversation.clone());
+        true
+    }).map_err(|erro| erro.to_string())?;
+    atualizada.ok_or_else(|| "Conversa não encontrada".into())
 }
 
 pub fn read_index(dir: &Path) -> Vec<Conversation> {
@@ -123,17 +123,12 @@ pub fn read_index(dir: &Path) -> Vec<Conversation> {
 
 /// Grava o índice inteiro. Escrita atômica via `.tmp` + rename, igual ao resto dos stores.
 ///
-/// **Dois escritores agora**: desktop e engine (uma sessão aberta pelo celular nasce no engine).
-/// Não há lock entre processos, então um spawn pelo telefone exatamente durante uma troca de conta
-/// no PC pode perder um segmento. Aceitável: as duas escritas são raras e o índice é reconstruível a
-/// partir dos transcripts.
-/// ponytail: sem lock; se isso passar a doer, centralizar toda escrita no engine.
+/// **Vários escritores**: desktop e engine (ganchos, app-server do Codex, celular…). Fork
+/// (fix-orquestracao): a gravação passa pela trava entre processos de `indice_de_conversas`, e quem lê
+/// para alterar usa `indice_de_conversas::mudar_indice` (transação única), senão perde o que outro gravou.
 pub fn write_index(dir: &Path, conversations: &[Conversation]) -> std::io::Result<()> {
-    let path = dir.join("conversations.json");
-    let encoded = serde_json::to_vec_pretty(&serde_json::json!({"version":1,"conversations":conversations}))?;
-    let temporary = path.with_extension("json.tmp");
-    std::fs::write(&temporary, encoded)?;
-    std::fs::rename(temporary, path)
+    // Fork (fix-orquestracao): com trava e `.tmp` exclusivo; ler-alterar-gravar vai por `mudar_indice`.
+    crate::indice_de_conversas::gravar(dir, conversations)
 }
 
 /// Nome do diretório onde o Claude Code guarda os transcripts de um projeto: o caminho absoluto

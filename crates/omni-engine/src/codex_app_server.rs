@@ -698,26 +698,27 @@ fn vincular(state: &EngineState, terminal: &str, e: &Estado) {
         return;
     }
     let dir = state.state_file.parent().unwrap();
-    let mut indice = omni_core::conversations::read_index(dir);
-    let mut mudou = false;
-    for s in indice
-        .iter_mut()
-        .flat_map(|c| &mut c.segments)
-        .filter(|s| s.provider == "codex" && s.terminal_session_id.as_deref() == Some(terminal))
-    {
-        if s.external_session_id.as_deref() != Some(&e.thread)
-            || (e.caminho.is_some() && s.transcript_path != e.caminho)
+    // Fork (fix-orquestracao, achado 4): ler-alterar-gravar sob a trava do índice (os ganchos e a
+    // casca gravam o mesmo arquivo).
+    let _ = omni_core::indice_de_conversas::mudar_indice(dir, |indice| {
+        let mut mudou = false;
+        for s in indice
+            .iter_mut()
+            .flat_map(|c| &mut c.segments)
+            .filter(|s| s.provider == "codex" && s.terminal_session_id.as_deref() == Some(terminal))
         {
-            s.external_session_id = Some(e.thread.clone());
-            if e.caminho.is_some() {
-                s.transcript_path = e.caminho.clone();
+            if s.external_session_id.as_deref() != Some(&e.thread)
+                || (e.caminho.is_some() && s.transcript_path != e.caminho)
+            {
+                s.external_session_id = Some(e.thread.clone());
+                if e.caminho.is_some() {
+                    s.transcript_path = e.caminho.clone();
+                }
+                mudou = true;
             }
-            mudou = true;
         }
-    }
-    if mudou {
-        let _ = omni_core::conversations::write_index(dir, &indice);
-    }
+        mudou
+    });
 }
 
 fn estado_da_sessao(e: &Estado) -> SessionState {
