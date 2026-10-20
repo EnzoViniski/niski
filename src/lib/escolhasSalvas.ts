@@ -17,7 +17,26 @@ interface Escolhas {
 function ler(): Escolhas {
   try {
     const valor = JSON.parse(localStorage.getItem(CHAVE) ?? "{}");
-    return valor && typeof valor === "object" ? valor : {};
+    if (!valor || typeof valor !== "object" || Array.isArray(valor)) return {};
+    // Fork: cada parte é conferida sozinha; uma estragada vira "sem escolha" só nela.
+    const ehMapa = (item: unknown): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item);
+    // Chaves que esta versão não conhece (de uma mais nova) seguem intactas no próximo `gravar`.
+    const escolhas: Escolhas = { ...valor };
+    if (typeof valor.agente !== "string") delete escolhas.agente;
+    delete escolhas.contas;
+    delete escolhas.ajustes;
+    if (ehMapa(valor.contas)) {
+      escolhas.contas = Object.fromEntries(Object.entries(valor.contas).filter(([, perfil]) => typeof perfil === "string")) as Record<string, string>;
+    }
+    if (ehMapa(valor.ajustes)) {
+      const texto = (item: unknown) => (typeof item === "string" ? item : null);
+      escolhas.ajustes = Object.fromEntries(
+        Object.entries(valor.ajustes)
+          .filter(([, ajuste]) => ehMapa(ajuste))
+          .map(([provider, ajuste]) => [provider, { ...(ajuste as object), model: texto((ajuste as Record<string, unknown>).model), effort: texto((ajuste as Record<string, unknown>).effort) }])
+      );
+    }
+    return escolhas;
   } catch {
     return {};
   }
