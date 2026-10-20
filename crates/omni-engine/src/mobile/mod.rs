@@ -32,7 +32,10 @@ mod fluxos_rotas;
 use fluxos_rotas::*;
 mod extensoes_rotas;
 use extensoes_rotas::*;
+mod contas;
+use contas::*;
 pub(crate) use celular::{check, settings, totp};
+pub(crate) use contas::{comando_do_agente};
 // `main.rs` também tem um `compartilhar_extensoes` (o do protocolo): o import explícito desempata.
 use extensoes_rotas::compartilhar_extensoes;
 
@@ -1222,52 +1225,6 @@ async fn ajustar(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath
         if !valor_seguro(valor) { return Err(error(StatusCode::BAD_REQUEST,"Valor inválido")); }
     }
     enqueue_async(state,id,headers,ActionKind::Ajustes(body)).await
-}
-
-/// Uso das contas como o rodapé do PC mostra (janela de 5 h e semanal). Só o que já foi lido —
-/// consultar de novo digitaria `/usage` num agente, e isso fica com o PC.
-async fn contas(State(state): State<Arc<EngineState>>) -> Json<Value> {
-    Json(tokio::task::spawn_blocking(move || {
-        let dir = state.state_file.parent().unwrap().to_path_buf();
-        let agora = now_ms();
-        let lista: Vec<Value> = omni_core::profiles(&dir).into_iter().map(|perfil| {
-            let uso = match perfil.provider.as_str() {
-                "codex" => Some(omni_core::usage::read_codex(&perfil.id,Path::new(&perfil.config_dir),agora)),
-                "claude" => omni_core::usage::read_claude_cache(&perfil.id,&omni_core::usage::claude_state_path(&perfil),agora),
-                _ => None,
-            };
-            json!({"id":perfil.id,"provider":perfil.provider,"name":perfil.name,"usage":uso})
-        }).collect();
-        json!(lista)
-    }).await.unwrap_or(json!([])))
-}
-
-/// O comando da CLI como o desktop publicou (`claude`, `codex`, ou um caminho), ou o id do agente.
-pub(crate) fn comando_do_agente(state: &EngineState, provider: &str) -> String {
-    state.mobile.workspace.lock().ok()
-        .and_then(|w| w.agents.iter().find(|agente| agente.id == provider).map(|agente| agente.command.clone()))
-        .unwrap_or_else(|| provider.to_string())
-}
-
-/// Busca o uso da conta de novo, como o botão de atualizar do rodapé do PC. Claude: o engine digita
-/// `/usage` num Claude ocioso da conta (ou num oculto) — leva alguns segundos. Codex: relê o rollout.
-async fn atualizar_uso(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>) -> Result<Json<Value>, ApiError> {
-    tokio::task::spawn_blocking(move || {
-        let dir = state.state_file.parent().unwrap().to_path_buf();
-        let perfil = omni_core::profiles(&dir).into_iter().find(|p| p.id == id)
-            .ok_or_else(||error(StatusCode::NOT_FOUND,"Conta não encontrada"))?;
-        let uso = match perfil.provider.as_str() {
-            "claude" => match interaction::account_usage(&state,&perfil.id,true) {
-                Ok(EngineResponse::AccountUsage { usage }) => usage,
-                Ok(EngineResponse::Error { message, .. }) => return Err(error(StatusCode::CONFLICT,&message)),
-                Ok(_) => return Err(error(StatusCode::INTERNAL_SERVER_ERROR,"Resposta inesperada da consulta de uso")),
-                Err(erro) => return Err(error(StatusCode::CONFLICT,&erro.to_string())),
-            },
-            "codex" => omni_core::usage::read_codex(&perfil.id,Path::new(&perfil.config_dir),now_ms()),
-            _ => return Err(error(StatusCode::BAD_REQUEST,"Este agente não informa uso")),
-        };
-        Ok(Json(json!({"id":perfil.id,"provider":perfil.provider,"name":perfil.name,"usage":uso})))
-    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao consultar o uso"))?
 }
 
 /* ── Menção de arquivos (@) ───────────────────────────────────────────────────────────────────
