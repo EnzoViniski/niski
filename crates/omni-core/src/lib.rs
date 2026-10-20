@@ -28,6 +28,8 @@ pub mod worktree_isolada;
 // Fork: conversa rica — lista de tarefas, plano do plan mode, modo de permissão e diffs do agente.
 pub mod plano_do_agente;
 pub mod diff_do_agente;
+// Fork (Onda 2): ganchos HTTP do Claude Code por sessão, pedidos de permissão e statusline (parte pura).
+pub mod ganchos;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};
