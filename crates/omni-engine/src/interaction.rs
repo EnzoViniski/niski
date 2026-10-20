@@ -238,7 +238,9 @@ pub(crate) fn composer_vazio(screen: &vt100::Screen) -> bool {
     matches!(antes.trim(), "❯" | "›" | ">")
         // Espaço em branco conta como vazio: a 2.1.302 apaga cada palavra do exemplo em separado e deixa
         // os espaços entre elas sem `dim` — `Try "fix lint errors"` virava "rascunho" e travava a conversa.
-        && (col..cols).all(|c| screen.cell(row,c).is_none_or(|cell| !cell.has_contents() || cell.dim() || cell.contents().trim().is_empty()))
+        && ((col..cols).all(|c| screen.cell(row,c).is_none_or(|cell| !cell.has_contents() || cell.dim() || cell.contents().trim().is_empty()))
+            // Fork: o agy mostra a dica do modo no campo vazio ("Accept-edits mode: … (shift+tab to cycle)").
+            || crate::antigravity_permissoes::dica_de_modo(&screen.contents_between(row,col,row,cols)))
 }
 
 /// Quanto esperar a colagem aparecer no campo antes de mandar o Enter assim mesmo.

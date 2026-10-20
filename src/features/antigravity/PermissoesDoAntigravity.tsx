@@ -19,12 +19,18 @@ export function PermissoesDoAntigravity() {
   const [modo, setModo] = useState<Modo | null>(null);
   const [autoDisponivel, setAutoDisponivel] = useState(true);
   const [efetivo, setEfetivo] = useState<Modo | null>(null);
+  const [liberados, setLiberados] = useState(0);
+  const [comuns, setComuns] = useState<string[]>([]);
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
     let vivo = true;
-    request<{ modo: Modo; efetivo: Modo; auto_disponivel: boolean }>("/antigravity/permissoes")
-      .then((dados) => { if (vivo) { setModo(dados.modo); setEfetivo(dados.efetivo); setAutoDisponivel(dados.auto_disponivel); } })
+    request<{ modo: Modo; efetivo: Modo; auto_disponivel: boolean; comandos_liberados?: number; comandos_comuns?: string[] }>("/antigravity/permissoes")
+      .then((dados) => {
+        if (!vivo) return;
+        setModo(dados.modo); setEfetivo(dados.efetivo); setAutoDisponivel(dados.auto_disponivel);
+        setLiberados(dados.comandos_liberados ?? 0); setComuns(dados.comandos_comuns ?? []);
+      })
       .catch(() => { if (vivo) setErro("Engine antigo: reinicie o app para escolher."); });
     return () => { vivo = false; };
   }, []);
@@ -38,6 +44,18 @@ export function PermissoesDoAntigravity() {
       setModo(dados.modo);
       setEfetivo(dados.efetivo);
       setAutoDisponivel(dados.auto_disponivel);
+    } catch (motivo) {
+      setErro(motivo instanceof Error ? motivo.message : String(motivo));
+    }
+  }
+
+  async function liberar(sim: boolean) {
+    setErro(null);
+    try {
+      const dados = await request<{ comandos_liberados: number }>("/antigravity/permissoes", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ liberar_comuns: sim }),
+      });
+      setLiberados(dados.comandos_liberados);
     } catch (motivo) {
       setErro(motivo instanceof Error ? motivo.message : String(motivo));
     }
@@ -66,6 +84,23 @@ export function PermissoesDoAntigravity() {
           Sua conta do Antigravity ainda não liberou o Automático: as conversas abrem com "arquivos sem perguntar". Escolha Automático de novo para tentar outra vez.
         </p>
       )}
+      <div className="mt-4 border-t border-border-subtle pt-3">
+        <p className="text-xs font-semibold text-text-primary">Comandos de pouco risco sem perguntar</p>
+        <p className="mt-1 text-[11px] text-text-secondary" title={comuns.join(", ")}>
+          Leitura, versão, testes e build ({comuns.slice(0, 6).join(", ")}…). Fica no settings.json do Antigravity, então vale também fora do app.
+          Apagar, mover, instalar, push e checkout continuam pedindo.
+        </p>
+        <div className="mt-2 flex items-center gap-2 text-[11px]">
+          {liberados > 0 ? (
+            <>
+              <span className="text-success">{liberados} comando(s) liberado(s) pelo app</span>
+              <button type="button" className="btn btn-ghost min-h-0 px-2 py-0.5 text-[11px]" onClick={() => void liberar(false)}>Desfazer</button>
+            </>
+          ) : (
+            <button type="button" className="btn btn-ghost min-h-0 px-2 py-0.5 text-[11px]" onClick={() => void liberar(true)}>Liberar comandos comuns</button>
+          )}
+        </div>
+      </div>
       {erro && <p role="alert" className="mt-2 text-[11px] text-danger">{erro}</p>}
     </section>
   );

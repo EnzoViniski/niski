@@ -104,6 +104,86 @@ pub(crate) fn com_modo_salvo(comando: &str, log: Option<PathBuf>) -> String {
     com_modo(comando, modo)
 }
 
+/// A dica que o agy escreve no campo vazio conforme o modo (strings do binário 1.4.2): "Accept-edits
+/// mode: file edits auto-approved (shift+tab to cycle)", "Auto mode: …", "Plan mode: …", "Best-of-N
+/// mode: …". Não é texto digitado: sem isto o app achava que havia rascunho e não mandava mensagem nem
+/// trocava o modelo.
+pub(crate) fn dica_de_modo(texto: &str) -> bool {
+    let texto = texto.trim();
+    texto.ends_with("(shift+tab to cycle)") && texto.split_once(" mode: ").is_some_and(|(nome, _)| !nome.is_empty() && nome.len() <= 20)
+}
+
+/* ── Comandos de pouco risco liberados no settings.json do agy (pedido do Enzo) ────────────────── */
+
+/// Liberados com `command(<prefixo>)` em `permissions.allow` do `settings.json` do agy — o agy casa pelo
+/// começo do comando ("commands that start with"), e comando composto é conferido por partes. Só o que
+/// lê, mostra versão, testa, compila ou checa; nada que apague, mova, baixe, publique ou mexa no git
+/// além de ler (`git push`, `git checkout`, `git reset` continuam pedindo). Fora de propósito: `find`
+/// (tem `-delete`/`-exec`), `sed` (tem `-i`), `xargs`, `curl`, `rm`, `mv`, `cp`, `npm install`.
+pub(crate) const COMANDOS_COMUNS: &[&str] = &[
+    "ls", "pwd", "cat", "head", "tail", "wc", "which", "file", "stat", "du", "df", "tree", "date", "whoami", "uname",
+    "echo", "printf", "grep", "rg", "diff", "cmp", "sort", "uniq", "cut", "tr", "jq", "mkdir", "touch",
+    "git status", "git diff", "git log", "git show", "git branch", "git rev-parse", "git ls-files", "git blame", "git remote -v", "git stash list",
+    "node --version", "npm --version", "npm ls", "npm test", "npm run test", "npm run lint", "npm run typecheck", "npm run build",
+    "npx tsc", "npx vitest", "npx eslint", "npx prettier --check",
+    "cargo check", "cargo test", "cargo build", "cargo clippy", "cargo fmt --check",
+    "python3 --version", "pytest", "python3 -m pytest", "go test", "go build", "go vet",
+];
+
+/// Junta os comandos em `permissions.allow` sem tirar nada do que já está lá. Devolve os que entraram.
+pub(crate) fn mesclar_comandos(config: &mut Value, comandos: &[&str]) -> Vec<String> {
+    if !config.is_object() { *config = json!({}); }
+    let permissoes = config.as_object_mut().expect("objeto").entry("permissions").or_insert_with(|| json!({}));
+    if !permissoes.is_object() { *permissoes = json!({}); }
+    let lista = permissoes.as_object_mut().expect("objeto").entry("allow").or_insert_with(|| json!([]));
+    if !lista.is_array() { *lista = json!([]); }
+    let lista = lista.as_array_mut().expect("lista");
+    let mut novos = Vec::new();
+    for comando in comandos {
+        let regra = format!("command({comando})");
+        if !lista.iter().any(|item| item.as_str() == Some(regra.as_str())) { lista.push(json!(regra)); novos.push(regra); }
+    }
+    novos
+}
+
+/// Tira só as regras que o app pôs (as do usuário ficam).
+pub(crate) fn tirar_comandos(config: &mut Value, regras: &[String]) -> usize {
+    let Some(lista) = config.pointer_mut("/permissions/allow").and_then(Value::as_array_mut) else { return 0 };
+    let antes = lista.len();
+    lista.retain(|item| !item.as_str().is_some_and(|r| regras.iter().any(|x| x == r)));
+    antes - lista.len()
+}
+
+/// Grava no `settings.json` do agy (cópia do original em `settings.json.medza-backup` na primeira vez) e
+/// lembra no `antigravity.json` do engine o que o app acrescentou, para poder desfazer.
+pub(crate) fn liberar_comandos_comuns(config_dir: &Path, dir: &Path, liberar: bool) -> std::io::Result<usize> {
+    let caminho = config_dir.join("settings.json");
+    let texto = std::fs::read_to_string(&caminho).unwrap_or_else(|_| "{}".into());
+    let mut config: Value = serde_json::from_str(&texto).map_err(|e| std::io::Error::other(format!("settings.json do agy inválido: {e}")))?;
+    let copia = config_dir.join("settings.json.medza-backup");
+    if !copia.exists() && caminho.exists() { std::fs::copy(&caminho, &copia)?; }
+    let mut dados = salvo(dir);
+    let anteriores: Vec<String> = dados["comandos_liberados"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_owned)).collect();
+    let mudou = if liberar {
+        let novos = mesclar_comandos(&mut config, COMANDOS_COMUNS);
+        let todos: Vec<String> = anteriores.into_iter().chain(novos.iter().cloned()).collect();
+        dados["comandos_liberados"] = json!(todos);
+        novos.len()
+    } else {
+        let tirados = tirar_comandos(&mut config, &anteriores);
+        dados["comandos_liberados"] = json!([]);
+        tirados
+    };
+    let temporario = caminho.with_extension("json.medza-tmp");
+    std::fs::write(&temporario, serde_json::to_string_pretty(&config).map_err(std::io::Error::other)?)?;
+    std::fs::rename(&temporario, &caminho)?;
+    crate::atomic_write_json(&dir.join(ARQUIVO), &dados).map_err(|e| std::io::Error::other(e.to_string()))?;
+    omni_core::registro::info("antigravity_comandos", &[("liberar", if liberar { "sim" } else { "nao" }), ("mudou", &mudou.to_string())]);
+    Ok(mudou)
+}
+
+fn comandos_liberados(dir: &Path) -> usize { salvo(dir)["comandos_liberados"].as_array().map_or(0, Vec::len) }
+
 /// Diálogo de permissão do agy (formato conferido na tela real do 1.4.2):
 ///
 /// ```text
@@ -163,10 +243,19 @@ fn pasta(state: &crate::EngineState) -> &Path { state.state_file.parent().unwrap
 
 async fn ler(State(state): State<Arc<crate::EngineState>>) -> Json<Value> {
     let dir = pasta(&state);
-    Json(json!({"modo": modo(dir).nome(), "efetivo": modo_efetivo(dir).nome(), "auto_disponivel": !auto_indisponivel(dir)}))
+    Json(json!({"modo": modo(dir).nome(), "efetivo": modo_efetivo(dir).nome(), "auto_disponivel": !auto_indisponivel(dir),
+        "comandos_liberados": comandos_liberados(dir), "comandos_comuns": COMANDOS_COMUNS}))
 }
 
 async fn gravar(State(state): State<Arc<crate::EngineState>>, Json(corpo): Json<Value>) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    if let Some(liberar) = corpo["liberar_comuns"].as_bool() {
+        let config = crate::config_do_antigravity()
+            .ok_or_else(|| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Pasta do Antigravity não encontrada"}))))?;
+        let dir = pasta(&state).to_path_buf();
+        liberar_comandos_comuns(&config, &dir, liberar)
+            .map_err(|e| (StatusCode::CONFLICT, Json(json!({"error": e.to_string()}))))?;
+        return Ok(Json(json!({"comandos_liberados": comandos_liberados(&dir)})));
+    }
     let pedido = corpo["modo"].as_str().and_then(Modo::de)
         .ok_or_else(|| (StatusCode::BAD_REQUEST, Json(json!({"error": "Modo deve ser auto, accept-edits ou padrao"}))))?;
     if pedido == Modo::Auto && cfg!(windows) {
@@ -230,6 +319,46 @@ esc to cancel                                        Gemini 4 Argon · medium\n"
         assert_eq!(modo(dir.path()), Modo::Padrao);
         fs::write(dir.path().join(ARQUIVO), r#"{"modo":"auto","auto_indisponivel":true}"#).unwrap();
         assert_eq!((modo(dir.path()), modo_efetivo(dir.path())), (Modo::Auto, Modo::AceitarEdicoes), "conta sem Auto");
+    }
+
+    #[test]
+    fn dica_do_modo_no_campo_nao_e_rascunho() {
+        assert!(dica_de_modo(" Accept-edits mode: file edits auto-approved (shift+tab to cycle)  "));
+        assert!(dica_de_modo("Plan mode: research & plan only (shift+tab to cycle)"));
+        assert!(!dica_de_modo("crie o arquivo (shift+tab to cycle)"));
+        assert!(!dica_de_modo("rascunho do usuário"));
+        // A linha real do campo do agy em accept-edits, com o cursor depois do "> ".
+        let mut tela = crate::interaction::Interaction::new(6, 100);
+        tela.parser.process("\x1b[?2004h\r\n> Accept-edits mode: file edits auto-approved (shift+tab to cycle)\r\n\
+? for shortcuts      accept-edits · Gemini 4 Argon · medium\x1b[2;3H".as_bytes());
+        assert!(crate::interaction::ready(tela.parser.screen(), "antigravity"), "o agy ocioso em accept-edits aceita mensagem");
+        tela.parser.process(b"\x1b[2;3Hoi\x1b[K");
+        assert!(!crate::interaction::ready(tela.parser.screen(), "antigravity"), "texto digitado de verdade continua bloqueando");
+    }
+
+    #[test]
+    fn comandos_comuns_entram_sem_tirar_os_do_usuario_e_saem_so_os_do_app() {
+        let mut config = json!({"permissions": {"allow": ["command(ls)", "command(zip)"]}, "trustedWorkspaces": ["/x"]});
+        let novos = mesclar_comandos(&mut config, &["ls", "git status", "npm test"]);
+        assert_eq!(novos, ["command(git status)", "command(npm test)"], "ls já estava");
+        assert_eq!(config["permissions"]["allow"], json!(["command(ls)", "command(zip)", "command(git status)", "command(npm test)"]));
+        assert_eq!(tirar_comandos(&mut config, &novos), 2);
+        assert_eq!(config["permissions"]["allow"], json!(["command(ls)", "command(zip)"]));
+        assert_eq!(config["trustedWorkspaces"], json!(["/x"]));
+        // Nada perigoso na lista.
+        for perigoso in ["rm", "mv", "cp", "find", "sed", "xargs", "curl", "git push", "git checkout", "git reset", "npm install", "sudo", "git"] {
+            assert!(!COMANDOS_COMUNS.contains(&perigoso), "{perigoso}");
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let agy = dir.path().join("agy");
+        fs::create_dir_all(&agy).unwrap();
+        fs::write(agy.join("settings.json"), r#"{"permissions":{"allow":["command(zip)"]}}"#).unwrap();
+        assert_eq!(liberar_comandos_comuns(&agy, dir.path(), true).unwrap(), COMANDOS_COMUNS.len());
+        assert!(agy.join("settings.json.medza-backup").is_file(), "cópia do original");
+        assert_eq!(comandos_liberados(dir.path()), COMANDOS_COMUNS.len());
+        assert_eq!(liberar_comandos_comuns(&agy, dir.path(), false).unwrap(), COMANDOS_COMUNS.len());
+        let depois: Value = serde_json::from_str(&fs::read_to_string(agy.join("settings.json")).unwrap()).unwrap();
+        assert_eq!(depois["permissions"]["allow"], json!(["command(zip)"]));
     }
 
     #[test]
@@ -339,5 +468,106 @@ I1019 manager.go:1498] auto mode is unavailable, falling back to default\n").unw
         let _ = fs::remove_dir_all(&pasta);
         assert!(criou, "o agy não criou o arquivo");
         assert!(pedidos.iter().all(|p| p.contains("trust")), "aceitando edições, só a confiança na pasta pergunta: {pedidos:?}");
+    }
+
+    /// **CLI real, à mão, sem prompt**: a tela ociosa do agy em cada modo e se o app a reconhece como
+    /// pronta para receber mensagem. Abre em `~/omni` (pasta já confiável), não manda nada e fecha.
+    /// `cargo test -p omni-engine tela_ociosa_do_agy -- --ignored --nocapture`
+    #[test]
+    #[ignore = "CLI real (agy): rodar à mão"]
+    fn tela_ociosa_do_agy() {
+        for modo in [Modo::AceitarEdicoes, Modo::Padrao] {
+            let dados = tempfile::tempdir().unwrap();
+            let pasta = PathBuf::from(std::env::var("HOME").unwrap()).join("omni");
+            let state = Arc::new(EngineState { persist_lock: Mutex::new(()), mobile: mobile::MobileRuntime::new(dados.path()),
+                token: "test-only".into(), state_file: dados.path().join("sessions.json"), sessions: Mutex::new(HashMap::new()),
+                id_sequence: AtomicU64::new(1) });
+            let sessao = spawn_terminal_inner(&state, state.next_id(), "p".into(), "agy".into(), pasta.to_string_lossy().into_owned(), None,
+                Some(com_modo("agy", modo)), 40, 120, now_ms(),
+                SessionOrigin { headless: true, provider: Some("antigravity".into()), ..SessionOrigin::default() }).unwrap();
+            let viva = match state.sessions.lock().unwrap().get(&sessao.id) { Some(SessionEntry::Live(s)) => s.clone(), _ => panic!() };
+            std::thread::sleep(std::time::Duration::from_secs(10));
+            let tela = viva.interaction.lock().unwrap().parser.screen().contents();
+            let cap = crate::interaction::capabilities(&viva);
+            println!("=== {modo:?}: pronta={} motivo={:?}", cap.prompt, cap.reason);
+            for (i, linha) in tela.lines().enumerate().filter(|(_, l)| !l.trim().is_empty()) { println!("{i:02}|{linha:?}"); }
+            let _ = stop_session(&state, &sessao.id);
+        }
+    }
+
+    /// **CLI real, à mão, um prompt curto**: o caminho do chat do app com o agy — manda "responda só: ok"
+    /// pela rota `/prompt` e troca o modelo pela `/ajustes` (reabre com `--conversation`). Em `~/omni`.
+    /// `cargo test -p omni-engine chat_do_agy_manda_e_troca_modelo -- --ignored --nocapture`
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "CLI real (agy): rodar à mão"]
+    async fn chat_do_agy_manda_e_troca_modelo() {
+        let dados = tempfile::tempdir().unwrap();
+        let casa = PathBuf::from(std::env::var("HOME").unwrap());
+        let pasta = casa.join("omni").to_string_lossy().into_owned();
+        let state = Arc::new(EngineState { persist_lock: Mutex::new(()), mobile: mobile::MobileRuntime::new(dados.path()),
+            token: "test-only".into(), state_file: dados.path().join("sessions.json"), sessions: Mutex::new(HashMap::new()),
+            id_sequence: AtomicU64::new(1) });
+        mobile::start(state.clone());
+        crate::atomic_write_json(&dados.path().join("profiles.json"), &json!({"profiles": [{"id": "agy-padrao", "provider": "antigravity",
+            "name": "Padrão", "config_dir": casa.join(".gemini/antigravity-cli").to_string_lossy(), "builtin": true, "created_at_ms": 0}]})).unwrap();
+        mobile::publish(&state, vec![omni_protocol::PublishedProject { id: "p".into(), name: "omni".into(), path: pasta.clone() }],
+            vec![omni_protocol::PublishedAgent { id: "antigravity".into(), label: "Antigravity".into(), command: "agy".into(), resume: None }], None).unwrap();
+        let id = state.next_id();
+        let segmento = |terminal: Option<String>| omni_core::conversations::Segment { provider: "antigravity".into(), profile_id: Some("agy-padrao".into()),
+            external_session_id: None, transcript_path: None, terminal_session_id: terminal, started_at_ms: now_ms(), ended_at_ms: None };
+        let conversa = |terminal| omni_core::conversations::Conversation { id: "c-agy".into(), project_id: "p".into(), cwd: pasta.clone(),
+            title: "teste agy".into(), title_source: omni_core::conversations::TitleSource::Manual, created_at_ms: now_ms(), segments: vec![segmento(terminal)] };
+        omni_core::conversations::write_index(dados.path(), &[conversa(Some(id.clone()))]).unwrap();
+        spawn_terminal_inner(&state, id.clone(), "p".into(), "agy".into(), pasta.clone(), None, Some("agy".into()), 40, 120, now_ms(),
+            SessionOrigin { headless: true, provider: Some("antigravity".into()), profile_id: Some("agy-padrao".into()),
+                conversation_id: Some("c-agy".into()), ..SessionOrigin::default() }).unwrap();
+        let viva = || match state.sessions.lock().unwrap().get(&id) { Some(SessionEntry::Live(s)) => s.clone(), _ => panic!() };
+        let tela = || viva().interaction.lock().unwrap().parser.screen().contents();
+        let espera = |s: u64| tokio::time::sleep(std::time::Duration::from_secs(s));
+        let pronta = |limite: u64| { let viva = viva(); async move {
+            for _ in 0..limite * 2 { if crate::interaction::capabilities(&viva).prompt { return true; } tokio::time::sleep(std::time::Duration::from_millis(500)).await; }
+            false } };
+        assert!(pronta(30).await, "não ficou pronta: {}", tela());
+        let post = |rota: &str, corpo: Value| { let state = state.clone(); let rota = rota.to_owned(); let id = id.clone(); async move {
+            let revisao = crate::interaction::capabilities(&match state.sessions.lock().unwrap().get(&id) { Some(SessionEntry::Live(s)) => s.clone(), _ => panic!() }).revision;
+            mobile::local(state, "POST", &rota, Some(corpo.to_string()), None,
+                vec![("idempotency-key".into(), format!("t-{}", now_ms())), ("if-match".into(), revisao)]).await } };
+        let EngineResponse::Api { status, body } = post("/conversas/c-agy/prompt", json!({"texto": "responda só: ok"})).await else { panic!() };
+        println!("prompt: {status} {body}");
+        let turnos = viva().interaction.lock().unwrap().turnos_iniciados;
+        let mut comecou = false;
+        for _ in 0..60 { espera(1).await; if viva().interaction.lock().unwrap().turnos_iniciados > turnos { comecou = true; break; } }
+        println!("o agy começou o turno: {comecou}");
+        assert!(pronta(90).await, "não voltou a ficar pronta: {}", tela());
+        // A descoberta (a cada 15 s na lista) acha a conversa do agy pelo log da sessão.
+        let mut indice = omni_core::conversations::read_index(dados.path());
+        omni_core::conversations::discover_codex_transcripts(&mut indice, &omni_core::profiles(dados.path()));
+        omni_core::conversations::write_index(dados.path(), &indice).unwrap();
+        println!("conversa do agy: {:?}", indice[0].segments.last().and_then(|s| s.external_session_id.clone()));
+        let EngineResponse::Api { body, .. } = mobile::local(state.clone(), "GET", "/conversas/c-agy/opcoes", None, None, vec![]).await else { panic!() };
+        let opcoes: Value = serde_json::from_str(&body).unwrap();
+        let atual = opcoes["model"].as_str().unwrap_or("").to_owned();
+        let outro = opcoes["models"].as_array().unwrap().iter().filter_map(|m| m["id"].as_str()).find(|m| *m != atual).unwrap().to_owned();
+        println!("modelo atual {atual:?} → {outro:?}");
+        let EngineResponse::Api { status, body } = post("/conversas/c-agy/ajustes", json!({"profile_id": null, "model": outro, "effort": "low"})).await else { panic!() };
+        println!("ajustes: {status} {body}");
+        espera(4).await;
+        assert!(pronta(40).await, "não reabriu: {}", tela());
+        let cabecalho: Vec<String> = tela().lines().filter(|l| l.contains("agy ") || l.contains("Gemini") || l.contains("Claude") || l.contains("GPT")).map(str::to_owned).collect();
+        println!("depois da troca:\n{}", cabecalho.join("\n"));
+        let _ = stop_session(&state, &id);
+        assert_eq!(status, 202);
+    }
+
+    /// Aplica (ou desfaz) a lista no agy de verdade, com a pasta do engine do app em `MEDZA_ENGINE_DIR`
+    /// para o app lembrar o que acrescentou. `MEDZA_LIBERAR=0` desfaz.
+    /// `MEDZA_ENGINE_DIR=… cargo test -p omni-engine aplicar_comandos_comuns -- --ignored --nocapture`
+    #[test]
+    #[ignore = "mexe no settings.json do agy de verdade: rodar à mão"]
+    fn aplicar_comandos_comuns_no_agy_de_verdade() {
+        let dir = PathBuf::from(std::env::var("MEDZA_ENGINE_DIR").expect("MEDZA_ENGINE_DIR"));
+        let liberar = std::env::var("MEDZA_LIBERAR").map_or(true, |v| v != "0");
+        let mudou = liberar_comandos_comuns(&crate::config_do_antigravity().unwrap(), &dir, liberar).unwrap();
+        println!("{} regras {}", mudou, if liberar { "acrescentadas" } else { "tiradas" });
     }
 }

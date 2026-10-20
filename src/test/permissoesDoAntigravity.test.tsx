@@ -12,13 +12,16 @@ vi.mock("../features/terminal/terminalService", async (importOriginal) => ({
   ...engine,
 }));
 
-let estado = { modo: "accept-edits", efetivo: "accept-edits", auto_disponivel: true };
+let estado: Record<string, unknown> = { modo: "accept-edits", efetivo: "accept-edits", auto_disponivel: true };
 beforeEach(() => {
   vi.clearAllMocks();
-  estado = { modo: "accept-edits", efetivo: "accept-edits", auto_disponivel: true };
+  estado = { modo: "accept-edits", efetivo: "accept-edits", auto_disponivel: true, comandos_liberados: 0, comandos_comuns: ["ls", "git status"] };
   usarTransporte(transporteDoEngine);
   engine.engineApi.mockImplementation(async (metodo: string, _caminho: string, corpo: string | null) => {
-    if (metodo === "POST") { const modo = JSON.parse(String(corpo)).modo; estado = { ...estado, modo, efetivo: modo }; }
+    if (metodo === "POST") {
+      const pedido = JSON.parse(String(corpo));
+      estado = "liberar_comuns" in pedido ? { ...estado, comandos_liberados: pedido.liberar_comuns ? 59 : 0 } : { ...estado, modo: pedido.modo, efetivo: pedido.modo };
+    }
     return { type: "api", status: 200, body: JSON.stringify(estado) };
   });
 });
@@ -38,5 +41,14 @@ describe("permissões do Antigravity", () => {
     render(<PermissoesDoAntigravity />);
     expect(await screen.findByText(/ainda não liberou o Automático/)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Automático/ })).toBeChecked();
+  });
+
+  it("libera e desfaz os comandos de pouco risco no Antigravity", async () => {
+    render(<PermissoesDoAntigravity />);
+    await userEvent.click(await screen.findByRole("button", { name: "Liberar comandos comuns" }));
+    expect(await screen.findByText("59 comando(s) liberado(s) pelo app")).toBeInTheDocument();
+    expect(engine.engineApi).toHaveBeenCalledWith("POST", "/antigravity/permissoes", JSON.stringify({ liberar_comuns: true }), expect.anything());
+    await userEvent.click(screen.getByRole("button", { name: "Desfazer" }));
+    expect(await screen.findByRole("button", { name: "Liberar comandos comuns" })).toBeInTheDocument();
   });
 });
