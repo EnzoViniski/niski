@@ -1,26 +1,25 @@
 import * as monaco from "monaco-editor";
 import { loader } from "@monaco-editor/react";
+import EditorWorker from "monaco-editor/editor/editor.worker.js?worker";
+import JsonWorker from "monaco-editor/language/json/json.worker.js?worker";
+import CssWorker from "monaco-editor/language/css/css.worker.js?worker";
+import HtmlWorker from "monaco-editor/language/html/html.worker.js?worker";
+import TypeScriptWorker from "monaco-editor/language/typescript/ts.worker.js?worker";
 
 // App local-only: nunca buscar o Monaco de CDN (padrão do @monaco-editor/react).
 // Aponta pro pacote já bundlado no build do Vite.
 loader.config({ monaco });
 
-// `?worker` num subpath fundo de node_modules não resolve de forma confiável no Rollup
-// deste projeto (Vite 5). `new URL(..., import.meta.url)` é o mecanismo do Vite pra
-// apontar pra um arquivo estático, mas só analisa string literal — sem template
-// dinâmico, por isso uma constante por worker em vez de uma função geradora.
-const editorWorkerUrl = new URL("monaco-editor/esm/vs/editor/editor.worker.js", import.meta.url);
-const jsonWorkerUrl = new URL("monaco-editor/esm/vs/language/json/json.worker.js", import.meta.url);
-const cssWorkerUrl = new URL("monaco-editor/esm/vs/language/css/css.worker.js", import.meta.url);
-const htmlWorkerUrl = new URL("monaco-editor/esm/vs/language/html/html.worker.js", import.meta.url);
-const tsWorkerUrl = new URL("monaco-editor/esm/vs/language/typescript/ts.worker.js", import.meta.url);
+// Fork: o Vite não resolve um pacote npm em `new URL("monaco-editor/…", import.meta.url)`.
+// `?worker` cria bundles locais dos workers, incluindo suas dependências, no build de produção.
+// Os exports do Monaco 0.56 já apontam para `esm/vs`: repetir esse prefixo duplicaria o caminho.
 
 self.MonacoEnvironment = {
   getWorker(_workerId: string, label: string) {
-    if (label === "json") return new Worker(jsonWorkerUrl, { type: "module" });
-    if (["css", "scss", "less"].includes(label)) return new Worker(cssWorkerUrl, { type: "module" });
-    if (["html", "handlebars", "razor"].includes(label)) return new Worker(htmlWorkerUrl, { type: "module" });
-    if (["typescript", "javascript"].includes(label)) return new Worker(tsWorkerUrl, { type: "module" });
-    return new Worker(editorWorkerUrl, { type: "module" });
+    if (label === "json") return new JsonWorker();
+    if (["css", "scss", "less"].includes(label)) return new CssWorker();
+    if (["html", "handlebars", "razor"].includes(label)) return new HtmlWorker();
+    if (["typescript", "javascript"].includes(label)) return new TypeScriptWorker();
+    return new EditorWorker();
   },
 };

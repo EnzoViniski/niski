@@ -977,8 +977,6 @@ fn comando_ao_reiniciar(meta: &TerminalSession) -> Option<String> {
         return Some(format!("{base} --resume {id}"));
     }
     let criar = format!("--session-id {id}");
-    // Fork (retomar-sempre): `--resume` de conversa que não existe em conta nenhuma morria com "No
-    // conversation found"; abre conversa nova com o mesmo id.
     // Sem transcript, uma retomada explícita deve falhar visivelmente na CLI. Criar silenciosamente
     // outro histórico com o mesmo id fazia a conversa parecer ter esquecido tudo.
     if !pronto { return Some(original); }

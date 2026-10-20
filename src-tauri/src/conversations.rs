@@ -1,13 +1,13 @@
 //! Conversa lógica: uma timeline que atravessa troca de conta e de IA.
 //!
 //! **Isto é um índice, não um transcript.** Claude e Codex já gravam a conversa inteira em disco
-//! (um `.jsonl` deste projeto passa de 5 MB); duplicar isso seria desperdício puro. O OMNI grava
+//! (um `.jsonl` deste projeto passa de 5 MB). O índice grava
 //! só ponteiros — quais conversas existem e, por conversa, a lista de trechos com provider,
 //! profile, id da sessão nativa e caminho do arquivo. São dezenas de linhas, escritas quando a
 //! conversa nasce e quando o usuário troca de conta.
 //!
-//! Consequência de projeto: **não existe tailer**. Sem mensagens para guardar, não há motivo para
-//! seguir arquivo nenhum — o `.jsonl` só é lido sob demanda, no handoff forçado.
+//! O fork mantém snapshots de recuperação em `omni_core::arquivo_de_conversas`, separados do índice.
+//! Não há tailer contínuo: a observação é limitada e a cópia só muda quando o arquivo nativo muda.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

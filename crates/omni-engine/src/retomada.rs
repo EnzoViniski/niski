@@ -4,8 +4,8 @@
 //! sessão e a pasta calculada do `cwd`. Conversa em outra conta, ou gravada com o caminho escrito de
 //! outro jeito, dava `--session-id` repetido ("já em uso") ou `--resume` sem arquivo ("No conversation
 //! found"). Aqui o transcript é procurado em todas as contas (`omni_core::achar_transcript`) e copiado
-//! para onde a CLI da conta da sessão procura; sem ele em lugar nenhum, a sessão abre uma conversa
-//! nova com o mesmo id em vez de morrer. Pasta de trabalho apagada vira um erro com código, que a
+//! para onde a CLI da conta da sessão procura; sem ele em lugar nenhum, uma retomada explícita
+//! preserva o comando para a falha aparecer, sem criar histórico vazio. Pasta apagada vira erro com código, que a
 //! interface transforma em "abrir no repositório principal".
 
 use omni_core::achar_transcript::{self, Achado};
@@ -150,7 +150,7 @@ mod tests {
         assert!(!crate::SessionEntry::Historical(meta).metadata().retoma_ao_abrir, "terminal puro não é marcado");
     }
 
-    /// `--resume` de conversa que não existe em conta nenhuma vira `--session-id` com o mesmo id.
+    /// `--resume` sem transcript continua explícito, sem criar uma conversa vazia com o mesmo id.
     #[test]
     fn reinicio_de_resume_sem_transcript_preserva_retomada_sem_criar_historico_vazio() {
         let raiz = tempfile::tempdir().unwrap();
