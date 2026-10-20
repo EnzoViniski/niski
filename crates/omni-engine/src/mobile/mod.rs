@@ -24,6 +24,9 @@ pub(crate) mod limite_de_sessoes;
 mod caixa_de_atividade;
 #[path = "../agendamentos.rs"]
 mod agendamentos; // Fork: executor e rotas de agendamentos.
+// Fork (3B): fila de contas (`routing.json`, escolha com explicação, queda só sem tela).
+#[path = "../roteamento.rs"]
+pub(crate) mod roteamento;
 
 // Fork (Onda 2.0): o antigo `mobile.rs` dividido por assunto, só movido. Cada filho faz
 // `use super::*` e este módulo traz os itens de volta com `use filho::*`.
@@ -235,6 +238,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         // Fork: modo com que o app abre o Antigravity (`antigravity_permissoes.rs`).
         .merge(crate::antigravity_permissoes::rotas())
         .merge(ganchos_rotas::rotas()) // Fork (Onda 2): ganchos do Claude.
+        .merge(roteamento::rotas()) // Fork (3B): fila de contas.
 }
 
 fn router(state: Arc<EngineState>) -> Router {

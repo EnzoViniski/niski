@@ -157,7 +157,7 @@ printf '%s\n' '{"type":"result","session_id":"goal-falso","result":"objetivo ati
         &Ajuste {
             max_turnos: Some(4),
             ..Default::default()
-        },
+        }, None
     )
     .unwrap();
     assert_eq!(resultado, "objetivo atingido");
@@ -188,7 +188,7 @@ printf '%s\n' '{"type":"result","session_id":"goal-falso","result":"objetivo ati
         &Ajuste {
             max_turnos: Some(4),
             ..Default::default()
-        }
+        }, None
     )
     .unwrap_err()
     .to_string()
@@ -279,7 +279,7 @@ fn cancelar_mata_cli_falsa_e_descendentes() {
             "fixture",
             None,
             &pasta,
-            &Ajuste::default(),
+            &Ajuste::default(), None
         );
         let _ = envio.send(r.map_err(|e| e.to_string()));
     });

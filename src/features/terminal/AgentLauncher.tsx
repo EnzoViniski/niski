@@ -10,6 +10,9 @@ import { levarParaConta, resumeCommand, type HistoryEntry, type HistoryProvider 
 import { gitBranches, gitWorktreeDaBranch, type GitBranch } from "../git/gitService";
 import { isRemoteProject } from "../projects/targetState";
 import { criarWorktreeIsolada, nomeDaWorktree, PASTA_DAS_WORKTREES, PREFIXO_DA_BRANCH } from "./worktreeIsolada";
+// Fork (3B): conta "Automática" pela Fila de contas, com o porquê.
+import { CONTA_AUTOMATICA } from "../roteamento/roteamentoService";
+import { PorQueEstaConta, useContaAutomatica } from "../roteamento/PorQueEstaConta";
 import {
   AGENT_RESUME_FLAG,
   listAgentClis,
@@ -101,23 +104,33 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
   // joga o usuário numa tela de autenticação que ele não pediu.
   useEffect(() => {
     // Fork: a conta escolhida da última vez neste agente vem antes (some se a conta sumir).
+    if (contaDoAgente(selected) === CONTA_AUTOMATICA && accounts.length > 1) { setSelectedProfile(CONTA_AUTOMATICA); return; }
     const preferred = accounts.find((item) => item.id === contaDoAgente(selected))
       ?? accounts.find((item) => item.authenticated) ?? accounts[0];
     setSelectedProfile(preferred?.id ?? "");
   }, [accounts, selected]);
 
-  const profile = accounts.find((item) => item.id === selectedProfile) ?? null;
+  // Fork (3B): "Automática" pergunta à fila; a conta escolhida vale para abrir e o porquê aparece abaixo.
+  const automatica = selectedProfile === CONTA_AUTOMATICA;
+  const contaAutomatica = useContaAutomatica(selected, projectPath, automatica);
+  const profile = automatica
+    ? profiles.find((item) => item.id === contaAutomatica.escolha?.perfil_id) ?? null
+    : accounts.find((item) => item.id === selectedProfile) ?? null;
+  const semContaAutomatica = automatica && !profile;
 
-  const profileOptions = accounts.map((item) => ({
-    value: item.id,
-    label: item.name,
-    hint: item.authenticated ? "conectado" : "sem login",
-  }));
+  const profileOptions = [
+    ...(accounts.length > 1 ? [{ value: CONTA_AUTOMATICA, label: "Automática (fila)", hint: "pela Fila de contas" }] : []),
+    ...accounts.map((item) => ({
+      value: item.id,
+      label: item.name,
+      hint: item.authenticated ? "conectado" : "sem login",
+    })),
+  ];
 
   async function launch(command?: string) {
     if (!agent) return;
     lembrarAgente(agent.id);
-    if (profile) lembrarConta(agent.id, profile.id);
+    if (profile) lembrarConta(agent.id, automatica ? CONTA_AUTOMATICA : profile.id);
     let cwd: string | undefined;
     const alvoBranch = branch === NOVA ? branchNova.trim() : branch;
     if (isolar) {
@@ -260,6 +273,18 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
             />
           </div>
         )}
+        {automatica && (
+          <div className="launcher-nota" aria-live="polite">
+            {contaAutomatica.carregando ? "Consultando a fila de contas…"
+              : contaAutomatica.erro ? `Não deu para consultar a fila: ${contaAutomatica.erro}`
+              : contaAutomatica.escolha && (
+                <>
+                  <p>{profile ? `Vai abrir em ${profile.name}.` : "Nenhuma conta da fila serve agora: escolha uma conta."}</p>
+                  <PorQueEstaConta escolha={contaAutomatica.escolha} className="mt-1" />
+                </>
+              )}
+          </div>
+        )}
         {branches.length > 0 && (
           <div className="launcher-campo">
             <label htmlFor="agent-branch" className="launcher-rotulo">Branch</label>
@@ -327,7 +352,7 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
         )}
 
         <div className="launcher-acoes">
-          <Button variant="primary" className="flex-1 lz-abrir" disabled={loading || preparando || !agent?.available || (branch === NOVA && !branchNova.trim())} onClick={() => void launch()}>
+          <Button variant="primary" className="flex-1 lz-abrir" disabled={loading || preparando || !agent?.available || (branch === NOVA && !branchNova.trim()) || semContaAutomatica} onClick={() => void launch()}>
             {loading ? (
               "Detectando CLIs…"
             ) : preparando ? (

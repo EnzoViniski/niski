@@ -17,13 +17,14 @@ pub(super) fn lista() -> Value {
     let agente = json!({"type": "string", "description": "Id do subagente (o campo `agente` devolvido por criar_agente ou listar_agentes)"});
     json!([
         {"name": "listar_plataformas_e_contas",
-         "description": "Lista as plataformas de agente que o app suporta (Claude Code, Codex, Antigravity…), as contas de cada uma e os modelos conhecidos. Um modelo fora da lista também é aceito.",
+         "description": "Lista as plataformas de agente que o app suporta (Claude Code, Codex, Antigravity…), as contas de cada uma, os modelos conhecidos e a conta que a Fila de contas escolheria agora (conta_automatica, para criar_agente com conta \"auto\"). Um modelo fora da lista também é aceito.",
          "inputSchema": {"type": "object", "properties": {}}},
         {"name": "criar_agente",
          "description": "Abre um subagente focado numa tarefa, na mesma pasta deste orquestrador. O engine monta o briefing dele (tarefa, contexto, arquivos para ler, para editar e para criar, o que é dos outros subagentes, critérios de pronto e regras) e manda assim que a CLI ficar pronta. Arquivos de `editar`/`criar` não podem sobrepor os de outro subagente vivo: divida o trabalho em pedaços disjuntos. Respeita o limite de subagentes vivos. Com `worktree`, ele roda numa worktree isolada do git (pasta própria fora do repo, branch `medza/<nome>`, com os arquivos do `.worktreeinclude`): use para subagentes que EDITAM código em paralelo, assim um não pisa no outro; no fim ele commita na branch dele e você mescla (git merge medza/<nome>). Depois use esperar e ler_conversa.",
          "inputSchema": {"type": "object", "required": ["plataforma", "tarefa"], "properties": {
             "plataforma": {"type": "string", "description": "Id da plataforma (ex.: claude, codex, antigravity)"},
-            "conta": {"type": "string", "description": "Id ou nome da conta; sem ela, a conta padrão da plataforma"},
+            // Fork (3B): "auto" = a Fila de contas escolhe e a resposta diz por quê.
+            "conta": {"type": "string", "description": "Id ou nome da conta, ou \"auto\" para a Fila de contas do app escolher (a resposta traz por_que_esta_conta); sem ela, a conta padrão da plataforma"},
             "modelo": {"type": "string", "description": "Modelo para a CLI (ex.: haiku). Sem ele, o padrão da CLI"},
             "esforco": {"type": "string", "description": "Esforço de raciocínio (ex.: low, medium, high)"},
             "tarefa": {"type": "string", "description": "O objetivo do subagente, claro e único"},
@@ -138,6 +139,8 @@ fn catalogo(state: &EngineState) -> Value {
                 "plataforma": agente.id, "nome": agente.label,
                 "contas": contas.iter().map(|p| json!({"id": p.id, "nome": p.name, "padrao": p.builtin})).collect::<Vec<_>>(),
                 "modelos": modelos_de(state, &agente.id, padrao),
+                // Fork (3B): o que `conta: "auto"` escolheria agora, com o porquê.
+                "conta_automatica": (!contas.is_empty()).then(|| super::super::roteamento::previa(state, &agente.id)),
             })
         }).collect::<Vec<_>>(),
         "limite_de_subagentes_vivos": ler_registro(state).limite(),
@@ -199,7 +202,18 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
         return Err(format!("Plataforma desconhecida: {plataforma}. Disponíveis: {}", nomes.join(", ")));
     };
     let perfis = omni_core::profiles(dir(state));
+    // Fork (3B): `conta: "auto"` escolhe pela Fila de contas (sessão interativa: sem troca sozinha depois).
+    let mut por_que: Option<Vec<String>> = None;
     let conta = match texto_do_campo(args, "conta") {
+        Some(pedida) if pedida.eq_ignore_ascii_case(super::super::roteamento::CONTA_AUTOMATICA) => {
+            let escolha = super::super::roteamento::escolher_para(state, &plataforma, Some(&mae.cwd), false, false, &[]);
+            let Some(id) = escolha.perfil_id else {
+                return Err(format!("A Fila de contas não achou conta para {plataforma}: {}. Escolha uma conta (listar_plataformas_e_contas).",
+                    escolha.explicacao.join("; ")));
+            };
+            por_que = Some(escolha.explicacao);
+            Some(id)
+        }
         Some(pedida) => Some(perfis.iter().filter(|p| p.provider == plataforma)
             .find(|p| p.id == pedida || p.name.eq_ignore_ascii_case(pedida)).map(|p| p.id.clone())
             .ok_or_else(|| format!("Conta desconhecida para {plataforma}: {pedida}. Use listar_plataformas_e_contas."))?),
@@ -276,7 +290,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
     std::thread::spawn(move || mandar_tarefa_quando_pronta(&estado, &id, &tarefa, std::time::Duration::from_secs(180)));
     Ok(em_json(json!({
         "agente": conversa, "plataforma": plataforma, "conta": nome_da_conta(&perfis, plano.profile_id.as_deref()),
-        "modelo": modelo, "esforco": esforco, "estado": "abrindo",
+        "modelo": modelo, "esforco": esforco, "estado": "abrindo", "por_que_esta_conta": por_que,
         "worktree": worktree.as_ref().map(|wt| wt.caminho.clone()), "branch": worktree.as_ref().map(|wt| wt.branch.clone()),
         "nota": "A tarefa vai assim que a CLI ficar pronta. Chame esperar(agente) e depois ler_conversa(agente).",
     })))

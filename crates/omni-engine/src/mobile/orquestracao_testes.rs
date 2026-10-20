@@ -511,3 +511,41 @@ async fn criar_agente_em_worktree_isolada() {
         assert!(!erro, "{texto}");
     }
 }
+
+/// Fork (3B): `criar_agente` com `conta: "auto"` abre na conta que a Fila de contas escolhe e diz por
+/// quê; `listar_plataformas_e_contas` mostra a escolha antes.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn criar_agente_com_conta_automatica_usa_a_fila() {
+    let (dir, state, projeto) = fixture();
+    start(state.clone());
+    publicar(&state, &projeto, &cli_falsa(dir.path()));
+    let perfil = |id: &str, nome: &str| json!({"id": id, "provider": "claude", "name": nome,
+        "config_dir": dir.path().join("contas").join(id), "builtin": false, "created_at_ms": 0});
+    atomic_write_json(&dir.path().join("profiles.json"), &json!({"profiles": [perfil("a", "Pessoal"), perfil("b", "Empresa")]})).unwrap();
+    atomic_write_json(&dir.path().join("routing.json"), &json!({"modo": "fila", "etapas": ["b", "a"]})).unwrap();
+    let token = ligar(&state, "orq-a", "claude");
+
+    let (erro, texto) = ferramenta(&state, &token, "listar_plataformas_e_contas", json!({})).await;
+    assert!(!erro, "{texto}");
+    let catalogo: Value = serde_json::from_str(&texto).unwrap();
+    assert_eq!(catalogo["plataformas"][0]["conta_automatica"]["nome"], "Empresa", "{texto}");
+
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "conta": "auto", "tarefa": "diga so ok",
+        "somente_leitura": true})).await;
+    assert!(!erro, "{texto}");
+    let criado: Value = serde_json::from_str(&texto).unwrap();
+    assert_eq!(criado["conta"], "Empresa");
+    assert!(criado["por_que_esta_conta"].as_array().unwrap().iter().any(|l| l.as_str().unwrap().contains("primeira da fila")), "{texto}");
+    let agente = criado["agente"].as_str().unwrap().to_owned();
+    let (_, Some(sessao)) = current(&state, &agente).unwrap() else { panic!("sem sessão") };
+    assert_eq!(sessao.meta.lock().unwrap().profile_id.as_deref(), Some("b"));
+
+    // Fila sem conta apta (confidencial e nenhuma liberada): erro com a explicação, nada abre.
+    atomic_write_json(&dir.path().join("routing.json"), &json!({"etapas": ["b", "a"],
+        "projetos_confidenciais": [projeto.to_string_lossy()]})).unwrap();
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "conta": "auto", "tarefa": "x"})).await;
+    assert!(erro && texto.contains("A Fila de contas não achou conta") && texto.contains("confidencial"), "{texto}");
+    let (erro, texto) = ferramenta(&state, &token, "parar_agente", json!({"agente": agente})).await;
+    assert!(!erro, "{texto}");
+}

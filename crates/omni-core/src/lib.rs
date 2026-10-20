@@ -33,6 +33,8 @@ pub mod plano_do_agente;
 pub mod diff_do_agente;
 // Fork (Onda 2): ganchos HTTP do Claude Code por sessão, pedidos de permissão e statusline (parte pura).
 pub mod ganchos;
+// Fork (Fase 3): fila de contas — escolha pura da conta com explicação.
+pub mod roteamento;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};
