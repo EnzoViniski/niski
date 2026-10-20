@@ -1,3 +1,5 @@
+// Fork: defaults e preferências existentes seguem a tecla da plataforma.
+import { comboDaPlataforma, rotuloDoAtalho } from "./plataforma";
 /**
  * Atalhos de teclado configuráveis. Combo = string tipo "Ctrl+Shift+P".
  * Estado de módulo (igual `motion.ts`): `useSettings` injeta as trocas do usuário e os listeners
@@ -5,6 +7,7 @@
  */
 
 export type ShortcutId =
+  | "paleta"
   | "quickOpen"
   | "splitHorizontal"
   | "splitVertical"
@@ -16,6 +19,7 @@ export type ShortcutId =
   | "closeSettings";
 
 export const SHORTCUTS: { id: ShortcutId; label: string; default: string }[] = [
+  { id: "paleta", label: "Paleta de comandos", default: "Ctrl+K" },
   { id: "quickOpen", label: "Buscar arquivo", default: "Ctrl+P" },
   { id: "splitHorizontal", label: "Dividir painel lado a lado", default: "Ctrl+\\" },
   { id: "splitVertical", label: "Dividir painel em cima/embaixo", default: "Ctrl+Shift+|" },
@@ -43,7 +47,7 @@ export function setRecordingShortcut(value: boolean) {
 }
 
 export function shortcutFor(id: ShortcutId): string {
-  return overrides[id] ?? SHORTCUTS.find((s) => s.id === id)!.default;
+  return comboDaPlataforma(overrides[id] ?? SHORTCUTS.find((s) => s.id === id)!.default);
 }
 
 const MODIFIERS = new Set(["Control", "Shift", "Alt", "Meta"]);
@@ -54,10 +58,12 @@ export function comboFromEvent(event: KeyboardEvent | React.KeyboardEvent): stri
   if (MODIFIERS.has(event.key)) return null;
   const code = /^(Key|Digit)(\w)$/.exec(event.code ?? "");
   const key = code ? code[2] : event.key === " " ? "Space" : event.key.length === 1 ? event.key.toUpperCase() : event.key;
-  const parts = [event.ctrlKey && "Ctrl", event.altKey && "Alt", event.shiftKey && "Shift", event.metaKey && "Meta"];
+  const parts = [event.ctrlKey && "Ctrl", event.metaKey && "Meta", event.altKey && "Alt", event.shiftKey && "Shift"];
   return [...parts.filter(Boolean), key].join("+");
 }
 
 export function matchesShortcut(event: KeyboardEvent, id: ShortcutId): boolean {
   return !recording && comboFromEvent(event) === shortcutFor(id);
 }
+
+export function shortcutLabel(id: ShortcutId): string { return rotuloDoAtalho(shortcutFor(id)); }

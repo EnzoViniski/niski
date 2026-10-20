@@ -1,3 +1,6 @@
+// Fork: publica os mesmos handlers dos botões para a paleta.
+import { useAcoesDaPaleta } from "../paleta/acoes";
+import { ConversaDoHistorico } from "../paleta/ConversaDoHistorico";
 import { GlifoColunas, GlifoExpandir, GlifoFechar, GlifoLinhas, GlifoRecolher } from "../../components/ui/PixelGlyph";
 import { Button } from "../../components/ui";
 import type { AgentView } from "../../types/settings";
@@ -120,6 +123,16 @@ export function PaneView({
     void Promise.allSettled(sessions).then(() => dispatch({ type: "CLOSE_PANE", paneId: pane.id }));
   }
 
+  useAcoesDaPaleta(`painel-${pane.id}`, active ? [
+    { id: "novo-agente", titulo: "Novo agente", executar: () => criarAba("agent", "Novo agente") },
+    { id: "novo-terminal", titulo: "Novo terminal", executar: () => criarAba("terminal", "Novo terminal") },
+    { id: "dividir-horizontal", titulo: "Dividir painel lado a lado", executar: () => split("horizontal") },
+    { id: "dividir-vertical", titulo: "Dividir painel em cima e embaixo", executar: () => split("vertical") },
+    { id: "fechar-painel", titulo: "Fechar painel", executar: closePane },
+    ...(tab ? [{ id: "fechar-aba", titulo: "Fechar aba atual", executar: () => closeTab(tab) }] : []),
+    { id: "maximizar-painel", titulo: "Maximizar ou restaurar painel", executar: () => dispatch({ type: "TOGGLE_MAXIMIZE", paneId: pane.id }) },
+  ] : []);
+
   const bindSession = useCallback(
     (sessionId: string, title: string, provider?: string) => {
       if (tabId) dispatch({ type: "BIND_TAB_RESOURCE", paneId: pane.id, tabId, resourceId: sessionId, title, provider });
@@ -209,6 +222,8 @@ export function PaneView({
             tab={tab}
             onSessionCreated={bindSession}
           />
+        ) : tab.kind === "conversa-historica" && tab.resourceId ? (
+          <ConversaDoHistorico id={tab.resourceId} aoRetomar={(id) => dispatch({ type: "RENAME_TAB_RESOURCE", fromResourceId: tab.resourceId!, toResourceId: id, title: tab.title })} />
         ) : tab.kind === "web" ? (
           <NavegadorPane tab={tab} onTitulo={(titulo) => dispatch({ type: "RENAME_TAB_RESOURCE", fromResourceId: tab.resourceId ?? "", toResourceId: tab.resourceId ?? "", title: titulo.slice(0, 60) })} />
         ) : tab.kind === "orquestracao" && tab.resourceId ? (

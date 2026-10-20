@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { TerminalIcon } from "../../components/ui/PixelIcon";
-import { shortcutFor } from "../../lib/shortcuts";
+import { shortcutLabel } from "../../lib/shortcuts";
 import type { PaneKind } from "../../types/workspace";
 
 /** O mascote em pixel: `X` corpo, `E` olho. Desenhado aqui (13×9) para não depender de asset. */
@@ -91,9 +91,9 @@ export function PainelVazio({ onCriar }: { onCriar: (kind: PaneKind, title: stri
       </div>
 
       <p className="vazio-dicas">
-        <span><kbd>{shortcutFor("quickOpen")}</kbd> busca arquivo</span>
-        <span><kbd>{shortcutFor("splitHorizontal")}</kbd> divide o painel</span>
-        <span><kbd>{shortcutFor("nextAttention")}</kbd> agente pedindo atenção</span>
+        <span><kbd>{shortcutLabel("quickOpen")}</kbd> busca arquivo</span>
+        <span><kbd>{shortcutLabel("splitHorizontal")}</kbd> divide o painel</span>
+        <span><kbd>{shortcutLabel("nextAttention")}</kbd> agente pedindo atenção</span>
       </p>
     </div>
   );

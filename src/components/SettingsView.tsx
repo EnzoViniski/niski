@@ -1,3 +1,5 @@
+// Fork: rótulos de atalhos seguem Cmd no Mac.
+import { rotuloDoAtalho } from "../lib/plataforma";
 import { useEffect, useState } from "react";
 import { PermissoesDoAntigravity } from "../features/antigravity/PermissoesDoAntigravity";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -15,7 +17,7 @@ import { testarAviso } from "../features/terminal/useAttentionNotifier";
 import { BlocksIcon, BookIcon, BrushIcon, ChartIcon, CloseIcon, SparkleIcon, GearIcon, GlobeIcon, KeyboardIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
 import { RelatoriosIa } from "../features/relatorios/RelatoriosIa";
 import { ModelosDeAgentes } from "../features/agentes/ModelosDeAgentes";
-import { SHORTCUTS, comboFromEvent, setRecordingShortcut, shortcutFor, type ShortcutId } from "../lib/shortcuts";
+import { SHORTCUTS, shortcutLabel, comboFromEvent, setRecordingShortcut, shortcutFor, type ShortcutId } from "../lib/shortcuts";
 import { NOME_DO_PRODUTO } from "../lib/identidade";
 
 type SectionId = "geral" | "aparencia" | "agentes" | "modelos" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
@@ -105,7 +107,7 @@ export function SettingsView({ settings, onChange, onReset, initialSection, proj
           variant="ghost"
           onClick={onClose}
           aria-label="Fechar configurações"
-          title={`Fechar configurações (${shortcutFor("closeSettings")})`}
+          title={`Fechar configurações (${shortcutLabel("closeSettings")})`}
         >
           <CloseIcon className="h-3.5 w-3.5" aria-hidden="true" />
           Fechar
@@ -360,10 +362,10 @@ function GeralSection({ settings, onChange }: SectionProps) {
       <Card title="Arquivos">
         <Segmented
           label="Salvar edições"
-          description="Automático salva sozinho pouco depois de parar de digitar. Manual só salva com Ctrl+S."
+          description={`Automático salva sozinho pouco depois de parar de digitar. Manual só salva com ${rotuloDoAtalho("Ctrl+S")}.`}
           options={[
             { value: "auto", label: "Automático" },
-            { value: "manual", label: "Manual (Ctrl+S)" },
+            { value: "manual", label: `Manual (${rotuloDoAtalho("Ctrl+S")})` },
           ]}
           value={settings.fileSaveMode}
           onChange={(v) => onChange({ fileSaveMode: v })}
@@ -444,7 +446,7 @@ function AtalhosSection({ settings, onChange }: SectionProps) {
   function gravar(id: ShortcutId, event: React.KeyboardEvent) {
     event.preventDefault();
     event.stopPropagation();
-    if (event.key === "Escape" && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+    if (event.key === "Escape" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
       setGravando(null);
       return;
     }
@@ -463,7 +465,7 @@ function AtalhosSection({ settings, onChange }: SectionProps) {
   return (
     <Card title="Atalhos do teclado">
       <p className="text-text-muted text-[11px]">
-        Clique num atalho e aperte a nova combinação. Esc cancela. Com o foco num terminal, só o atalho de busca e o de
+        Clique num atalho e aperte a nova combinação. Esc cancela. Com o foco num terminal, só os atalhos de busca, da paleta e de
         sair do terminal funcionam — o resto vai pro programa rodando nele.
       </p>
       <ul className="divide-y divide-border-subtle/60">
@@ -475,14 +477,14 @@ function AtalhosSection({ settings, onChange }: SectionProps) {
               <span className="text-text-secondary text-xs">{s.label}</span>
               <div className="flex items-center gap-2">
                 {trocado && (
-                  <Button size="sm" variant="ghost" onClick={() => salvar(s.id, undefined)} title={`Voltar para ${s.default}`}>
+                  <Button size="sm" variant="ghost" onClick={() => salvar(s.id, undefined)} title={`Voltar para ${rotuloDoAtalho(s.default)}`}>
                     Padrão
                   </Button>
                 )}
                 <Button
                   size="sm"
                   variant={gravando === s.id ? "primary" : "glass"}
-                  aria-label={`Atalho de ${s.label}: ${atual}`}
+                  aria-label={`Atalho de ${s.label}: ${rotuloDoAtalho(atual)}`}
                   onClick={() => {
                     setErro(null);
                     setGravando(s.id);
@@ -491,7 +493,7 @@ function AtalhosSection({ settings, onChange }: SectionProps) {
                   onKeyDown={(event) => gravando === s.id && gravar(s.id, event)}
                   className="min-w-32 font-mono"
                 >
-                  {gravando === s.id ? "Aperte as teclas…" : atual}
+                  {gravando === s.id ? "Aperte as teclas…" : rotuloDoAtalho(atual)}
                 </Button>
               </div>
             </li>

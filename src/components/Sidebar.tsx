@@ -1,3 +1,5 @@
+// Fork: navegação publicada na paleta, reaproveitando os callbacks da lateral.
+import { useAcoesDaPaleta } from "../features/paleta/acoes";
 import {
   BookIcon,
   ChatIcon,
@@ -148,6 +150,7 @@ export function Sidebar({
   showFluxos = false,
   onOpenFluxos,
   onOpenHistory,
+  onHome,
   onAddProject,
   onSelectProject,
   onCloseProject,
@@ -167,6 +170,18 @@ export function Sidebar({
   const naoVistas = new Set(attention.map((item) => item.conversationKey));
 
   const [pickerAberto, setPickerAberto] = useState(false);
+  useAcoesDaPaleta("lateral", [
+    { id: "adicionar-projeto", titulo: "Adicionar projeto", executar: () => setPickerAberto(true) },
+    { id: "novo-workspace", titulo: "Novo workspace", executar: onCreateWorkspace },
+    { id: "configuracoes", titulo: "Configurações", executar: () => onOpenSettings() },
+    { id: "historico", titulo: "Histórico de conversas", executar: onOpenHistory },
+    ...(onHome ? [{ id: "inicio", titulo: "Voltar ao projeto", executar: onHome }] : []),
+    ...(onOpenFluxos ? [{ id: "fluxos", titulo: "Fluxos de agentes", executar: onOpenFluxos }] : []),
+    ...(activeProjectId ? [
+      { id: "git-graph", titulo: "Abrir grafo do Git", executar: onOpenGitGraph },
+      { id: "kanban", titulo: "Abrir Kanban", executar: onOpenKanban },
+    ] : []),
+  ]);
   const todos = useTodos();
   // Nome de cada conta, para a segunda linha da conversa dizer em qual ela roda.
   const [contas, setContas] = useState<Record<string, string>>({});

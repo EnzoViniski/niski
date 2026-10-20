@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button, Input, SegmentedControl, Select } from "../../components/ui";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { ChatIcon, ClockIcon, CloseIcon, FolderIcon, PlayIcon, ReloadIcon } from "../../components/ui/PixelIcon";
-import { shortcutFor } from "../../lib/shortcuts";
+import { shortcutLabel } from "../../lib/shortcuts";
 import { baseName } from "../files/filesService";
 import { EditableLabel } from "../../components/ui/EditableLabel";
 import { listConversations, listProfiles, renameConversation, type Conversation, type Profile } from "../terminal/terminalService";
@@ -175,7 +175,7 @@ export function HistoryView({ onResume, lock, actions, onClose }: HistoryViewPro
               variant="ghost"
               onClick={onClose}
               aria-label="Fechar histórico"
-              title={`Fechar histórico (${shortcutFor("closeSettings")})`}
+              title={`Fechar histórico (${shortcutLabel("closeSettings")})`}
             >
               <CloseIcon className="h-3.5 w-3.5" aria-hidden="true" />
               Fechar

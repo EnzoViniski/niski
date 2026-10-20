@@ -1,3 +1,5 @@
+// Fork: Cmd copia/cola no Mac; Ctrl+C sempre chega à PTY como SIGINT.
+import { NO_MAC, teclaModificadora } from "../../lib/plataforma";
 /** Atalhos que o xterm.js não entrega do jeito que este app precisa.
  *
  *  Armadilha central: `attachCustomKeyEventHandler` devolvendo `false` só diz "xterm, não processa
@@ -17,22 +19,15 @@ export interface TerminalKeyContext {
 export function handleTerminalKey(event: KeyboardEvent, ctx: TerminalKeyContext): boolean {
   if (event.type !== "keydown") return true;
 
-  // xterm.js segue a convenção clássica de terminal Unix: Ctrl+V manda o byte de controle literal
-  // (^V) pro shell, só Shift+Insert/Ctrl+Shift+V colam. Este app é Windows-first — aqui Ctrl+V
-  // sozinho também cola, sem tirar os atalhos antigos.
-  if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
+  // Fork: modificador da plataforma (Cmd no Mac, Ctrl fora). No Mac o Ctrl+C nem entra aqui e
+  // segue para o xterm como SIGINT; Cmd+C copia. Fora do Mac, Ctrl+C só copia com seleção.
+  // Sem `preventDefault` no V: a ação padrão (paste nativo) cai no textarea do xterm, que cola uma
+  // vez só e respeita bracketed paste (ler o clipboard e escrever na PTY colava em dobro).
+  if (teclaModificadora(event) && !event.shiftKey && !event.altKey) {
     const key = event.key.toLowerCase();
-
-    // Sem `preventDefault` de propósito: tirar a tecla do xterm já impede o ^V, e a ação padrão
-    // do browser (paste nativo) cai no textarea do xterm, que cola respeitando bracketed paste.
-    // Ler o clipboard e escrever na PTY aqui colava o texto uma segunda vez — e sem bracketing,
-    // o que faz CLI tipo Claude Code enviar cada linha de um texto multi-linha separadamente.
     if (key === "v") return false;
-
-    // Ctrl+C só copia quando há seleção (como todo terminal moderno); sem seleção continua sendo
-    // o SIGINT de sempre, e nem entramos aqui.
-    if (key === "c" && ctx.hasSelection()) {
-      ctx.copySelection();
+    if (key === "c" && (NO_MAC || ctx.hasSelection())) {
+      if (ctx.hasSelection()) ctx.copySelection();
       event.preventDefault();
       return false;
     }
