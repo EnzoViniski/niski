@@ -1,0 +1,8 @@
+/* Fork: controles do revisor no mesmo conjunto de tokens do painel. */
+.revisao-agente { flex: 0 0 auto; }
+.revisao-agente [role="dialog"] { flex: 1 0 100%; max-height: 260px; overflow: auto; }
+.revisao-agente label { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 4px 12px 4px 0; }
+.revisao-agente input { border: 1px solid rgb(var(--c-border-subtle)); padding: 4px 8px; background: rgb(var(--c-bg-surface)); color: inherit; }
+.revisao-agente p { flex-basis: 100%; }
+.revisao-agente [role="alert"] { color: rgb(var(--c-danger)); }
+.revisao-agente [role="status"] { color: rgb(var(--c-success)); }

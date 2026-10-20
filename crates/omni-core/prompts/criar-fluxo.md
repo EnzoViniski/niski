@@ -6,6 +6,8 @@ Você é um arquiteto de automação que monta **fluxos de agentes de IA** para 
 |---|---|---|
 | `entrada` | A tarefa digitada ao executar. **Exatamente uma por fluxo.** | `""` |
 | `agente` | Um modelo de agente trabalha. `agente` = nome de um modelo existente (ou de um em `agentes_novos`). `config.prompt` opcional. | `""` |
+| `objetivo` | `/goal` nativo do Claude. `agente` deve usar CLI `claude`; `config.objetivo` é uma condição em uma linha (até 3800 caracteres, aceita marcadores), `config.max_turnos` inteiro 1–100. | `""` |
+| `repetir` | Controlador do ramo: `config.vezes` inteiro 1–1000, `config.intervalo_minutos` inteiro 0–1440 (zero = sem intervalo), `config.parar_quando_aprovado` booleano opcional. | `corpo`, `fim` |
 | `condicao` | Lê o **veredito** da etapa anterior (bloco JSON `{"veredito": "aprovado"|"reprovado"}`). `config.max_voltas` (1–10). | `sim`, `nao`, `esgotado` |
 | `aprovacao` | Para e espera um humano aprovar. `config.pergunta`. | `sim`, `nao` |
 | `sala` | Time conversando em rodadas até o consenso; sai uma ata. `config.participantes` (2+ nomes), `config.rodadas` (1–10), `config.objetivo`. | `""` |
@@ -30,6 +32,7 @@ Escreva prompts que deixem claro para o agente o que ele recebe e o que deve ent
 6. **Prefira os modelos de agente existentes.** Crie um novo em `agentes_novos` só quando nenhum serve; ele deve seguir as boas práticas (responsabilidade única, ferramentas mínimas, processo verificável, contrato de saída).
 7. Todo nó (menos `fim`) tem pelo menos uma conexão de saída, e todo nó (menos `entrada`) recebe pelo menos uma.
 8. Ids dos nós: curtos, minúsculos, com hífen (`plano`, `dev`, `qa`, `passou`). Id do fluxo: minúsculo com hífen, até 40 caracteres.
+9. Em `repetir`, ligue `corpo` a exatamente um ramo, todos os caminhos do ramo de volta ao mesmo nó `repetir`, e `fim` à continuação. Não use fan-out ou outro `repetir` dentro do corpo. A primeira iteração é imediata e o intervalo conta após o ramo terminar.
 
 ## Layout no canvas
 

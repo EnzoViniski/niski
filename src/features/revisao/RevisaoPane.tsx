@@ -3,19 +3,21 @@ import { actionKey } from "../../mobile/api";
 import { useSession } from "../terminal/sessionProviders";
 import { aplicarRevisao, enviarComentarios, listarRevisao, montarComentarios, type Acao, type Arquivo, type Comentario, type Linha, type Trecho } from "./revisaoService";
 import "./revisao.css";
+// Fork: revisão oficial em agente separado (3C).
+import { RevisarComAgente } from "./RevisarComAgente";
 import type { TokenRealce } from "./realce";
 
 const chaveArquivo = (a: Arquivo) => `${a.staged}:${a.caminho}`;
 const mensagem = (erro: unknown) => erro instanceof Error ? erro.message : String(erro);
 
-export function RevisaoPane({ projectPath, sessionId }: { projectPath: string; sessionId?: string }) {
+export function RevisaoPane({ projectPath, sessionId, onAbrirSessao }: { projectPath: string; sessionId?: string; onAbrirSessao?: (id: string, titulo: string) => void }) {
   // Uma sessão pode trabalhar numa worktree diferente da pasta cadastrada no projeto.
   const sessao = useSession(sessionId);
   const pasta = sessao?.cwd ?? projectPath;
-  return <Revisao key={`${sessionId}:${pasta}`} pasta={pasta} sessionId={sessionId} titulo={sessao?.name} />;
+  return <Revisao key={`${sessionId}:${pasta}`} pasta={pasta} sessionId={sessionId} titulo={sessao?.name} onAbrirSessao={onAbrirSessao} />;
 }
 
-function Revisao({ pasta, sessionId, titulo }: { pasta: string; sessionId?: string; titulo?: string }) {
+function Revisao({ pasta, sessionId, titulo, onAbrirSessao }: { pasta: string; sessionId?: string; titulo?: string; onAbrirSessao?: (id: string, titulo: string) => void }) {
   const campoComentario = useId();
   const [staged, setStaged] = useState(false);
   const [arquivos, setArquivos] = useState<Arquivo[]>([]);
@@ -87,6 +89,7 @@ function Revisao({ pasta, sessionId, titulo }: { pasta: string; sessionId?: stri
       <button disabled={bloqueado} onClick={() => void carregar()}>Atualizar</button>
       <span className="revisao-pasta" title={pasta}>{pasta}</span>
     </header>
+    <RevisarComAgente sessionId={sessionId} onAbrirSessao={onAbrirSessao} />
     {erro && <div role="alert" className="revisao-erro">{erro}</div>}
     {aviso && <div role="status" className="p-2 text-success">{aviso}</div>}
     <div className="revisao-corpo" aria-busy={carregando}>
