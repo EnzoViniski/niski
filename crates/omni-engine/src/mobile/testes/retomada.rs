@@ -56,6 +56,20 @@ fn publicar_echo(state: &EngineState, projeto: &Path) {
     assert_eq!(post(&state, "/retomada/preparar", json!({"provider":"claude","session_id":"../x","cwd":cwd}), None).await.0, 400);
 }
 
+#[tokio::test] async fn preparar_preserva_o_servidor_local_da_sessao_registrada() {
+    let (dir, state) = fixture();
+    let meta: TerminalSession = serde_json::from_value(json!({
+        "id":"local","project_id":"p","name":"Codex","cwd":dir.path().to_string_lossy(),"shell":"/bin/sh",
+        "state":"stopped","pid":null,"created_at_ms":1,"last_activity_at_ms":2,"output_seq":0,"rows":24,"cols":80,
+        "provider":"codex","external_session_id":"local-123",
+        "initial_command":"codex --oss --local-provider ollama --model empresa/modelo:local"
+    })).unwrap();
+    state.sessions.lock().unwrap().insert("local".into(), SessionEntry::Historical(meta));
+    let (status, corpo) = post(&state, "/retomada/preparar", json!({"provider":"codex","session_id":"local-123","cwd":dir.path().to_string_lossy()}), None).await;
+    assert_eq!(status, 200);
+    assert_eq!(corpo["modelo_local"], json!({"provedor":"ollama","modelo":"empresa/modelo:local"}));
+}
+
 /// Worktree apagada: a pasta não existe, e a sugestão é o repositório de onde ela saiu.
 #[tokio::test] async fn preparar_sugere_o_repositorio_principal_da_worktree_apagada() {
     let (dir, state) = fixture();

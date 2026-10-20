@@ -116,9 +116,10 @@ pub fn rename(dir: &Path, conversation_id: &str, title: &str) -> Result<Conversa
 }
 
 pub fn read_index(dir: &Path) -> Vec<Conversation> {
-    #[derive(Deserialize)] struct Store { conversations: Vec<Conversation> }
-    std::fs::read(dir.join("conversations.json")).ok()
-        .and_then(|b| serde_json::from_slice::<Store>(&b).ok()).map(|s| s.conversations).unwrap_or_default()
+    crate::indice_de_conversas::ler(dir).unwrap_or_else(|_| {
+        crate::registro::aviso_sem_repetir("indice_ilegivel", "historico_ilegivel", &[]);
+        Vec::new()
+    })
 }
 
 /// Grava o índice inteiro. Escrita atômica via `.tmp` + rename, igual ao resto dos stores.
@@ -157,6 +158,22 @@ pub(crate) fn timestamp(value: &Value) -> Option<u64> {
 /// Público porque a troca de conta precisa copiar exatamente esse mesmo arquivo; manter uma segunda
 /// heurística no desktop faria timeline e failover discordarem sobre qual sessão continuar.
 pub fn resolve_transcript(
+    segment: &Segment,
+    conversation: &Conversation,
+    profiles: &[crate::Profile],
+) -> Option<PathBuf> {
+    resolve_transcript_nativo(segment, conversation, profiles).or_else(|| {
+        let id = segment.external_session_id.as_deref()?;
+        let achado = match segment.provider.as_str() {
+            "claude" => crate::achar_transcript::achar_claude(profiles, segment.profile_id.as_deref(), &conversation.cwd, id),
+            "codex" => crate::achar_transcript::achar_codex(profiles, segment.profile_id.as_deref(), id),
+            _ => None,
+        }?;
+        crate::history::validated(&achado.caminho, &segment.provider, profiles)
+    })
+}
+
+fn resolve_transcript_nativo(
     segment: &Segment,
     conversation: &Conversation,
     profiles: &[crate::Profile],

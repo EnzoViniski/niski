@@ -74,13 +74,6 @@ fn copiar(achado: &Achado, conta: &Profile, cwd: &str, id: &str) -> bool {
     }
 }
 
-/// Comando Claude de reinício quando a conversa não existe em conta nenhuma: `--resume <id>` só
-/// mostraria "No conversation found" e a aba morreria. Abre conversa nova com o mesmo id (a aba, a
-/// Conversa e o celular seguem ligados nele).
-pub fn sem_transcript(comando: &str, id: &str) -> String {
-    comando.replacen(&format!("--resume {id}"), &format!("--session-id {id}"), 1)
-}
-
 /// A pasta da sessão ainda existe? Erro com [`PASTA_SUMIU`] quando não.
 pub fn conferir_pasta(cwd: &str) -> anyhow::Result<()> {
     if Path::new(cwd).is_dir() { Ok(()) } else { Err(anyhow::anyhow!(erro_pasta_sumiu(cwd))) }
@@ -132,12 +125,6 @@ mod tests {
         assert!(achar_transcript::codex_na_conta(&a, "abc-123").is_some());
     }
 
-    #[test]
-    fn sem_transcript_vira_conversa_nova_com_o_mesmo_id() {
-        assert_eq!(sem_transcript("claude --resume abc --model opus", "abc"), "claude --session-id abc --model opus");
-        assert_eq!(sem_transcript("claude --session-id abc", "abc"), "claude --session-id abc");
-    }
-
     fn estado(dir: &Path) -> std::sync::Arc<crate::EngineState> {
         std::sync::Arc::new(crate::EngineState {
             persist_lock: std::sync::Mutex::new(()), mobile: crate::mobile::MobileRuntime::new(dir), token: "t".into(),
@@ -165,11 +152,11 @@ mod tests {
 
     /// `--resume` de conversa que não existe em conta nenhuma vira `--session-id` com o mesmo id.
     #[test]
-    fn reinicio_de_resume_sem_transcript_abre_conversa_nova_com_o_mesmo_id() {
+    fn reinicio_de_resume_sem_transcript_preserva_retomada_sem_criar_historico_vazio() {
         let raiz = tempfile::tempdir().unwrap();
         let mut meta = sessao(raiz.path(), "claude", "/repo");
         meta.initial_command = Some("claude --resume abc-123 --model opus".into());
-        assert_eq!(crate::comando_ao_reiniciar(&meta).as_deref(), Some("claude --session-id abc-123 --model opus"));
+        assert_eq!(crate::comando_ao_reiniciar(&meta).as_deref(), Some("claude --resume abc-123 --model opus"));
         let pasta = raiz.path().join("projects").join("-repo");
         std::fs::create_dir_all(&pasta).unwrap();
         std::fs::write(pasta.join("abc-123.jsonl"), "{}\n").unwrap();

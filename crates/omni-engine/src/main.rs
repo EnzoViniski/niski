@@ -11,6 +11,7 @@ mod fluxos;
 // Fork (Onda 2): ganchos HTTP do Claude por sessão, pedidos de permissão e statusline.
 mod ganchos;
 mod preparo_da_sessao;
+mod memoria_compartilhada;
 mod interaction;
 // Fork (pergunta-da-cli): menu genérico da CLI e "esperando algo no terminal".
 mod pergunta_da_cli;
@@ -391,6 +392,7 @@ fn list_sessions(state: &EngineState) -> Result<EngineResponse> {
                 conversas = indice.clone();
                 mudou
             });
+            omni_core::arquivo_de_conversas::guardar_indice(dir, &conversas, &profiles);
         }
         conversas
     }).unwrap_or_default();
@@ -977,7 +979,9 @@ fn comando_ao_reiniciar(meta: &TerminalSession) -> Option<String> {
     let criar = format!("--session-id {id}");
     // Fork (retomar-sempre): `--resume` de conversa que não existe em conta nenhuma morria com "No
     // conversation found"; abre conversa nova com o mesmo id.
-    if !pronto { return Some(retomada::sem_transcript(&original, id)); }
+    // Sem transcript, uma retomada explícita deve falhar visivelmente na CLI. Criar silenciosamente
+    // outro histórico com o mesmo id fazia a conversa parecer ter esquecido tudo.
+    if !pronto { return Some(original); }
     if !original.contains(&criar) {
         return Some(original);
     }
@@ -989,7 +993,7 @@ fn comando_ao_reiniciar_com_codex(state: &EngineState, meta: &TerminalSession) -
     let comando = comando_ao_reiniciar(meta)?;
     // Fork (retomar-sempre): rollout em outra conta vai para o CODEX_HOME da sessão antes do `resume`.
     if let (Some("codex"), Some(id), Some(dir)) = (meta.provider.as_deref(), meta.external_session_id.as_deref(), state.state_file.parent()) {
-        retomada::levar_rollout_codex(meta, id, &omni_core::profiles(dir));
+        retomada::levar_rollout_codex(meta, id, &omni_core::arquivo_de_conversas::com_arquivo(dir, &omni_core::profiles(dir)));
     }
     Some(state.state_file.parent().and_then(|dir| retomar_codex::comando(dir, meta, &comando)).unwrap_or(comando))
 }
@@ -1016,7 +1020,7 @@ fn com_log_do_antigravity(comando: &str, sessao: &str) -> String {
 /// o `~/.claude` padrão.
 /// Fork (retomar-sempre): não achou na conta da sessão, procura nas outras contas conhecidas e copia.
 fn transcript_claude_existe(meta: &TerminalSession, id: &str) -> bool {
-    let perfis = if cfg!(test) { Vec::new() } else { engine_dir().map(|dir| omni_core::profiles(&dir)).unwrap_or_default() };
+    let perfis = if cfg!(test) { Vec::new() } else { engine_dir().map(|dir| omni_core::arquivo_de_conversas::com_arquivo(&dir, &omni_core::profiles(&dir))).unwrap_or_default() };
     retomada::transcript_claude_pronto(meta, id, &perfis)
 }
 

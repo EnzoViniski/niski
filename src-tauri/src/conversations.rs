@@ -9,7 +9,6 @@
 //! Consequência de projeto: **não existe tailer**. Sem mensagens para guardar, não há motivo para
 //! seguir arquivo nenhum — o `.jsonl` só é lido sob demanda, no handoff forçado.
 
-use omni_protocol::read_json_or_default;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -54,12 +53,9 @@ pub struct LaunchPlan {
     pub notice: Option<String>,
 }
 
-fn store_path() -> Result<PathBuf, String> {
-    crate::engine_client::engine_dir().map(|dir| dir.join("conversations.json"))
-}
-
 fn load() -> ConversationStore {
-    store_path().map(|path| read_json_or_default(&path)).unwrap_or_default()
+    let conversations = crate::engine_client::engine_dir().map(|dir| omni_core::conversations::read_index(&dir)).unwrap_or_default();
+    ConversationStore { version: 1, conversations }
 }
 
 /// Fork (fix-orquestracao): ler-alterar-gravar o índice na mesma transação do engine (trava entre

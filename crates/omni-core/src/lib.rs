@@ -39,6 +39,8 @@ pub mod ganchos;
 pub mod roteamento;
 // Fork (fix-orquestracao): ler-alterar-gravar o índice de conversas sob trava, com `.tmp` exclusivo.
 pub mod indice_de_conversas;
+pub mod memoria_compartilhada;
+pub mod arquivo_de_conversas;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};

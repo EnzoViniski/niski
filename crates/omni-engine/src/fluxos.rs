@@ -416,7 +416,11 @@ fn rodar_modelo(state: &EngineState, v: &Viva, no: &str, mut modelo: omni_core::
         "claude" => {
             c.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"]);
             if let Some(max) = ajuste.max_turnos { c.arg("--max-turns").arg(max.to_string()); } // Fork
-            c.arg("--append-system-prompt").arg(&modelo.instrucoes);
+            let instrucoes = match crate::memoria_compartilhada::texto(state) {
+                Some(memoria) => format!("{}\n\n{memoria}", modelo.instrucoes),
+                None => modelo.instrucoes.clone(),
+            };
+            c.arg("--append-system-prompt").arg(instrucoes);
             if !modelo.ferramentas.is_empty() { c.arg("--allowedTools").arg(modelo.ferramentas.join(",")); }
             if !modelo.modelo.is_empty() { c.arg("--model").arg(&modelo.modelo); }
             if !modelo.esforco.is_empty() { c.arg("--effort").arg(&modelo.esforco); }
@@ -432,6 +436,11 @@ fn rodar_modelo(state: &EngineState, v: &Viva, no: &str, mut modelo: omni_core::
         outra => return Err(anyhow!("A CLI “{outra}” ainda não roda sem tela nos fluxos")),
     }
     let env_do_perfil = perfil.as_ref().map(omni_core::env_for).unwrap_or_default();
+    if modelo.cli == "codex" {
+        c.args(crate::memoria_compartilhada::argumentos_codex(state, &crate::SessionOrigin {
+            env: env_do_perfil.clone(), ..Default::default()
+        }));
+    }
     ambiente_da_cli_sem_tela(&mut c, &env_do_perfil, herdou_sessao_do_claude(|nome| env::var_os(nome).is_some()));
     c.current_dir(pasta).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     sem_janela(&mut c);

@@ -28,9 +28,10 @@ pub(super) fn historical_entries(state: &EngineState) -> Vec<omni_core::history:
     if history.scanned_at_ms != 0 && now.saturating_sub(history.scanned_at_ms) < HISTORY_REFRESH_MS {
         return history.entries.clone();
     }
-    let profiles = omni_core::profiles(state.state_file.parent().unwrap());
-    let mut entries = omni_core::history::scan("claude", &profiles, &mut history.scan);
-    entries.extend(omni_core::history::scan("codex", &profiles, &mut history.scan));
+    let dir = state.state_file.parent().unwrap();
+    let profiles = omni_core::profiles(dir);
+    let mut entries = omni_core::arquivo_de_conversas::scan(dir, "claude", &profiles, &mut history.scan);
+    entries.extend(omni_core::arquivo_de_conversas::scan(dir, "codex", &profiles, &mut history.scan));
     entries.sort_by_key(|entry| std::cmp::Reverse(entry.updated_at_ms));
     history.entries = entries;
     history.scanned_at_ms = now;
@@ -201,7 +202,7 @@ pub(super) const TIMELINE_PAGINA: usize = 150;
 pub(super) async fn timeline(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, Query(page): Query<Page>, headers: HeaderMap) -> Response {
     let resultado = tokio::task::spawn_blocking(move || -> Result<Value, ApiError> {
         let dir = state.state_file.parent().unwrap();
-        let profiles = omni_core::profiles(dir);
+        let profiles = omni_core::arquivo_de_conversas::com_arquivo(dir, &omni_core::profiles(dir));
         if let Ok((conversation,_)) = current(&state,&id) {
             let mut timeline = {
                 let mut feeds = state.mobile.feeds.lock().expect("feeds poisoned");
@@ -240,7 +241,7 @@ pub(super) async fn timeline(State(state): State<Arc<EngineState>>, RoutePath(id
 /// Os transcripts de uma conversa aberta ou do histórico, na ordem do timeline.
 pub(super) fn fontes_da_conversa(state: &EngineState, id: &str) -> Result<Vec<(std::path::PathBuf, String)>, ApiError> {
     let dir = state.state_file.parent().unwrap();
-    let profiles = omni_core::profiles(dir);
+    let profiles = omni_core::arquivo_de_conversas::com_arquivo(dir, &omni_core::profiles(dir));
     Ok(match current(state,id) {
         Ok((conversation,_)) => omni_core::conversations::fontes(&conversation,&profiles),
         Err(_) => {

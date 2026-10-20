@@ -56,6 +56,7 @@ mod ajustes;
 use ajustes::*;
 // Fork (retomar-sempre): preparar a retomada, continuar em conversa nova e trocar a pasta sumida.
 mod retomada_rotas;
+mod memoria_rotas;
 // Fork: comandos oficiais e modo de permissão da Conversa (frente 2C).
 mod comandos;
 mod fila;
@@ -244,6 +245,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .merge(roteamento::rotas()) // Fork (3B): fila de contas.
         .merge(codex_rotas::rotas()) // Fork: 3A.
         .merge(retomada_rotas::rotas()) // Fork (retomar-sempre).
+        .merge(memoria_rotas::rotas())
 }
 
 fn router(state: Arc<EngineState>) -> Router {

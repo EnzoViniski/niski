@@ -81,6 +81,7 @@ mod fila;
 mod rotas;
 mod seguranca;
 mod sessoes;
+mod memoria;
 mod terminais;
 // Fork (retomar-sempre): rotas /retomada/* e Retomar sem beco sem saída.
 #[cfg(unix)]

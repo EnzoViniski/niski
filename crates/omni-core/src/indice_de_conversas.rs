@@ -11,7 +11,7 @@
 //!   índice; se algo falha no meio, o `.tmp` sai.
 //!
 //! Nunca chame `write_index`/`mudar_indice` de dentro do `f` de `mudar_indice`: a trava não é reentrante.
-use crate::conversations::{read_index, Conversation};
+use crate::conversations::Conversation;
 use std::{
     fs::{self, File, OpenOptions},
     io::{self, Write},
@@ -21,22 +21,76 @@ use std::{
 
 const ARQUIVO: &str = "conversations.json";
 const TRAVA: &str = "conversations.json.lock";
+const COPIAS: usize = 3;
+
+fn decodificar(bytes: &[u8]) -> io::Result<Vec<Conversation>> {
+    #[derive(serde::Deserialize)]
+    struct Store { conversations: Vec<Conversation> }
+    serde_json::from_slice::<Store>(bytes).map(|s| s.conversations)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "O histórico está ilegível. Os arquivos foram preservados para recuperação."))
+}
+
+/// Nunca transforma um arquivo ilegível numa lista vazia gravável. As cópias mantêm o mesmo
+/// formato, e só entram quando o índice principal não pode ser lido.
+pub fn ler(dir: &Path) -> io::Result<Vec<Conversation>> {
+    let principal = fs::read(dir.join(ARQUIVO)).and_then(|bytes| decodificar(&bytes));
+    if let Ok(conversas) = principal { return Ok(conversas); }
+    let erro = principal.unwrap_err();
+    for n in 1..=COPIAS {
+        if let Ok(conversas) = fs::read(dir.join(format!("{ARQUIVO}.bak.{n}"))).and_then(|bytes| decodificar(&bytes)) {
+            crate::registro::aviso_sem_repetir("indice_recuperado", "historico_recuperado", &[("copia", &n.to_string())]);
+            return Ok(conversas);
+        }
+    }
+    // Primeira execução, sem índice e sem cópia, é o único vazio implícito permitido.
+    if erro.kind() == io::ErrorKind::NotFound && !(1..=COPIAS).any(|n| dir.join(format!("{ARQUIVO}.bak.{n}")).exists()) {
+        return Ok(Vec::new());
+    }
+    Err(erro)
+}
 
 fn travar(dir: &Path) -> io::Result<File> {
+    fs::create_dir_all(dir)?;
     let arquivo = OpenOptions::new().create(true).truncate(false).write(true).open(dir.join(TRAVA))?;
     arquivo.lock()?;
     Ok(arquivo)
 }
 
-fn gravar_com_a_trava(dir: &Path, conversas: &[Conversation]) -> io::Result<()> {
+fn gravar_atomico(dir: &Path, nome: &str, corpo: &[u8]) -> io::Result<()> {
     static SEQUENCIA: AtomicU64 = AtomicU64::new(0);
-    let corpo = serde_json::to_vec_pretty(&serde_json::json!({"version": 1, "conversations": conversas}))?;
-    let temporario = dir.join(format!(".{ARQUIVO}.{}.{}.tmp", std::process::id(), SEQUENCIA.fetch_add(1, Ordering::Relaxed)));
-    let resultado = OpenOptions::new().write(true).create_new(true).open(&temporario)
-        .and_then(|mut arquivo| arquivo.write_all(&corpo))
-        .and_then(|()| fs::rename(&temporario, dir.join(ARQUIVO)));
+    let temporario = dir.join(format!(".{nome}.{}.{}.tmp", std::process::id(), SEQUENCIA.fetch_add(1, Ordering::Relaxed)));
+    let mut opcoes = OpenOptions::new();
+    opcoes.write(true).create_new(true);
+    #[cfg(unix)] {
+        use std::os::unix::fs::OpenOptionsExt;
+        opcoes.mode(0o600);
+    }
+    let resultado = opcoes.open(&temporario).and_then(|mut arquivo| {
+        arquivo.write_all(corpo)?;
+        arquivo.sync_all()
+    }).and_then(|()| fs::rename(&temporario, dir.join(nome)));
     if resultado.is_err() { let _ = fs::remove_file(&temporario); }
     resultado
+}
+
+fn gravar_com_a_trava(dir: &Path, conversas: &[Conversation]) -> io::Result<()> {
+    let corpo = serde_json::to_vec_pretty(&serde_json::json!({"version": 1, "conversations": conversas}))?;
+    // Confere antes até na gravação integral: corrupção sem cópia não autoriza apagar o original.
+    ler(dir)?;
+    if let Ok(anterior) = fs::read(dir.join(ARQUIVO)) {
+        if decodificar(&anterior).is_ok() {
+            for n in (1..COPIAS).rev() {
+                if let Ok(bytes) = fs::read(dir.join(format!("{ARQUIVO}.bak.{n}"))) {
+                    if decodificar(&bytes).is_ok() { gravar_atomico(dir, &format!("{ARQUIVO}.bak.{}", n + 1), &bytes)?; }
+                }
+            }
+        }
+    }
+    // A cópia mais recente guarda a transação completa, inclusive as conversas recém-criadas.
+    gravar_atomico(dir, &format!("{ARQUIVO}.bak.1"), &corpo)?;
+    gravar_atomico(dir, ARQUIVO, &corpo)?;
+    #[cfg(unix)] File::open(dir)?.sync_all()?;
+    Ok(())
 }
 
 /// Grava o índice inteiro (sob a trava, `.tmp` exclusivo). Quem lê antes para alterar usa `mudar_indice`.
@@ -49,7 +103,7 @@ pub fn gravar(dir: &Path, conversas: &[Conversation]) -> io::Result<()> {
 /// a resposta é o mesmo `bool`.
 pub fn mudar_indice(dir: &Path, f: impl FnOnce(&mut Vec<Conversation>) -> bool) -> io::Result<bool> {
     let _trava = travar(dir)?;
-    let mut indice = read_index(dir);
+    let mut indice = ler(dir)?;
     if !f(&mut indice) { return Ok(false); }
     gravar_com_a_trava(dir, &indice)?;
     Ok(true)
@@ -58,12 +112,44 @@ pub fn mudar_indice(dir: &Path, f: impl FnOnce(&mut Vec<Conversation>) -> bool) 
 #[cfg(test)]
 mod testes {
     use super::*;
-    use crate::conversations::{write_index, Segment, TitleSource};
+    use crate::conversations::{read_index, write_index, Segment, TitleSource};
 
     fn conversa(id: String) -> Conversation {
         Conversation { id, project_id: "p".into(), cwd: "/p".into(), title: "t".into(), title_source: TitleSource::Auto,
             created_at_ms: 1, segments: vec![Segment { provider: "claude".into(), profile_id: None, external_session_id: None,
                 transcript_path: None, terminal_session_id: None, started_at_ms: 1, ended_at_ms: None }] }
+    }
+
+    #[test]
+    fn indice_truncado_recupera_copia_sem_perder_conversas_na_proxima_escrita() {
+        let dir = tempfile::tempdir().unwrap();
+        write_index(dir.path(), &[conversa("a".into())]).unwrap();
+        mudar_indice(dir.path(), |lista| { lista.push(conversa("b".into())); true }).unwrap();
+        fs::write(dir.path().join(ARQUIVO), b"{truncado").unwrap();
+        assert_eq!(read_index(dir.path())[0].id, "a");
+        mudar_indice(dir.path(), |lista| { lista.push(conversa("c".into())); true }).unwrap();
+        assert_eq!(read_index(dir.path()).iter().map(|c| c.id.as_str()).collect::<Vec<_>>(), ["a", "b", "c"]);
+        assert_eq!(ler(dir.path()).unwrap().len(), 3);
+    }
+
+    #[test]
+    fn corrupcao_sem_copia_impede_tanto_mutacao_quanto_sobrescrita() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join(ARQUIVO), b"{preservar").unwrap();
+        assert!(mudar_indice(dir.path(), |_| panic!("não pode alterar um índice ilegível")).is_err());
+        assert!(write_index(dir.path(), &[]).is_err());
+        assert_eq!(fs::read(dir.path().join(ARQUIVO)).unwrap(), b"{preservar");
+    }
+
+    #[test]
+    fn tenta_copias_mais_antigas_e_nao_trata_copia_ilegivel_como_primeira_execucao() {
+        let dir = tempfile::tempdir().unwrap();
+        for id in ["a", "b", "c", "d"] { write_index(dir.path(), &[conversa(id.into())]).unwrap(); }
+        fs::remove_file(dir.path().join(ARQUIVO)).unwrap();
+        fs::write(dir.path().join(format!("{ARQUIVO}.bak.1")), "corrompida").unwrap();
+        assert_eq!(ler(dir.path()).unwrap()[0].id, "c");
+        for n in 2..=COPIAS { fs::remove_file(dir.path().join(format!("{ARQUIVO}.bak.{n}"))).unwrap(); }
+        assert!(ler(dir.path()).is_err());
     }
 
     /// Muitas alterações ao mesmo tempo (o `vincular` do Codex, o transcript dos ganchos, a casca): nenhuma

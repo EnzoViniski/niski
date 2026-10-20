@@ -51,6 +51,27 @@ fn achar(perfis: &[omni_core::Profile], provider: &str, conta: Option<&str>, cwd
 
 fn pastas_conhecidas(state: &EngineState) -> Vec<String> { known_projects(state).into_iter().map(|p| p.path).collect() }
 
+/// Histórico de um modelo local não deve voltar implicitamente para o provedor online da conta.
+fn modelo_local(state: &EngineState, provider: &str, externo: &str) -> Option<Value> {
+    if provider != "codex" { return None }
+    let dir = state.state_file.parent()?;
+    let terminais: Vec<_> = omni_core::conversations::read_index(dir).iter().flat_map(|c| c.segments.iter())
+        .filter(|s| s.provider == provider && s.external_session_id.as_deref() == Some(externo))
+        .filter_map(|s| s.terminal_session_id.clone()).collect();
+    let sessoes = state.sessions.lock().ok()?;
+    let meta = sessoes.values().map(SessionEntry::metadata)
+        .filter(|meta| meta.provider.as_deref() == Some(provider) && (meta.external_session_id.as_deref() == Some(externo) || terminais.contains(&meta.id)))
+        .max_by_key(|meta| meta.last_activity_at_ms)?;
+        let comando = meta.initial_command.as_deref()?;
+        let partes: Vec<_> = comando.split_whitespace().collect();
+        if !partes.contains(&"--oss") { return None }
+        let valor = |flag: &str| partes.windows(2).find(|p| p[0] == flag).map(|p| p[1]);
+        let provedor = valor("--local-provider")?;
+        let modelo = valor("--model").or_else(|| valor("-m"))?;
+        if !matches!(provedor, "ollama" | "lmstudio") || modelo.len() > 200 || !modelo.chars().all(|c| c.is_ascii_alphanumeric() || "._:/+@-".contains(c)) { return None }
+        Some(json!({"provedor":provedor,"modelo":modelo}))
+}
+
 /// 409 com código: a tela oferece a pasta sugerida em vez de só mostrar o erro.
 pub(super) fn erro_pasta_sumiu(state: &EngineState, cwd: &str) -> ApiError {
     (StatusCode::CONFLICT, Json(json!({
@@ -79,13 +100,14 @@ pub(super) fn preparar_retomada(state: &EngineState, body: &PrepararBody) -> Res
     let cwd = body.cwd.as_deref().unwrap_or("");
     let pasta_existe = !cwd.is_empty() && Path::new(cwd).is_dir();
     let pasta_principal = (!cwd.is_empty() && !pasta_existe).then(|| achar_transcript::pasta_principal(cwd, &pastas_conhecidas(state))).flatten();
-    let perfis = omni_core::profiles(dir);
+    let perfis = omni_core::arquivo_de_conversas::com_arquivo(dir, &omni_core::profiles(dir));
     let achado = achar(&perfis, &body.provider, body.profile_id.as_deref(), cwd, &body.session_id);
     let mut conta = achado.as_ref().map(|a| a.perfil.id.clone());
     let mut pronto = false;
     if let (true, true, None, Some(achado)) = (body.preparar, pasta_existe, &viva, &achado) {
         let alvo = body.profile_id.as_ref()
             .and_then(|id| perfis.iter().find(|p| &p.id == id && p.provider == body.provider)).cloned()
+            .or_else(|| perfis.iter().find(|p| p.id == achado.perfil.id && p.provider == body.provider).cloned())
             .unwrap_or_else(|| achado.perfil.clone());
         match achar_transcript::colocar_onde_a_cli_procura(achado, &alvo, cwd, &body.session_id) {
             Ok(_) => { pronto = true; conta = Some(alvo.id.clone()); }
@@ -99,6 +121,7 @@ pub(super) fn preparar_retomada(state: &EngineState, body: &PrepararBody) -> Res
         "transcript": achado.is_some(),
         "conta": conta,
         "pronto": pronto,
+        "modelo_local": modelo_local(state, &body.provider, &body.session_id),
     }))
 }
 
@@ -148,15 +171,16 @@ pub(super) fn continuar_em_conversa_nova(state: &Arc<EngineState>, body: &Contin
     if !Path::new(&body.cwd).is_dir() { return Err(erro_pasta_sumiu(state, &body.cwd)); }
     limite_de_sessoes::conferir(state)?;
     let dir = state.state_file.parent().unwrap();
-    let perfis = omni_core::profiles(dir);
+    let nativos = omni_core::profiles(dir);
+    let perfis = omni_core::arquivo_de_conversas::com_arquivo(dir, &nativos);
     let achado = achar(&perfis, &body.provider, body.profile_id.as_deref(), &body.cwd, &body.session_id);
     let lido = achado.as_ref().and_then(|a| omni_core::history::transcript(&a.caminho, &body.provider, &perfis));
     let contexto = lido.as_ref().filter(|t| !t.messages.is_empty())
         .map(|t| montar_contexto(body.titulo.as_deref(), &t.messages, t.total));
 
-    let perfil = body.profile_id.as_ref().and_then(|id| perfis.iter().find(|p| &p.id == id && p.provider == body.provider))
-        .or_else(|| achado.as_ref().map(|a| &a.perfil))
-        .or_else(|| perfis.iter().find(|p| p.provider == body.provider && p.builtin)).cloned();
+    let perfil = body.profile_id.as_ref().and_then(|id| nativos.iter().find(|p| &p.id == id && p.provider == body.provider))
+        .or_else(|| achado.as_ref().and_then(|a| nativos.iter().find(|p| p.id == a.perfil.id && p.provider == body.provider)))
+        .or_else(|| nativos.iter().find(|p| p.provider == body.provider && p.builtin)).cloned();
     let base = state.mobile.workspace.lock().map_err(|_| error(StatusCode::INTERNAL_SERVER_ERROR, "workspace poisoned"))?
         .agents.iter().find(|a| a.id == body.provider).map(|a| a.command.clone()).unwrap_or_else(|| body.provider.clone());
     let (command, external_session_id, transcript_path) = if body.provider == "claude" {
@@ -243,7 +267,7 @@ pub(super) fn reabrir_em_outra_pasta(state: &Arc<EngineState>, body: &MudarPasta
     let externo = meta.external_session_id.clone();
     let mut caminho_novo = None;
     if let (Some("claude"), Some(id)) = (meta.provider.as_deref(), externo.as_deref()) {
-        let perfis = omni_core::profiles(&dir);
+        let perfis = omni_core::arquivo_de_conversas::com_arquivo(&dir, &omni_core::profiles(&dir));
         if crate::retomada::transcript_claude_pronto(&meta, id, &perfis) {
             caminho_novo = crate::retomada::pasta_da_conta(&meta, "CLAUDE_CONFIG_DIR", ".claude")
                 .map(|conta| omni_core::conversations::claude_transcript_path(&conta, &body.cwd, id).to_string_lossy().into_owned());

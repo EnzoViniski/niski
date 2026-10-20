@@ -592,10 +592,13 @@ fn preparar_com(
     {
         return comando;
     }
-    let Some((bin, flags, mut alvo)) = argumentos(original) else {
+    let Some((bin, mut flags, mut alvo)) = argumentos(original) else {
         falhou(terminal, "comando");
         return comando;
     };
+    if !original.contains("developer_instructions") {
+        flags.extend(crate::memoria_compartilhada::argumentos_codex(state, origem));
+    }
     if alvo.is_none() {
         alvo = origem
             .external_session_id

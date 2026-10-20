@@ -11,5 +11,6 @@ pub(crate) fn preparar(state: &Arc<EngineState>, terminal: &str, origem: &Sessio
     let (comando, dos_ganchos) = ganchos::preparar(state, terminal, origem, cwd, comando);
     ambiente.extend(dos_ganchos);
     let comando = codex_app_server::preparar(state, terminal, origem, cwd, comando, &ambiente); // Fork: 3A.
+    let comando = memoria_compartilhada::preparar(state, origem, comando);
     (comando, ambiente)
 }
