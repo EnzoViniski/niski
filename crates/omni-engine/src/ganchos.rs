@@ -642,6 +642,12 @@ async fn statusline(State(state): State<Arc<EngineState>>, headers: HeaderMap, c
     StatusCode::OK.into_response()
 }
 
+/// Token da PTY (só para testes de outros módulos, como o do orquestrador).
+#[cfg(test)]
+pub(crate) fn token_de_teste(terminal: &str) -> Option<String> {
+    RUNTIME.tokens.lock().ok()?.iter().find(|(_, dono)| dono.as_str() == terminal).map(|(t, _)| t.clone())
+}
+
 #[cfg(test)]
 #[path = "ganchos_testes.rs"]
 mod testes;

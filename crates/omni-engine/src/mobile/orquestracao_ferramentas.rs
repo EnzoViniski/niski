@@ -564,3 +564,62 @@ pub(super) fn parar(state: &EngineState, orquestrador: &str, agente: &str) -> Re
     registro::info("orquestracao_agente_parado", &[("orquestrador", orquestrador), ("agente", agente)]);
     Ok("Agente parado.".into())
 }
+
+/// Fork (Onda 2): pedido segurado pelo gancho do Claude no subagente — o orquestrador aprova o
+/// comum direto (sem tecla) e o arriscado fica com o usuário. CLI falsa que só espera; o POST do
+/// `PermissionRequest` é feito aqui, como a CLI faria.
+#[cfg(test)]
+mod testes_dos_ganchos {
+    use super::*;
+    use axum::body::{to_bytes, Body};
+    use tower::ServiceExt;
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn orquestrador_aprova_ls_pelo_gancho_e_rm_rf_fica_com_o_usuario() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = Arc::new(EngineState { persist_lock: Mutex::new(()), mobile: MobileRuntime::new(dir.path()),
+            token: "test-only".into(), state_file: dir.path().join("sessions.json"), sessions: Mutex::new(HashMap::new()),
+            id_sequence: AtomicU64::new(1) });
+        let porta = 47_997;
+        crate::ganchos::definir_porta(&state, porta);
+        let (projeto, conta, bin) = (dir.path().join("projeto"), dir.path().join("conta"), dir.path().join("bin"));
+        for pasta in [&projeto, &conta, &bin] { std::fs::create_dir_all(pasta).unwrap(); }
+        let script = bin.join("claude");
+        std::fs::write(&script, "#!/bin/sh\nprintf '\\033[?2004h\\r\\n\\342\\235\\257 '\nwhile IFS= read -r l; do :; done\n").unwrap();
+        let terminal = format!("terminal-teste-{}", uuid::Uuid::new_v4());
+        atomic_write_json(&dir.path().join("conversations.json"), &json!({"version": 1, "conversations": [{"id": "sub", "project_id": "p",
+            "cwd": projeto.to_string_lossy(), "title": "sub", "created_at_ms": 1, "segments": [{"provider": "claude", "profile_id": null,
+            "external_session_id": null, "transcript_path": null, "terminal_session_id": terminal, "started_at_ms": 1, "ended_at_ms": null}]}]})).unwrap();
+        mudar_registro(&state, |r| r.adicionar("orq", regra::Agente { conversation_key: "sub".into(), plataforma: "claude".into(),
+            tarefa: "listar".into(), ..Default::default() })).unwrap();
+        spawn_terminal_inner(&state, terminal.clone(), "p".into(), "Sub".into(), projeto.to_string_lossy().into_owned(), Some("/bin/sh".into()),
+            Some(format!("/bin/sh {}", script.to_string_lossy())), 30, 100, now_ms(), SessionOrigin { provider: Some("claude".into()),
+            conversation_id: Some("sub".into()), env: vec![("CLAUDE_CONFIG_DIR".into(), conta.to_string_lossy().into_owned())], ..SessionOrigin::default() }).unwrap();
+        let token = crate::ganchos::token_de_teste(&terminal).expect("token");
+        let pedir = |comando: &str| {
+            let pedido = axum::http::Request::builder().method("POST").uri("/ganchos/permissao").header("host", format!("127.0.0.1:{porta}"))
+                .header("authorization", format!("Bearer {token}")).header("content-type", "application/json")
+                .body(Body::from(json!({"hook_event_name": "PermissionRequest", "tool_name": "Bash", "tool_input": {"command": comando}}).to_string())).unwrap();
+            let app = crate::ganchos::router(state.clone());
+            tokio::spawn(async move { let r = app.oneshot(pedido).await.unwrap(); String::from_utf8_lossy(&to_bytes(r.into_body(), usize::MAX).await.unwrap()).into_owned() })
+        };
+        let esperar_pedido = || async { for _ in 0..100 { if crate::ganchos::pedido(&terminal).is_some() { return; } tokio::time::sleep(std::time::Duration::from_millis(100)).await; } panic!("sem pedido") };
+
+        let resposta = pedir("ls src");
+        esperar_pedido().await;
+        let lido: Value = serde_json::from_str(&ler(&state, "orq", &json!({"agente": "sub"})).unwrap()).unwrap();
+        assert_eq!((lido["pedido"]["tipo"].as_str(), lido["pedido"]["ferramenta"].as_str()), (Some("permissao"), Some("Bash")), "{lido}");
+        assert!(responder(&state, "orq", &json!({"agente": "sub", "permitir": true})).unwrap().contains("permitido"));
+        assert!(resposta.await.unwrap().contains("\"allow\""));
+
+        let resposta = pedir("rm -rf build");
+        esperar_pedido().await;
+        let erro = responder(&state, "orq", &json!({"agente": "sub", "permitir": true})).unwrap_err();
+        assert!(erro.contains("só o usuário aprova"), "{erro}");
+        assert!(crate::ganchos::pedido(&terminal).is_some(), "continua esperando o usuário");
+        responder(&state, "orq", &json!({"agente": "sub", "permitir": false, "mensagem": "não apague"})).unwrap();
+        assert!(resposta.await.unwrap().contains("Negado no Medza: não apague"));
+        let _ = close_session(&state, &terminal);
+    }
+}
