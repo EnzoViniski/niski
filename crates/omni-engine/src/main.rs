@@ -1,5 +1,7 @@
 // Fork: cache curto do `ps` e da busca de rollouts do Codex (energia).
 mod economia;
+// Fork: modo do Antigravity nas sessões do app e o diálogo de permissão dele na conversa.
+mod antigravity_permissoes;
 mod fluxos;
 mod interaction;
 mod mobile;
@@ -716,7 +718,9 @@ pub(crate) fn spawn_terminal_inner(
     let shell = shell.unwrap_or_else(default_shell);
     let headless = origin.headless;
     let initial_command = if origin.provider.as_deref() == Some("antigravity") {
-        initial_command.map(|comando| com_log_do_antigravity(&comando, &id))
+        // Fork: `--mode` escolhido no app (Auto por padrão: arquivo e comando seguro sem perguntar).
+        initial_command.map(|comando| antigravity_permissoes::com_modo_salvo(&com_log_do_antigravity(&comando, &id),
+            config_do_antigravity().map(|dir| omni_core::antigravity::log_da_sessao(&dir, &id))))
     } else { initial_command };
     compartilhar_extensoes(state, origin.provider.as_deref(), origin.profile_id.as_deref());
     // Fork: conversa orquestradora digita com as flags de MCP e ganha um token novo só no ambiente da PTY.
@@ -912,7 +916,8 @@ fn comando_ao_reiniciar(meta: &TerminalSession) -> Option<String> {
     // Antigravity reaberto sem `--conversation` começa uma conversa nova — era o que fazia a Conversa
     // mostrar a anterior depois de reiniciar o app. O log da sessão diz qual retomar.
     if meta.provider.as_deref() == Some("antigravity") {
-        let comando = com_log_do_antigravity(&original, &meta.id);
+        let comando = antigravity_permissoes::com_modo_salvo(&com_log_do_antigravity(&original, &meta.id),
+            config_do_antigravity().map(|dir| omni_core::antigravity::log_da_sessao(&dir, &meta.id)));
         let base = comando.split(" --conversation ").next().unwrap_or(&comando).to_owned();
         // Sem conversa no log ainda, vale a que já estava na linha (a de "trocar modelo", por exemplo).
         return Some(match config_do_antigravity().and_then(|dir| omni_core::antigravity::conversa_da_sessao(&dir, &meta.id)) {

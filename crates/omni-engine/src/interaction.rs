@@ -282,6 +282,8 @@ pub fn approval(text: &str, provider: &str) -> Option<(String, String, String)> 
     // inteira — o prompt anterior, que fica na tela como "❯ texto", já derrubava. O pedido ficava só
     // no terminal e o chat não mostrava nada para aprovar.
     // Borda de caixa (`│ … │`) sai antes: versões com o diálogo emoldurado.
+    // Fork: Antigravity tem diálogo próprio (menu de setas), em `antigravity_permissoes`.
+    if provider == "antigravity" { return crate::antigravity_permissoes::aprovacao(text); }
     let lines: Vec<String> = text.lines()
         .map(|l| l.trim().trim_start_matches('│').trim_end_matches('│').trim().to_string()).collect();
     let pergunta = |l: &str| match provider {
