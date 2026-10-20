@@ -20,6 +20,8 @@ pub mod registro;
 pub mod antigravity;
 // Fork: pasta dos transcripts do Claude igual à da CLI (caminho longo é cortado com hash).
 pub mod pasta_do_claude;
+// Fork (retomar-sempre): a conversa em qualquer conta e a pasta principal de uma worktree apagada.
+pub mod achar_transcript;
 // Fork: modelos do Claude com versão (não só os apelidos) e arquivos que o agente gerou.
 pub mod modelos_claude;
 pub mod entregaveis;

@@ -539,6 +539,11 @@ fn conversa_fechada_reabre_com_resume_na_mesma_conta() {
         "id":"conv-teste","project_id":"p","cwd":dir.path().to_string_lossy(),"title":"Retomar","created_at_ms":1,
         "segments":[{"provider":"claude","profile_id":"falsa","external_session_id":"sessao-sintetica","started_at_ms":1}]
     }]})).unwrap();
+    // Fork (retomar-sempre): conversa com histórico gravado (sem ele, a retomada abre com
+    // `--session-id`, porque `--resume` de conversa inexistente só falharia na CLI).
+    let gravado = omni_core::conversations::claude_transcript_path(&perfil, &dir.path().to_string_lossy(), "sessao-sintetica");
+    std::fs::create_dir_all(gravado.parent().unwrap()).unwrap();
+    std::fs::write(&gravado, "{}\n").unwrap();
     let script = dir.path().join("cli-retomar.sh");
     std::fs::write(&script, "#!/bin/sh\nprintf '%s\\n' \"$@\" > argumentos.txt\nprintf '%s' \"$CLAUDE_CONFIG_DIR\" > conta.txt\nwhile :; do printf '\\033[?2004h\\r\\n❯ '; IFS= read -r linha || exit 0; done\n").unwrap();
     publish(

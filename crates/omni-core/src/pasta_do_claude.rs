@@ -64,12 +64,33 @@ pub fn localizar(config_dir: &Path, cwd: &str, session_id: &str) -> PathBuf {
     let projetos = config_dir.join("projects");
     let calculado = projetos.join(slug(cwd)).join(&arquivo);
     if calculado.is_file() { return calculado; }
+    // Fork (retomar-sempre): `/tmp` no macOS é link para `/private/tmp`, e a CLI grava pela pasta real.
+    // Vale também o contrário (índice com `/private/...`, CLI aberta pelo link).
+    if let Some(outro) = variantes_do_caminho(cwd).into_iter().map(|c| projetos.join(slug(&c)).join(&arquivo)).find(|c| c.is_file()) {
+        return outro;
+    }
     let Some(prefixo) = prefixo_longo(cwd) else { return calculado };
     std::fs::read_dir(&projetos).into_iter().flatten().flatten()
         .filter(|pasta| pasta.file_name().to_string_lossy().starts_with(&prefixo))
         .map(|pasta| pasta.path().join(&arquivo))
         .find(|caminho| caminho.is_file())
         .unwrap_or(calculado)
+}
+
+/// Fork (retomar-sempre): o mesmo caminho escrito de outro jeito — a pasta real (links resolvidos) e,
+/// para `/private/...` do macOS, a forma curta. Não inclui o próprio `cwd`.
+pub fn variantes_do_caminho(cwd: &str) -> Vec<String> {
+    let mut saida = Vec::new();
+    if let Ok(real) = std::fs::canonicalize(cwd) {
+        let real = real.to_string_lossy().into_owned();
+        if real != cwd { saida.push(real); }
+    }
+    for (longo, curto) in [("/private/tmp", "/tmp"), ("/private/var", "/var")] {
+        if let Some(resto) = cwd.strip_prefix(longo) { saida.push(format!("{curto}{resto}")); }
+        if let Some(resto) = cwd.strip_prefix(curto).filter(|r| r.is_empty() || r.starts_with('/')) { saida.push(format!("{longo}{resto}")); }
+    }
+    saida.dedup();
+    saida
 }
 
 /// O índice de conversas guardou, para projetos de caminho longo, um `transcript_path` com o slug

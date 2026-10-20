@@ -127,6 +127,10 @@ pub struct TerminalSession {
     /// transcript em disco.
     #[serde(default)]
     pub external_session_id: Option<String>,
+    /// Fork (retomar-sempre): agente que o engine anterior deixou aberto e que este ainda não
+    /// reabriu. Volta (com `--resume`) quando a aba é aberta; a interface marca "retoma ao abrir".
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub retoma_ao_abrir: bool,
 }
 
 /// Escrita atômica de JSON: grava em `.tmp` ao lado e renomeia por cima. Um crash no meio deixa o

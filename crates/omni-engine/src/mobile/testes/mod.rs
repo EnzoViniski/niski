@@ -82,6 +82,9 @@ mod rotas;
 mod seguranca;
 mod sessoes;
 mod terminais;
+// Fork (retomar-sempre): rotas /retomada/* e Retomar sem beco sem saída.
+#[cfg(unix)]
+mod retomada;
 // Só no Windows (PTY falsa com o `FakeChild`).
 #[cfg(windows)]
 mod acoes;

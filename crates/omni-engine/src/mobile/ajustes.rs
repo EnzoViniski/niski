@@ -220,21 +220,50 @@ pub(super) async fn levar_do_historico(State(state): State<Arc<EngineState>>, Js
    sessão nova na pasta do projeto com `--resume`, já com a conta, o modelo e o esforço escolhidos. */
 
 pub(super) fn plano_de_retomada(state: &EngineState, id: &str, ajustes: Ajustes) -> Result<Retomada, ApiError> {
+    // Agendamentos: sem id nativo, falha explícita (nunca abre conversa vazia no lugar da agendada).
+    let plano = plano_de_retomada_em(state, id, ajustes, None)?;
+    if plano.session_id.is_empty() { return Err(error(StatusCode::CONFLICT,"Esta conversa não chegou a ter mensagens para retomar")); }
+    Ok(plano)
+}
+
+/// Fork (retomar-sempre): `pasta` = outra pasta escolhida na tela quando a da conversa sumiu
+/// (worktree apagada). Pasta sumida sem escolha vira 409 com a sugestão do repositório principal;
+/// conversa sem id nativo (nenhuma mensagem, ou Codex ainda sem rollout) abre conversa nova da mesma
+/// CLI (`session_id` vazio) em vez de recusar.
+pub(super) fn plano_de_retomada_em(state: &EngineState, id: &str, ajustes: Ajustes, pasta: Option<&str>) -> Result<Retomada, ApiError> {
     let dir = state.state_file.parent().unwrap();
+    let escolher_pasta = |cwd: &str| -> Result<String, ApiError> {
+        if Path::new(cwd).is_dir() { return Ok(cwd.to_owned()); }
+        match pasta.filter(|p| !p.chars().any(char::is_control) && Path::new(p).is_dir()) {
+            Some(outra) => Ok(outra.to_owned()),
+            None => Err(retomada_rotas::erro_pasta_sumiu(state, cwd)),
+        }
+    };
     if let Ok((conversa, viva)) = current(state,id) {
         if viva.is_some() { return Err(error(StatusCode::CONFLICT,"Esta conversa já está aberta no PC")); }
         let segmento = conversa.segments.last().ok_or_else(||error(StatusCode::CONFLICT,"Conversa sem sessão"))?;
-        let session_id = segmento.external_session_id.clone().ok_or_else(||error(StatusCode::CONFLICT,"Esta conversa não chegou a ter mensagens para retomar"))?;
+        let cwd = escolher_pasta(&conversa.cwd)?;
+        // Fork (retomar-sempre): Codex que ainda não tinha o rollout descoberto: tenta agora.
+        let mut externo = segmento.external_session_id.clone();
+        if externo.is_none() && segmento.provider == "codex" {
+            let mut indice = omni_core::conversations::read_index(dir);
+            omni_core::conversations::discover_codex_transcripts(&mut indice, &omni_core::profiles(dir));
+            externo = indice.iter().find(|c| c.id == conversa.id).and_then(|c| c.segments.last()).and_then(|s| s.external_session_id.clone());
+        }
+        let session_id = externo.unwrap_or_default();
         let transcript = omni_core::conversations::resolve_transcript(segmento,&conversa,&omni_core::profiles(dir))
             .map(|p| p.to_string_lossy().into_owned()).or(segmento.transcript_path.clone());
-        return Ok(Retomada { conversation_id: conversa.id.clone(), project_id: conversa.project_id.clone(), cwd: conversa.cwd.clone(),
+        return Ok(Retomada { conversation_id: conversa.id.clone(), project_id: conversa.project_id.clone(), cwd,
             title: omni_core::conversations::display_title(&conversa), provider: segmento.provider.clone(),
             profile_id: segmento.profile_id.clone(), session_id, transcript, ajustes });
     }
     let entrada = historical_entries(state).into_iter().find(|entrada| history_id(entrada) == id)
         .ok_or_else(||error(StatusCode::NOT_FOUND,"Conversa não encontrada"))?;
-    let cwd = entrada.cwd.clone().filter(|cwd| Path::new(cwd).is_dir())
-        .ok_or_else(||error(StatusCode::CONFLICT,"A pasta desta conversa não existe mais neste PC"))?;
+    let cwd = match entrada.cwd.as_deref() {
+        Some(cwd) => escolher_pasta(cwd)?,
+        None => pasta.filter(|p| Path::new(p).is_dir()).map(str::to_owned)
+            .ok_or_else(||error(StatusCode::CONFLICT,"Esta conversa não registrou a pasta onde rodou; escolha uma pasta para abrir"))?,
+    };
     let project_id = known_projects(state).into_iter().find(|p| same_path(&p.path,&cwd)).map(|p| p.id)
         .unwrap_or_else(|| history_project_id(&cwd));
     Ok(Retomada {
@@ -246,13 +275,22 @@ pub(super) fn plano_de_retomada(state: &EngineState, id: &str, ajustes: Ajustes)
     })
 }
 
-pub(super) async fn retomar_rota(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<Ajustes>) -> Result<(StatusCode,Json<Value>),ApiError> {
+/// Fork (retomar-sempre): corpo do "Retomar" — os ajustes e, opcionalmente, outra pasta.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct PedidoDeRetomada { profile_id: Option<String>, model: Option<String>, effort: Option<String>, #[serde(default)] pasta: Option<String> }
+
+pub(super) async fn retomar_rota(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<PedidoDeRetomada>) -> Result<(StatusCode,Json<Value>),ApiError> {
     for valor in [&body.model, &body.effort, &body.profile_id].into_iter().flatten() {
         if !valor_seguro(valor) { return Err(error(StatusCode::BAD_REQUEST,"Valor inválido")); }
     }
     tokio::task::spawn_blocking(move || {
+        let ajustes = Ajustes { profile_id: body.profile_id, model: body.model, effort: body.effort };
+        // Fork (retomar-sempre): conversa viva foca; processo que saiu ou aba que o engine anterior
+        // deixou volta na mesma sessão. Antes: "Esta conversa já está aberta no PC".
+        if let Some(resposta) = retomada_rotas::reabrir_se_ja_existe(&state, &id, &ajustes)? { return Ok(resposta); }
         limite_de_sessoes::conferir(&state)?; // Fork: teto único e configurável.
-        let plano = plano_de_retomada(&state,&id,body)?;
+        let plano = plano_de_retomada_em(&state,&id,ajustes,body.pasta.as_deref())?;
         let conversa = plano.conversation_id.clone();
         enqueue(&state,&conversa,&headers,ActionKind::Retomar(plano))
     }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha na fila"))?
@@ -267,16 +305,35 @@ pub(super) fn retomar(state: &Arc<EngineState>, action: &Action, plano: &Retomad
     if alvo_id.is_some() && alvo.is_none() { return Err(anyhow!("Conta não encontrada para este agente")); }
 
     let mut transcript = plano.transcript.clone();
-    if alvo_id != plano.profile_id {
-        let alvo = alvo.ok_or_else(||anyhow!("Conta não encontrada"))?;
-        let origem = plano.transcript.as_deref().map(PathBuf::from).filter(|p| p.is_file())
-            .ok_or_else(||anyhow!("Não achei o transcript desta conversa para levar à outra conta"))?;
-        transcript = Some(levar_transcript(&perfis,&plano.provider,plano.profile_id.as_deref(),&origem,alvo,&plano.cwd,&plano.session_id)?);
+    // Fork (retomar-sempre): a conversa é procurada em todas as contas e copiada para onde a CLI da
+    // conta escolhida procura (antes só quando a conta mudava, e só do caminho guardado). Sem ela em
+    // lugar nenhum — ou sem id nativo — abre conversa nova da mesma CLI em vez de "No conversation found".
+    let mut session_id = plano.session_id.clone();
+    if matches!(plano.provider.as_str(), "claude" | "codex") {
+        let achado = if session_id.is_empty() { None } else if plano.provider == "claude" {
+            omni_core::achar_transcript::achar_claude(&perfis, alvo_id.as_deref(), &plano.cwd, &session_id)
+        } else { omni_core::achar_transcript::achar_codex(&perfis, alvo_id.as_deref(), &session_id) };
+        match (achado, alvo) {
+            (Some(achado), Some(alvo)) => transcript = Some(omni_core::achar_transcript::colocar_onde_a_cli_procura(&achado, alvo, &plano.cwd, &session_id)?
+                .to_string_lossy().into_owned()),
+            (Some(_), None) => {}
+            (None, _) => { session_id.clear(); transcript = None; }
+        }
     }
     let base = state.mobile.workspace.lock().map_err(|_|anyhow!("workspace poisoned"))?.agents.iter()
         .find(|agente| agente.id == plano.provider).map(|agente| agente.command.clone())
         .unwrap_or_else(|| plano.provider.clone());
-    let comando = comando_de_retomada(&base,&plano.provider,&plano.session_id,&plano.ajustes,comandos::modo_salvo(&dir,&plano.conversation_id).as_deref())?;
+    let (comando, session_id) = if session_id.is_empty() && plano.provider != "antigravity" {
+        let novo = (plano.provider == "claude").then(|| if plano.session_id.is_empty() { uuid::Uuid::new_v4().to_string() } else { plano.session_id.clone() });
+        let comando = comando_de_retomada(&base,&plano.provider,novo.as_deref().unwrap_or("x"),&plano.ajustes,comandos::modo_salvo(&dir,&plano.conversation_id).as_deref())?;
+        let comando = match &novo {
+            Some(novo) => comando.replacen(&format!(" --resume {novo}"), &format!(" --session-id {novo}"), 1),
+            None => comando.replacen(" resume x", "", 1),
+        };
+        (comando, novo)
+    } else {
+        (comando_de_retomada(&base,&plano.provider,&session_id,&plano.ajustes,comandos::modo_salvo(&dir,&plano.conversation_id).as_deref())?, Some(session_id))
+    };
 
     let agora = now_ms();
     let sessao = spawn_terminal_inner(state, state.next_id(), plano.project_id.clone(), plano.title.clone(), plano.cwd.clone(),
@@ -287,10 +344,10 @@ pub(super) fn retomar(state: &Arc<EngineState>, action: &Action, plano: &Retomad
             provider: Some(plano.provider.clone()),
             profile_id: alvo_id.clone(),
             conversation_id: Some(plano.conversation_id.clone()),
-            external_session_id: Some(plano.session_id.clone()),
+            external_session_id: session_id.clone(),
         })?;
     let segmento = omni_core::conversations::Segment {
-        provider: plano.provider.clone(), profile_id: alvo_id, external_session_id: Some(plano.session_id.clone()),
+        provider: plano.provider.clone(), profile_id: alvo_id, external_session_id: session_id,
         transcript_path: transcript, terminal_session_id: Some(sessao.id.clone()), started_at_ms: agora, ended_at_ms: None,
     };
     // Fork (fix-orquestracao): ler-alterar-gravar sob a trava do índice.
