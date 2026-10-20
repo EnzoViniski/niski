@@ -15,14 +15,11 @@ static ASSETS: include_dir::Dir<'_> = include_dir::include_dir!("$CARGO_MANIFEST
 
 // Fork: orquestrador de agentes (servidor MCP + rotas do fluxo). Filho deste módulo para chamar as
 // rotas e planos daqui (spawn, fila, timeline) sem torná-los públicos.
-#[path = "orquestracao.rs"]
 pub(crate) mod orquestracao;
 // Fork: busca do histórico em módulo isolado, com prazo e limites.
-#[path = "busca_historico.rs"]
 mod busca_historico;
 // Fork: teto de sessões ativas (agentes e terminais rodando comando), configurável. Sem ele, um toque
 // repetido no botão do celular enche o PC de PTYs.
-#[path = "limite_de_sessoes.rs"]
 pub(crate) mod limite_de_sessoes;
 
 pub struct MobileRuntime {

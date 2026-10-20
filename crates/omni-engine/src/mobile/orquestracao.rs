@@ -13,7 +13,7 @@
 //! chamam em processo o que o chat já usa (`resolve_spawn`/`spawn_from_mobile`, `enqueue`, timeline,
 //! `interaction::capabilities`).
 //!
-//! Filho de `mobile` (declarado lá com `#[path]`) para usar esses pedaços sem torná-los públicos.
+//! Filho de `mobile` (mora em `mobile/`) para usar esses pedaços sem torná-los públicos.
 
 use super::*;
 use omni_core::orquestracao as regra;
