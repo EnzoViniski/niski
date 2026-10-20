@@ -202,17 +202,20 @@ fn acompanhar_branch(state: Arc<EngineState>, id: String, session: Arc<LiveSessi
             if !oficiais::valor_seguro(sid) { return; }
             let Ok(_lock) = state.persist_lock.lock() else { return };
             let dir = state.state_file.parent().unwrap();
-            let mut indice = omni_core::conversations::read_index(dir);
-            let Some(c) = indice.iter_mut().find(|c|c.id == id) else { return };
-            let Some(ultimo) = c.segments.last_mut() else { return };
-            if ultimo.external_session_id != antes.sessao_original { return; }
-            if ultimo.external_session_id.as_deref() == Some(sid) { return; }
-            let mut segmento = ultimo.clone();
-            ultimo.ended_at_ms = Some(now_ms());
-            segmento.external_session_id = Some(sid.into()); segmento.transcript_path = Some(path.to_string_lossy().into_owned());
-            segmento.started_at_ms = now_ms(); segmento.ended_at_ms = None;
-            c.segments.push(segmento);
-            if omni_core::conversations::write_index(dir,&indice).is_ok() {
+            // Fork: ler, alterar e gravar numa transação só (trava do índice, achado 4 da revisão).
+            let trocou = omni_core::indice_de_conversas::mudar_indice(dir, |indice| {
+                let Some(c) = indice.iter_mut().find(|c|c.id == id) else { return false };
+                let Some(ultimo) = c.segments.last_mut() else { return false };
+                if ultimo.external_session_id != antes.sessao_original { return false; }
+                if ultimo.external_session_id.as_deref() == Some(sid) { return false; }
+                let mut segmento = ultimo.clone();
+                ultimo.ended_at_ms = Some(now_ms());
+                segmento.external_session_id = Some(sid.into()); segmento.transcript_path = Some(path.to_string_lossy().into_owned());
+                segmento.started_at_ms = now_ms(); segmento.ended_at_ms = None;
+                c.segments.push(segmento);
+                true
+            });
+            if matches!(trocou, Ok(true)) {
                 if let Ok(mut meta) = session.meta.lock() { meta.external_session_id = Some(sid.into()); }
             }
             return;

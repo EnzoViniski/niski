@@ -143,8 +143,9 @@ printf 'Revisão falsa concluída\n'
         .status(),
         StatusCode::CONFLICT
     );
-    for _ in 0..100 {
-        if perfil.join("sessions/rollout-falso.jsonl").exists() {
+    // Fork: com a suíte inteira em paralelo a CLI falsa demora mais que 2 s; espera os dois arquivos.
+    for _ in 0..500 {
+        if perfil.join("sessions/rollout-falso.jsonl").exists() && dir.path().join("pasta").exists() {
             break;
         }
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;

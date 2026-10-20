@@ -137,13 +137,13 @@ impl Cliente {
         if let Some(ferramenta) = protocolo::aprovacao(metodo) {
             let rpc = m.id.ok_or_else(|| anyhow!("Aprovação sem id"))?;
             if !e.pedidos.iter().any(|p| p.rpc == rpc) {
-                let resumo = p["command"]
+                let completo = p["command"]
                     .as_str()
                     .or_else(|| p["reason"].as_str())
-                    .unwrap_or("Alterar arquivos")
-                    .chars()
-                    .take(500)
-                    .collect::<String>();
+                    .unwrap_or("Alterar arquivos");
+                // Fork: o risco olha o comando inteiro; só o texto da tela é cortado (como nos ganchos).
+                let arriscado = omni_core::orquestracao::briefing::pedido_arriscado(completo);
+                let resumo = completo.chars().take(500).collect::<String>();
                 let id = format!("codex-{}-{}", self.geracao, uuid::Uuid::new_v4());
                 e.pedidos.push_back(Pendente {
                     rpc,
@@ -151,7 +151,7 @@ impl Cliente {
                         id,
                         origem: "codex_app_server",
                         ferramenta: ferramenta.into(),
-                        arriscado: omni_core::orquestracao::briefing::pedido_arriscado(&resumo),
+                        arriscado,
                         resumo,
                         servidor_mcp: None,
                         expira_em_ms: now_ms() + 600_000,
@@ -982,6 +982,11 @@ pub(crate) fn uso_da_conta(
 /// aprovação pendente — para testes de outros módulos (o orquestrador). Devolve o log JSON-RPC.
 #[cfg(test)]
 pub(crate) fn falso_com_pedido_de_teste(terminal: &str, dir: &Path) -> PathBuf {
+    falso_com_pedido(terminal, dir, "aprovar")
+}
+
+#[cfg(test)]
+fn falso_com_pedido(terminal: &str, dir: &Path, prompt: &str) -> PathBuf {
     let log = dir.join("rpc.jsonl");
     let mut p = Command::new("node")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/fixtures/codex-app-server-falso.mjs"))
@@ -996,7 +1001,7 @@ pub(crate) fn falso_com_pedido_de_teste(terminal: &str, dir: &Path) -> PathBuf {
     iniciar_thread(&c, "/tmp", None).unwrap();
     CLIENTES.lock().unwrap().insert(terminal.into(), c.clone());
     let rev = c.revision(&c.estado.lock().unwrap());
-    enviar_prompt(terminal, "aprovar", &rev, false).unwrap();
+    enviar_prompt(terminal, prompt, &rev, false).unwrap();
     let limite = Instant::now() + Duration::from_secs(5);
     while c.estado.lock().unwrap().pedidos.is_empty() {
         assert!(Instant::now() < limite, "Prazo da fixture");

@@ -32,7 +32,7 @@ for await (const line of createInterface({ input: process.stdin })) {
       for (let i = 0; i < 2; i++) emitir({ method: "turn/completed", params: { threadId: thread, turn: { id, status: "completed" } } });
     } else if (text !== "esperar") {
       emitir({ id: `pedido-${turn}`, method: text === "arquivo" ? "item/fileChange/requestApproval" : "item/commandExecution/requestApproval",
-        params: { ...params, itemId: "item-1", command: "echo fixture", reason: "Pedido sintético" } });
+        params: { ...params, itemId: "item-1", command: text === "longo" ? `echo ${"x".repeat(600)} && rm -rf build` : "echo fixture", reason: "Pedido sintético" } });
     }
   } else if (m.method === "turn/steer") {
     emitir({ id: m.id, result: { turnId: m.params.expectedTurnId } });

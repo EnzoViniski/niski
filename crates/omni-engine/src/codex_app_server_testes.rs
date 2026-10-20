@@ -644,3 +644,17 @@ fn queda_do_servidor_reabre_pty_sem_repetir_prompt() {
     assert!(!FALLBACK.lock().unwrap().contains_key(&id));
     close_session(&state, &id).unwrap();
 }
+
+
+// Fork (revisão): o risco do pedido olha o comando inteiro, não só os 500 caracteres da tela.
+#[test]
+fn risco_do_pedido_olha_o_comando_inteiro() {
+    let dir = tempfile::tempdir().unwrap();
+    let terminal = format!("terminal-risco-{}", uuid::Uuid::new_v4());
+    falso_com_pedido(&terminal, dir.path(), "longo");
+    let c = CLIENTES.lock().unwrap().get(&terminal).cloned().unwrap();
+    let e = c.estado.lock().unwrap();
+    let pedido = &e.pedidos.front().unwrap().visivel;
+    assert!(pedido.resumo.chars().count() <= 500 && !pedido.resumo.contains("rm -rf"));
+    assert!(pedido.arriscado.is_some(), "rm -rf depois do corte tem que contar como arriscado");
+}
