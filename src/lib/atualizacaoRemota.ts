@@ -99,8 +99,12 @@ export async function procurarAtualizacao({ silencioso = false } = {}): Promise<
     const achado = (await check()) as Pacote | null;
     if (ocupado()) return;
     pacote = achado;
-    if (achado) mudar({ fase: "disponivel", versao: achado.version, notas: achado.body ?? null, erro: null });
-    else if (!silencioso) mudar({ fase: "atual", versao: null, notas: null });
+    if (achado) {
+      mudar({ fase: "disponivel", versao: achado.version, notas: achado.body ?? null, erro: null });
+      // Só no build de teste do updater (scripts/build-mac-local.mjs com MEDZA_TESTE_AUTOATUALIZAR=1):
+      // clica sozinho em "Atualizar agora" para o teste de ponta a ponta sem mão humana.
+      if (import.meta.env.VITE_MEDZA_TESTE_AUTOATUALIZAR === "1") void atualizarAgora();
+    } else if (!silencioso) mudar({ fase: "atual", versao: null, notas: null });
     else if (estado.fase === "disponivel") mudar({ fase: "ocioso", versao: null, notas: null });
   } catch (erro) {
     // Sem internet no boot não é assunto do usuário.

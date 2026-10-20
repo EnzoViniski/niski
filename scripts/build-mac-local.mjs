@@ -93,6 +93,8 @@ if (endpointDeTeste) {
     env.TAURI_SIGNING_PRIVATE_KEY = chave;
   }
   env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD ??= "";
+  // MEDZA_TESTE_AUTOATUALIZAR=1: o app de teste instala sozinho a versão nova que achar (src/lib/atualizacaoRemota.ts).
+  if (process.env.MEDZA_TESTE_AUTOATUALIZAR === "1") env.VITE_MEDZA_TESTE_AUTOATUALIZAR = "1";
 }
 const inicio = Date.now();
 const rodar = (cmd, args) => execFileSync(cmd, args, { stdio: "inherit", env });
