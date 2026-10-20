@@ -563,18 +563,10 @@ pub fn account_usage(state: &Arc<EngineState>, profile_id: &str, refresh: bool) 
     }
     let previous_fetch = before.as_ref().and_then(|u| u.observed_at_ms);
 
-    let idle_agent = state.sessions.lock().map_err(|_|anyhow!("sessions poisoned"))?.values().filter_map(|entry| {
-        let SessionEntry::Live(session) = entry else { return None };
-        let meta = session.meta.lock().ok()?;
-        (meta.provider.as_deref() == Some("claude") && meta.profile_id.as_deref() == Some(profile_id)).then(|| session.clone())
-    }).find(|session| capabilities(session).prompt);
-    if let Some(session) = idle_agent {
-        if let Some(usage) = run_usage_command(state, &session, profile_id, &read_cache, previous_fetch)? {
-            return Ok(EngineResponse::AccountUsage { usage });
-        }
-    }
-
-    // Nenhum agente ocioso (ou ele não trouxe): Claude oculto só para consultar. `/usage` não manda
+    // Fork: nunca digitar `/usage` numa conversa do usuário. O Esc que fecha o painel, somado a um Esc
+    // do usuário (ou de outra consulta), virava Esc duplo no prompt e abria o menu do rewind
+    // ("Summarize from here"): o agente parava perguntando no terminal. Sempre o Claude oculto.
+    // Claude oculto só para consultar. `/usage` não manda
     // mensagem ao modelo, e sem mensagem o Claude não grava conversa.
     let id = state.next_id();
     let hidden = spawn_terminal_inner(state, id.clone(), String::new(), "Claude · consulta de uso".into(),
@@ -862,6 +854,11 @@ pub fn alternar_modo(state: &Arc<EngineState>, session: &Arc<LiveSession>, alvo:
     Err(anyhow!("Não foi possível chegar no modo pedido"))
 }
 
+/// Fork: o painel do `/usage` (ou o autocomplete dele) está na tela.
+fn painel_do_usage_aberto(texto: &str) -> bool {
+    texto.contains("Current session") || texto.contains("Refreshing") || texto.lines().any(|l| l.trim_start().starts_with("/usage"))
+}
+
 /// Digita `/usage` numa sessão ociosa e espera o resultado; fecha o diálogo aberto com Esc — com
 /// sucesso ou não. Pronto quando:
 /// - o `fetchedAtMs` do arquivo mudou (o Claude buscou de novo), ou
@@ -924,8 +921,23 @@ fn run_usage_command(state: &Arc<EngineState>, session: &Arc<LiveSession>, profi
     }
     // Fecha o diálogo que NÓS abrimos: a sessão estava ociosa e com a entrada reservada, então uma
     // tela que não é o composer vazio só pode ser o `/usage` (ou o autocomplete dele).
-    if session.interaction.lock().is_ok_and(|context| !ready(context.parser.screen(), "claude")) { let _ = write(b"\x1b"); }
+    // Fork: Esc só com o painel do `/usage` na tela — "não está pronta" não basta (Esc a mais no prompt
+    // vazio arma o Esc duplo do rewind).
+    if session.interaction.lock().is_ok_and(|context| painel_do_usage_aberto(&context.parser.screen().contents())) { let _ = write(b"\x1b"); }
     Ok(result)
+}
+
+#[cfg(test)]
+mod testes_do_usage {
+    use super::painel_do_usage_aberto;
+    #[test]
+    fn esc_so_com_o_painel_do_usage() {
+        assert!(painel_do_usage_aberto("  Current session\n  ███ 40% used"));
+        assert!(painel_do_usage_aberto("Refreshing…"));
+        assert!(painel_do_usage_aberto("❯ /usage\n  /usage   Show plan usage limits"));
+        assert!(!painel_do_usage_aberto("╭───╮\n│ ❯   │\n╰───╯\n  ? for shortcuts"));
+        assert!(!painel_do_usage_aberto(""));
+    }
 }
 
 #[cfg(test)]
