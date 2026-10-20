@@ -179,7 +179,11 @@ pub(super) fn enqueue(state:&Arc<EngineState>,id:&str,headers:&HeaderMap,kind:Ac
     // Fila não confere a versão da tela: com o agente trabalhando ela muda a cada quadro do spinner,
     // e a trava recusaria quase todo envio. O que protege a fila é o campo vazio, conferido de novo
     // na execução — colar no meio de um rascunho continua impossível.
-    if !matches!(kind, ActionKind::Fila(_)) && headers.get("if-match").and_then(|h|h.to_str().ok()) != Some(capability.revision.as_str()) {
+    // Fork: mensagem nova e trocar conta/modelo/esforço ou modo não respondem a nenhum diálogo — vão para um estado
+    // absoluto e só passa com o agente parado e o campo livre (`capability.prompt`, logo acima). A versão
+    // da tela vinda da faixa do terminal tem até 3 s e caía em 412 com qualquer redesenho.
+    let sem_versao = match &kind { ActionKind::Fila(_) | ActionKind::Ajustes(_) | ActionKind::Modo(_) => true, ActionKind::Prompt(texto) => mensagem_comum(texto), _ => false };
+    if !sem_versao && headers.get("if-match").and_then(|h|h.to_str().ok()) != Some(capability.revision.as_str()) {
         return Err(error(StatusCode::PRECONDITION_FAILED,"O contexto mudou; atualize antes de responder"));
     }
     let session_id = session.meta.lock().expect("metadata poisoned").id.clone();
@@ -206,6 +210,10 @@ pub(super) fn execute(state:&Arc<EngineState>, action:&Action) -> Result<()> {
     }
 }
 
+/// Fork: mensagem do usuário, não comando da CLI (`/fast`, `/compact`… vêm da lista fechada e seguem presos
+/// à versão da tela). A rota de prompt já recusa texto começando com `/`.
+fn mensagem_comum(texto: &str) -> bool { !texto.trim_start().starts_with('/') }
+
 pub(super) fn execute_checked(state:&Arc<EngineState>, action:&Action, is_running: impl Fn(Option<u32>, &str) -> bool) -> Result<()> {
     if now_ms().saturating_sub(action.created_at_ms) >= 60_000 { return Err(anyhow!("Ação expirada")); }
     let (_,current_session) = current(state,&action.conversation_id).map_err(|_|anyhow!("Conversa removida"))?;
@@ -215,7 +223,11 @@ pub(super) fn execute_checked(state:&Arc<EngineState>, action:&Action, is_runnin
     let sessions = state.sessions.lock().map_err(|_|anyhow!("sessions poisoned"))?;
     if !matches!(sessions.get(&action.session_id),Some(SessionEntry::Live(s)) if Arc::ptr_eq(s,&session)) { return Err(anyhow!("Sessão trocada")); }
     let mut context = session.interaction.lock().map_err(|_|anyhow!("screen poisoned"))?;
-    let fila = matches!(action.kind, ActionKind::Fila(_));
+    // Fork: mensagem nova (Prompt) também não exige a mesma versão da tela: o que a protege é o campo
+    // vazio sem diálogo (`interaction::ready`, conferido logo abaixo). A CLI redesenha a linha de status
+    // logo depois de abrir e o primeiro envio caía em "Contexto mudou". Aprovação e menu continuam presos à
+    // tela exata que o usuário viu.
+    let fila = match &action.kind { ActionKind::Fila(_) => true, ActionKind::Prompt(texto) => mensagem_comum(texto), _ => false };
     if session.reserved.load(Ordering::SeqCst) || (!fila && context.revision(&session) != action.revision) { return Err(anyhow!("Contexto mudou antes da execução")); }
     let meta = session.meta.lock().map_err(|_|anyhow!("metadata poisoned"))?.clone();
     let provider = meta.provider.as_deref().unwrap_or("");

@@ -18,7 +18,8 @@ impl Interaction {
     pub fn new(rows: u16, cols: u16) -> Self { Self { parser: vt100::Parser::new(rows,cols,0), input_revision: 0, turn_active: false, aprovacao_contada: false, avisos_antes_do_turno: (0, 0), turnos_iniciados: 0, generation: rand::random() } }
     pub fn revision(&self, session: &Arc<LiveSession>) -> String {
         let mut hash = DefaultHasher::new();
-        self.parser.screen().contents().hash(&mut hash);
+        // Fork: sem os quadros de animação (o Codex ocioso gira um indicador e a versão nunca parava).
+        crate::revisao_estavel::texto_para_revisao(&self.parser.screen().contents()).hash(&mut hash);
         self.input_revision.hash(&mut hash);
         self.generation.hash(&mut hash);
         (Arc::as_ptr(session) as usize).hash(&mut hash);

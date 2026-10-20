@@ -2,6 +2,11 @@
 mod economia;
 // Fork: modo do Antigravity nas sessões do app e o diálogo de permissão dele na conversa.
 mod antigravity_permissoes;
+// Fork: versão da tela sem os quadros de animação (o `If-Match` do chat não falha com o spinner).
+mod revisao_estavel;
+// Fork: diagnóstico do chat do Codex com a CLI real (só testes ignorados).
+#[cfg(test)]
+mod codex_chat_testes;
 mod fluxos;
 // Fork (Onda 2): ganchos HTTP do Claude por sessão, pedidos de permissão e statusline.
 mod ganchos;
@@ -632,7 +637,10 @@ fn spawn_initial_command_thread(session: Arc<LiveSession>, initial_command: Opti
             std::thread::sleep(std::time::Duration::from_millis(800));
             if let Ok(mut writer) = session.writer.lock() {
                 let _ = writer.write_all(initial_command.as_bytes());
-                let _ = writer.write_all(b"\r\n");
+                // Fork: no macOS/Linux só o Enter (`\r`). O `\n` que sobrava chegava à CLI já aberta como
+                // Ctrl+J ("nova linha" no campo do Codex): o campo ficava com uma linha em branco, o chat
+                // achava que era rascunho e não mandava nada (visto no Codex 0.163 real, intermitente).
+                let _ = writer.write_all(if cfg!(windows) { b"\r\n" } else { b"\r" });
                 let _ = writer.flush();
             }
         });

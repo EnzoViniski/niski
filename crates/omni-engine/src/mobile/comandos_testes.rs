@@ -131,3 +131,17 @@ fn sessao(state: &Arc<EngineState>, tela: &str) -> (Arc<LiveSession>, Arc<Mutex<
         assert_eq!(app.clone().oneshot(req).await.unwrap().status(),StatusCode::ACCEPTED);
     }
 }
+
+/// Fork: mensagem comum não cai por redesenho da tela (linha de status, indicador girando do Codex), mas
+/// aprovação continua presa à tela exata que o usuário viu.
+#[test] fn mensagem_comum_nao_cai_por_redesenho_e_aprovacao_cai() {
+    let (_dir,state) = fixture();
+    let (session,bytes,action) = sessao(&state,"❯ ");
+    // A CLI redesenha algo fora do campo (status) depois que o chat leu a versão.
+    { let mut c = session.interaction.lock().unwrap(); c.parser.process(b"\x1b7\x1b[20;1HGPT-6-Luna low \xc2\xb7 ~/omni\x1b8"); }
+    let prompt = Action { kind: ActionKind::Prompt("oi".into()), ..action.clone() };
+    super::super::fila::execute_checked(&state,&prompt,|_,_|true).unwrap();
+    assert!(bytes.lock().unwrap().starts_with(b"\x1b[200~oi\x1b[201~"), "mensagem colada mesmo com versão antiga");
+    let aprovar = Action { kind: ActionKind::Approval(true), ..action };
+    assert!(super::super::fila::execute_checked(&state,&aprovar,|_,_|true).is_err(), "aprovação exige a tela exata");
+}
