@@ -41,6 +41,9 @@ pub struct Capabilities {
     /// resumo, prazo). Responder com o `id` dele (`/aprovar` com `pedido`): outro id → 412.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pedido: Option<crate::ganchos::PedidoVisivel>,
+    /// Fork (pergunta-da-cli): a CLI parada esperando algo no terminal que não virou menu nem pedido.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub espera: Option<crate::pergunta_da_cli::Espera>,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -59,6 +62,14 @@ pub struct Escolha {
     /// Pergunta com prévia ("n to add notes"): ali o número só move a seleção, e é o Enter que escolhe.
     #[serde(skip)]
     pub previa: bool,
+    /// Fork (pergunta-da-cli): menu da própria CLI achado pela leitura genérica
+    /// (`pergunta_da_cli::menu`), não pergunta do agente: a conversa mostra "A CLI está perguntando".
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub da_cli: bool,
+    /// Fork (pergunta-da-cli): teclas de cada opção, na ordem de `opcoes` (setas + Enter, "y"…).
+    /// `None` = o número da opção, o caminho de sempre.
+    #[serde(skip)]
+    pub teclas: Option<Vec<String>>,
 }
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct Opcao {
@@ -79,6 +90,12 @@ pub struct Etapa { pub titulo: String, pub respondida: bool }
 /// e o menu inteiro deixava de ser reconhecido.
 pub fn linha_a_linha(screen: &vt100::Screen) -> String {
     screen.rows(0, screen.size().1).collect::<Vec<_>>().join("\n")
+}
+
+/// Fork (pergunta-da-cli): o menu na tela — o reconhecido pelo rodapé (`escolha`) ou, sem ele, o
+/// genérico da CLI (`pergunta_da_cli::menu`). Quem mostra e quem responde usam este mesmo.
+pub fn menu_na_tela(screen: &vt100::Screen, provider: &str) -> Option<Escolha> {
+    escolha(&linha_a_linha(screen)).or_else(|| crate::pergunta_da_cli::menu(screen, provider))
 }
 
 /// Menu numerado da CLI com o rodapé "Enter to confirm · Esc to cancel": a caixa vai da última
@@ -184,7 +201,7 @@ pub fn escolha(text: &str) -> Option<Escolha> {
         .map_or(pergunta, |(_, texto)| texto).to_owned();
     let detalhe = textos.collect::<Vec<_>>().join("\n");
     let previa = linhas[um..].iter().take(rodape + 1 - um).any(|l| l.contains("to add notes"));
-    Some(Escolha { pergunta, detalhe: (!detalhe.is_empty()).then_some(detalhe), opcoes, multipla, etapas, previa })
+    Some(Escolha { pergunta, detalhe: (!detalhe.is_empty()).then_some(detalhe), opcoes, multipla, etapas, previa, da_cli: false, teclas: None })
 }
 
 /// Require provider chrome plus an empty composer at the actual terminal cursor.
@@ -448,8 +465,11 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
     let prompt = available && pedido.is_none() && em_turno != Some(true) && ready(context.parser.screen(),provider);
     let enfileirar = available && !prompt && pedido.is_none() && (pode_enfileirar(context.parser.screen(),provider)
         || (em_turno == Some(true) && pode_enfileirar_pelos_ganchos(context.parser.screen(),provider)));
-    let escolha = (available && !approve && !prompt).then(|| escolha(&linha_a_linha(context.parser.screen()))).flatten();
-    let reason = (!(approve || prompt || escolha.is_some())).then(|| match provider {
+    // Fork (pergunta-da-cli): menu genérico da CLI e, sem nada reconhecível, a espera — nunca silêncio.
+    let escolha = (available && !approve && !prompt).then(|| menu_na_tela(context.parser.screen(), provider)).flatten();
+    let espera = (available && !approve && !prompt && escolha.is_none() && pedido.is_none())
+        .then(|| crate::pergunta_da_cli::espera(context.parser.screen(), provider, now_ms().saturating_sub(meta.last_activity_at_ms))).flatten();
+    let reason = (!(approve || prompt || escolha.is_some() || espera.is_some())).then(|| match provider {
         // ponytail: diagnóstico detalhado enquanto a tela do agy não está calibrada em todos os casos;
         // volta para o texto genérico quando a Conversa do Antigravity estiver estável.
         "antigravity" => motivo_antigravity(context.parser.screen(), available, session.reserved.load(Ordering::SeqCst)),
@@ -458,7 +478,7 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
         _ => motivo_geral(context.parser.screen(), provider, available, session.reserved.load(Ordering::SeqCst), &meta.id),
     });
     let approval_text = pedido.as_ref().map(|p| p.resumo.clone()).or_else(|| dialog.map(|d|d.2));
-    Capabilities { prompt, approve, revision: context.revision(session), approval_text, reason, enfileirar, escolha, pedido }
+    Capabilities { prompt, approve, revision: context.revision(session), approval_text, reason, enfileirar, escolha, pedido, espera }
 }
 
 /// Fork: campo vazio no meio de um turno que só os ganchos enxergam (sem o rodapé "esc to interrupt").

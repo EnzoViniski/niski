@@ -27,6 +27,9 @@ import { indiceDaMensagem, POLL_ATIVO_MS, POLL_PARADO_MS, useBlocos, useMensagen
 import { useAcoesDaConversa, useConfirmacaoDoEnvio, type Enviado } from "./useEnvio";
 import { useMencoes } from "./useMencoes";
 import { CartaoDePermissao } from "./CartaoDePermissao";
+// Fork (pergunta-da-cli): diálogo da CLI que a conversa não interpreta, e o terminal para responder.
+import { CartaoDeEspera } from "./CartaoDeEspera";
+import { TerminalFlutuante } from "./TerminalFlutuante";
 import { RodapeDaConversa } from "./RodapeDaConversa";
 
 export function ConversationDetail({ conversation: daLista, refresh, abrirConversa }: {
@@ -49,6 +52,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const [busy, setBusy] = useState(false);
   const [parando, setParando] = useState(false);
   const [bifurcando, setBifurcando] = useState(false);
+  const [terminalDaPergunta, setTerminalDaPergunta] = useState(false);
   const [enviado, setEnviado] = useState<Enviado | null>(null);
   // Mensagens mandadas com o agente trabalhando: estão na fila da CLI e entram quando o turno acabar.
   const [fila, setFila] = useState<Enviado[]>([]);
@@ -328,7 +332,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const anexoGrande = anexos.some(a => a.arquivo.size > ANEXO_MAX_BYTES);
   // Fork: com a sessão aberta e o agente parado, dá para mandar mesmo com a tela não reconhecida — o
   // envio destrava antes (`enviarPrompt`). Só pergunta/aprovação na tela continua bloqueando.
-  const destravavel = Boolean(capability && conversation.live && !trabalhando && !capability.approve && !capability.escolha);
+  const destravavel = Boolean(capability && conversation.live && !trabalhando && !capability.approve && !capability.escolha && !capability.espera);
+  const abrirTerminal = conversation.live ? () => setTerminalDaPergunta(true) : undefined;
   const podeEnviar = Boolean(capability?.prompt || capability?.enfileirar || destravavel) && !busy && temConteudo && !anexoGrande;
   const timeline = data?.timeline;
   const ultimoBloco = blocos[blocos.length - 1];
@@ -348,7 +353,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
         horario={bloco.mensagem.timestamp}
         pergunta={planoPendente && bloco === ultimoBloco && capability?.escolha
           ? <CartaoDePergunta escolha={capability.escolha} provider={conversation.provider} busy={busy}
-              onEscolher={(opcao) => void escolher(opcao)} onAvancar={() => void escolher("avancar")} />
+              onEscolher={(opcao) => void escolher(opcao)} onAvancar={() => void escolher("avancar")} onAbrirTerminal={abrirTerminal} />
           : undefined} />;
     }
     const message = bloco.mensagem;
@@ -405,7 +410,10 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
       {capability?.approve && <CartaoDePermissao texto={capability.approval_text} busy={busy} onResponder={(permitir) => void aprovar(permitir)}
         pedido={capability.pedido} conversaId={conversation.id} onRespondido={() => void Promise.all([ler(), refresh()])} /* Fork (Onda 2) */ />}
       {capability?.escolha && !planoPendente && <CartaoDePergunta escolha={capability.escolha} provider={conversation.provider} busy={busy}
-        onEscolher={(opcao) => void escolher(opcao)} onAvancar={() => void escolher("avancar")} />}
+        onEscolher={(opcao) => void escolher(opcao)} onAvancar={() => void escolher("avancar")} onAbrirTerminal={abrirTerminal} />}
+      {capability?.espera && !capability.approve && !capability.escolha && abrirTerminal &&
+        <CartaoDeEspera espera={capability.espera} provider={conversation.provider} onAbrirTerminal={abrirTerminal} />}
+      {terminalDaPergunta && <TerminalFlutuante conversaId={conversation.id} tipo="pergunta" onFechar={() => setTerminalDaPergunta(false)} />}
       {ativo && !capability?.approve &&
         <AgentWorking desde={trabalhandoDesde.current ?? Date.now()} provider={conversation.provider} tokens={conversation.tokens ?? null} />}
       {fila.length > 0 && (

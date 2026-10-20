@@ -48,6 +48,9 @@ export function ListaDeAtividade({ itens, carregado, erro, marcar, abrir }: {
             <span className="shrink-0 text-text-muted">{haQuantoTempo(item.desde_ms, agora, "longo")}</span>
           </span>
           <span className="mt-1 block truncate text-sm text-text-primary">{item.titulo}</span>
+          {/* Fork (pergunta-da-cli): diz quando é a própria CLI perguntando no terminal. */}
+          {item.tipo === "precisa_de_voce" && item.resumo !== ROTULOS_DA_ATIVIDADE[item.tipo] &&
+            <span className="mt-1 block text-xs text-accent">{item.resumo}</span>}
           <span className="mt-1 block text-xs text-text-muted">{item.projeto} · {nomeDaPlataforma(item.plataforma)} · {item.conta}</span>
           <span className="sr-only">{item.visto ? "Lido" : "Não lido"}</span>
         </button>

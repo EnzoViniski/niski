@@ -14,6 +14,8 @@ export interface Conversation {
     escolha?: Escolha | null;
     /** Fork (Onda 2): pedido segurado pelo gancho do Claude. Responder com o `id` (`/aprovar` com `pedido`). */
     pedido?: PedidoDoGancho | null;
+    /** Fork (pergunta-da-cli): a CLI parada esperando algo no terminal que não virou menu nem pedido. */
+    espera?: EsperaNoTerminal | null;
   } | null;
   /** Há uma sessão aberta no PC ligada a esta conversa (dá para ver o terminal e mandar teclas). */
   live?: boolean;
@@ -272,4 +274,14 @@ export interface Escolha {
   multipla?: boolean;
   /** Várias perguntas seguidas: as abas e quais já têm resposta. */
   etapas?: { titulo: string; respondida: boolean }[];
+  /** Fork (pergunta-da-cli): menu da própria CLI (não pergunta do agente), lido de forma genérica. */
+  da_cli?: boolean;
+}
+
+/** Fork (pergunta-da-cli): o que a tela do terminal mostra quando a CLI espera algo que não é menu. */
+export interface EsperaNoTerminal {
+  /** As últimas linhas do diálogo, sem bordas. */
+  texto: string;
+  /** A linha de teclas do rodapé ("Enter to confirm · Esc to cancel"). */
+  dica?: string | null;
 }

@@ -804,6 +804,7 @@ pub(crate) fn capabilities(sessao: &Arc<LiveSession>) -> Option<interaction::Cap
         enfileirar: livre && pedido.is_none() && e.turno.is_some(),
         escolha: None,
         pedido,
+        espera: None, // Fork (pergunta-da-cli): o protocolo não tem tela para esperar.
     })
 }
 
