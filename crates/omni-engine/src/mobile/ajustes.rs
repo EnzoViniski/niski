@@ -96,12 +96,24 @@ pub(super) fn opcoes_da_conversa(state: &EngineState, id: &str) -> Result<Value,
     let segmento = ultima_sessao(state,id)?;
     let cwd = pasta_da_conversa(state,id).unwrap_or_default();
     let segmento = &segmento;
+    let viva = current(state,id).ok().and_then(|(_, viva)| viva);
     let perfis: Vec<_> = omni_core::profiles(dir).into_iter().filter(|p| p.provider == segmento.provider).collect();
     let atual = perfis.iter().find(|p| Some(&p.id) == segmento.profile_id.as_ref());
     let runtime = match (segmento.provider.as_str(), atual) {
         ("claude", Some(perfil)) => segmento.external_session_id.as_deref()
             .and_then(|sid| omni_core::runtime::claude_runtime(Path::new(&perfil.config_dir),&cwd,sid)),
-        ("codex", Some(perfil)) => omni_core::runtime::codex_runtime(Path::new(&perfil.config_dir),&cwd),
+        // Fork (chat-estavel): o rollout da própria conversa; sem ele (nenhuma mensagem ainda), as opções
+        // do comando aberto ou o `config.toml` — antes vinha o rollout mais novo da pasta, de outra conversa.
+        ("codex", Some(perfil)) => match (segmento.transcript_path.as_deref().filter(|p| Path::new(p).is_file()), &viva) {
+            (Some(rollout), _) => omni_core::runtime::codex_runtime_do_rollout(Path::new(&perfil.config_dir),Path::new(rollout)),
+            (None, Some(sessao)) if segmento.external_session_id.is_none() => {
+                let comando = sessao.meta.lock().ok().and_then(|m| m.initial_command.clone()).unwrap_or_default();
+                let config = omni_core::runtime::codex_configurado(Path::new(&perfil.config_dir));
+                let (modelo, esforco) = ajustes_sem_mensagem::ajustes_do_comando(&comando);
+                Some(omni_core::runtime::AgentRuntime { model: modelo.or(config.model), effort: esforco.or(config.effort), ..config })
+            }
+            _ => omni_core::runtime::codex_runtime(Path::new(&perfil.config_dir),&cwd),
+        },
         _ => None,
     };
     let saida_agy = (segmento.provider == "antigravity").then(|| saida_agy_models(dir)).unwrap_or_default();
@@ -128,6 +140,8 @@ pub(super) fn opcoes_da_conversa(state: &EngineState, id: &str) -> Result<Value,
         "profiles": perfis.iter().map(|p| json!({"id":p.id,"name":p.name})).collect::<Vec<_>>(),
         "models": modelos,
         "can_resume": segmento.external_session_id.is_some(),
+        // Fork (chat-estavel): trocar na sessão aberta. O Codex sem mensagem reabre com as opções novas.
+        "can_adjust": segmento.external_session_id.is_some() || (viva.is_some() && segmento.provider == "codex"),
     }))
 }
 
@@ -376,6 +390,10 @@ pub(super) fn reabrir_com(state: &Arc<EngineState>, conversation_id: &str, ajust
     let mut indice = omni_core::conversations::read_index(&dir);
     let conversa = indice.iter_mut().find(|c| c.id == conversation_id).ok_or_else(||anyhow!("Conversa removida"))?;
     let segmento = conversa.segments.last().cloned().ok_or_else(||anyhow!("Conversa sem sessão"))?;
+    // Fork (chat-estavel): Codex ainda sem rollout não tem o que retomar; reabre com as opções novas.
+    if segmento.provider == "codex" && segmento.external_session_id.is_none() {
+        return ajustes_sem_mensagem::reabrir_codex_sem_mensagem(state, conversation_id, &sessao, &segmento, ajustes);
+    }
     let sessao_externa = segmento.external_session_id.clone()
         .ok_or_else(||anyhow!("Mande a primeira mensagem antes: ainda não há conversa para retomar"))?;
     let perfis = omni_core::profiles(&dir);

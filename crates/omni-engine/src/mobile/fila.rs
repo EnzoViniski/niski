@@ -237,9 +237,9 @@ pub(super) fn execute_checked(state:&Arc<EngineState>, action:&Action, is_runnin
     // Prompt vai em duas partes: a colagem agora, o Enter depois que ela aparece no campo (ver
     // `interaction::submeter_colagem`). Aprovação é tecla de menu e continua num write só.
     let (data, submeter) = match &action.kind {
-        ActionKind::Prompt(text) if interaction::ready(context.parser.screen(),provider) => (format!("\x1b[200~{text}\x1b[201~"), true),
-        ActionKind::Fila(text) if interaction::ready(context.parser.screen(),provider)
-            || interaction::pode_enfileirar(context.parser.screen(),provider) => (format!("\x1b[200~{text}\x1b[201~"), true),
+        ActionKind::Prompt(text) if interaction::ready_no(&context,provider) => (format!("\x1b[200~{text}\x1b[201~"), true),
+        ActionKind::Fila(text) if interaction::ready_no(&context,provider)
+            || interaction::pode_enfileirar_no(&context,provider) => (format!("\x1b[200~{text}\x1b[201~"), true),
         ActionKind::Approval(allow) => { let dialog = interaction::approval(&context.parser.screen().contents(),provider).ok_or_else(||anyhow!("Aprovação não reconhecida"))?; (if *allow { dialog.0 } else { dialog.1 }, false) },
         // O número sozinho escolhe (confirmado num Claude Code 2.1.302 real); Esc fecha o menu.
         ActionKind::Escolha(opcao) => {

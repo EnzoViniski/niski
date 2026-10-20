@@ -1071,6 +1071,7 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
             }
             let meta = session.meta.lock().map_err(|_| anyhow!("session metadata poisoned"))?.clone();
             context.parser = vt100::Parser::new(meta.rows, meta.cols, 0);
+            context.codex_visto = false; // Fork (chat-estavel): a CLI nova precisa aparecer de novo.
             context.input_revision += 1;
             context.turn_active = false;
             // Solta a tela antes de subir o processo: o spawn (wsl.exe, CLI com hooks) leva segundos,
@@ -1226,6 +1227,7 @@ fn append_output(session: &LiveSession, bytes: &[u8], watched_pid: Option<u32>) 
         answer_terminal_queries(session, &data, interaction.parser.screen());
     }
     let screen_text = interaction.parser.screen().contents();
+    if tracked_provider.as_deref() == Some("codex") { interaction::notar_codex(&mut interaction, &screen_text); } // Fork (chat-estavel).
     let approval_requested = match &tracked_provider {
         // O diálogo real, reconhecido estrito — não "do you want to" solto numa resposta do agente.
         Some(provider) => {

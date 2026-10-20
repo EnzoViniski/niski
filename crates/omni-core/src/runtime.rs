@@ -213,6 +213,34 @@ pub fn codex_runtime(config_dir: &Path, cwd: &str) -> Option<AgentRuntime> {
     (!config.vazio()).then_some(config)
 }
 
+/// Fork (chat-estavel): modelo e esforço de um rollout conhecido (o da própria conversa). Procurar
+/// pela pasta mostrava o modelo de outra conversa do Codex aberta no mesmo projeto.
+pub fn codex_runtime_do_rollout(config_dir: &Path, rollout: &Path) -> Option<AgentRuntime> {
+    let conteudo = cauda(rollout, CAUDA_BYTES)?;
+    let mut resultado = AgentRuntime::default();
+    for linha in conteudo.lines() {
+        let Ok(entrada) = serde_json::from_str::<Value>(linha) else { continue };
+        let Some(payload) = entrada.get("payload") else { continue };
+        match entrada.get("type").and_then(Value::as_str) {
+            Some("session_meta") => resultado.cli_version = texto(payload, "cli_version"),
+            Some("turn_context") => {
+                resultado.model = texto(payload, "model").or(resultado.model);
+                resultado.effort = texto(payload, "effort")
+                    .or_else(|| texto(payload, "reasoning_effort"))
+                    .or_else(|| texto(payload, "model_reasoning_effort"))
+                    .or(resultado.effort);
+            }
+            _ => {}
+        }
+    }
+    if resultado.vazio() { return None; }
+    if resultado.effort.is_none() { resultado.effort = codex_config(config_dir).effort; }
+    Some(resultado)
+}
+
+/// Fork (chat-estavel): o que o `config.toml` da conta escolhe — vale para a sessão que ainda não teve turno.
+pub fn codex_configurado(config_dir: &Path) -> AgentRuntime { codex_config(config_dir) }
+
 #[cfg(test)]
 mod tests {
     /// O Claude grava uma linha por troca de modo; a **última** é o modo vigente. Ler isso é o que

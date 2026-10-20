@@ -54,6 +54,8 @@ mod sessoes;
 use sessoes::*;
 mod ajustes;
 use ajustes::*;
+// Fork (chat-estavel): modelo/esforço do Codex antes da primeira mensagem.
+mod ajustes_sem_mensagem;
 // Fork (retomar-sempre): preparar a retomada, continuar em conversa nova e trocar a pasta sumida.
 mod retomada_rotas;
 mod memoria_rotas;

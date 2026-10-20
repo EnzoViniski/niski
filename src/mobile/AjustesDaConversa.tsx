@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentIcon } from "../components/ui/AgentIcon";
 import { ChartIcon, LoaderIcon, PlayIcon, ReloadIcon, SparkleIcon } from "../components/ui/PixelIcon";
 import { Select } from "../components/ui/Select";
@@ -17,6 +17,9 @@ export interface Opcoes {
   models: { id: string; label: string; efforts: string[] }[];
   /** Sem id de sessão ainda (nenhuma mensagem), não há o que retomar com outros ajustes. */
   can_resume: boolean;
+  /** Fork (chat-estavel): dá para trocar na sessão aberta — o Codex sem mensagem reabre com as
+   *  opções novas. Engine antigo não manda: vale o `can_resume`. */
+  can_adjust?: boolean;
 }
 export interface Ajustes { profile_id: string | null; model: string | null; effort: string | null }
 
@@ -58,12 +61,21 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
   const [aplicando, setAplicando] = useState(false);
   // Engine que ainda não tem a rota (o front atualiza sozinho em dev; o engine só ao reiniciar).
   const [engineAntigo, setEngineAntigo] = useState(false);
+  // Fork (chat-estavel): o que foi aplicado e o que se lia antes. O transcript só mostra o modelo novo
+  // depois da próxima resposta; até lá, reler a mesma leitura antiga não desfaz a escolha na tela.
+  const aplicado = useRef<{ antes: Pick<Opcoes, "model" | "effort">; depois: Ajustes } | null>(null);
+  const lidoDoEngine = useRef<Pick<Opcoes, "model" | "effort"> | null>(null);
 
   const carregar = useCallback(async () => {
     try {
-      const lidas = await request<Opcoes>(`/conversas/${encodeURIComponent(conversaId)}/opcoes`);
+      let lidas = await request<Opcoes>(`/conversas/${encodeURIComponent(conversaId)}/opcoes`);
       // Resposta fora do formato (engine antigo, proxy) some com a faixa — nunca derruba a conversa.
       if (!Array.isArray(lidas?.models) || !Array.isArray(lidas?.profiles)) { setOpcoes(null); return; }
+      lidoDoEngine.current = { model: lidas.model, effort: lidas.effort };
+      const pendente = aplicado.current;
+      if (pendente && lidas.model === pendente.antes.model && lidas.effort === pendente.antes.effort) {
+        lidas = { ...lidas, model: pendente.depois.model, effort: pendente.depois.effort };
+      } else aplicado.current = null;
       setOpcoes(lidas);
       setEngineAntigo(false);
       setConta(lidas.profile_id ?? "");
@@ -74,7 +86,10 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
       setEngineAntigo(motivo instanceof ApiError && motivo.status === 404);
     }
   }, [conversaId]);
-  useEffect(() => { void carregar(); }, [carregar]);
+  // Fork (chat-estavel): relê quando o agente fica pronto — depois da primeira resposta ou de reabrir
+  // com outros ajustes, o que vale muda (antes ficava a leitura da abertura até trocar de conversa).
+  useEffect(() => { aplicado.current = null; lidoDoEngine.current = null; }, [conversaId]);
+  useEffect(() => { void carregar(); }, [carregar, pronto]);
 
   if (engineAntigo) {
     return <span className="m-chip-aviso" title="O engine em execução é anterior a esta tela">{`Reinicie o ${NOME_CURTO} para trocar conta e modelo`}</span>;
@@ -84,8 +99,9 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
   const esforcos = opcoes.models.find((m) => m.id === modelo)?.efforts
     ?? opcoes.models[0]?.efforts ?? [];
   const mudou = conta !== (opcoes.profile_id ?? "") || modelo !== modeloDaLista(opcoes) || esforco !== (opcoes.effort ?? "");
-  const bloqueado = onRetomar ? !opcoes.can_resume || aplicando : !pronto || !opcoes.can_resume || aplicando;
-  const motivo = !opcoes.can_resume ? "Mande a primeira mensagem antes de trocar."
+  const podeTrocar = onRetomar ? opcoes.can_resume : opcoes.can_adjust ?? opcoes.can_resume;
+  const bloqueado = onRetomar ? !podeTrocar || aplicando : !pronto || !podeTrocar || aplicando;
+  const motivo = !podeTrocar ? "Mande a primeira mensagem antes de trocar."
     : !pronto ? "Espere o agente terminar para trocar." : undefined;
 
   async function aplicar() {
@@ -97,6 +113,7 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
       lembrarAjustes(opcoes!.provider, { model: modelo || null, effort: esforco || null });
       // A sessão reabre em segundo plano; o modelo novo só aparece no transcript depois da próxima
       // resposta, então a escolha fica como está até lá.
+      aplicado.current = { antes: lidoDoEngine.current ?? { model: opcoes!.model, effort: opcoes!.effort }, depois: { profile_id: conta || null, model: modelo || null, effort: esforco || null } };
       setOpcoes((atual) => atual && { ...atual, profile_id: conta || null, model: modelo || null, effort: esforco || null });
     } finally {
       setAplicando(false);

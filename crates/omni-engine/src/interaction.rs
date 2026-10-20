@@ -13,9 +13,11 @@ use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}, time::{Dur
 /// atual começou. Só os que aparecerem depois disso são deste turno — ver `notice_since`.
 ///
 /// `turnos_iniciados`: antes do primeiro turno, nada na tela é aviso novo — ver `append_output`.
-pub struct Interaction { pub parser: vt100::Parser, pub input_revision: u64, pub turn_active: bool, pub aprovacao_contada: bool, pub avisos_antes_do_turno: (usize, usize), pub turnos_iniciados: u64, generation: u64 }
+pub struct Interaction { pub parser: vt100::Parser, pub input_revision: u64, pub turn_active: bool, pub aprovacao_contada: bool, pub avisos_antes_do_turno: (usize, usize), pub turnos_iniciados: u64, generation: u64,
+    /// Fork (chat-estavel): o cabeçalho "OpenAI Codex" já apareceu desde que a tela nasceu (zera no reinício).
+    pub codex_visto: bool }
 impl Interaction {
-    pub fn new(rows: u16, cols: u16) -> Self { Self { parser: vt100::Parser::new(rows,cols,0), input_revision: 0, turn_active: false, aprovacao_contada: false, avisos_antes_do_turno: (0, 0), turnos_iniciados: 0, generation: rand::random() } }
+    pub fn new(rows: u16, cols: u16) -> Self { Self { parser: vt100::Parser::new(rows,cols,0), input_revision: 0, turn_active: false, aprovacao_contada: false, avisos_antes_do_turno: (0, 0), turnos_iniciados: 0, generation: rand::random(), codex_visto: false } }
     pub fn revision(&self, session: &Arc<LiveSession>) -> String {
         let mut hash = DefaultHasher::new();
         // Fork: sem os quadros de animação (o Codex ocioso gira um indicador e a versão nunca parava).
@@ -205,14 +207,25 @@ pub fn escolha(text: &str) -> Option<Escolha> {
 }
 
 /// Require provider chrome plus an empty composer at the actual terminal cursor.
-pub fn ready(screen: &vt100::Screen, provider: &str) -> bool {
+pub fn ready(screen: &vt100::Screen, provider: &str) -> bool { ready_com(screen, provider, false) }
+
+/// Fork (chat-estavel): o cabeçalho do Codex só existe na abertura e rola para fora depois de algumas
+/// trocas — exigir que ele estivesse na tela travava a conversa ("cabeçalho do Codex fora da tela"), e
+/// cada envio caía no `destravar`, que reabria o agente. Basta tê-lo visto desde que a CLI abriu: isso
+/// ainda impede colar no shell antes de o Codex subir.
+pub fn ready_no(context: &Interaction, provider: &str) -> bool { ready_com(context.parser.screen(), provider, context.codex_visto) }
+pub fn pode_enfileirar_no(context: &Interaction, provider: &str) -> bool { pode_enfileirar_com(context.parser.screen(), provider, context.codex_visto) }
+/// Chamado pelo leitor da PTY a cada pedaço de saída do Codex.
+pub fn notar_codex(context: &mut Interaction, texto: &str) { if !context.codex_visto && texto.contains("OpenAI Codex") { context.codex_visto = true; } }
+
+fn ready_com(screen: &vt100::Screen, provider: &str, codex_visto: bool) -> bool {
     let text = screen.contents();
     // "Claude Code" only shows in the startup banner; it scrolls out of the visible screen after
     // the first exchange, so requiring it here made this permanently false for any session with
     // history (confirmed against a real running session — the idle composer never re-shows it).
     // The structural checks below are strict enough on their own to recognize the composer.
     // Antigravity: "? for shortcuts" no rodapé só existe parado; trabalhando vira "esc to cancel".
-    let brand = match provider { "claude" => true, "codex" => text.contains("OpenAI Codex"), "antigravity" => text.contains("? for shortcuts"), _ => false };
+    let brand = match provider { "claude" => true, "codex" => codex_visto || text.contains("OpenAI Codex"), "antigravity" => text.contains("? for shortcuts"), _ => false };
     brand && screen.bracketed_paste() && composer_vazio(screen)
         && !text.contains("Esc to cancel") && !text.contains("esc to interrupt") && !text.contains("esc to cancel")
         && approval(&text,provider).is_none()
@@ -221,9 +234,11 @@ pub fn ready(screen: &vt100::Screen, provider: &str) -> bool {
 /// Turno em andamento com o campo livre: o Claude Code (e o Codex) aceitam digitar e mandar
 /// durante o turno — a mensagem fica na fila e entra quando o turno acaba. É o mesmo campo vazio
 /// do `ready`, só que com o "esc to interrupt" na tela em vez de proibido por ele.
-pub fn pode_enfileirar(screen: &vt100::Screen, provider: &str) -> bool {
+pub fn pode_enfileirar(screen: &vt100::Screen, provider: &str) -> bool { pode_enfileirar_com(screen, provider, false) }
+
+fn pode_enfileirar_com(screen: &vt100::Screen, provider: &str, codex_visto: bool) -> bool {
     let text = screen.contents();
-    let brand = match provider { "claude" => true, "codex" => text.contains("OpenAI Codex"), _ => false };
+    let brand = match provider { "claude" => true, "codex" => codex_visto || text.contains("OpenAI Codex"), _ => false };
     brand && screen.bracketed_paste() && composer_vazio(screen)
         && text.to_lowercase().contains("esc to interrupt")
         && approval(&text,provider).is_none()
@@ -263,6 +278,25 @@ pub(crate) fn composer_vazio(screen: &vt100::Screen) -> bool {
         && ((col..cols).all(|c| screen.cell(row,c).is_none_or(|cell| !cell.has_contents() || cell.dim() || cell.contents().trim().is_empty()))
             // Fork: o agy mostra a dica do modo no campo vazio ("Accept-edits mode: … (shift+tab to cycle)").
             || crate::antigravity_permissoes::dica_de_modo(&screen.contents_between(row,col,row,cols)))
+}
+
+/// Fork (chat-estavel): a forma da linha do cursor, só metadados (posição e contagens, nunca o texto),
+/// para o log dizer por que `composer_vazio` recusou. O caso "campo com texto" do Claude não se
+/// reproduziu com a CLI real numa tela limpa; isto mostra na próxima vez qual parte falhou.
+pub(crate) fn forma_do_campo(screen: &vt100::Screen) -> String {
+    let (row, col) = screen.cursor_position();
+    let (rows, cols) = screen.size();
+    let antes = screen.contents_between(row, 0, row, col);
+    let esquerda = match antes.trim() { "❯" | "›" | ">" => "prompt", "" => "vazio", _ => "texto" };
+    let (mut normal, mut cinza) = (0, 0);
+    for c in col..cols {
+        let Some(cell) = screen.cell(row, c) else { continue };
+        if !cell.has_contents() || cell.contents().trim().is_empty() { continue; }
+        if cell.dim() { cinza += 1 } else { normal += 1 }
+    }
+    let prompt_acima = (0..row).rev().take(6).any(|r| matches!(screen.contents_between(r, 0, r, 2).trim(), "❯" | "›"));
+    format!("cursor={row}/{rows},{col}/{cols} esquerda={esquerda} direita_normal={normal} direita_cinza={cinza} oculto={} prompt_acima={}",
+        if screen.hide_cursor() { "sim" } else { "nao" }, if prompt_acima { "sim" } else { "nao" })
 }
 
 /// Quanto esperar a colagem aparecer no campo antes de mandar o Enter assim mesmo.
@@ -462,8 +496,8 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
     let pedido = crate::ganchos::pedido(&meta.id);
     let em_turno = crate::ganchos::em_turno(&meta.id);
     let approve = pedido.is_some() || (available && dialog.is_some());
-    let prompt = available && pedido.is_none() && em_turno != Some(true) && ready(context.parser.screen(),provider);
-    let enfileirar = available && !prompt && pedido.is_none() && (pode_enfileirar(context.parser.screen(),provider)
+    let prompt = available && pedido.is_none() && em_turno != Some(true) && ready_no(&context,provider);
+    let enfileirar = available && !prompt && pedido.is_none() && (pode_enfileirar_no(&context,provider)
         || (em_turno == Some(true) && pode_enfileirar_pelos_ganchos(context.parser.screen(),provider)));
     // Fork (pergunta-da-cli): menu genérico da CLI e, sem nada reconhecível, a espera — nunca silêncio.
     let escolha = (available && !approve && !prompt).then(|| menu_na_tela(context.parser.screen(), provider)).flatten();
@@ -475,7 +509,7 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
         "antigravity" => motivo_antigravity(context.parser.screen(), available, session.reserved.load(Ordering::SeqCst)),
         // Fork: diz qual condição falhou (e grava no log, só metadados) — o texto genérico não dava
         // pista nenhuma de por que a conversa travava. O chat se destrava sozinho (`destravar`).
-        _ => motivo_geral(context.parser.screen(), provider, available, session.reserved.load(Ordering::SeqCst), &meta.id),
+        _ => motivo_geral(context.parser.screen(), provider, available, session.reserved.load(Ordering::SeqCst), &meta.id, context.codex_visto),
     });
     let approval_text = pedido.as_ref().map(|p| p.resumo.clone()).or_else(|| dialog.map(|d|d.2));
     Capabilities { prompt, approve, revision: context.revision(session), approval_text, reason, enfileirar, escolha, pedido, espera }
@@ -487,20 +521,23 @@ fn pode_enfileirar_pelos_ganchos(screen: &vt100::Screen, provider: &str) -> bool
 }
 
 /// Fork: por que o campo do Claude/Codex não foi reconhecido. Mesma ideia do `motivo_antigravity`.
-fn motivo_geral(screen: &vt100::Screen, provider: &str, rodando: bool, reservada: bool, sessao: &str) -> String {
+fn motivo_geral(screen: &vt100::Screen, provider: &str, rodando: bool, reservada: bool, sessao: &str, codex_visto: bool) -> String {
     let texto = screen.contents();
     let mut faltas = Vec::new();
     if reservada { faltas.push("consulta de uso em andamento"); }
     if !rodando { faltas.push("o agente não está rodando no terminal"); }
     if trabalhando(&texto) { faltas.push("agente trabalhando ou com menu aberto"); }
     if approval(&texto,provider).is_some() { faltas.push("pedido de aprovação na tela"); }
-    if provider == "codex" && !texto.contains("OpenAI Codex") { faltas.push("cabeçalho do Codex fora da tela"); }
+    if provider == "codex" && !codex_visto && !texto.contains("OpenAI Codex") { faltas.push("Codex ainda não abriu na tela"); }
     if !screen.bracketed_paste() { faltas.push("modo de colar desligado"); }
     if !composer_vazio(screen) { faltas.push("campo de digitação com texto ou cursor fora dele"); }
     if faltas.is_empty() { faltas.push("tela não reconhecida"); }
     let motivo = faltas.join(" · ");
-    omni_core::registro::aviso_sem_repetir(&format!("sem_entrada:{sessao}:{motivo}"), "conversa_sem_entrada",
-        &[("sessao", sessao), ("provider", provider), ("motivo", &motivo)]);
+    // Fork (chat-estavel): forma do campo junto, quando é ele que falhou.
+    let campo = if composer_vazio(screen) { String::new() } else { forma_do_campo(screen) };
+    let mut campos = vec![("sessao", sessao), ("provider", provider), ("motivo", motivo.as_str())];
+    if !campo.is_empty() { campos.push(("campo", &campo)); }
+    omni_core::registro::aviso_sem_repetir(&format!("sem_entrada:{sessao}:{motivo}"), "conversa_sem_entrada", &campos);
     format!("Entrada não reconhecida: {motivo}")
 }
 
@@ -1178,5 +1215,22 @@ Ready to submit your answers?
         assert!(approval("Do you want to proceed?\n❯ 1. Yes, and don't ask again\n2. No", "claude").is_none());
         // Pergunta que ficou no histórico, sem opções embaixo, não conta.
         assert!(approval("Do you want to proceed?\n\n⏺ Feito.\n\n❯ ", "claude").is_none());
+    }
+
+    /// Fork (chat-estavel): o cabeçalho rola para fora depois de algumas trocas; o Codex continua pronto.
+    /// Antes de ele aparecer (shell ainda subindo a CLI), não.
+    #[test] fn codex_continua_pronto_depois_que_o_cabecalho_rola() {
+        let mut tela = Interaction::new(5,60);
+        tela.parser.process("\x1b[?2004h$ codex\r\n\u{203a} \x1b[5;3H".as_bytes());
+        let texto = tela.parser.screen().contents(); notar_codex(&mut tela, &texto);
+        assert!(!ready_no(&tela,"codex"), "sem o Codex na tela ainda");
+        tela.parser.process("\x1b[2J\x1b[1;1H>_ OpenAI Codex (v0.163.0)\r\n\u{203a} \x1b[2;3H".as_bytes());
+        let texto = tela.parser.screen().contents(); notar_codex(&mut tela, &texto);
+        assert!(ready_no(&tela,"codex"));
+        tela.parser.process("\x1b[2J\x1b[1;1H\u{2022} resposta longa\r\n\r\n\u{203a} \x1b[3;3H".as_bytes());
+        let texto = tela.parser.screen().contents(); notar_codex(&mut tela, &texto);
+        assert!(!tela.parser.screen().contents().contains("OpenAI Codex"));
+        assert!(ready_no(&tela,"codex"), "cabeçalho fora da tela não trava mais");
+        assert!(!ready(tela.parser.screen(),"codex"), "a leitura antiga, só da tela, travava");
     }
 }
