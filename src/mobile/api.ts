@@ -32,13 +32,15 @@ export interface Conversation {
   notice?: string | null;
   /** Fork (Onda 2): ganchos do Claude nesta sessão (estado, ferramenta atual, contexto da statusline). */
   ganchos?: GanchosDaConversa | null;
+  /** Fork 3A: contexto estruturado do Codex, quando optou por app-server. */
+  codex_app_server?: { ativo: boolean; contexto_pct: number | null } | null;
 }
 
 /** Fork (Onda 2): pedido de permissão que o engine segura até alguém decidir (`expira_em_ms`: depois
  *  disso a CLI pergunta no terminal). */
 export interface PedidoDoGancho {
   id: string;
-  origem: "gancho";
+  origem: "gancho" | "codex_app_server";
   ferramenta: string;
   /** "Bash · npm test": o que a ferramenta vai fazer. */
   resumo: string;

@@ -60,6 +60,7 @@ mod fila;
 use fila::*;
 // Fork (Onda 2): "Responder no terminal" e os ajustes dos ganchos do Claude.
 mod ganchos_rotas;
+mod codex_rotas; // Fork: Codex app-server, opção por agente.
 pub(crate) use celular::{check, settings, totp};
 pub(crate) use catalogo::{publish};
 pub(crate) use contas::{comando_do_agente};
@@ -239,6 +240,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .merge(crate::antigravity_permissoes::rotas())
         .merge(ganchos_rotas::rotas()) // Fork (Onda 2): ganchos do Claude.
         .merge(roteamento::rotas()) // Fork (3B): fila de contas.
+        .merge(codex_rotas::rotas()) // Fork: 3A.
 }
 
 fn router(state: Arc<EngineState>) -> Router {

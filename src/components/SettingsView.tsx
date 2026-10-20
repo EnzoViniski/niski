@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { PermissoesDoAntigravity } from "../features/antigravity/PermissoesDoAntigravity";
 // Fork (Onda 2): eventos (ganchos) do Claude Code, prazo dos pedidos e statusline por conta.
 import { GanchosDoClaude } from "../features/agentes/GanchosDoClaude";
+import { CodexAppServer } from "../features/agentes/CodexAppServer"; // Fork: 3A.
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AppSettings, Background, GlassLevel, MotionLevel, Theme } from "../types/settings";
 import { UpdateCard } from "./UpdateCard";
@@ -152,7 +153,7 @@ export function SettingsView({ settings, onChange, onReset, initialSection, proj
           {section === "geral" && <GeralSection settings={settings} onChange={onChange} />}
           {section === "aparencia" && <AparenciaSection settings={settings} onChange={onChange} />}
           {/* Fork: o que o Antigravity aprova sozinho nas sessões do app. */}
-          {section === "agentes" && <><AgentConnections /><GanchosDoClaude /><PermissoesDoAntigravity /></>}
+          {section === "agentes" && <><AgentConnections /><CodexAppServer /><GanchosDoClaude /><PermissoesDoAntigravity /></>}
           {section === "fila" && <FilaDeContas />}
           {section === "modelos" && <ModelosDeAgentes projectPath={projectPath} />}
           {section === "extensoes" && <ExtensoesSettings projectPath={projectPath} />}

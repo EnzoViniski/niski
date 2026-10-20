@@ -19,6 +19,9 @@ axum = "0.8"
 # `oneshot`: o desktop chama as rotas da API por dentro do protocolo do engine (`mobile::local`).
 tower = { version = "0.5", features = ["util"] }
 vt100 = "0.16"
+# Fork: handshake WebSocket do socket Unix (já presentes no lockfile pela casca).
+base64 = "0.22"
+sha1 = "0.10"
 include_dir = "0.7"
 
 [target.'cfg(windows)'.dependencies]

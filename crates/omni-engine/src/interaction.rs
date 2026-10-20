@@ -432,6 +432,7 @@ fn agent_descends_from(ps: &str, pid: u32, provider: &str) -> bool {
 }
 
 pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
+    if let Some(cap) = crate::codex_app_server::capabilities(session) { return cap; } // Fork: 3A, protocolo antes da tela.
     let context = session.interaction.lock().expect("screen poisoned");
     let meta = session.meta.lock().expect("metadata poisoned");
     let provider = meta.provider.as_deref().unwrap_or("");

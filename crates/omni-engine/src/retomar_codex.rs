@@ -16,6 +16,10 @@ use std::path::Path;
 /// reaproveitar com segurança (um prompt entre aspas, por exemplo).
 pub fn comando(dir: &Path, meta: &TerminalSession, original: &str) -> Option<String> {
     if meta.provider.as_deref() != Some("codex") { return None; }
+    // Fork 3A: app-server já conhece o id, mesmo antes de existir rollout em disco.
+    if let Some(id)=meta.external_session_id.as_deref().filter(|id|!id.is_empty() && id.bytes().all(|b|b.is_ascii_alphanumeric() || b==b'-')) {
+        if let Some(comando)=com_resume(original,id) {return Some(comando);}
+    }
     let mut indice = read_index(dir);
     discover_codex_transcripts(&mut indice, &omni_core::profiles(dir));
     let sessao = indice.iter()
@@ -28,7 +32,8 @@ pub fn comando(dir: &Path, meta: &TerminalSession, original: &str) -> Option<Str
 }
 
 fn com_resume(original: &str, sessao: &str) -> Option<String> {
-    if original.contains(['"', '\'']) { return None; }
+    // Fork 3A: flags TOML entre aspas também precisam retomar o thread, sem repetir um fork.
+    if original.contains(['"', '\'']) { return crate::codex_app_server::comando_de_retomada(original,sessao); }
     let mut partes = original.split_whitespace();
     let binario = partes.next()?;
     let mut resto: Vec<&str> = partes.collect();
