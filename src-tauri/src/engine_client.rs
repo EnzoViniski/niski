@@ -88,6 +88,21 @@ pub fn ensure_engine() -> EngineResponse {
     }
 }
 
+/// Fork (retomar-sempre): encerra o engine (ele grava as sessões antes) e espera a porta soltar, para
+/// a próxima janela subir o binário novo. `true` = não responde mais.
+pub fn encerrar_engine() -> bool {
+    if authenticated_request(|token| EngineRequest::Ping { token }).is_err() { return true; }
+    let _ = authenticated_request(|token| EngineRequest::Shutdown { token });
+    for _ in 0..50 {
+        if authenticated_request(|token| EngineRequest::Ping { token }).is_err() {
+            ENGINE_PENDENTE.store(false, std::sync::atomic::Ordering::SeqCst);
+            return true;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    false
+}
+
 /// Erros da interface (exceção não tratada, promessa rejeitada) para o log em disco. A UI manda só
 /// tipo, mensagem e origem; o `registro` tira trechos entre aspas e corta o tamanho.
 #[tauri::command]

@@ -1,4 +1,4 @@
-import { AlertIcon, CheckIcon, CircleIcon, PlayIcon, ZapOffIcon } from "./ui/PixelIcon";
+import { AlertIcon, CheckIcon, CircleIcon, PlayIcon, ReloadIcon, ZapOffIcon } from "./ui/PixelIcon";
 import { AgentIcon } from "./ui/AgentIcon";
 import type { TerminalSession } from "../features/terminal/terminalService";
 
@@ -12,12 +12,15 @@ import type { TerminalSession } from "../features/terminal/terminalService";
  * - **interrompido**: parou sem terminar — limite de uso, erro de API ou o processo caiu.
  * - **finalizado**: terminou um turno que você ainda não viu.
  * - **neutro**: nada para ver.
+ * - **retoma** (fork, retomar-sempre): agente que o engine anterior deixou aberto; volta com
+ *   `--resume` quando a aba é aberta.
  */
-export type ConversaStatus = "trabalhando" | "aprovacao" | "interrompido" | "finalizado" | "neutro";
+export type ConversaStatus = "trabalhando" | "aprovacao" | "interrompido" | "finalizado" | "retoma" | "neutro";
 
-export function statusDaConversa(session: Pick<TerminalSession, "state" | "notice">, naoVista: boolean): ConversaStatus {
+export function statusDaConversa(session: Pick<TerminalSession, "state" | "notice" | "retoma_ao_abrir">, naoVista: boolean): ConversaStatus {
   if (session.state === "approval_required") return "aprovacao";
   if (session.state === "working") return "trabalhando";
+  if (session.retoma_ao_abrir) return "retoma";
   if (session.notice || session.state === "crashed") return "interrompido";
   if (naoVista && session.state === "answered") return "finalizado";
   return "neutro";
@@ -43,6 +46,8 @@ const VISUAL: Record<
     selo: "bg-danger/15 border-danger/50", linha: "border-danger bg-danger/[0.08]" },
   finalizado: { icon: CheckIcon, cor: "text-accent", rotulo: "finalizado",
     selo: "bg-accent/15 border-accent/50", linha: "border-accent bg-accent/[0.07]" },
+  retoma: { icon: ReloadIcon, cor: "text-text-secondary", rotulo: "retoma ao abrir",
+    selo: "bg-overlay/5 border-border-subtle", linha: "border-transparent" },
   neutro: { icon: CircleIcon, cor: "text-text-muted", rotulo: "", selo: "", linha: "border-transparent" },
 };
 
@@ -66,7 +71,7 @@ export function IconeDoStatus({ status, className = "" }: { status: ConversaStat
 }
 
 /** Ordem dos selos no resumo: o que pede você primeiro. */
-const ORDEM: ConversaStatus[] = ["aprovacao", "interrompido", "trabalhando", "finalizado", "neutro"];
+const ORDEM: ConversaStatus[] = ["aprovacao", "interrompido", "trabalhando", "finalizado", "retoma", "neutro"];
 
 /**
  * Resumo dos agentes de um projeto/workspace: um selo por (agente, status) com ícone, cor do status

@@ -34,6 +34,9 @@ pub struct VersaoNova {
     agentes_ocupados: usize,
     /// Fork: o engine também é novo (agora ou adiado).
     engine_pendente: bool,
+    /// Fork (retomar-sempre): a troca do engine foi adiada nesta janela (havia agente trabalhando):
+    /// a interface está falando com o engine antigo.
+    engine_antigo_rodando: bool,
 }
 
 // Fork: async — consulta o engine (agentes ocupados) e não pode segurar a thread da janela.
@@ -47,12 +50,23 @@ pub fn versao_nova_no_disco() -> VersaoNova {
     let pendente = crate::engine_client::ENGINE_PENDENTE.load(std::sync::atomic::Ordering::SeqCst);
     let engine = mudou(abertura.engine, atual.engine) || pendente;
     let ocupados = if engine { crate::engine_client::agentes_ocupados() } else { 0 };
-    VersaoNova { disponivel: app || engine, reinicia_agentes: engine && ocupados == 0, agentes_ocupados: ocupados, engine_pendente: engine }
+    VersaoNova { disponivel: app || engine, reinicia_agentes: engine && ocupados == 0, agentes_ocupados: ocupados, engine_pendente: engine,
+        engine_antigo_rodando: pendente }
 }
 
-#[tauri::command]
-pub fn reiniciar_para_atualizar(app: tauri::AppHandle) {
-    omni_core::registro::info("app_reiniciou_para_atualizar", &[]);
+/// Fork (retomar-sempre): `trocar_engine` = o usuário confirmou reiniciar também o engine. Antes o
+/// reinício só reabria a janela: com algum agente trabalhando, a janela nova voltava a adiar a troca
+/// (`ensure_engine`) e seguia falando com o engine antigo — interface nova + engine velho (rotas 404).
+/// Agora o engine é encerrado aqui (ele grava as sessões antes de sair) e a janela nova sobe o
+/// binário novo; cada aba de agente volta com `--resume` ao ser aberta.
+#[tauri::command(async)]
+pub fn reiniciar_para_atualizar(app: tauri::AppHandle, trocar_engine: Option<bool>) {
+    let trocar = trocar_engine.unwrap_or(false);
+    omni_core::registro::info("app_reiniciou_para_atualizar", &[("trocar_engine", if trocar { "sim" } else { "nao" })]);
+    if trocar {
+        let encerrado = crate::engine_client::encerrar_engine();
+        omni_core::registro::info("engine_encerrado_para_atualizar", &[("ok", if encerrado { "sim" } else { "nao" })]);
+    }
     // `restart` sai direto, sem `RunEvent::Exit`: solta o modelo de voz aqui.
     crate::voz::liberar();
     app.restart();

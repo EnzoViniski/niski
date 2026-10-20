@@ -270,7 +270,9 @@ fn fake_session(state:&Arc<EngineState>,text:&str) -> (Arc<LiveSession>,Arc<Mute
     assert_eq!(status,400,"valor perigoso passou");
 
     let (_sessao,_,_) = fake_session(&state,"Claude Code\r\n❯ ");
-    assert_eq!(pedir(state,"k3").await.0,409,"retomou uma conversa que já está aberta");
+    // Fork (retomar-sempre): já aberta e rodando = vai para ela (antes: 409 "já está aberta no PC").
+    let (status, corpo) = pedir(state,"k3").await;
+    assert_eq!((status, corpo["ja_aberta"].as_bool()),(200, Some(true)),"conversa aberta não abriu outra sessão: {corpo}");
 }
 
 /// Retomar do histórico noutra conta: o transcript vai para a pasta da conta escolhida, e um

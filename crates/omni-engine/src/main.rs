@@ -17,6 +17,8 @@ mod pergunta_da_cli;
 mod mobile;
 // Fork: reinício do Codex retoma a mesma conversa (`codex resume <id>`).
 mod retomar_codex;
+// Fork (retomar-sempre): transcript em qualquer conta, pasta apagada e conversa sumida no reinício.
+mod retomada;
 // Fork: Codex app-server opcional e transporte Unix privado.
 mod codex_app_server;
 mod codex_transporte;
@@ -147,7 +149,11 @@ impl SessionEntry {
                 meta.input_locked = session.reserved.load(Ordering::SeqCst);
                 meta
             }
-            Self::Historical(session) => session.clone(),
+            // Fork (retomar-sempre): agente que o engine anterior deixou aberto volta ao abrir a aba.
+            Self::Historical(session) => TerminalSession {
+                retoma_ao_abrir: session.provider.is_some() && session.state == SessionState::Stopped,
+                ..session.clone()
+            },
         }
     }
 }
@@ -350,6 +356,9 @@ fn handle_request(request: EngineRequest, state: &Arc<EngineState>) -> EngineRes
         EngineRequest::RenameSession { session_id, name, .. } => rename_session(state, &session_id, &name),
         EngineRequest::Api { .. } => unreachable!("tratada em serve_client"),
         EngineRequest::Shutdown { .. } => {
+            // Fork (retomar-sempre): grava o estado de cada sessão antes de sair, para as abas
+            // voltarem com `--resume` no engine novo.
+            let _ = state.persist();
             std::process::exit(0);
         }
     };
@@ -776,6 +785,7 @@ pub(crate) fn spawn_terminal_inner(
         profile_id: origin.profile_id,
         conversation_id: origin.conversation_id,
         external_session_id: origin.external_session_id,
+        retoma_ao_abrir: false,
     };
     let session = Arc::new(LiveSession {
         interaction: Mutex::new(interaction::Interaction::new(rows.max(1), cols.max(1))),
@@ -957,13 +967,18 @@ fn comando_ao_reiniciar(meta: &TerminalSession) -> Option<String> {
         return Some(original);
     }
     let Some(id) = meta.external_session_id.as_deref() else { return Some(original) };
+    // Fork (retomar-sempre): procura em todas as contas (e copia para a da sessão) uma vez só.
+    let pronto = transcript_claude_existe(meta, id);
     // Fork: reiniciar retoma **a cópia** — repetir o `--fork-session` bifurcaria de novo.
-    if original.contains("--fork-session") && transcript_claude_existe(meta, id) {
+    if original.contains("--fork-session") && pronto {
         let base = original.split(" --resume ").next().unwrap_or("claude");
         return Some(format!("{base} --resume {id}"));
     }
     let criar = format!("--session-id {id}");
-    if !original.contains(&criar) || !transcript_claude_existe(meta, id) {
+    // Fork (retomar-sempre): `--resume` de conversa que não existe em conta nenhuma morria com "No
+    // conversation found"; abre conversa nova com o mesmo id.
+    if !pronto { return Some(retomada::sem_transcript(&original, id)); }
+    if !original.contains(&criar) {
         return Some(original);
     }
     Some(original.replacen(&criar, &format!("--resume {id}"), 1))
@@ -972,6 +987,10 @@ fn comando_ao_reiniciar(meta: &TerminalSession) -> Option<String> {
 /// Fork: `comando_ao_reiniciar` + Codex retomando a mesma conversa (ver `retomar_codex`).
 fn comando_ao_reiniciar_com_codex(state: &EngineState, meta: &TerminalSession) -> Option<String> {
     let comando = comando_ao_reiniciar(meta)?;
+    // Fork (retomar-sempre): rollout em outra conta vai para o CODEX_HOME da sessão antes do `resume`.
+    if let (Some("codex"), Some(id), Some(dir)) = (meta.provider.as_deref(), meta.external_session_id.as_deref(), state.state_file.parent()) {
+        retomada::levar_rollout_codex(meta, id, &omni_core::profiles(dir));
+    }
     Some(state.state_file.parent().and_then(|dir| retomar_codex::comando(dir, meta, &comando)).unwrap_or(comando))
 }
 
@@ -995,14 +1014,10 @@ fn com_log_do_antigravity(comando: &str, sessao: &str) -> String {
 
 /// O transcript mora no config dir da conta da sessão: `CLAUDE_CONFIG_DIR` do perfil quando há, senão
 /// o `~/.claude` padrão.
+/// Fork (retomar-sempre): não achou na conta da sessão, procura nas outras contas conhecidas e copia.
 fn transcript_claude_existe(meta: &TerminalSession, id: &str) -> bool {
-    let config_dir = meta
-        .env
-        .iter()
-        .find(|(chave, _)| chave == "CLAUDE_CONFIG_DIR")
-        .map(|(_, valor)| PathBuf::from(valor))
-        .or_else(|| env::var_os("USERPROFILE").or_else(|| env::var_os("HOME")).map(|home| PathBuf::from(home).join(".claude")));
-    config_dir.is_some_and(|dir| omni_core::conversations::claude_transcript_path(&dir, &meta.cwd, id).is_file())
+    let perfis = if cfg!(test) { Vec::new() } else { engine_dir().map(|dir| omni_core::profiles(&dir)).unwrap_or_default() };
+    retomada::transcript_claude_pronto(meta, id, &perfis)
 }
 
 enum RestartTarget {
@@ -1034,6 +1049,14 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
             SessionEntry::Historical(meta) => RestartTarget::Historical(meta.clone()),
         }
     };
+
+    // Fork (retomar-sempre): pasta apagada (worktree removida) não abre shell nenhum; o erro tem
+    // código para a interface oferecer outra pasta.
+    let cwd = match &target {
+        RestartTarget::Live(session) => session.meta.lock().map_err(|_| anyhow!("session metadata poisoned"))?.cwd.clone(),
+        RestartTarget::Historical(meta) => meta.cwd.clone(),
+    };
+    retomada::conferir_pasta(&cwd)?;
 
     match target {
         // The Arc stays the same object in the map — only its interior fields are

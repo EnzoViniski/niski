@@ -40,6 +40,9 @@ import { AgentRuntimeBadge } from "./AgentRuntimeBadge";
 import { FONTE_MONO } from "../../lib/fontes";
 import { ajustesDoAgente, opcoesDeModelo } from "../../lib/escolhasSalvas";
 import { useSession } from "./sessionProviders";
+// Fork (retomar-sempre): saídas quando a aba não consegue voltar (pasta sumida, conversa não achada).
+import { ConversaNaoAchada, PastaSumida } from "../retomada/AvisoDeRetomada";
+import { cliNaoAchouAConversa, ehPastaSumida } from "../retomada/retomadaService";
 
 /** Colar imagem numa CLI de agente: ESC v (meta+v) — o que o Alt+V já mandava e funcionava.
  *  Se alguma CLI passar a escutar ^V (0x16) em vez disso, é aqui que muda. */
@@ -120,6 +123,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
   const [switching, setSwitching] = useState(false);
   const [inputLocked, setInputLocked] = useState(false);
   const [failoverStatus, setFailoverStatus] = useState<FailoverStatus | null>(null);
+  const [conversaNaoAchada, setConversaNaoAchada] = useState(false);
   const conversationRef = useRef<string | null>(null);
   /** Conta → instante exato em que volta ao rodízio. O mapa sobrevive à remontagem do efeito
    * causada pela troca de perfil; o cache de uso em disco recompõe a informação após restart. */
@@ -494,7 +498,9 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
         const snapshot = await terminalSnapshot(sessionRef.current, sequenceRef.current);
         // Sessão histórica: o engine devolve `next_seq` 0 e nenhuma saída. Só na primeira leitura,
         // para não ressuscitar em loop quem o usuário parou nesta mesma montagem.
-        const dead = snapshot.session.state === "stopped" || snapshot.session.state === "crashed";
+        // Fork (retomar-sempre): `orphan` (pasta sumiu) também tenta voltar: o erro do engine vira as
+        // saídas de `PastaSumida` em vez de uma aba preta sem botão.
+        const dead = snapshot.session.state === "stopped" || snapshot.session.state === "crashed" || snapshot.session.state === "orphan";
         const historico = firstPoll && reatando;
         if (firstPoll && dead && snapshot.next_seq === 0) void revive(sessionRef.current);
         firstPoll = false;
@@ -507,6 +513,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
             terminal.write(snapshot.data, () => { reproduzindo -= 1; });
           } else {
             terminal.write(snapshot.data);
+            if (cliNaoAchouAConversa(snapshot.data)) setConversaNaoAchada(true); // Fork (retomar-sempre)
           }
         }
         setState(snapshot.session.state);
@@ -759,7 +766,25 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
           onSwitch={(plan, nextAgent, profile) => void applySwitch(plan, nextAgent, profile)}
         />
       )}
-      {error && (
+      {conversaNaoAchada && sessionRef.current && (
+        <ConversaNaoAchada
+          sessao={{ sessionId: sessionRef.current, projectId, projectPath, cwd: pastaDaSessaoRef.current ?? projectPath,
+            provider: sessao.provider, profileId: sessao.profileId, externalSessionId: sessao.externalSessionId, titulo: tab.title }}
+          onNova={(sessionId, titulo) => { setConversaNaoAchada(false); onSessionCreated(sessionId, titulo, sessao.provider); }}
+          onFechar={() => setConversaNaoAchada(false)}
+        />
+      )}
+      {error && sessionRef.current && ehPastaSumida(error) && (
+        <div role="alert" className="absolute inset-x-3 top-3 z-10 border-2 border-danger bg-bg-elevated p-3 text-xs text-danger">
+          <PastaSumida
+            erro={error}
+            sessao={{ sessionId: sessionRef.current, projectId, projectPath, cwd: pastaDaSessaoRef.current ?? projectPath,
+              provider: sessao.provider, profileId: sessao.profileId, externalSessionId: sessao.externalSessionId, titulo: tab.title }}
+            onReaberta={() => { setError(null); setRetry((value) => value + 1); }}
+          />
+        </div>
+      )}
+      {error && !(sessionRef.current && ehPastaSumida(error)) && (
         <div role="alert" className="absolute inset-x-3 top-3 z-10 border-2 border-danger bg-bg-elevated p-3 text-xs text-danger">
           <p>{error}</p>
           <Button

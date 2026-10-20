@@ -49,6 +49,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   // Separado de `error`: o polling limpa `error` a cada ciclo bem-sucedido, e uma recusa da fila
   // aparecia e sumia no mesmo instante. Este só limpa no próximo envio.
   const [falhaEnvio, setFalhaEnvio] = useState<string | null>(null);
+  // Fork (retomar-sempre): pasta da conversa sumiu — "Abrir no repositório principal" refaz o Retomar lá.
+  const [outraPasta, setOutraPasta] = useState<{ pasta: string; ajustes: Ajustes } | null>(null);
   const [busy, setBusy] = useState(false);
   const [parando, setParando] = useState(false);
   const [bifurcando, setBifurcando] = useState(false);
@@ -210,13 +212,13 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
 
   /** Conversa sem sessão: abre uma no PC com `--resume`, já com conta, modelo e esforço. A fila
    *  abre em segundo plano, então espera a sessão aparecer antes de trocar de tela. */
-  async function retomar(ajustes: Ajustes) {
-    setBusy(true); setError(null); setFalhaEnvio(null);
+  async function retomar(ajustes: Ajustes, pasta?: string) {
+    setBusy(true); setError(null); setFalhaEnvio(null); setOutraPasta(null);
     try {
       const acao = await request<{ conversation_id?: string }>(`/conversas/${encodeURIComponent(conversation.id)}/retomar`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": actionKey() },
-        body: JSON.stringify({ ...ajustes }),
+        body: JSON.stringify({ ...ajustes, ...(pasta ? { pasta } : {}) }),
       });
       const destino = acao.conversation_id || conversation.id;
       for (let tentativa = 0; tentativa < 30; tentativa += 1) {
@@ -227,7 +229,16 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
       await refresh();
       if (destino !== conversation.id && abrirConversa) abrirConversa(destino);
       else await ler();
-    } catch (reason) { setError(String(reason)); throw reason; }
+    } catch (reason) {
+      // Fork (retomar-sempre): pasta sumida não é beco sem saída — a mensagem fica (o polling não a
+      // apaga) com o botão para abrir no repositório principal.
+      if (reason instanceof ApiError && reason.detalhes.codigo === "pasta_sumiu") {
+        const principal = typeof reason.detalhes.pasta_principal === "string" ? reason.detalhes.pasta_principal : null;
+        setFalhaEnvio(principal ? reason.message : `${reason.message} Abra o projeto de novo e retome de lá.`);
+        if (principal) setOutraPasta({ pasta: principal, ajustes });
+      } else setError(String(reason));
+      throw reason;
+    }
     finally { setBusy(false); }
   }
 
@@ -432,6 +443,15 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
       <button type="button" className="chat-novidades" onClick={() => irParaOFim(true)}>Novas mensagens ↓</button>
     )}
 
+    {outraPasta && (
+      <div className="chat-fila" role="group" aria-label="Abrir em outra pasta">
+        <p className="chat-fila-rotulo" title={outraPasta.pasta}>Repositório principal: {outraPasta.pasta}</p>
+        <button type="button" className="m-chip-aplicar m-chip-retomar" disabled={busy}
+          onClick={() => void retomar(outraPasta.ajustes, outraPasta.pasta).catch(() => undefined)}>
+          Abrir no repositório principal
+        </button>
+      </div>
+    )}
     <RodapeDaConversa conversation={conversation} timeline={timeline} falhaEnvio={falhaEnvio} error={error}
       anexoGrande={anexoGrande} ativo={ativo} trabalhando={trabalhando} destravavel={destravavel}
       texto={text} onTexto={setText} anexos={anexos} onAdicionar={adicionar} onRemover={remover}
