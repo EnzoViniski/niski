@@ -1,0 +1,15 @@
+/* Fork (pergunta-da-cli): as últimas linhas do terminal dentro do cartão de espera. */
+.pergunta-tela {
+  margin: 0;
+  max-height: 14rem;
+  overflow: auto;
+  padding: .5rem .625rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .6875rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgb(var(--c-text-secondary));
+  background: rgb(var(--c-bg-primary) / .55);
+  border: 1px dashed rgb(var(--c-outline));
+}

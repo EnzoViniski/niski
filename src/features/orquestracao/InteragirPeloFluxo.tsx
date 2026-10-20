@@ -115,8 +115,14 @@ export function AcoesDoNo({ no, orquestrador, centro }: { no: NoAoVivo; orquestr
         </div>
       )}
       {!no.capabilities?.approve && no.capabilities?.escolha && (
-        <div className="orq-pedido nodrag"><div className="orq-pedido-texto">{no.capabilities.escolha.pergunta}</div>
+        <div className="orq-pedido nodrag"><div className="orq-pedido-texto">
+          {no.capabilities.escolha.da_cli ? `A CLI está perguntando: ${no.capabilities.escolha.pergunta}` : no.capabilities.escolha.pergunta}</div>
           <div className="orq-pedido-dica">Clique no nó para responder na conversa.</div></div>
+      )}
+      {/* Fork (pergunta-da-cli): a CLI esperando algo no terminal que nem o orquestrador responde. */}
+      {!no.capabilities?.approve && !no.capabilities?.escolha && no.capabilities?.espera && (
+        <div className="orq-pedido nodrag"><div className="orq-pedido-texto" title={no.capabilities.espera.texto}>Esperando algo no terminal</div>
+          <div className="orq-pedido-dica">Clique no nó e responda pelo terminal da conversa.</div></div>
       )}
       {!centro && vivo && (
         <div className="orq-no-rodape nodrag">

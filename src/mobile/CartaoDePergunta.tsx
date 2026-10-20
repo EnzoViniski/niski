@@ -1,6 +1,6 @@
 import { AgentIcon } from "../components/ui/AgentIcon";
 import { Button } from "../components/ui/Button";
-import { ChatIcon, CheckIcon, SendIcon } from "../components/ui/PixelIcon";
+import { ChatIcon, CheckIcon, SendIcon, TerminalIcon } from "../components/ui/PixelIcon";
 import type { Escolha } from "./api";
 
 /** Textos fixos da CLI (o que o agente escreve fica como veio). */
@@ -32,6 +32,8 @@ interface Props {
   onEscolher: (opcao: number | null) => void;
   /** Marcar-várias: segue para a próxima pergunta ou para a revisão (Tab). */
   onAvancar: () => void;
+  /** Fork (pergunta-da-cli): abre o terminal da conversa por cima, para responder lá. */
+  onAbrirTerminal?: () => void;
 }
 
 /**
@@ -39,7 +41,7 @@ interface Props {
  * linha com a explicação embaixo, caixas de marcar quando dá para escolher várias, as etapas de
  * várias perguntas seguidas e a revisão final em lista.
  */
-export function CartaoDePergunta({ escolha, provider, busy, onEscolher, onAvancar }: Props) {
+export function CartaoDePergunta({ escolha, provider, busy, onEscolher, onAvancar, onAbrirTerminal }: Props) {
   const revisao = escolha.pergunta === "Review your answers";
   const respostas = revisao ? respostasDaRevisao(escolha.detalhe) : [];
   const detalhe = revisao ? null : escolha.detalhe;
@@ -51,7 +53,8 @@ export function CartaoDePergunta({ escolha, provider, busy, onEscolher, onAvanca
     <section className="pergunta" role="group" aria-label={t(escolha.pergunta)} aria-busy={busy}>
       <header className="pergunta-topo">
         <span className="pergunta-avatar" aria-hidden><AgentIcon provider={provider} size={14} /></span>
-        <span className="pergunta-quem">{revisao ? "Antes de enviar" : "O agente quer saber"}</span>
+        {/* Fork (pergunta-da-cli): menu da própria CLI, não do agente. */}
+        <span className="pergunta-quem">{revisao ? "Antes de enviar" : escolha.da_cli ? "A CLI está perguntando" : "O agente quer saber"}</span>
         {escolha.etapas && escolha.etapas.length > 1 && (
           <ol className="pergunta-etapas" aria-label="Perguntas">
             {escolha.etapas.map((etapa) => (
@@ -108,6 +111,9 @@ export function CartaoDePergunta({ escolha, provider, busy, onEscolher, onAvanca
           </button>
         )}
         <span className="flex-1" />
+        {escolha.da_cli && onAbrirTerminal && (
+          <Button variant="ghost" size="sm" onClick={onAbrirTerminal}><TerminalIcon aria-hidden className="h-3.5 w-3.5" />Abrir no terminal</Button>
+        )}
         <Button variant="ghost" size="sm" disabled={busy} onClick={() => onEscolher(null)}>Fechar</Button>
         {escolha.multipla && (
           <Button variant="primary" size="sm" disabled={busy || marcadas === 0} onClick={onAvancar}>Continuar →</Button>
