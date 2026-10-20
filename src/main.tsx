@@ -5,6 +5,8 @@ import "./index.css";
 import "./styles/fork.css";
 // Fork: pausa de animações com a janela parada e contenção de layout (energia).
 import "./styles/energia.css";
+// Fork: estilo Minimalista (só vale com data-estilo="minimalista"; por último para reescrever os outros).
+import "./styles/minimalista.css";
 import { usarTransporte } from "./mobile/api";
 import { transporteDoEngine } from "./features/conversa/transporteDoEngine";
 import { instalarRegistroDeErros } from "./lib/registroDeErros";

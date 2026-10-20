@@ -19,10 +19,15 @@ export type Background =
   | (string & {});
 export type GlassLevel = "sutil" | "medio" | "forte";
 export type MotionLevel = "completas" | "reduzidas" | "desligadas";
+/** Fork: "classico" é o visual pixel/vidro de sempre; "minimalista" troca só o visual
+ *  (`src/styles/minimalista.css`, ativado por `data-estilo` no `<html>`). */
+export type EstiloDaInterface = "classico" | "minimalista";
 
 /** Preferências visuais do shell. Cada workspace/pane herda daqui. */
 export interface AppSettings {
   theme: Theme;
+  /** Fork: estilo da interface. Configuração antiga sem o campo cai no clássico. */
+  estilo: EstiloDaInterface;
 
   /**
    * Id da paleta de cor (ver `src/lib/palettes.ts`). Vale para ícones, foco,
@@ -65,6 +70,7 @@ export type AgentView = "conversa" | "terminal";
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: "escuro",
+  estilo: "classico",
 
   accent: PALETA_PADRAO,
   background: "gradient-waves",

@@ -148,7 +148,8 @@ export function PaneView({
       className={[
         // Terminal pinta o próprio fundo (com a opacidade configurável); o do painel por baixo
         // cobriria o fundo do app mesmo com o terminal transparente.
-        "relative flex-1 min-w-0 min-h-0 flex flex-col border-2",
+        // Fork: `painel-moldura` (e `painel-cabecalho` abaixo) são ganchos do estilo Minimalista.
+        "painel-moldura relative flex-1 min-w-0 min-h-0 flex flex-col border-2",
         tab?.kind === "terminal" || tab?.kind === "agent" ? "" : "bg-bg-surface/90",
         // Com um painel só, a moldura de foco não informa nada e só pesava a tela.
         active && !onlyPane ? "border-accent/80" : "border-border-subtle",
@@ -167,7 +168,7 @@ export function PaneView({
       onDragEnd={() => setDragActive(false)}
     >
       <header
-        className="h-10 shrink-0 flex items-stretch border-b-2 border-border-subtle bg-bg-elevated/90"
+        className="painel-cabecalho h-10 shrink-0 flex items-stretch border-b-2 border-border-subtle bg-bg-elevated/90"
         draggable
         onDragStart={(event) => {
           if ((event.target as HTMLElement).closest('[role="tablist"]')) {

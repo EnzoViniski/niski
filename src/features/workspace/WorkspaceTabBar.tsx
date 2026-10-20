@@ -45,7 +45,9 @@ export function WorkspaceTabBar({ pane, dispatch, onCloseTab, dirtyTabIds, onCri
             onCloseTab(item);
           }}
           className={[
-            "group flex shrink-0 items-stretch border-r-2 border-border-subtle max-w-64 select-none touch-none cursor-grab active:cursor-grabbing",
+            // Fork: `aba-do-painel`/`is-ativa` são o gancho do estilo Minimalista (`minimalista.css`).
+            "aba-do-painel group flex shrink-0 items-stretch border-r-2 border-border-subtle max-w-64 select-none touch-none cursor-grab active:cursor-grabbing",
+            item.id === pane.activeTabId ? "is-ativa" : "",
             // Aba ativa: fundo do conteúdo e um filete do acento no topo, como aba "aberta".
             item.id === pane.activeTabId ? "bg-bg-surface shadow-[inset_0_2px_0_rgb(var(--c-accent))]" : "hover:bg-overlay/[0.04]",
           ].join(" ")}

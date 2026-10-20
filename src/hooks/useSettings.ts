@@ -61,6 +61,8 @@ export function useSettings() {
     root.dataset.glass = settings.glass;
     root.dataset.motion = settings.animations;
     root.dataset.conversa = settings.conversationBackground;
+    // Fork: estilo da interface. Valor desconhecido (de uma versão mais nova) fica no clássico.
+    root.dataset.estilo = settings.estilo === "minimalista" ? "minimalista" : "classico";
     // 100% vira alfa .25 da cor do tema: acima disso a linha disputa com o texto.
     root.style.setProperty("--conversa-grade", String(settings.conversationGridOpacity / 400));
     root.style.setProperty("--app-bg-opacity", String(settings.backgroundOpacity / 100));
@@ -85,6 +87,7 @@ export function useSettings() {
     settings.animations,
     settings.conversationBackground,
     settings.conversationGridOpacity,
+    settings.estilo,
   ]);
 
   return { settings, updateSettings, resetSettings };

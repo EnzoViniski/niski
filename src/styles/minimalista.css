@@ -1,0 +1,472 @@
+/* Fork: estilo "Minimalista" (Configurações → Aparência → Estilo da interface).
+   Só vale com `data-estilo="minimalista"` no <html> (posto pelo `useSettings`); sem o atributo o
+   Clássico fica exatamente como era. Carregado por último em `main.tsx`, então reescreve as regras
+   do `index.css`, `fork.css`, `web.css` e `mobile.css` sem mexer nelas.
+
+   Escolhido pelo Enzo (20/10/2026): tons quentes do "Papel" (lembra o app do Claude), cantos,
+   ícone do agente num quadradinho tingido e balões chapados do "Arejado".
+   Mockup: https://claude.ai/artifact/1r6PEQJAgLCxVuLtjzRosU (quadros "Escolhida"). */
+
+/* ── Ícones: par de traço fino (`PixelIcon.tsx` + `iconesDeTraco.ts`) ─────────────────────────── */
+.icone-traco { display: none; }
+:root[data-estilo="minimalista"] .icone-pixel { display: none; }
+:root[data-estilo="minimalista"] .icone-traco { display: inline; }
+
+/* ── Prévia nas Configurações (`EscolhaDeEstilo.tsx`) — igual nos dois estilos ───────────────── */
+.estilo-opcoes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+@media (max-width: 640px) { .estilo-opcoes { grid-template-columns: minmax(0, 1fr); } }
+.estilo-opcao {
+  display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; padding: .625rem;
+  text-align: left; color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .03);
+  border: 2px solid rgb(var(--c-border-subtle)); cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.estilo-opcao:hover { border-color: rgb(var(--c-border)); }
+.estilo-opcao[aria-checked="true"] { border-color: rgb(var(--c-accent)); background: rgb(var(--c-accent) / .08); }
+.estilo-opcao-nome { margin-top: .375rem; font-size: .8125rem; font-weight: 700; }
+.estilo-opcao-desc { font-size: .6875rem; color: rgb(var(--c-text-muted)); }
+:root[data-estilo="minimalista"] .estilo-opcao { border-width: 1px; border-radius: 14px; }
+:root[data-estilo="minimalista"] .estilo-opcao-nome { font-weight: 600; }
+
+.estilo-previa { display: flex; width: 100%; height: 5.5rem; overflow: hidden; }
+.estilo-previa-lateral { display: flex; flex-direction: column; gap: 5px; width: 34%; padding: 8px 6px; }
+.estilo-previa-conteudo { display: flex; flex: 1; flex-direction: column; justify-content: center; gap: 7px; padding: 8px 10px; }
+.estilo-previa-linha { display: block; height: 12px; }
+.estilo-previa-balao { display: block; height: 18px; width: 82%; }
+.estilo-previa-balao.is-voce { align-self: flex-end; width: 58%; }
+
+.estilo-previa-classico {
+  background: repeating-linear-gradient(0deg, rgb(249 115 22 / .14) 0 2px, transparent 2px 12px),
+    repeating-linear-gradient(90deg, rgb(249 115 22 / .14) 0 2px, transparent 2px 12px), #0e0e14;
+  border: 3px solid #0f0804; box-shadow: 3px 3px 0 #0f0804;
+}
+.estilo-previa-classico .estilo-previa-lateral { background: rgb(14 14 20 / .85); border-right: 3px solid #0f0804; }
+.estilo-previa-classico .estilo-previa-linha { border-left: 3px solid var(--cor-agente); background: color-mix(in srgb, var(--cor-agente) 18%, transparent); }
+.estilo-previa-classico .estilo-previa-balao { background: #16161e; border: 2px solid #0f0804; box-shadow: 2px 2px 0 #0f0804; }
+.estilo-previa-classico .estilo-previa-balao.is-voce { background: rgb(249 115 22 / .25); border-color: rgb(249 115 22 / .8); }
+
+.estilo-previa-minimalista { background: #1f1e1b; border-radius: 12px; border: 1px solid rgb(255 255 255 / .08); }
+.estilo-previa-minimalista .estilo-previa-lateral { background: #191816; }
+.estilo-previa-minimalista .estilo-previa-linha { position: relative; border-radius: 6px; background: rgb(255 255 255 / .05); }
+.estilo-previa-minimalista .estilo-previa-linha::before {
+  content: ""; position: absolute; left: 3px; top: 2px; width: 8px; height: 8px; border-radius: 3px;
+  background: var(--cor-agente);
+}
+.estilo-previa-minimalista .estilo-previa-balao { border-radius: 9px; background: #292824; }
+.estilo-previa-minimalista .estilo-previa-balao.is-voce { background: rgb(249 115 22 / .22); }
+
+/* ── Tokens ────────────────────────────────────────────────────────────────────────────────────
+   As cores de destaque (`--c-accent`, `--c-selected`…) continuam vindo da paleta escolhida: o
+   `aplicarPaleta` escreve no `style` do <html>, que vence estas regras. */
+:root[data-estilo="minimalista"] {
+  --m-fonte: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --m-mono: "SF Mono", ui-monospace, Menlo, Monaco, monospace;
+  --m-r-ctl: 10px;      /* campos, linhas da lateral, botões de ícone */
+  --m-r-cartao: 14px;   /* cartões, avisos, aprovação */
+  --m-r-painel: 16px;   /* diálogos, gavetas, popovers grandes */
+  --m-r-menu: 12px;     /* menus e listas suspensas */
+  --m-r-balao: 20px;    /* balões da Conversa */
+  --m-r-composer: 22px; /* campo de mensagem */
+  --m-r-pilula: 999px;  /* botões, abas, chips */
+
+  --pixel-border: 1px;
+  --pixel-shadow: 0px;
+  --glass-radius: var(--m-r-cartao);
+  --glass-a: 1;
+  --glass-a-hover: 1;
+  --app-bg-image: none;
+}
+
+/* Escuro: Papel. */
+:root[data-estilo="minimalista"],
+:root[data-estilo="minimalista"][data-theme="escuro"] {
+  --c-bg-primary: 31 30 27;
+  --c-bg-surface: 38 37 34;
+  --c-bg-elevated: 43 42 38;
+  --c-border-subtle: 52 51 47;
+  --c-border: 66 64 60;
+  --c-text-primary: 238 237 232;
+  --c-text-secondary: 176 173 164;
+  --c-text-muted: 142 139 131;
+  --c-overlay: 255 255 255;
+  --c-outline: 52 51 47;
+  --glass-rgb: 38 37 34;
+  --m-lateral: 25 24 22;
+  --m-balao-agente: 41 40 36;
+  --m-sombra-menu: 0 10px 32px rgb(0 0 0 / .38), 0 1px 3px rgb(0 0 0 / .25);
+  --m-sombra-leve: 0 4px 16px rgb(0 0 0 / .22);
+  --app-bg-veil: 31 30 27;
+}
+
+/* Claro: Papel. */
+:root[data-estilo="minimalista"][data-theme="claro"] {
+  --c-bg-primary: 250 249 245;
+  --c-bg-surface: 255 255 255;
+  --c-bg-elevated: 255 255 255;
+  --c-border-subtle: 232 229 221;
+  --c-border: 214 210 200;
+  --c-text-primary: 31 30 27;
+  --c-text-secondary: 95 92 85;
+  --c-text-muted: 117 113 106;
+  --c-overlay: 31 30 27;
+  --c-outline: 226 223 214;
+  --glass-rgb: 255 255 255;
+  --m-lateral: 243 241 234;
+  --m-balao-agente: 243 241 234;
+  --m-sombra-menu: 0 10px 32px rgb(31 30 27 / .12), 0 1px 3px rgb(31 30 27 / .08);
+  --m-sombra-leve: 0 2px 10px rgb(31 30 27 / .06);
+  --app-bg-veil: 250 249 245;
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────────────────────────── */
+:root[data-estilo="minimalista"] body { font-family: var(--m-fonte); font-size: 13px; }
+:root[data-estilo="minimalista"] body::before,
+:root[data-estilo="minimalista"] body::after { background: none; }
+:root[data-estilo="minimalista"] .font-sans { font-family: var(--m-fonte); }
+:root[data-estilo="minimalista"] :is(code, kbd, pre, samp, .font-mono) { font-family: var(--m-mono); }
+
+/* Título "pixel" (camadas de sombra, caixa alta) vira título comum. */
+:root[data-estilo="minimalista"] .pixel-text {
+  font-weight: 600; letter-spacing: normal; text-transform: none; text-shadow: none;
+}
+/* Rótulos em caixa alta espaçada viram texto normal, menor e mais claro. */
+:root[data-estilo="minimalista"] .uppercase { text-transform: none; }
+:root[data-estilo="minimalista"] :is(.tracking-wider, .tracking-widest, .tracking-wide) { letter-spacing: normal; }
+
+/* Brilhos "neon" e afins somem. */
+:root[data-estilo="minimalista"] .neon { filter: none; text-shadow: none; animation: none; }
+:root[data-estilo="minimalista"] .neon-bar { box-shadow: none; animation: none; }
+
+/* Barra de rolagem neutra e arredondada. */
+:root[data-estilo="minimalista"] * { scrollbar-color: rgb(var(--c-overlay) / .18) transparent; }
+:root[data-estilo="minimalista"] *:hover { scrollbar-color: rgb(var(--c-overlay) / .3) transparent; }
+:root[data-estilo="minimalista"] ::-webkit-scrollbar-thumb { background-color: rgb(var(--c-overlay) / .18); border-radius: 999px; }
+:root[data-estilo="minimalista"] ::-webkit-scrollbar-thumb:hover,
+:root[data-estilo="minimalista"] ::-webkit-scrollbar-thumb:active { background-color: rgb(var(--c-overlay) / .32); box-shadow: none; }
+
+/* Foco: anel suave na cor de destaque, acompanhando o canto do elemento. */
+:root[data-estilo="minimalista"] :focus-visible { outline: 2px solid rgb(var(--c-accent) / .7); outline-offset: 2px; }
+
+/* `rounded-none` (Tailwind) espalhado pelos componentes vira o canto padrão dos controles. */
+:root[data-estilo="minimalista"] .rounded-none { border-radius: var(--m-r-ctl); }
+
+/* Bordas de 2 px (Tailwind) viram 1 px. */
+:root[data-estilo="minimalista"] .border-2 { border-width: 1px; }
+:root[data-estilo="minimalista"] .border-r-2 { border-right-width: 1px; }
+:root[data-estilo="minimalista"] .border-b-2 { border-bottom-width: 1px; }
+:root[data-estilo="minimalista"] .border-t-2 { border-top-width: 1px; }
+:root[data-estilo="minimalista"] .border-l-2 { border-left-width: 1px; }
+
+/* ── Painéis ───────────────────────────────────────────────────────────────────────────────── */
+:root[data-estilo="minimalista"] .glass {
+  border: 1px solid rgb(var(--c-border-subtle));
+  border-radius: var(--m-r-cartao);
+  background-color: rgb(var(--c-bg-surface));
+  box-shadow: none;
+}
+:root[data-estilo="minimalista"] .glass-strong { background-color: rgb(var(--c-bg-primary)); border-width: 1px; }
+:root[data-estilo="minimalista"] .glass-float,
+:root[data-estilo="minimalista"] .popover {
+  border: 1px solid rgb(var(--c-border-subtle));
+  border-radius: var(--m-r-menu);
+  background-color: rgb(var(--c-bg-elevated));
+  box-shadow: var(--m-sombra-menu);
+}
+:root[data-estilo="minimalista"] .glass-inset {
+  border: 1px solid rgb(var(--c-border-subtle));
+  border-radius: var(--m-r-ctl);
+  background-color: rgb(var(--c-bg-primary));
+}
+:root[data-estilo="minimalista"] .glass-success {
+  --glass-rgb: var(--c-success);
+  --glass-a: .1;
+  --glass-a-hover: .14;
+  background-color: rgb(var(--c-success) / .1);
+  border-color: rgb(var(--c-success) / .3);
+}
+:root[data-estilo="minimalista"] .glass-hover { transition: background-color 140ms ease, border-color 140ms ease; }
+:root[data-estilo="minimalista"] .glass-hover:hover { background-color: rgb(var(--c-overlay) / .05); }
+
+/* Lateral: superfície própria, sem borda (separa pelo tom). */
+:root[data-estilo="minimalista"] aside.glass-strong {
+  border: 0;
+  border-radius: 0;
+  background-color: rgb(var(--m-lateral));
+}
+
+/* ── Botões ────────────────────────────────────────────────────────────────────────────────── */
+:root[data-estilo="minimalista"] .btn {
+  border: 1px solid transparent;
+  border-radius: var(--m-r-pilula);
+  box-shadow: none;
+  font-weight: 500;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, opacity 140ms ease;
+}
+:root[data-estilo="minimalista"] .btn:active:not(:disabled) { transform: none; box-shadow: none; filter: brightness(.96); }
+:root[data-estilo="minimalista"] .btn-glass { color: rgb(var(--c-text-primary)); background-color: rgb(var(--c-overlay) / .06); }
+:root[data-estilo="minimalista"] .btn-glass:hover:not(:disabled) { background-color: rgb(var(--c-overlay) / .1); }
+:root[data-estilo="minimalista"] .btn-glass[aria-pressed="true"] { color: #fff; background-color: rgb(var(--c-selected)); border-color: transparent; }
+:root[data-estilo="minimalista"] .btn-primary { color: #fff; background-color: rgb(var(--c-accent)); }
+:root[data-estilo="minimalista"] .btn-primary:hover:not(:disabled) { background-color: rgb(var(--c-accent-hover)); }
+:root[data-estilo="minimalista"] .btn-primary:disabled { box-shadow: none; border-color: transparent; }
+:root[data-estilo="minimalista"] .btn-picker { border: 1px dashed rgb(var(--c-border)); background-color: transparent; }
+:root[data-estilo="minimalista"] .btn-picker:hover:not(:disabled) { background-color: rgb(var(--c-overlay) / .05); }
+:root[data-estilo="minimalista"] .btn-ghost:hover:not(:disabled) { background-color: rgb(var(--c-overlay) / .07); }
+:root[data-estilo="minimalista"] .btn-danger { border-color: transparent; background-color: rgb(var(--c-danger) / .12); }
+
+/* ── Campos ────────────────────────────────────────────────────────────────────────────────── */
+:root[data-estilo="minimalista"] .field {
+  border: 1px solid rgb(var(--c-border-subtle));
+  border-radius: var(--m-r-ctl);
+  background-color: rgb(var(--c-bg-surface));
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+:root[data-estilo="minimalista"] .field:hover:not(:disabled) { border-color: rgb(var(--c-border)); }
+:root[data-estilo="minimalista"] .field:focus,
+:root[data-estilo="minimalista"] .field:focus-visible { border-color: rgb(var(--c-accent) / .7); box-shadow: 0 0 0 3px rgb(var(--c-accent) / .18); }
+:root[data-estilo="minimalista"] .select-opcao { border-radius: 8px; }
+:root[data-estilo="minimalista"] .select-opcao.is-ativa { background: rgb(var(--c-overlay) / .07); }
+:root[data-estilo="minimalista"] .select-opcao.is-ativa::before { display: none; }
+
+/* Slider: trilho fino e redondo, botão redondo. */
+:root[data-estilo="minimalista"] .range::-webkit-slider-runnable-track { height: 4px; border: 0; border-radius: 999px; }
+:root[data-estilo="minimalista"] .range::-webkit-slider-thumb {
+  width: 16px; height: 16px; margin-top: -6px; border: 0; border-radius: 50%;
+  box-shadow: 0 1px 3px rgb(0 0 0 / .3), 0 0 0 1px rgb(0 0 0 / .06);
+}
+
+/* ── Barra do topo ─────────────────────────────────────────────────────────────────────────── */
+:root[data-estilo="minimalista"] .titlebar { background: rgb(var(--m-lateral)); border-bottom: 0; }
+:root[data-estilo="minimalista"] .titlebar::before { display: none; }
+:root[data-estilo="minimalista"] .titlebar-marca { font-size: .8125rem; }
+:root[data-estilo="minimalista"] .titlebar-trilha { border-left: 0; padding-left: .25rem; font-size: .8125rem; }
+:root[data-estilo="minimalista"] .titlebar-trilha-atual { color: rgb(var(--c-text-primary)); font-weight: 500; }
+:root[data-estilo="minimalista"] .titlebar-sep { color: rgb(var(--c-text-muted)); font-weight: 400; }
+:root[data-estilo="minimalista"] .titlebar-controles { border-left: 0; }
+:root[data-estilo="minimalista"] .titlebar-acao {
+  align-self: center; height: 26px; margin: 0 1px; padding: 0 .625rem; border-radius: 8px;
+  font-size: .75rem; font-weight: 500; letter-spacing: normal; text-transform: none; color: rgb(var(--c-text-secondary));
+}
+:root[data-estilo="minimalista"] .titlebar-acao svg { color: currentColor; }
+:root[data-estilo="minimalista"] .titlebar-atualizar { border-radius: 999px; color: rgb(var(--c-accent)); background: rgb(var(--c-accent) / .14); font-weight: 600; }
+
+/* ── Painéis do workspace ──────────────────────────────────────────────────────────────────── */
+:root[data-estilo="minimalista"] .pane-acoes { border-left: 0; align-items: center; gap: 2px; padding: 0 4px; }
+:root[data-estilo="minimalista"] .pane-acao { width: 28px; height: 28px; border-radius: 8px; }
+
+/* Lateral: pastas e conversas (`PastasDeProjetos`, `fork.css`). */
+:root[data-estilo="minimalista"] .pasta { border-left: 0; border-radius: var(--m-r-ctl); margin: 0 .25rem; }
+:root[data-estilo="minimalista"] .pasta.is-ativa { background: rgb(var(--c-overlay) / .05); }
+:root[data-estilo="minimalista"] .pasta-botao { font-size: .8125rem; padding: .375rem .5rem; }
+:root[data-estilo="minimalista"] .pasta.is-ativa .pasta-botao { font-weight: 600; }
+:root[data-estilo="minimalista"] .pasta-conversas { gap: 2px; }
+:root[data-estilo="minimalista"] .conversa-linha {
+  border-left: 0; border-radius: var(--m-r-ctl); background: transparent; overflow: hidden;
+}
+:root[data-estilo="minimalista"] .conversa-linha:hover { background: rgb(var(--c-overlay) / .045); }
+:root[data-estilo="minimalista"] .conversa-linha.is-ativa { background: rgb(var(--c-overlay) / .08); }
+:root[data-estilo="minimalista"] .conversa-botao { gap: .5rem; padding: .3125rem .5rem .3125rem .375rem; font-size: .78125rem; }
+:root[data-estilo="minimalista"] .conversa-linha.is-ativa .conversa-botao { font-weight: 600; }
+/* O agente de relance: o ícone dentro de um quadradinho tingido com a cor dele. */
+:root[data-estilo="minimalista"] :is(.conversa-linha, .aba-do-painel, .bubble-author, .aba-agente-topo) .icone-do-agente {
+  box-sizing: content-box; padding: 3.5px; border-radius: 6px;
+  background: color-mix(in srgb, var(--cor-agente, rgb(var(--c-accent))) 18%, transparent);
+}
+:root[data-estilo="minimalista"] .conversa-linha.is-anterior { background: transparent; }
+:root[data-estilo="minimalista"] .conversa-linha.is-anterior:hover { background: rgb(var(--c-overlay) / .04); }
+:root[data-estilo="minimalista"] .conversa-linha.is-anterior .icone-do-agente {
+  background: color-mix(in srgb, var(--cor-agente, rgb(var(--c-accent))) 10%, transparent); opacity: .8;
+}
+:root[data-estilo="minimalista"] .conversa-acoes { background: rgb(var(--m-lateral)); border-left: 0; border-radius: 0 var(--m-r-ctl) var(--m-r-ctl) 0; }
+:root[data-estilo="minimalista"] .conversas-anteriores-rotulo { font-size: .6875rem; letter-spacing: normal; text-transform: none; padding-top: .5rem; }
+:root[data-estilo="minimalista"] .conversa-quando { font-size: .6875rem; }
+:root[data-estilo="minimalista"] .conversa-apagar-confirmar { border-radius: 6px; }
+
+/* Arrastar na lateral. */
+:root[data-estilo="minimalista"] :is(.pastas li.is-arrastando, .conversa-linha.is-arrastando) { border-radius: var(--m-r-ctl); }
+:root[data-estilo="minimalista"] .lateral-fantasma { border-radius: var(--m-r-ctl); transform: scale(1.02); box-shadow: var(--m-sombra-menu); }
+
+/* Gaveta de uso, prévia do layout, navegador e etiquetas (`fork.css`). */
+:root[data-estilo="minimalista"] .gaveta-uso { border-left: 1px solid rgb(var(--c-border-subtle)); box-shadow: var(--m-sombra-menu); }
+:root[data-estilo="minimalista"] .previa-painel { border-width: 1px; border-radius: var(--m-r-cartao); }
+:root[data-estilo="minimalista"] .previa-painel.is-novo { box-shadow: 0 0 0 3px rgb(var(--c-accent) / .2); }
+:root[data-estilo="minimalista"] .navegador-barra { border-bottom-width: 1px; background: rgb(var(--c-bg-primary)); }
+:root[data-estilo="minimalista"] .navegador-botao { border-radius: 8px; }
+:root[data-estilo="minimalista"] .navegador-endereco { height: 26px; border-radius: 999px; padding: 0 12px; }
+:root[data-estilo="minimalista"] .etiqueta-projeto { border-radius: 999px; padding: 0 7px; }
+:root[data-estilo="minimalista"] .faixa-outro-projeto { border-bottom-width: 1px; }
+:root[data-estilo="minimalista"] .launcher-branch-nova { border-width: 1px; border-radius: var(--m-r-ctl); }
+
+/* ── Conversa (chat do agente: `mobile.css` + `web.css`) ──────────────────────────────────── */
+:root[data-estilo="minimalista"] .aba-conversa-tela,
+:root[data-estilo="minimalista"][data-conversa="web"] .aba-conversa-tela { background: rgb(var(--c-bg-primary)); background-image: none; }
+:root[data-estilo="minimalista"] .aba-agente-topo { border-bottom: 1px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-bg-primary)); }
+
+:root[data-estilo="minimalista"] .bubble { border: 0; border-radius: var(--m-r-balao); box-shadow: none; }
+:root[data-estilo="minimalista"] .chat .bubble-agent {
+  border: 0; border-radius: var(--m-r-balao); padding: .75rem 1rem; background: rgb(var(--m-balao-agente));
+}
+:root[data-estilo="minimalista"] .chat .bubble-continua { margin-top: 0; }
+:root[data-estilo="minimalista"] .chat .bubble-user {
+  border: 0; border-radius: var(--m-r-balao); box-shadow: none; padding: .625rem 1rem;
+  background: rgb(var(--c-accent) / .14);
+}
+:root[data-estilo="minimalista"][data-theme="claro"] .chat .bubble-user { background: rgb(var(--c-accent) / .1); }
+:root[data-estilo="minimalista"] .chat .bubble-user .bubble-author { color: rgb(var(--c-text-secondary)); }
+:root[data-estilo="minimalista"] .chat :is(.bubble-author img, .bubble-author svg) { filter: none; opacity: 1; }
+:root[data-estilo="minimalista"] .bubble-markdown pre,
+:root[data-estilo="minimalista"] .chat .bubble-markdown pre { border: 1px solid rgb(var(--c-border-subtle)); border-radius: var(--m-r-ctl); background: rgb(var(--c-bg-primary)); }
+:root[data-estilo="minimalista"][data-theme="claro"] .chat .bubble-markdown pre { background: rgb(var(--c-bg-surface)); }
+:root[data-estilo="minimalista"] .chat .bubble-markdown :not(pre) > code { border: 0; border-radius: 5px; }
+:root[data-estilo="minimalista"] .bubble-anexo { border: 1px solid rgb(var(--c-border-subtle)); border-radius: var(--m-r-ctl); }
+:root[data-estilo="minimalista"] .bubble-anexo-previa { border: 0; border-radius: 6px; }
+:root[data-estilo="minimalista"] .chat .acoes { border-left: 0; padding-left: .25rem; }
+:root[data-estilo="minimalista"] .chat .bubble-aprovacao {
+  border: 0; border-radius: var(--m-r-cartao); background: rgb(var(--c-warning) / .1);
+  box-shadow: inset 0 0 0 1px rgb(var(--c-warning) / .28);
+}
+:root[data-estilo="minimalista"] .pergunta { border-width: 1px; border-radius: var(--m-r-cartao); box-shadow: none; }
+:root[data-estilo="minimalista"] .chat-novidades { border-width: 1px; border-radius: 999px; box-shadow: var(--m-sombra-leve); }
+:root[data-estilo="minimalista"] .chat-soltar { border-width: 1px; border-radius: var(--m-r-cartao); }
+:root[data-estilo="minimalista"] :is(.m-aviso, .m-alerta) { border-left-width: 0; border-radius: var(--m-r-cartao); }
+:root[data-estilo="minimalista"] :is(.m-card-icone, .m-badge, .anexo-chip, .arquivo-gerado-abrir, .arquivo-gerado-pasta-botao) { border-width: 1px; border-radius: var(--m-r-ctl); }
+:root[data-estilo="minimalista"] .m-badge { border-radius: 999px; }
+:root[data-estilo="minimalista"] .m-resumo-item { border-left-width: 0; }
+:root[data-estilo="minimalista"] .plano-cartao { border-left-width: 1px; border-radius: var(--m-r-cartao); }
+:root[data-estilo="minimalista"] .plano-cartao.is-pendente { box-shadow: none; }
+
+/* Campo de mensagem: cartão arredondado, sem luz correndo nem sombra dura. */
+:root[data-estilo="minimalista"] .composer-faixa { border-top: 0; background: rgb(var(--c-bg-primary)); }
+:root[data-estilo="minimalista"] .aba-conversa-tela .composer-faixa { background: linear-gradient(180deg, transparent, rgb(var(--c-bg-primary)) 40%); }
+:root[data-estilo="minimalista"] .composer,
+:root[data-estilo="minimalista"] .aba-conversa-tela .composer {
+  border: 1px solid rgb(var(--c-border-subtle)); border-radius: var(--m-r-composer);
+  background: rgb(var(--m-balao-agente)); background-image: none; box-shadow: none; animation: none; transform: none;
+  padding: .625rem .75rem .5rem .875rem;
+}
+:root[data-estilo="minimalista"][data-theme="claro"] :is(.composer, .aba-conversa-tela .composer) { background: rgb(var(--c-bg-surface)); box-shadow: var(--m-sombra-leve); }
+:root[data-estilo="minimalista"] :is(.composer, .aba-conversa-tela .composer):focus-within {
+  border-color: rgb(var(--c-border)); box-shadow: 0 0 0 3px rgb(var(--c-accent) / .12); transform: none;
+}
+:root[data-estilo="minimalista"] .aba-conversa-tela .composer::before,
+:root[data-estilo="minimalista"] .aba-conversa-tela .composer::after { display: none; }
+:root[data-estilo="minimalista"] :is(.composer-rodape, .aba-conversa-tela .composer-rodape) { border-top: 0; padding-top: .25rem; }
+:root[data-estilo="minimalista"] .composer-botao,
+:root[data-estilo="minimalista"] .aba-conversa-tela .composer-botao { border: 0; border-radius: 999px; transform: none; }
+:root[data-estilo="minimalista"] .aba-conversa-tela .composer-botao:hover { background: rgb(var(--c-overlay) / .08); color: rgb(var(--c-text-primary)); transform: none; }
+:root[data-estilo="minimalista"] .composer-enviar,
+:root[data-estilo="minimalista"] .aba-conversa-tela .composer-enviar {
+  width: 2rem; height: 2rem; border: 0; border-radius: 50%; box-shadow: none; transform: none;
+}
+:root[data-estilo="minimalista"] :is(.composer-enviar, .aba-conversa-tela .composer-enviar):hover:not(:disabled) { transform: none; box-shadow: none; filter: brightness(1.08); }
+:root[data-estilo="minimalista"] :is(.composer-enviar, .aba-conversa-tela .composer-enviar):active:not(:disabled) { transform: none; box-shadow: none; }
+:root[data-estilo="minimalista"] .aba-conversa-tela .composer-enviar::after { display: none; }
+:root[data-estilo="minimalista"] .aba-conversa-tela .composer-parar { box-shadow: none; border-radius: 50%; }
+:root[data-estilo="minimalista"] .composer-modos { border: 0; border-radius: 999px; background: rgb(var(--c-overlay) / .06); }
+:root[data-estilo="minimalista"] .composer-modo { border-radius: 999px; font-weight: 500; }
+:root[data-estilo="minimalista"] .composer-modo.is-ativo { color: rgb(var(--c-text-primary)); background: rgb(var(--c-bg-surface)); box-shadow: 0 1px 2px rgb(0 0 0 / .15); }
+:root[data-estilo="minimalista"] .m-chip > .relative > .field { border: 0; border-radius: 999px; background: rgb(var(--c-overlay) / .06); font-weight: 500; }
+:root[data-estilo="minimalista"] .m-chip > .relative > .field:hover:not(:disabled) { background: rgb(var(--c-overlay) / .1); }
+:root[data-estilo="minimalista"] .m-chip-aplicar { border-radius: 999px; }
+
+/* ── Telas (Configurações, Novo agente, Histórico, Extensões…) ────────────────────────────── */
+:root[data-estilo="minimalista"] :is(.settings-topo-icone, .launcher-topo-icone, .historico-topo-icone, .historico-vazio-icone) {
+  border: 0; border-radius: 12px; background: rgb(var(--c-accent) / .12); box-shadow: none;
+}
+:root[data-estilo="minimalista"] .settings-menu-item { border-radius: var(--m-r-ctl); }
+:root[data-estilo="minimalista"] .settings-menu-item::before { display: none; }
+:root[data-estilo="minimalista"] .settings-menu-item[aria-current="page"] { background: rgb(var(--c-overlay) / .07); }
+:root[data-estilo="minimalista"] .settings-menu-item[aria-current="page"] .settings-menu-icone { box-shadow: none; }
+:root[data-estilo="minimalista"] .settings-menu-icone { border: 0; border-radius: 8px; box-shadow: none; }
+:root[data-estilo="minimalista"] .settings-menu-nome { font-weight: 600; }
+
+:root[data-estilo="minimalista"] .launcher-card { border: 1px solid rgb(var(--c-border-subtle)); border-radius: var(--m-r-painel); box-shadow: var(--m-sombra-leve); }
+:root[data-estilo="minimalista"] :is(.launcher-sobretitulo, .launcher-rotulo) { letter-spacing: normal; text-transform: none; }
+:root[data-estilo="minimalista"] .launcher-nota { border-left: 0; border-radius: var(--m-r-ctl); }
+:root[data-estilo="minimalista"] .launcher-agente { border-width: 1px; border-radius: var(--m-r-cartao); box-shadow: none; }
+:root[data-estilo="minimalista"] .launcher-agente:hover:not(:disabled) { transform: none; box-shadow: none; background: rgb(var(--c-overlay) / .04); }
+:root[data-estilo="minimalista"] .launcher-agente[aria-checked="true"] { box-shadow: 0 0 0 1px rgb(var(--c-accent) / .6); }
+:root[data-estilo="minimalista"] .launcher-ponto { border-radius: 50%; }
+:root[data-estilo="minimalista"] .launcher-alerta { border-left-width: 2px; }
+
+:root[data-estilo="minimalista"] .historico-contagem { letter-spacing: normal; text-transform: none; }
+:root[data-estilo="minimalista"] .historico-retomar { border-radius: var(--m-r-cartao); }
+:root[data-estilo="minimalista"] .historico-retomar-rotulo,
+:root[data-estilo="minimalista"] .historico-msg-autor { letter-spacing: normal; text-transform: none; }
+:root[data-estilo="minimalista"] .historico-msg { border: 0; border-radius: var(--m-r-balao); background: rgb(var(--m-balao-agente)); }
+:root[data-estilo="minimalista"] .historico-msg-voce { background: rgb(var(--c-accent) / .12); }
+:root[data-estilo="minimalista"] .historico-esqueleto { border-radius: var(--m-r-ctl); }
+
+:root[data-estilo="minimalista"] .ext-ia,
+:root[data-estilo="minimalista"] .ext-tipo,
+:root[data-estilo="minimalista"] .ext-item,
+:root[data-estilo="minimalista"] .ext-chave { border-width: 1px; border-radius: var(--m-r-ctl); }
+:root[data-estilo="minimalista"] .ext-ia::after { display: none; }
+:root[data-estilo="minimalista"] .ext-contagem { border-radius: 999px; }
+:root[data-estilo="minimalista"] .ext-compartilhar { border-left: 0; }
+:root[data-estilo="minimalista"] .drop-externo { border-width: 1px; border-radius: var(--m-r-painel); box-shadow: var(--m-sombra-menu); }
+:root[data-estilo="minimalista"] .drop-copiados { border-left-width: 0; }
+:root[data-estilo="minimalista"] .uso-conta.is-ativa { box-shadow: 0 0 0 1px rgb(var(--c-accent) / .5); border-radius: var(--m-r-cartao); }
+:root[data-estilo="minimalista"] .gg-ref { border-width: 1px; border-radius: 999px; box-shadow: none; }
+
+/* Telas vazias e ilustrações em pixel ficam mais quietas. */
+:root[data-estilo="minimalista"] :is(.vazio-cena, .lz-cena) { border-width: 1px; border-radius: var(--m-r-painel); }
+:root[data-estilo="minimalista"] .vazio-titulo { font-family: var(--m-fonte); letter-spacing: normal; text-transform: none; font-weight: 600; font-size: .9375rem; }
+:root[data-estilo="minimalista"] .vazio-fala { border-width: 1px; border-radius: 8px; box-shadow: none; }
+:root[data-estilo="minimalista"] .vazio-opcao { border-width: 1px; border-radius: var(--m-r-cartao); box-shadow: none; }
+:root[data-estilo="minimalista"] .vazio-opcao:hover,
+:root[data-estilo="minimalista"] .vazio-opcao:active { transform: none; box-shadow: none; background: rgb(var(--c-overlay) / .04); }
+:root[data-estilo="minimalista"] .vazio-dicas kbd { border-radius: 5px; }
+:root[data-estilo="minimalista"] .lz-janela { border-width: 1px; border-radius: var(--m-r-ctl); box-shadow: var(--m-sombra-leve); overflow: hidden; }
+:root[data-estilo="minimalista"] .lz-janela-barra { border-bottom-width: 1px; }
+:root[data-estilo="minimalista"] .agente-cartao { border-width: 1px; border-radius: var(--m-r-cartao); box-shadow: none; background-image: none; }
+:root[data-estilo="minimalista"] .agente-cartao:hover { transform: none; box-shadow: none; }
+:root[data-estilo="minimalista"] .rel-git li { border-left-width: 0; border-radius: var(--m-r-ctl); }
+
+/* Fluxos (React Flow) e manual. */
+:root[data-estilo="minimalista"] :is(.fx-lateral, .fx-painel) { border-width: 0; }
+:root[data-estilo="minimalista"] .fx-barra { border-bottom-width: 1px; }
+:root[data-estilo="minimalista"] :is(.fx-item, .fx-agora) { border-radius: var(--m-r-ctl); border-left-width: 0; }
+:root[data-estilo="minimalista"] :is(.fx-paleta, .fx-no-barra, .fx-menu-rapido) { border-width: 1px; border-radius: var(--m-r-menu); box-shadow: var(--m-sombra-menu); }
+:root[data-estilo="minimalista"] :is(.fx-canvas .react-flow__controls, .fx-minimapa) { border-width: 1px; border-radius: var(--m-r-ctl); box-shadow: var(--m-sombra-leve); overflow: hidden; }
+:root[data-estilo="minimalista"] .fx-no { border-width: 1px; border-radius: var(--m-r-cartao); box-shadow: var(--m-sombra-leve); background-image: none; }
+:root[data-estilo="minimalista"] .fx-no:hover { transform: none; box-shadow: var(--m-sombra-menu); }
+:root[data-estilo="minimalista"] .react-flow__node.selected .fx-no { box-shadow: 0 0 0 3px rgb(var(--c-accent) / .25); }
+:root[data-estilo="minimalista"] .fx-porta.react-flow__handle { border-radius: 50%; border-width: 1.5px; }
+:root[data-estilo="minimalista"] .fx-h.is-text { border-left-width: 0; border-radius: 8px; }
+:root[data-estilo="minimalista"] .fx-dialogo { border-width: 1px; border-radius: var(--m-r-painel); box-shadow: var(--m-sombra-menu); }
+:root[data-estilo="minimalista"] .fx-no-atividade { border-left-width: 0; border-radius: 6px; }
+:root[data-estilo="minimalista"] .fx-inicio { border-left-width: 1px; border-radius: var(--m-r-cartao); }
+:root[data-estilo="minimalista"] .fx-linha-tempo { border-left-width: 1px; }
+:root[data-estilo="minimalista"] .manual { border-width: 1px; border-radius: var(--m-r-painel); box-shadow: var(--m-sombra-menu); overflow: hidden; }
+:root[data-estilo="minimalista"] .manual-indice { border-right-width: 1px; }
+:root[data-estilo="minimalista"] .manual-indice button { border-left-width: 0; border-radius: 8px; }
+:root[data-estilo="minimalista"] .manual-figura { border-width: 1px; border-radius: var(--m-r-cartao); box-shadow: none; overflow: hidden; }
+:root[data-estilo="minimalista"] .manual-rodape button { border-width: 1px; border-radius: 999px; box-shadow: none; }
+
+/* Web do celular servida pelo próprio app (`web.css`): só o que aparece no desktop. */
+:root[data-estilo="minimalista"] :is(.w-topo, .w-abas) { border-bottom-width: 1px; }
+:root[data-estilo="minimalista"] .w-aba { border-width: 1px; border-radius: 999px; }
+:root[data-estilo="minimalista"] .w-lateral { border-right-width: 1px; }
+
+/* Movimento "em degraus" (steps) do pixel vira suave. */
+:root[data-estilo="minimalista"] .glass,
+:root[data-estilo="minimalista"] .field { transition-timing-function: ease; }
+
+/* ── Painel e abas do workspace (`PaneView`, `WorkspaceTabBar`) ───────────────────────────── */
+:root[data-estilo="minimalista"] .painel-moldura {
+  border: 1px solid rgb(var(--c-border-subtle)); border-radius: var(--m-r-cartao); overflow: hidden;
+  background-color: rgb(var(--c-bg-primary));
+}
+:root[data-estilo="minimalista"] .painel-moldura.border-accent\/80 { border-color: rgb(var(--c-accent) / .45); }
+:root[data-estilo="minimalista"] .painel-cabecalho { border-bottom: 1px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-bg-primary)); }
+:root[data-estilo="minimalista"] .aba-do-painel {
+  margin: 6px 0 6px 4px; border-right: 0; border-radius: var(--m-r-pilula); box-shadow: none; overflow: hidden;
+}
+:root[data-estilo="minimalista"] .aba-do-painel:hover { background: rgb(var(--c-overlay) / .05); }
+:root[data-estilo="minimalista"] .aba-do-painel.is-ativa { background: rgb(var(--c-overlay) / .08); box-shadow: none; }
+:root[data-estilo="minimalista"][data-theme="claro"] .aba-do-painel.is-ativa { background: rgb(var(--c-bg-surface)); box-shadow: 0 1px 3px rgb(31 30 27 / .1); }
+:root[data-estilo="minimalista"] .aba-do-painel [role="tab"] { display: flex; align-items: center; font-size: .78125rem; padding: 0 .375rem 0 .75rem; }
+:root[data-estilo="minimalista"] .aba-do-painel [role="tab"] > svg:first-child { color: rgb(var(--c-text-secondary)); }
+:root[data-estilo="minimalista"] .aba-do-painel > button[aria-label^="Fechar"] { width: 1.5rem; border-radius: 999px; margin-right: 2px; }
+:root[data-estilo="minimalista"] .aba-do-painel .icone-do-agente { padding: 2.5px; }

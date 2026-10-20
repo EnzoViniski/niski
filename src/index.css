@@ -536,6 +536,10 @@
   :focus-visible {
     outline: 2px solid rgb(var(--c-accent));
     outline-offset: 2px;
+  }
+  /* Fork: canto reto no foco só no Clássico; o Minimalista mantém o canto do elemento. O :where()
+     deixa a especificidade igual à de antes (só a do :focus-visible). */
+  :where(:root:not([data-estilo="minimalista"])) :focus-visible {
     border-radius: 0;
   }
 

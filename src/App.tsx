@@ -219,7 +219,8 @@ function AppComPaleta() {
     <SessionProvidersContext.Provider value={sessionsById}>
     <ProjetosDasAbasContext.Provider value={projetosDasAbas}>
     <div className="flex h-screen flex-col overflow-hidden">
-      <AppBackground settings={settings} />
+      {/* Fork: o Minimalista não tem fundo animado (não gasta GPU desenhando por baixo). */}
+      {settings.estilo !== "minimalista" && <AppBackground settings={settings} />}
       <TitleBar
         trilha={
           view === "settings" ? ["Configurações"]

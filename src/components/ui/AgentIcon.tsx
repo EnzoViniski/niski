@@ -1,4 +1,5 @@
 import type { SVGProps } from "react";
+import { corDoAgente } from "../../lib/coresDosAgentes";
 
 /**
  * Marcas dos agentes, em pixel art, traçadas das artes de referência na grade
@@ -66,7 +67,12 @@ export const AGENT_ICON: Record<string, typeof ClaudeIcon | undefined> = {
 };
 
 /** Ícone do provider, ou nada quando a CLI não tem marca desenhada. */
-export function AgentIcon({ provider, ...props }: BrandIconProps & { provider: string | null | undefined }) {
+export function AgentIcon({ provider, className, style, ...props }: BrandIconProps & { provider: string | null | undefined }) {
   const Icon = provider ? AGENT_ICON[provider] : undefined;
-  return Icon ? <Icon {...props} /> : null;
+  // Fork: `icone-do-agente` + `--cor-agente` deixam o estilo Minimalista pôr o ícone num quadradinho
+  // tingido com a cor do agente (`minimalista.css`); no Clássico a classe não desenha nada.
+  return Icon ? (
+    <Icon {...props} className={["icone-do-agente", className].filter(Boolean).join(" ")}
+      style={{ "--cor-agente": corDoAgente(provider), ...style } as React.CSSProperties} />
+  ) : null;
 }

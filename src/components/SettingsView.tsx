@@ -8,6 +8,7 @@ import { CodexAppServer } from "../features/agentes/CodexAppServer"; // Fork: 3A
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AppSettings, Background, GlassLevel, MotionLevel, Theme } from "../types/settings";
 import { UpdateCard } from "./UpdateCard";
+import { EscolhaDeEstilo } from "./EscolhaDeEstilo"; // Fork: estilo Minimalista.
 import { abrirRecuperacaoDoWorkspace } from "../features/workspace/RecuperacaoDoWorkspace";
 import { BACKGROUND_EFFECTS, isBackgroundEffect } from "./backgrounds/registry";
 import { PALETAS } from "../lib/palettes";
@@ -193,9 +194,12 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
   const custom = settings.background === "custom";
   const semFundo = settings.background === "nenhum";
   const efeito = isBackgroundEffect(settings.background);
+  const minimalista = settings.estilo === "minimalista"; // Fork: relevo e fundo só valem no Clássico.
 
   return (
     <div className="settings-grade settings-grade-par">
+      {/* Fork: Clássico × Minimalista, antes de tudo (o resto da aparência muda junto). */}
+      <EscolhaDeEstilo valor={settings.estilo} onChange={(estilo) => onChange({ estilo })} />
       <Card title="Tema">
         <Segmented
           label="Tema"
@@ -239,6 +243,7 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
       </Card>
 
       <Card title="Painéis e movimento">
+        {minimalista && <p className="text-text-muted text-[11px]">No Minimalista o relevo não muda nada; ele volta a valer no Clássico.</p>}
         <Segmented
           label="Relevo"
           description="Espessura da borda e da sombra dos painéis — o quão 'chunky' o app fica."
@@ -259,6 +264,7 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
       </Card>
 
       <Card title="Fundo do app">
+        {minimalista && <p className="text-text-muted text-[11px]">No Minimalista o fundo fica liso; a escolha daqui volta a valer no Clássico.</p>}
         <Segmented
           label="Imagem de fundo"
           description="Pixels é a grade padrão do app. Aurora, Poente e Maré são gradientes suaves. Ondas é um efeito animado em WebGL — mais bonito, mais GPU."
