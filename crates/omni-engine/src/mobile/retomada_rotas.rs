@@ -25,7 +25,21 @@ fn id_valido(id: &str) -> bool {
 
 fn pasta_valida(cwd: &str) -> bool { !cwd.is_empty() && cwd.len() <= 4096 && !cwd.chars().any(char::is_control) }
 
-/// Sessão viva (processo rodando) desta conversa nativa: pela própria sessão ou pelo índice.
+/// O PID da PTY é do shell, que continua vivo depois de `/exit`. Só o agente rodando permite
+/// focar aquela sessão. A breve janela de abertura evita duplicar o agente antes de o comando
+/// inicial chegar ao shell; app-server tem ciclo próprio, sem CLI na PTY.
+fn agente_rodando(meta: &TerminalSession) -> bool {
+    if meta.pid.is_none() || matches!(meta.state, SessionState::Stopped | SessionState::Crashed | SessionState::Orphan) {
+        return false;
+    }
+    if codex_app_server::ativo(&meta.id) { return true; }
+    if meta.state == SessionState::Working && now_ms().saturating_sub(meta.last_activity_at_ms) <= ANSWERED_IDLE_MS {
+        return true;
+    }
+    meta.provider.as_deref().is_some_and(|provider| interaction::provider_running(meta.pid, provider))
+}
+
+/// Sessão com agente rodando desta conversa nativa: pela própria sessão ou pelo índice.
 pub(super) fn sessao_viva(state: &EngineState, provider: &str, externo: &str) -> Option<TerminalSession> {
     let indice = omni_core::conversations::read_index(state.state_file.parent()?);
     let pelo_indice: Vec<String> = indice.iter().flat_map(|c| c.segments.iter())
@@ -37,7 +51,7 @@ pub(super) fn sessao_viva(state: &EngineState, provider: &str, externo: &str) ->
         let meta = sessao.meta.lock().ok()?.clone();
         let mesma = meta.provider.as_deref() == Some(provider)
             && (meta.external_session_id.as_deref() == Some(externo) || pelo_indice.contains(&meta.id));
-        (mesma && meta.pid.is_some() && !matches!(meta.state, SessionState::Stopped | SessionState::Crashed)).then_some(meta)
+        (mesma && agente_rodando(&meta)).then_some(meta)
     })
 }
 
@@ -311,7 +325,7 @@ pub(super) fn reabrir_se_ja_existe(state: &Arc<EngineState>, id: &str, ajustes: 
     };
     if let Some(sessao) = viva {
         let meta = sessao.meta.lock().map_err(|_| error(StatusCode::INTERNAL_SERVER_ERROR, "metadata poisoned"))?.clone();
-        if meta.pid.is_some() && !matches!(meta.state, SessionState::Stopped | SessionState::Crashed) {
+        if agente_rodando(&meta) {
             return Ok(resposta("ja_aberta", &meta.id));
         }
         if sem_ajustes(ajustes) { restart_session(state, &meta.id).map_err(falha)?; } else { reabrir_com(state, id, ajustes).map_err(falha)?; }

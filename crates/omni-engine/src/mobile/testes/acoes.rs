@@ -269,7 +269,9 @@ fn fake_session(state:&Arc<EngineState>,text:&str) -> (Arc<LiveSession>,Arc<Mute
         Some(r#"{"profile_id":null,"model":"opus; calc","effort":null}"#.into()),None,vec![("Idempotency-Key".into(),"k2".into())]).await else { panic!() };
     assert_eq!(status,400,"valor perigoso passou");
 
-    let (_sessao,_,_) = fake_session(&state,"Claude Code\r\n❯ ");
+    let (sessao,_,_) = fake_session(&state,"Claude Code\r\n❯ ");
+    // Simula a janela de abertura sem exigir um processo Claude real no teste Windows.
+    { let mut meta = sessao.meta.lock().unwrap(); meta.state = SessionState::Working; meta.last_activity_at_ms = now_ms(); }
     // Fork (retomar-sempre): já aberta e rodando = vai para ela (antes: 409 "já está aberta no PC").
     let (status, corpo) = pedir(state,"k3").await;
     assert_eq!((status, corpo["ja_aberta"].as_bool()),(200, Some(true)),"conversa aberta não abriu outra sessão: {corpo}");

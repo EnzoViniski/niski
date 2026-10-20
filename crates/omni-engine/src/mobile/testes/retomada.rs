@@ -33,6 +33,51 @@ fn publicar_echo(state: &EngineState, projeto: &Path) {
         vec![PublishedAgent { id: "claude".into(), label: "Claude".into(), command: "echo".into(), resume: None }], None).unwrap();
 }
 
+/// `/exit` encerra o agente, mas deixa o shell vivo. Histórico prepara uma retomada real;
+/// a rota da Conversa reinicia a mesma PTY, em vez de responder `ja_aberta` para um shell vazio.
+#[tokio::test] async fn shell_vivo_sem_agente_nao_impede_retomada() {
+    let (dir, state) = fixture();
+    let (a, _) = perfis(dir.path());
+    let projeto = dir.path().join("projeto");
+    std::fs::create_dir_all(&projeto).unwrap();
+    let cwd = projeto.to_string_lossy().into_owned();
+    transcript(&a, &cwd, "sessao-1");
+    spawn_terminal_inner(&state, "t1".into(), "p".into(), "Teste".into(), cwd.clone(),
+        Some("/bin/sh".into()), None, 24, 80, now_ms(),
+        SessionOrigin { provider: Some("claude".into()), profile_id: Some("a".into()),
+            conversation_id: Some("c".into()), external_session_id: Some("sessao-1".into()),
+            env: vec![("CLAUDE_CONFIG_DIR".into(), a.to_string_lossy().into_owned())], ..Default::default() }).unwrap();
+    let sessao = match state.sessions.lock().unwrap().get("t1").unwrap() {
+        SessionEntry::Live(s) => s.clone(), _ => panic!("PTY viva"),
+    };
+    let pid = sessao.meta.lock().unwrap().pid;
+    assert!(pid.is_some(), "shell realmente vivo");
+    // Deixa o shell desenhar o prompt; nenhuma CLI de IA é executada.
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    {
+        let mut meta = sessao.meta.lock().unwrap();
+        meta.state = SessionState::Answered;
+        meta.last_activity_at_ms = now_ms().saturating_sub(5_000);
+        meta.initial_command = Some("echo retomada-sintetica".into());
+    }
+    atomic_write_json(&dir.path().join("conversations.json"), &json!({"version":1,"conversations":[{
+        "id":"c","project_id":"p","cwd":cwd,"title":"Teste","created_at_ms":1,
+        "segments":[{"provider":"claude","profile_id":"a","external_session_id":"sessao-1","terminal_session_id":"t1","started_at_ms":1}]
+    }]})).unwrap();
+    let (status, corpo) = post(&state, "/retomada/preparar",
+        json!({"provider":"claude","session_id":"sessao-1","profile_id":"a","cwd":cwd,"preparar":true}), None).await;
+    assert_eq!(status, 200, "{corpo}");
+    assert!(corpo["viva"].is_null(), "PID do shell não prova que o agente está vivo: {corpo}");
+    assert_eq!(corpo["pronto"], true);
+    let (status, corpo) = post(&state, "/conversas/c/retomar",
+        json!({"profile_id":null,"model":null,"effort":null}), Some("reabrir-shell")).await;
+    assert_eq!(status, 200, "{corpo}");
+    assert_eq!(corpo["reaberta"], true);
+    assert_eq!(corpo["terminal_session_id"], "t1");
+    assert_ne!(sessao.meta.lock().unwrap().pid, pid);
+    let _ = stop_session(&state, "t1");
+}
+
 /// Histórico: conversa gravada na conta B, retomada pedida na conta A → o engine acha e copia para
 /// onde a CLI da conta A procura. Conversa inexistente: `transcript: false` (a tela oferece conversa nova).
 #[tokio::test] async fn preparar_acha_a_conversa_em_outra_conta_e_copia() {
