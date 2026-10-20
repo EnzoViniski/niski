@@ -2,6 +2,7 @@ import { GlifoFechar, GlifoMais } from "../../components/ui/PixelGlyph";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MarcaDaAba } from "../orquestracao/MarcaDaAba";
+import { EtiquetaDaWorktree } from "../terminal/EtiquetaDaWorktree";
 import { ChatIcon, KanbanIcon, ListIcon, TerminalIcon, GitBranchIcon, GlobeIcon, BlocksIcon } from "../../components/ui/PixelIcon";
 import { AGENT_ICON } from "../../components/ui/AgentIcon";
 import { useSession, useSessionProvider } from "../terminal/sessionProviders";
@@ -143,6 +144,8 @@ function TabLabel({
       {deFora && <EtiquetaDoProjeto projeto={deFora} className="mr-1.5" />}
       {/* Fork: orquestradora (ORQ) ou subagente (SUB). */}
       {item.kind === "agent" && <MarcaDaAba sessionId={item.resourceId} />}
+      {/* Fork: branch da worktree isolada do agente. */}
+      {item.kind === "agent" && <EtiquetaDaWorktree cwd={session?.cwd} />}
       {item.title}
       {dirtyTabIds?.has(item.id) && (
         <span className="ml-1.5 text-accent" title="Alterações não salvas" aria-label="Alterações não salvas">•</span>

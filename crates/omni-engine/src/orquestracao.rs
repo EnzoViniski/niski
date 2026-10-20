@@ -174,7 +174,9 @@ O usuário acompanha tudo num fluxo visual e aprova permissões por lá. Método
 1. Entenda o pedido e explore o projeto antes de criar subagentes: estrutura, arquivos envolvidos, convenções, como testar.\n\
 2. Divida em tarefas independentes que possam correr em paralelo, cada uma com arquivos próprios e DISJUNTOS. O engine recusa \
 um subagente que peça arquivo ou pasta de outro subagente vivo. O que for compartilhado (tipos, interfaces), faça você antes ou \
-dê a um subagente só.\n\
+dê a um subagente só. Subagentes que EDITAM código em paralelo podem ir cada um numa worktree isolada (criar_agente com \
+worktree: true): cópia do repo e branch medza/<nome> só dele, sem disputa de arquivo; no fim ele commita, você mescla \
+(git merge medza/<nome>) e roda os testes.\n\
 3. Em criar_agente, prepare o subagente por completo: tarefa clara e única; contexto (decisões, interfaces, convenções, comandos de \
 teste); ler (arquivos para ler antes); editar e criar (exatamente o que ele pode mexer); criterios (como saber que acabou). O \
 engine monta o briefing, inclui o que é dos outros como 'não mexa' e as regras.\n\

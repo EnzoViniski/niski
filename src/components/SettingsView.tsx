@@ -11,6 +11,7 @@ import { AgentConnections } from "../features/terminal/AgentConnections";
 import { SkillsManager } from "../features/skills/SkillsManager";
 import { ExtensoesSettings } from "../features/extensoes/ExtensoesSettings";
 import { MobileSettings } from "../features/mobile/MobileSettings";
+import { LimiteDeSessoes } from "../features/terminal/LimiteDeSessoes";
 import { testarAviso } from "../features/terminal/useAttentionNotifier";
 import { BlocksIcon, BookIcon, BrushIcon, ChartIcon, CloseIcon, SparkleIcon, GearIcon, GlobeIcon, KeyboardIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
 import { RelatoriosIa } from "../features/relatorios/RelatoriosIa";
@@ -25,7 +26,7 @@ type Icone = React.ComponentType<{ className?: string; "aria-hidden"?: boolean }
 /** Cada seção com ícone e uma linha do que tem dentro: o menu diz onde está cada coisa sem precisar
  *  abrir uma por uma. "Geral" saiu de "Aparência", que juntava sete cartões de assuntos diferentes. */
 const SECTIONS: { id: SectionId; label: string; desc: string; icon: Icone }[] = [
-  { id: "geral", label: "Geral", desc: "Conversa ou terminal, arquivos e avisos", icon: GearIcon },
+  { id: "geral", label: "Geral", desc: "Conversa ou terminal, arquivos, avisos e sessões", icon: GearIcon },
   { id: "aparencia", label: "Aparência", desc: "Tema, cor, fundo e animações", icon: BrushIcon },
   { id: "agentes", label: "Agentes", desc: "CLIs instaladas e contas", icon: RobotIcon },
   { id: "modelos", label: "Modelos de agentes", desc: "QA, revisor, orquestrador… criados com IA", icon: SparkleIcon },
@@ -384,6 +385,8 @@ function GeralSection({ settings, onChange }: SectionProps) {
         <TesteDeAviso />
       </Card>
 
+      {/* Fork: teto de sessões ativas (agentes e terminais rodando comando). */}
+      <LimiteDeSessoes />
     </div>
   );
 }
