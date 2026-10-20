@@ -1091,12 +1091,15 @@ async fn timeline(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePat
             .ok_or_else(||error(StatusCode::NOT_FOUND,"Conversa não encontrada"))?;
         let caminho = omni_core::history::validated(Path::new(&entry.path),&entry.provider,&profiles)
             .ok_or_else(||error(StatusCode::NOT_FOUND,"Histórico não encontrado"))?;
-        let itens: Vec<_> = {
+        let (itens, estado): (Vec<_>, _) = {
             let mut feeds = state.mobile.feeds.lock().expect("feeds poisoned");
-            feeds.read(&caminho,&entry.provider).map_err(|_|error(StatusCode::NOT_FOUND,"Histórico não encontrado"))?
-                .iter().map(|e|(entry.provider.clone(),e.item.clone())).collect()
+            let itens = feeds.read(&caminho,&entry.provider).map_err(|_|error(StatusCode::NOT_FOUND,"Histórico não encontrado"))?
+                .iter().map(|e|(entry.provider.clone(),e.item.clone())).collect();
+            // Fork: lista de tarefas e modo de permissão também na conversa do histórico.
+            (itens, feeds.estado(&caminho).cloned())
         };
-        let timeline = omni_core::conversations::page(&id,itens,page.cursor,TIMELINE_PAGINA);
+        let mut timeline = omni_core::conversations::page(&id,itens,page.cursor,TIMELINE_PAGINA);
+        if let Some(estado) = estado { timeline.tarefas = estado.tarefas(); timeline.modo_de_permissao = estado.modo; }
         Ok(json!({"timeline":timeline,"actions":[]}))
     }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ler timeline"));
     match resultado {

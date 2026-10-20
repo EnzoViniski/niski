@@ -40,6 +40,29 @@ export interface Mensagem {
   imagens?: number;
   /** Fork: documentos que o agente gerou (caminho absoluto); baixam por `GET /conversas/{id}/arquivos/{n}/{k}`. */
   arquivos?: string[];
+  /** Fork: edição do agente — o mini-diff de cada arquivo (cortado; as contagens são do diff inteiro). */
+  diffs?: DiffDeArquivo[];
+  /** Fork: chamada que mexeu na lista de tarefas — a lista como ficou depois dela. */
+  tarefas?: Tarefa[];
+  /** Fork: `ExitPlanMode` — o plano em markdown. */
+  plano?: string;
+}
+/** Fork: tarefa da lista do agente (TodoWrite/TaskCreate do Claude, update_plan do Codex). */
+export interface Tarefa {
+  texto: string;
+  estado: "pendente" | "andamento" | "feita";
+  /** Como a CLI descreve enquanto faz ("Rodando os testes"). */
+  fazendo?: string;
+}
+/** Fork: diff de um arquivo. Cada linha começa com `+`, `-`, ` ` ou `@` (início de trecho + rótulo). */
+export interface DiffDeArquivo {
+  arquivo: string;
+  tipo: "editado" | "novo" | "apagado" | "escrito";
+  adicionadas: number;
+  removidas: number;
+  linhas: string[];
+  /** Linhas que o engine cortou pelo limite de tamanho. */
+  omitidas?: number;
 }
 export interface Projects {
   /** 0 = o desktop nunca publicou; a lista veio só das conversas já registradas. */
@@ -57,6 +80,11 @@ export interface Timeline {
     /** Onde começa a página anterior. Sem cursor o servidor devolve o fim da conversa. */
     prev_cursor?: number | null;
     unavailable_segments: number[];
+    /** Fork: a lista de tarefas do agente agora. Ausente: a conversa nunca teve lista. */
+    tarefas?: Tarefa[];
+    /** Fork: último modo de permissão gravado no transcript (`default`, `acceptEdits`, `plan`, `auto`,
+     *  `bypassPermissions`, `dontAsk`; no Codex `semPerguntar`, `acessoTotal`, `somenteLeitura`). */
+    modo_de_permissao?: string | null;
   };
   actions: { id: string; state: string; error: string | null }[];
   /** Estado atual da conversa, mandado junto para o chat aberto não precisar recarregar a lista. */

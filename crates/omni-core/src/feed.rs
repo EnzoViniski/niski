@@ -49,6 +49,9 @@ pub struct Item {
     /// conteúdo vem por [`arquivo`]; ver `entregaveis`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub arquivos: Vec<String>,
+    /// Fork: diff das edições, lista de tarefas e plano do plan mode (ver `plano_do_agente`).
+    #[serde(flatten)]
+    pub extras: crate::plano_do_agente::Extras,
 }
 
 fn sem_imagens(n: &usize) -> bool { *n == 0 }
@@ -107,8 +110,11 @@ fn ferramenta_claude(nome: &str, input: &Value) -> Option<(String, String)> {
         "Task" | "Agent" => texto_de(input, "description"),
         "TodoWrite" => Some("Atualizou a lista de tarefas".into()),
         "Skill" => texto_de(input, "skill"),
+        // Fork: o plano do plan mode vira cartão na conversa (o texto curto é o título dele).
+        "ExitPlanMode" => Some(crate::plano_do_agente::titulo_do_plano(input["plan"].as_str().unwrap_or(""))),
         // Ferramentas de controle da própria CLI: não são trabalho visível.
-        "ToolSearch" | "ExitPlanMode" | "EnterPlanMode" => return None,
+        // Fork: consultar a lista de tarefas também não (o cartão da lista já mostra).
+        "ToolSearch" | "EnterPlanMode" | "TaskList" | "TaskGet" => return None,
         _ => input.as_object().and_then(|campos| campos.values().find_map(|v| v.as_str().map(str::to_owned))),
     };
     Some((nome.to_owned(), curto(&detalhe.unwrap_or_default())))
@@ -138,6 +144,8 @@ fn ferramenta_codex(payload: &Value) -> Option<(String, String)> {
         "custom_tool_call" => {
             let input = payload["input"].as_str().unwrap_or("");
             if nome == "exec" {
+                // Fork: `exec` que só aplica um patch ou atualiza o plano.
+                if let Some(acao) = crate::plano_do_agente::ferramenta_do_exec(input) { return Some(acao); }
                 let comando = string_json_em(input, "cmd").or_else(|| string_json_em(input, "command"))?;
                 return Some(("Shell".into(), comando_curto(&comando)));
             }
@@ -299,7 +307,7 @@ pub fn arquivo(fontes: &[(PathBuf, String)], n: usize, k: usize, cache: &mut Fee
 
 fn item(kind: Kind, role: &str, text: String, tool: Option<String>, value: &Value) -> Item {
     Item { kind, role: role.into(), text, tool, timestamp: value["timestamp"].as_str().map(str::to_owned), imagens: 0,
-        midia: Vec::new(), arquivos: Vec::new() }
+        midia: Vec::new(), arquivos: Vec::new(), extras: Default::default() }
 }
 
 /// Itens de uma linha do transcript, na ordem em que aparecem nela.
@@ -350,7 +358,9 @@ pub fn items_em(value: &Value, provider: &str, cwd: Option<&Path>) -> Vec<Item> 
                             // Fork: documento escrito pelo agente vira cartão na conversa.
                             let criado = (nome == "Write").then(|| bloco["input"]["file_path"].as_str()).flatten()
                                 .and_then(|c| crate::entregaveis::criado(c, cwd));
-                            saida.push(Item { arquivos: criado.map(|c| c.to_string_lossy().into_owned()).into_iter().collect(),
+                            // Fork: diff, lista de tarefas e plano da chamada.
+                            let extras = crate::plano_do_agente::extras_claude(&nome, &bloco["input"], bloco["id"].as_str());
+                            saida.push(Item { arquivos: criado.map(|c| c.to_string_lossy().into_owned()).into_iter().collect(), extras,
                                 ..item(Kind::Tool, "assistant", detalhe, Some(nome), value) });
                         },
                         _ => {}
@@ -382,7 +392,15 @@ pub fn items_em(value: &Value, provider: &str, cwd: Option<&Path>) -> Vec<Item> 
                     .filter_map(|linha| linha.strip_prefix("*** Add File: "))
                     .filter_map(|c| crate::entregaveis::criado(c, cwd))
                     .map(|c| c.to_string_lossy().into_owned()).collect();
-                saida.push(Item { arquivos: criados, ..item(Kind::Tool, "assistant", detalhe, Some(nome), value) });
+                saida.push(Item { arquivos: criados, extras: crate::plano_do_agente::extras_codex(payload),
+                    ..item(Kind::Tool, "assistant", detalhe, Some(nome), value) });
+            }
+        }
+        // Fork: arquivo mudado pelo Codex (o patch já aplicado), com o diff.
+        "codex" if value["type"] == "event_msg" && value["payload"]["type"] == "item_completed" && value["payload"]["item"]["type"] == "FileChange" => {
+            if let Some((detalhe, diffs)) = crate::plano_do_agente::file_change_do_codex(&value["payload"]["item"], cwd) {
+                let extras = crate::plano_do_agente::Extras { diffs, ..Default::default() };
+                saida.push(Item { extras, ..item(Kind::Tool, "assistant", detalhe, Some("Edit".into()), value) });
             }
         }
         // Fork: imagem gerada pelo Codex. Ela não é citada no texto ("gerei a imagem"), só fica em
@@ -465,7 +483,17 @@ fn hash(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0xcbf29ce484222325_u64, |h, b| (h ^ u64::from(*b)).wrapping_mul(0x100000001b3))
 }
 
-fn entradas(linha: &[u8], provider: &str, cwd: &mut Option<PathBuf>) -> Vec<Entry> {
+/// Fork: o que a leitura lembra de uma linha do transcript para a seguinte.
+#[derive(Debug, Clone, Default)]
+struct Contexto {
+    /// Última pasta da conversa vista no transcript.
+    cwd: Option<PathBuf>,
+    /// Lista de tarefas, modo de permissão e último patch (ver `plano_do_agente`).
+    estado: crate::plano_do_agente::EstadoDaConversa,
+}
+
+fn entradas(linha: &[u8], provider: &str, contexto: &mut Contexto) -> Vec<Entry> {
+    let cwd = &mut contexto.cwd;
     if linha.iter().all(u8::is_ascii_whitespace) { return Vec::new(); }
     let Ok(value) = serde_json::from_slice::<Value>(linha) else { return Vec::new() };
     // Fork: a pasta da conversa, para caminho relativo citado pelo agente. O Claude grava em cada
@@ -477,7 +505,20 @@ fn entradas(linha: &[u8], provider: &str, cwd: &mut Option<PathBuf>) -> Vec<Entr
     };
     if let Some(pasta) = pasta.filter(|p| Path::new(p).is_absolute()) { *cwd = Some(PathBuf::from(pasta)); }
     let base = value["uuid"].as_str().map(str::to_owned).unwrap_or_else(|| format!("{:016x}", hash(linha)));
-    items_em(&value, provider, cwd.as_deref()).into_iter().enumerate()
+    // Fork: a lista de tarefas anda com o transcript (o `TaskUpdate` só diz o que mudou), e o
+    // `FileChange` do Codex que repete o patch recém-mostrado não vira outra linha.
+    let estado = &mut contexto.estado;
+    estado.observar(&value, provider);
+    let mut itens = items_em(&value, provider, cwd.as_deref());
+    let arquivo_mudado = value["type"] == "event_msg";
+    itens.retain_mut(|it| {
+        if let Some(resumo) = estado.aplicar(&mut it.extras) { it.text = resumo; }
+        if it.extras.diffs.is_empty() { return true; }
+        if arquivo_mudado { return !estado.patch_repetido(&it.extras.diffs); }
+        if provider == "codex" { estado.lembrar_patch(&it.extras.diffs); }
+        true
+    });
+    itens.into_iter().enumerate()
         .map(|(i, item)| Entry { identity: format!("{provider}:{base}#{i}"), item })
         .collect()
 }
@@ -492,8 +533,10 @@ pub struct Feed {
     /// linha é relida (e eles refeitos) na próxima leitura.
     provisorios: usize,
     usado_em: u64,
-    /// Fork: última pasta da conversa vista no transcript (ver `entradas`).
-    cwd: Option<PathBuf>,
+    /// Fork: pasta, lista de tarefas e modo vistos até a última linha completa (ver `entradas`).
+    contexto: Contexto,
+    /// Fork: o mesmo, contando a linha provisória do fim (é o que vale para mostrar).
+    contexto_visivel: Option<Contexto>,
 }
 
 /// Transcripts abertos recentemente. Limitado: só a conversa aberta e poucas outras são lidas.
@@ -529,17 +572,25 @@ impl FeedCache {
             file.take(tamanho - feed.offset).read_to_end(&mut novo)?;
             let completo = novo.iter().rposition(|b| *b == b'\n').map_or(0, |i| i + 1);
             for linha in novo[..completo].split(|b| *b == b'\n') {
-                feed.entries.extend(entradas(linha, provider, &mut feed.cwd));
+                feed.entries.extend(entradas(linha, provider, &mut feed.contexto));
             }
             feed.offset += completo as u64;
             // Sem `\n` no fim a última linha pode estar no meio da escrita — ou o arquivo
             // simplesmente terminou assim. Se já é um JSON inteiro ela aparece, mas fica provisória:
             // a próxima leitura recomeça dela, então nada duplica quando a CLI completar a linha.
-            let resto = entradas(&novo[completo..], provider, &mut feed.cwd.clone());
+            let mut visivel = feed.contexto.clone();
+            let resto = entradas(&novo[completo..], provider, &mut visivel);
+            feed.contexto_visivel = (completo < novo.len()).then_some(visivel);
             feed.provisorios = resto.len();
             feed.entries.extend(resto);
         }
         Ok(&self.feeds[path].entries)
+    }
+
+    /// Fork: lista de tarefas e modo de permissão do transcript, como ficaram na última [`read`].
+    pub fn estado(&self, path: &Path) -> Option<&crate::plano_do_agente::EstadoDaConversa> {
+        let feed = self.feeds.get(path)?;
+        Some(&feed.contexto_visivel.as_ref().unwrap_or(&feed.contexto).estado)
     }
 }
 

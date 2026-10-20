@@ -268,6 +268,9 @@ pub struct Message {
     /// Fork: documentos que o agente gerou; o conteúdo vem por `GET …/arquivos/{n}/{k}`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub arquivos: Vec<String>,
+    /// Fork: diff das edições, lista de tarefas e plano do plan mode (`diffs`, `tarefas`, `plano`).
+    #[serde(flatten)]
+    pub extras: crate::plano_do_agente::Extras,
 }
 fn sem_imagens(n: &usize) -> bool { *n == 0 }
 #[derive(Serialize)]
@@ -277,6 +280,14 @@ pub struct Timeline {
     /// Onde começa a página anterior a esta. `None` = esta já começa na primeira mensagem.
     pub prev_cursor: Option<usize>,
     pub unavailable_segments: Vec<usize>,
+    /// Fork: a lista de tarefas do agente como está agora (cartão fixo acima do campo). Ausente
+    /// quando a conversa nunca teve lista.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tarefas: Option<Vec<crate::plano_do_agente::Tarefa>>,
+    /// Fork: último modo de permissão gravado no transcript (`default`, `acceptEdits`, `plan`,
+    /// `auto`, `bypassPermissions`…; no Codex `semPerguntar`, `acessoTotal`, `somenteLeitura`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modo_de_permissao: Option<String>,
 }
 
 pub(crate) fn text_message(value: &Value, provider: &str) -> Option<(String, String)> {
@@ -338,6 +349,7 @@ pub fn timeline_cached(
     let mut unavailable = Vec::new();
     let mut itens: Vec<(String, crate::feed::Item)> = Vec::new();
     let mut seen = HashSet::new();
+    let (mut tarefas, mut modo) = (None, None);
     for (segment_index, segment) in conversation.segments.iter().enumerate() {
         // Fork: sem isto, projeto de caminho longo caía no `continue` abaixo e a Conversa ficava
         // vazia com o agente trabalhando (o caminho guardado não tinha o corte da CLI).
@@ -365,10 +377,17 @@ pub fn timeline_cached(
             if !seen.insert(entry.identity.clone()) { continue; }
             itens.push((segment.provider.clone(), entry.item.clone()));
         }
+        // Fork: a lista e o modo do trecho mais recente que os tem são os que valem.
+        if let Some(estado) = cache.estado(&path) {
+            tarefas = estado.tarefas().or(tarefas);
+            modo = estado.modo.clone().or(modo);
+        }
     }
     let itens = com_avisos_de_troca(conversation, itens, profiles);
     let mut result = page(&conversation.id, itens, cursor, limit);
     result.unavailable_segments = unavailable;
+    result.tarefas = tarefas;
+    result.modo_de_permissao = modo;
     result
 }
 
@@ -426,6 +445,7 @@ fn aviso_de_troca(anterior: &Segment, novo: &Segment, profiles: &[crate::Profile
         imagens: 0,
         midia: Vec::new(),
         arquivos: Vec::new(),
+        extras: Default::default(),
     }
 }
 
@@ -446,12 +466,15 @@ pub fn page(conversation_id: &str, itens: Vec<(String, crate::feed::Item)>, curs
         tool: item.tool,
         imagens: item.imagens,
         arquivos: item.arquivos,
+        extras: item.extras,
     }).collect();
     Timeline {
         messages,
         next_cursor: (cursor.is_some() && fim < total).then_some(fim),
         prev_cursor: (inicio > 0).then(|| inicio.saturating_sub(limit)),
         unavailable_segments: Vec::new(),
+        tarefas: None,
+        modo_de_permissao: None,
     }
 }
 

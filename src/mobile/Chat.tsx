@@ -16,6 +16,8 @@ import { NOME_DO_PRODUTO } from "../lib/identidade";
 import { energiaPausada } from "../lib/energia";
 import { ArquivosDoAgente, type ArquivosDaMensagem } from "./ArquivosDoAgente";
 import { CodigoOuCaminho } from "./CaminhoClicavel";
+import { ContagemDoDiff, MiniDiff, somarDiffs } from "./MiniDiff";
+import { progressoDasTarefas } from "./ListaDeTarefas";
 
 /** Os quadros do spinner do Claude Code, em vai-e-volta — é o que faz parecer que ele "respira". */
 const QUADROS = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
@@ -228,7 +230,7 @@ export function ImagemDoMarkdown({ src, alt }: { src?: string; alt?: string }) {
 }
 
 /** Bloco de código do markdown com a linguagem no topo e um "Copiar", como num editor. */
-function BlocoDeCodigo({ children }: { children?: ReactNode }) {
+export function BlocoDeCodigo({ children }: { children?: ReactNode }) {
   const corpo = useRef<HTMLPreElement>(null);
   const filho = Array.isArray(children) ? children[0] : children;
   const classe = (filho as { props?: { className?: string } } | undefined)?.props?.className ?? "";
@@ -250,10 +252,19 @@ const VERBO: Record<string, string> = {
   Read: "Leu", Edit: "Editou", MultiEdit: "Editou", Write: "Escreveu", NotebookEdit: "Editou",
   Grep: "Buscou", Glob: "Procurou", WebFetch: "Abriu", WebSearch: "Pesquisou",
   Task: "Delegou", Agent: "Delegou", TodoWrite: "Planejou", Skill: "Usou a skill", update_plan: "Planejou",
+  // Fork: lista de tarefas e plano do plan mode.
+  TaskCreate: "Planejou", TaskUpdate: "Planejou", ExitPlanMode: "Planejou",
 };
 
 export function verboDaAcao(tool: string | undefined): string {
   return VERBO[tool ?? ""] ?? tool ?? "Ação";
+}
+
+/** Fork: chamada que mexeu na lista de tarefas lê como "Tarefas 3/7"; as outras, pelo verbo. */
+function rotuloDaAcao(acao: Mensagem): string {
+  if (!acao.tarefas) return verboDaAcao(acao.tool);
+  const { feitas, total } = progressoDasTarefas(acao.tarefas);
+  return total ? `Tarefas ${feitas}/${total}` : "Tarefas";
 }
 
 /** Caminho longo vira `…/pasta/arquivo.ts`: numa linha de ação o nome do arquivo é o que importa. */
@@ -268,6 +279,7 @@ const ICONE_DA_ACAO: Record<string, ComponentType<{ className?: string; "aria-hi
   Read: FileTextIcon, Edit: EditIcon, MultiEdit: EditIcon, Write: EditIcon, NotebookEdit: EditIcon, apply_patch: EditIcon,
   Grep: SearchIcon, Glob: SearchIcon, WebFetch: GlobeIcon, WebSearch: GlobeIcon,
   Task: RobotIcon, Agent: RobotIcon, TodoWrite: ListIcon, update_plan: ListIcon, Skill: BookIcon,
+  TaskCreate: ListIcon, TaskUpdate: ListIcon, ExitPlanMode: ListIcon,
 };
 
 const DE_TERMINAL = new Set(["Bash", "PowerShell", "Shell"]);
@@ -280,11 +292,31 @@ function IconeDaAcao({ tool }: { tool?: string }) {
 }
 
 function LinhaDeAcao({ acao }: { acao: Mensagem }) {
+  if (acao.diffs?.length) return <LinhaDeEdicao acao={acao} />;
   return (
     <li className="acao" title={acao.text}>
       <IconeDaAcao tool={acao.tool} />
-      <span className="acao-verbo">{verboDaAcao(acao.tool)}</span>
+      <span className="acao-verbo">{rotuloDaAcao(acao)}</span>
       {acao.text && <code className="acao-detalhe">{encurtarCaminho(acao.text)}</code>}
+    </li>
+  );
+}
+
+/** Fork: edição com o mini-diff, que abre num toque na linha ("Editou a.ts +3 −1"). */
+function LinhaDeEdicao({ acao }: { acao: Mensagem }) {
+  const [aberta, setAberta] = useState(false);
+  const diffs = acao.diffs ?? [];
+  const total = somarDiffs(diffs);
+  return (
+    <li className="acao-edicao">
+      <button type="button" className="acao" title={acao.text} aria-expanded={aberta} onClick={() => setAberta((v) => !v)}>
+        <IconeDaAcao tool={acao.tool} />
+        <span className="acao-verbo">{verboDaAcao(acao.tool)}</span>
+        {acao.text && <code className="acao-detalhe">{encurtarCaminho(acao.text)}</code>}
+        <ContagemDoDiff {...total} />
+        <span className="acoes-seta" aria-hidden>{aberta ? "▾" : "▸"}</span>
+      </button>
+      {aberta && <MiniDiff diffs={diffs} />}
     </li>
   );
 }
@@ -303,15 +335,18 @@ export const BlocoDeAcoes = memo(function BlocoDeAcoes({ acoes, aoVivo, conversa
   useEffect(() => { if (aoVivo) setAberto(true); }, [aoVivo]);
   const ultima = acoes[acoes.length - 1];
   const visiveis = aberto ? acoes : [];
+  // Fork: o que as edições do bloco somam, à vista mesmo recolhido.
+  const linhas = somarDiffs(acoes.flatMap((acao) => acao.diffs ?? []));
   return (
     <section className={`acoes${aoVivo ? " acoes-ao-vivo" : ""}`} aria-label="Ações do agente">
       <button type="button" className="acoes-cabecalho" aria-expanded={aberto} onClick={() => setAberto((v) => !v)}>
         <span className="acoes-seta" aria-hidden>{aberto ? "▾" : "▸"}</span>
         {ultima && <IconeDaAcao tool={ultima.tool} />}
         <span className="acoes-contagem">{acoes.length === 1 ? "1 ação" : `${acoes.length} ações`}</span>
+        <ContagemDoDiff {...linhas} />
         {!aberto && ultima && (
           <span className="acoes-resumo">
-            <span className="acao-verbo">{verboDaAcao(ultima.tool)}</span>{" "}
+            <span className="acao-verbo">{rotuloDaAcao(ultima)}</span>{" "}
             <span className="acoes-resumo-detalhe">{encurtarCaminho(ultima.text)}</span>
           </span>
         )}

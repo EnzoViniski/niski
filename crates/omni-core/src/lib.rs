@@ -25,6 +25,9 @@ pub mod orquestracao;
 // Fork: teto de sessões ativas (configurável) e agente em worktree isolada do git.
 pub mod limite_de_sessoes;
 pub mod worktree_isolada;
+// Fork: conversa rica — lista de tarefas, plano do plan mode, modo de permissão e diffs do agente.
+pub mod plano_do_agente;
+pub mod diff_do_agente;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};
