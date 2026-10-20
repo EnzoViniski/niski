@@ -12,6 +12,10 @@ import { request, requestSeMudou, esquecerVersao, enviarTeclas, actionKey, ApiEr
 import { AgentWorking, BlocoDeAcoes, LinhaDeAviso, LinhaDeComando, MessageBubble, PairingScreen } from "./Chat";
 import { Composer } from "./Composer";
 import { CartaoDePergunta } from "./CartaoDePergunta";
+// Fork: conversa rica — plano do plan mode, lista de tarefas e modo de permissão.
+import { CartaoDoPlano } from "./CartaoDoPlano";
+import { ListaDeTarefas } from "./ListaDeTarefas";
+import { modoVigente, SeloDoModo } from "./SeloDoModo";
 import { AjustesDaConversa, type Ajustes } from "./AjustesDaConversa";
 import {
   ANEXO_MAX_BYTES,
@@ -351,13 +355,16 @@ type Bloco =
   | { tipo: "fala"; mensagem: Mensagem }
   | { tipo: "acoes"; id: string; acoes: Mensagem[] }
   | { tipo: "comando"; mensagem: Mensagem }
-  | { tipo: "aviso"; mensagem: Mensagem };
+  | { tipo: "aviso"; mensagem: Mensagem }
+  // Fork: plano do plan mode (`ExitPlanMode`), em cartão próprio.
+  | { tipo: "plano"; mensagem: Mensagem };
 
 export function agruparMensagens(mensagens: Mensagem[]): Bloco[] {
   const blocos: Bloco[] = [];
   for (const mensagem of mensagens) {
     const tipo = mensagem.kind ?? "text";
-    if (tipo === "tool") {
+    if (tipo === "tool" && mensagem.plano) blocos.push({ tipo: "plano", mensagem });
+    else if (tipo === "tool") {
       const anterior = blocos[blocos.length - 1];
       if (anterior?.tipo === "acoes") anterior.acoes.push(mensagem);
       else blocos.push({ tipo: "acoes", id: mensagem.id, acoes: [mensagem] });
@@ -866,6 +873,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const podeEnviar = Boolean(capability?.prompt || capability?.enfileirar || destravavel) && !busy && temConteudo && !anexoGrande;
   const timeline = data?.timeline;
   const ultimoBloco = blocos[blocos.length - 1];
+  // Fork: menu da CLI logo depois do plano é a aprovação dele (aprovar / continuar planejando).
+  const planoPendente = ultimoBloco?.tipo === "plano" && Boolean(capability?.escolha);
 
   function renderizarBloco(bloco: Bloco, indice: number) {
     if (bloco.tipo === "acoes") {
@@ -874,6 +883,15 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     }
     if (bloco.tipo === "comando") return <LinhaDeComando key={bloco.mensagem.id} texto={bloco.mensagem.text} />;
     if (bloco.tipo === "aviso") return <LinhaDeAviso key={bloco.mensagem.id} texto={bloco.mensagem.text} />;
+    if (bloco.tipo === "plano") {
+      // Fork: a CLI esperando a aprovação do plano — a pergunta dela vem dentro do cartão.
+      return <CartaoDoPlano key={bloco.mensagem.id} plano={bloco.mensagem.plano ?? ""} provider={bloco.mensagem.provider}
+        horario={bloco.mensagem.timestamp}
+        pergunta={planoPendente && bloco === ultimoBloco && capability?.escolha
+          ? <CartaoDePergunta escolha={capability.escolha} provider={conversation.provider} busy={busy}
+              onEscolher={(opcao) => void escolher(opcao)} onAvancar={() => void escolher("avancar")} />
+          : undefined} />;
+    }
     const message = bloco.mensagem;
     return <MessageBubble key={message.id} lado={message.role === "user" ? "user" : "agent"}
       provider={message.provider} texto={message.text} horario={message.timestamp} continua={continuacoes.has(indice)}
@@ -933,7 +951,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
           <Button variant="danger" disabled={busy} onClick={() => void aprovar(false)}>Negar</Button>
         </div>
       </div>}
-      {capability?.escolha && <CartaoDePergunta escolha={capability.escolha} provider={conversation.provider} busy={busy}
+      {capability?.escolha && !planoPendente && <CartaoDePergunta escolha={capability.escolha} provider={conversation.provider} busy={busy}
         onEscolher={(opcao) => void escolher(opcao)} onAvancar={() => void escolher("avancar")} />}
       {ativo && !capability?.approve &&
         <AgentWorking desde={trabalhandoDesde.current ?? Date.now()} provider={conversation.provider} tokens={conversation.tokens ?? null} />}
@@ -966,8 +984,12 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
         : trabalhando ? "Agente trabalhando… escreva a próxima mensagem"
         : destravavel ? "Mensagem para o agente…"
         : conversation.capabilities ? "Sem sessão ativa" : "Conversa fechada — escolha conta, modelo e esforço e retome abaixo") : "Mensagem para o agente…"}
-      toolbar={editandoNome ? <RenomearConversa nome={conversation.title} onFechar={() => setEditandoNome(false)}
-        onSalvar={(nome) => { setEditandoNome(false); void renomear(nome); }} /> : null}
+      toolbar={<>
+        {/* Fork: lista de tarefas do agente, fixa acima do campo. */}
+        {timeline?.tarefas && <ListaDeTarefas tarefas={timeline.tarefas} conversa={conversation.id} ativo={ativo} />}
+        {editandoNome ? <RenomearConversa nome={conversation.title} onFechar={() => setEditandoNome(false)}
+          onSalvar={(nome) => { setEditandoNome(false); void renomear(nome); }} /> : null}
+      </>}
       chips={<>
         {(conversation.live || conversation.capabilities) ? (
           <AjustesDaConversa conversaId={conversation.id} pronto={Boolean(conversation.capabilities?.prompt) && !busy}
@@ -979,6 +1001,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
           onClick={() => setEditandoNome(true)}>
           <EditIcon aria-hidden className="h-4 w-4" />
         </button>
+        {/* Fork: modo de permissão em que o agente está (tela → transcript). */}
+        {conversation.capabilities && <SeloDoModo modo={modoVigente(conversation.mode, timeline?.modo_de_permissao)} />}
         {/* Bifurcar e ocultar só na web e no celular (quem passa `abrirConversa`): no PC a lateral já faz. */}
         {abrirConversa && conversation.live && (conversation.provider === "claude" || conversation.provider === "codex") && (
           <button type="button" className="composer-botao" disabled={bifurcando}
