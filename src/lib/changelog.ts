@@ -16,6 +16,16 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.8.3",
+    date: "2026-10-20",
+    changes: [
+      "Cada pasta de projeto na lateral mostra também as conversas anteriores, como nos apps do Claude e do Codex. Um clique retoma a conversa de onde parou.",
+      "Fechar uma conversa não tira ela da lateral: ela passa para Anteriores.",
+      "A aparência, os workspaces e a ordem da lateral ficam guardados também na pasta do app e continuam iguais depois de atualizar ou reabrir.",
+      `Se outra cópia do ${NOME_CURTO} for aberta, a janela que já estava aberta vem para a frente. Antes, as duas brigavam e os agentes reiniciavam.`,
+    ],
+  },
+  {
     version: "0.8.2",
     date: "2026-10-20",
     changes: [

@@ -8,6 +8,8 @@ import "./styles/energia.css";
 import { usarTransporte } from "./mobile/api";
 import { transporteDoEngine } from "./features/conversa/transporteDoEngine";
 import { instalarRegistroDeErros } from "./lib/registroDeErros";
+// Fork: aparência/workspaces também em disco; ao abrir, restaura de lá se a cópia for mais nova.
+import { iniciarEspelho, restaurarDoDisco } from "./lib/espelhoDaInterface";
 
 instalarRegistroDeErros();
 
@@ -15,8 +17,13 @@ instalarRegistroDeErros();
 // local em vez de HTTP.
 usarTransporte(transporteDoEngine);
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+const noTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+void (noTauri ? restaurarDoDisco() : Promise.resolve("sem-copia")).then(() => {
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+  if (noTauri) iniciarEspelho();
+});

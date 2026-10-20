@@ -42,6 +42,7 @@ import { KanbanPanel } from "./KanbanPanel";
 import { SkillsList } from "./SkillsList";
 import { PastasDeProjetos } from "../features/projects/PastasDeProjetos";
 import type { DropZone } from "../features/workspace/tabPointerDrag";
+import type { HistoryEntry } from "../features/history/historyService";
 // Fork: "agora", "5 min", "3 h", "2 d" — o mesmo da web e do celular (`lib/tempo.ts`).
 import { haQuantoTempo } from "../lib/tempo";
 /* O mesmo arquivo que o Tauri usa como ícone do app (tauri.conf.json →
@@ -116,6 +117,8 @@ interface SidebarProps {
   onAbrirConversa?: (projectId: string, sessionId: string, title: string) => void;
   /** Fork: conversa arrastada da lateral para um painel (centro abre ali, borda divide). */
   onSoltarConversaNoLayout?: (sessionId: string, title: string, paneId: string, zone: DropZone) => void;
+  /** Fork (histórico na lateral): retoma uma conversa anterior da pasta (`resumeHistory` do App). */
+  onRetomarConversaAnterior?: (entry: HistoryEntry) => Promise<void> | void;
   onCloseTerminal: (sessionId: string) => void;
   onDuplicateTerminal: (sessionId: string) => void;
   onRestartTerminal: (sessionId: string) => void;
@@ -159,6 +162,7 @@ export function Sidebar({
   onAttachTerminal,
   onAbrirConversa,
   onSoltarConversaNoLayout,
+  onRetomarConversaAnterior,
   onCloseTerminal,
   onDuplicateTerminal,
   onRestartTerminal,
@@ -290,6 +294,8 @@ export function Sidebar({
             onBifurcar={onDuplicateTerminal}
             onReiniciar={onRestartTerminal}
             onFechar={onCloseTerminal}
+            onRetomarAnterior={onRetomarConversaAnterior}
+            onVerHistorico={onOpenHistory}
           />
         </div>
 

@@ -12,6 +12,10 @@ import type { TerminalSession } from "../terminal/terminalService";
 import { colocar, mover, ordenar, useOrdemDaLateral } from "./ordemDaLateral";
 import { iniciarArraste } from "./arrastarLinha";
 import { TAB_DRAG_EVENT, type TabDragState, type TabDropTarget } from "../workspace/tabPointerDrag";
+// Fork (histórico na lateral): conversas anteriores de cada pasta, como nos apps do Claude/Codex.
+import { anterioresDaPasta, relerConversasAnteriores, useConversasAnteriores } from "./historicoDaPasta";
+import { ConversasAnteriores } from "./ConversasAnteriores";
+import type { HistoryEntry } from "../history/historyService";
 
 /** A linha sendo arrastada: em qual lista (`projetos` ou o id do projeto), qual, e a posição prevista
  *  entre as outras (`null` = fora da lista, por exemplo sobre o layout). */
@@ -72,6 +76,10 @@ interface Props {
   onFechar: (sessionId: string) => void;
   /** Fork: conversa arrastada para um painel do layout (só do projeto aberto, que é o que aparece). */
   onSoltarNoLayout?: (projectId: string, session: TerminalSession, alvo: TabDropTarget) => void;
+  /** Fork: retoma uma conversa anterior (do transcript da CLI) num terminal do projeto. */
+  onRetomarAnterior?: (entry: HistoryEntry) => Promise<void> | void;
+  /** Fork: abre a tela Histórico (todas as conversas, com busca). */
+  onVerHistorico?: () => void;
 }
 
 /**
@@ -82,7 +90,9 @@ interface Props {
 export function PastasDeProjetos({
   projects, activeProjectId, activeSessionId, agentSessions, naoVistas,
   onSelectProject, onCloseProject, onAbrirConversa, onBifurcar, onReiniciar, onFechar, onSoltarNoLayout,
+  onRetomarAnterior, onVerHistorico,
 }: Props) {
+  const historico = useConversasAnteriores();
   const { ordem, ordenarProjetos, ordenarConversas } = useOrdemDaLateral();
   const [soltura, setSoltura] = useState<Soltura>(null);
   // Fork: apagar conversa pede um segundo clique (o "×" vira "Apagar?" por alguns segundos).
@@ -204,6 +214,7 @@ export function PastasDeProjetos({
         // Fork: conversa de qualquer projeto pode cair no layout que está na tela; a aba mostra de
         // qual projeto ela é (`workspace/projetosDasAbas.tsx`).
         const soltaNoLayout = onSoltarNoLayout;
+        const anteriores = onRetomarAnterior && aberta ? anterioresDaPasta(project.path, historico, agentSessions) : [];
         return (
           <li key={project.id} data-reordenar className={classeDeSoltura(soltura, "projetos", project.id).trim() || undefined}>
             <div className={`pasta group${ativa ? " is-ativa" : ""}`}
@@ -242,7 +253,7 @@ export function PastasDeProjetos({
 
             {aberta && (
               <ul className="pasta-conversas" aria-label={`Conversas de ${project.name}`}>
-                {todas.length === 0 && <li className="px-2 py-1 text-[11px] text-text-muted">Nenhuma conversa aberta.</li>}
+                {todas.length === 0 && anteriores.length === 0 && <li className="px-2 py-1 text-[11px] text-text-muted">Nenhuma conversa ainda.</li>}
                 {conversasNaTela.flatMap((session) => {
                   // Fork: subagentes logo abaixo da orquestradora, como subpasta (recolhível).
                   const filhos = filhosDe(conversationKey(session));
@@ -250,6 +261,13 @@ export function PastasDeProjetos({
                   return [linha(project, session, idsDasConversas, conversas, soltaNoLayout, { filhos: filhos.length, recolhido }),
                     ...(recolhido ? [] : filhos.map((filho, i) => linha(project, filho, idsDasConversas, conversas, undefined, { sub: true, ultimo: i === filhos.length - 1 })))];
                 })}
+                {onRetomarAnterior && (
+                  <ConversasAnteriores nomeDoProjeto={project.name} anteriores={anteriores} onVerTodas={onVerHistorico}
+                    onRetomar={async (entry) => {
+                      await onRetomarAnterior(entry);
+                      void relerConversasAnteriores();
+                    }} />
+                )}
               </ul>
             )}
           </li>

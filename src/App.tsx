@@ -305,6 +305,8 @@ function AppComPaleta() {
           dispatch({ type: "FOCUS_SESSION", workspaceId: activeWorkspaceId, projectId, sessionId, title });
           setView("workspace");
         }}
+        // Fork (histórico na lateral): mesmo caminho do "Retomar" da tela Histórico.
+        onRetomarConversaAnterior={(entry) => resumeHistory(entry)}
         onSoltarConversaNoLayout={(sessionId, title, targetPaneId, zone) => {
           // Fork: arrastar da lateral para o layout (`features/workspace/colocarConversa.ts`).
           dispatch({ type: "PLACE_SESSION", sessionId, title, targetPaneId, zone });

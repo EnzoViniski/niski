@@ -183,3 +183,17 @@ body.lateral-arrastando, body.lateral-arrastando * { cursor: grabbing !important
   border: 2px solid rgb(var(--c-border-subtle)); outline: none; user-select: text; -webkit-user-select: text;
 }
 .launcher-branch-nova:focus { border-color: rgb(var(--c-accent)); }
+
+/* Fork (histórico na lateral): conversas anteriores embaixo das abertas (`ConversasAnteriores.tsx`). */
+.conversas-anteriores-rotulo {
+  padding: .375rem .4rem .125rem; font-size: .5625rem; letter-spacing: .08em; text-transform: uppercase;
+  color: rgb(var(--c-text-muted));
+}
+.conversa-linha.is-anterior { border-left-color: color-mix(in srgb, var(--cor-agente) 45%, transparent); background: transparent; }
+.conversa-linha.is-anterior:hover { background: color-mix(in srgb, var(--cor-agente) 10%, transparent); }
+.conversa-linha.is-anterior .conversa-botao { color: rgb(var(--c-text-muted)); }
+.conversa-linha.is-anterior:hover .conversa-botao { color: rgb(var(--c-text-secondary)); }
+.conversa-quando { flex-shrink: 0; font-size: .5625rem; color: rgb(var(--c-text-muted)); font-variant-numeric: tabular-nums; }
+.conversas-anteriores-mais { display: flex; gap: .75rem; padding: .125rem .4rem .25rem; }
+.conversas-anteriores-mais button { font-size: .625rem; color: rgb(var(--c-text-muted)); }
+.conversas-anteriores-mais button:hover { color: rgb(var(--c-accent)); }

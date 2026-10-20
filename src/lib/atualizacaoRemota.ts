@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { ATUALIZACAO_AUTOMATICA } from "./identidade";
+import { espelharAgora } from "./espelhoDaInterface";
 
 /*
  * Fork (atualização automática): versão nova publicada no repositório de releases → "Atualizar agora".
@@ -193,6 +194,8 @@ function interfaceParaOBackup(): Record<string, string> {
 /** Reabre com o engine novo: o engine grava as sessões e sai; cada aba volta com `--resume`. */
 export async function reiniciarParaAtualizar(): Promise<void> {
   marcarReinicioDeAtualizacao();
+  // O reinício sai sem esperar o WebKit gravar: a cópia em disco leva as últimas mudanças.
+  await espelharAgora().catch(() => undefined);
   mudar({ fase: "reiniciando", erro: null });
   try {
     await chamar("reiniciar_para_atualizar", { trocarEngine: true });

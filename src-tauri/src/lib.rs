@@ -20,6 +20,10 @@ mod voz;
 mod atualizacao;
 // Fork: cópia do estado antes de instalar versão nova pelo updater.
 mod backup_antes_de_atualizar;
+// Fork: cópia em disco do localStorage da interface (aparência, workspaces), restaurada ao abrir.
+mod estado_da_interface;
+// Fork: uma janela do app por pasta de dados (duas cópias derrubavam o engine uma da outra).
+mod instancia_unica;
 // Fork: abrir no app padrão o arquivo que o agente gerou (cartão na Conversa).
 mod abrir_entregavel;
 // Fork: caminho citado na Conversa vira link (abre pasta/arquivo sem executar nada).
@@ -39,6 +43,8 @@ pub fn run() {
     if let Ok(raiz) = profiles::raiz_de_perfis() { omni_core::definir_raiz_de_perfis(raiz); }
     if let Ok(dir) = engine_client::engine_dir() {
         omni_core::registro::iniciar("app", &dir);
+        // Fork: outra cópia do app já aberta nesta pasta de dados → foca ela e sai (instancia_unica.rs).
+        instancia_unica::garantir(&dir);
     }
     omni_core::registro::registrar_panicos();
     atualizacao::marcar_abertura();
@@ -92,6 +98,8 @@ pub fn run() {
             // Fork: "Atualizar agora" (updater) na barra.
             atualizacao::agentes_trabalhando,
             backup_antes_de_atualizar::backup_antes_de_atualizar,
+            estado_da_interface::ler_estado_da_interface,
+            estado_da_interface::gravar_estado_da_interface,
             engine_client::registrar_evento_da_ui,
             account_usage::account_usage,
             extensoes::listar_extensoes,

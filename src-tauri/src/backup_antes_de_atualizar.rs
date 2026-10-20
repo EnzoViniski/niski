@@ -39,6 +39,7 @@ pub const PERMITIDOS: &[&str] = &[
     "sessoes.json",               // limite de sessões
     "antigravity.json",
     "codex-app-server.json",
+    "estado-da-interface.json",   // cópia do localStorage da interface (estado_da_interface.rs)
 ];
 
 /// Chaves do localStorage da interface que valem guardar (workspace, abas, configurações).
