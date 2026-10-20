@@ -1,223 +1,90 @@
-<div align="center">
+# Medza Agents
 
-<img src="src-tauri/icons/128x128@2x.png" alt="Logo do OMNI AGENTS" width="140">
+Workspace de agentes de IA para desktop: Claude Code, Codex, Cursor e Antigravity, com terminais, chat, projetos, histórico e voz local no mesmo aplicativo.
 
-# OMNI AGENTS
+Desenvolvido pela Medza a partir do [OMNI AGENTS](https://github.com/FelipeCamposM/OMNI-AGENTS), de Felipe Campos Macedo, sob licença MIT. Esta distribuição tem identidade, portas e dados próprios.
 
-### Todos os seus agentes de IA, em um só lugar.
+## Instalar
 
-Claude Code, Codex e Cursor lado a lado, em vários projetos, rodando mesmo com a janela fechada e
-respondendo **do celular**, de qualquer lugar.
+Baixe o instalador do seu sistema em [Releases](https://github.com/Medza-Primos-Organizacao/medza-agentes/releases). Como o repositório é privado, você precisa estar conectado ao GitHub com acesso à organização. Os instaladores são gerados pelo workflow **Instaladores Medza**, também disponível em Actions para execução manual. Até a primeira release ser publicada, use os artefatos desse workflow ou compile abaixo.
 
-[![Release](https://img.shields.io/github/v/release/FelipeCamposM/OMNI-AGENTS?style=flat-square&color=f97316&label=vers%C3%A3o)](https://github.com/FelipeCamposM/OMNI-AGENTS/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/FelipeCamposM/OMNI-AGENTS/total?style=flat-square&color=f97316&label=downloads)](https://github.com/FelipeCamposM/OMNI-AGENTS/releases)
-[![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-f97316?style=flat-square)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/FelipeCamposM/OMNI-AGENTS?style=flat-square&color=f97316)](https://github.com/FelipeCamposM/OMNI-AGENTS/stargazers)
+- macOS Apple Silicon: `.dmg` com `aarch64` no nome. Abra e arraste o app para Aplicativos.
+- macOS Intel: `.dmg` com `x64` no nome.
+- Windows x64: instalador `.exe`.
+- Linux x64: `.deb` ou `.AppImage`.
 
-<br>
+A distribuição atual não é notarizada pela Apple nem assinada com certificado comercial no Windows. No macOS, uma eventual liberação deve ser feita manualmente em Ajustes do Sistema → Privacidade e Segurança. As atualizações são por novo instalador; o app não consulta releases do projeto original.
 
-[![Baixar para Windows](https://img.shields.io/badge/Baixar_para-Windows-0078D4?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/FelipeCamposM/OMNI-AGENTS/releases/latest)
-[![Baixar para macOS](https://img.shields.io/badge/Baixar_para-macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/FelipeCamposM/OMNI-AGENTS/releases/latest)
-[![Baixar para Linux](https://img.shields.io/badge/Baixar_para-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/FelipeCamposM/OMNI-AGENTS/releases/latest)
+## Primeiro uso
 
-<br>
+1. Abra **Configurações → Agentes**. Instale a CLI oficial que quiser usar e entre com sua própria conta. O Medza indica as CLIs ausentes.
+2. Adicione a pasta de um projeto, escolha o agente e a conta e abra a conversa.
+3. Em **Configurações → Memória**, escreva e ative seu contexto pessoal, se desejar. O texto é aplicado nas novas aberturas/retomadas de Claude e Codex.
+4. Em **Configurações → Skills**, clique **Instalar pacote Medza**. O pacote acompanha o aplicativo e pode ser instalado nas contas compatíveis, preservando versões existentes.
+5. Para ditar, abra a visão **Conversa** do agente e use o microfone. Na primeira vez, o app oferece baixar o modelo de voz.
 
-<a href="https://skillicons.dev">
-  <img src="https://skillicons.dev/icons?i=tauri,rust,react,ts,vite,tailwind,sqlite,docker&theme=dark" alt="Tauri, Rust, React, TypeScript, Vite, Tailwind, SQLite, Docker">
-</a>
+Cada pessoa começa com o próprio workspace e faz o próprio login. A aplicação pode detectar uma instalação de Claude/Codex já existente na máquina da pessoa; nenhuma conta é fornecida pelo Medza.
 
-<br><br>
+## Whisper incluído
 
-[Instalação](#instalação) · [O que ele faz](#o-que-ele-faz) · [Celular](#no-celular) · [Atalhos](#atalhos) · [Desenvolvimento](#desenvolvimento)
+A captura de microfone e a transcrição estão compiladas no aplicativo, com `cpal` e `whisper-rs`/whisper.cpp. Não é preciso instalar OpenWhispr, Python ou uma chave de API para ditar dentro do Medza.
 
-</div>
+O modelo `large-v3-turbo-q5_0` é baixado uma vez pela interface (aproximadamente 574 MB), com conferência de tamanho e SHA-256. Ele fica na pasta local de modelos, fora do repositório e dos instaladores. Depois desse download, a transcrição funciona sem internet. O áudio é processado localmente; o texto só é enviado ao provedor do agente quando você envia a mensagem. Há prévia da fala e revisão no campo antes do envio. A transcrição está configurada para português.
 
-<br>
+No macOS, autorize o microfone quando solicitado. O bundle inclui a descrição de uso e o entitlement de áudio. A inferência usa Metal no Mac e CPU nos demais sistemas.
 
-![Tela principal do OMNI AGENTS](docs/screenshots/01-workspace.png)
+## O que acompanha
 
----
+- Painéis e abas com agentes e terminais, editor com workers locais, arquivos e Git.
+- Conversa com aprovações, anexos, histórico e retomada pelas CLIs oficiais.
+- Proteção do índice com snapshots e arquivo local de transcripts Claude/Codex observados pelo app.
+- Memória pessoal opcional, gerenciador de skills e pacote com `frontend-design`, `webapp-testing`, `copywriting` e `seo-audit`.
+- Modelos locais pelo Codex, usando Ollama ou LM Studio já instalado e um modelo compatível informado pelo usuário.
+- Fila de contas, modelos de agentes, fluxos, orquestração, agendamentos e acesso remoto opcional.
 
-## O que ele faz
+Servidores de modelos, CLIs dos provedores, Docker e Tailscale são dependências opcionais e separadas. O acesso remoto vem desligado. A execução de IA segue a autenticação, os recursos e os limites da CLI escolhida.
 
-**Vários agentes lado a lado.** Divida a tela em quantos painéis quiser, com um agente ou um
-terminal em cada um. Arraste abas entre os painéis. Cada aba mostra a marca do agente que está
-rodando nela.
+## Privacidade e dados
 
-**Nada se perde quando você fecha a janela.** Um serviço próprio segura as sessões: fechar o app,
-atualizar o OMNI ou reiniciar a janela não derruba o que o agente está fazendo.
+O código e os instaladores não incluem contas, credenciais, conversas, arquivos de projetos, memória pessoal ou configurações de máquina. A distribuição limpa é gerada somente a partir de arquivos versionados e não publica o histórico Git do workspace interno.
 
-**Avisa quando precisa de você.** O agente terminou o turno ou abriu um pedido de aprovação? O
-projeto acende na barra lateral e você recebe uma notificação do sistema. `Ctrl+Tab` pula direto
-para quem está esperando, e o **X** do aviso dispensa sem precisar abrir.
+Dados de uso ficam em pastas locais do sistema. O arquivamento protege conversas vistas por esta versão; não recupera conteúdo apagado antes de existir uma cópia. Faça backup externo para proteger contra perda do disco. O Medza não oferece garantia de perda zero. Logs da aplicação contêm metadados, sem áudio ou texto de conversa.
 
-**Várias contas por agente.** Pessoal e trabalho no mesmo app, cada uma isolada na própria pasta de
-configuração. O OMNI nunca lê nem guarda suas credenciais — o login acontece no próprio provider.
+## Compilar
 
-**Mostra quanto você já usou.** A barra de baixo traz o consumo da conta em foco (5 horas e semana),
-com barra colorida, mais o modelo e o nível de esforço que está atendendo aquela conversa.
-
-**Histórico de verdade.** Encontre e retome conversas antigas do Claude e do Codex, mesmo as que não
-começaram aqui — o OMNI lê os registros das próprias CLIs.
-
-**Git integrado.** Status, stage, commit e push na barra lateral, diferenças lado a lado e um grafo
-de commits com ramos, etiquetas e autor. A branch atual fica no rodapé: um clique troca de branch,
-cria uma nova ou puxa as mudanças do remoto.
-
-**Projetos no WSL e em servidores.** Abra uma pasta dentro do WSL ou de um servidor por SSH. O
-agente continua sendo o do seu PC (mesma conta, histórico e celular), mas os comandos dele e o Git
-rodam lá, onde o código está. A tela de abrir projeto lista os recentes.
-
-**Containers Docker.** A seção DOCKER da barra lateral lista os containers do seu computador,
-agrupados por projeto do Compose, como a extensão Containers do VS Code: iniciar, parar, reiniciar,
-remover, ver os logs e abrir um shell dentro do container, cada um num terminal do app.
-
-**Skills, arquivos e tarefas.** Instale, ative e desative skills por conta ou por projeto, navegue e
-edite arquivos do projeto e organize tarefas num quadro Kanban.
-
-**Do celular.** Leia o QR, e o telefone vira um chat com os mesmos agentes: mandar prompt, aprovar
-uma ação, anexar arquivos e colar prints. A conexão é direta com o seu PC, pelo Tailscale.
-
----
-
-## Como é
-
-### Escolher o agente e a conta
-![Seletor de CLI e conta](docs/screenshots/02-novo-agente.png)
-
-### Uso da conta, modelo e esforço
-![Barra de status com o consumo da conta](docs/screenshots/03-rodape-uso.png)
-
-### Git Graph
-![Grafo de commits](docs/screenshots/04-git-graph.png)
-
-### Histórico de conversas
-![Tela de histórico](docs/screenshots/05-historico.png)
-
-### Skills
-![Gerenciador de skills](docs/screenshots/06-skills.png)
-
-### Aparência
-![Configurações de aparência](docs/screenshots/07-aparencia.png)
-
-### No celular
-<p>
-  <img src="docs/screenshots/10-celular-projetos.png" alt="Lista de projetos no celular" width="290">
-  <img src="docs/screenshots/09-celular-chat.png" alt="Conversa com um anexo, no celular" width="290">
-</p>
-
----
-
-## Instalação
-
-Baixe na [página de releases](https://github.com/FelipeCamposM/OMNI-AGENTS/releases/latest):
-
-| Sistema | Arquivo | Observação |
-|---|---|---|
-| Windows 10/11 | `OMNI.AGENTS_x64-setup.exe` | O SmartScreen pode avisar na primeira vez: **Mais informações → Executar assim mesmo**. |
-| macOS (Intel e Apple Silicon) | `OMNI.AGENTS_universal.dmg` | Na primeira abertura, clique com o botão direito no app → **Abrir**. |
-| Linux | `.AppImage`, `.deb` ou `.rpm` | O AppImage se atualiza sozinho; `.deb` e `.rpm` precisam reinstalar. |
-
-O app se **atualiza sozinho**: quando sai uma versão nova, aparece um aviso dentro dele.
-
-### O que você precisa ter instalado
-
-O OMNI não traz os agentes dentro dele — ele usa as CLIs que já estão no seu computador:
-
-- [Claude Code](https://claude.com/claude-code) (`claude`)
-- [Codex CLI](https://developers.openai.com/codex/cli) (`codex`)
-- [Cursor CLI](https://cursor.com/cli) (`agent`)
-
-Basta ter pelo menos uma. Em **Configurações → Agentes** o app mostra quais encontrou e se já têm
-login. Para o acesso pelo celular, também é preciso o [Tailscale](https://tailscale.com) no PC e no
-telefone, com a mesma conta.
-
----
-
-## Primeiros passos
-
-1. **Adicione um projeto** pela barra lateral — é uma pasta do seu computador.
-2. Clique em **Novo agente**, escolha a CLI e a conta. O agente abre já dentro da pasta do projeto.
-3. Divida a tela com `Ctrl+\` e abra outro agente ou um terminal no painel novo.
-4. Trabalhe normalmente. Pode fechar a janela: o agente continua.
-5. Para usar do celular, vá em **Configurações → Celular** e siga os quatro passos da tela.
-
----
-
-## Atalhos
-
-Todos podem ser trocados em **Configurações → Atalhos**.
-
-| Atalho | O que faz |
-|---|---|
-| `Ctrl+P` | Buscar arquivo no projeto |
-| `Ctrl+\` | Dividir o painel lado a lado |
-| `Ctrl+Shift+\|` | Dividir em cima e embaixo |
-| `Ctrl+W` | Fechar o painel |
-| `Ctrl+M` | Maximizar o painel |
-| `Ctrl+Tab` | Ir para o agente que está pedindo atenção |
-| `Ctrl+Shift+B` | Criar uma branch a partir da atual |
-| `Ctrl+Shift+Espaço` | Sair do terminal e devolver o teclado ao app |
-| `Esc` | Fechar as Configurações e voltar para onde você estava |
-| Botão do meio do mouse | Fechar a aba |
-
----
-
-## Privacidade
-
-- Seus projetos, conversas e configurações **ficam no seu computador**. O OMNI não tem servidor, não
-  tem conta e não manda nada para lugar nenhum.
-- As credenciais dos agentes continuam sendo do provider: o login abre a própria CLI, e o OMNI
-  guarda apenas o nome da conta e a pasta de configuração dela.
-- O acesso pelo celular é **direto com o seu PC**, pela rede privada do Tailscale, protegido por um
-  código de acesso que fica no telefone e pode ser trocado a qualquer momento.
-- A internet é usada para: falar com os provedores dos agentes (isso é a própria CLI), procurar
-  atualizações do OMNI e, se você ligar, o acesso pelo celular.
-
----
-
-## Desenvolvimento
-
-Precisa de Node 18+, Rust e as ferramentas de build do sistema.
+Requisitos: Node.js 22, Rust estável, Git, CMake e ferramentas nativas de compilação. No macOS, instale as Command Line Tools do Xcode; no Windows, Visual Studio Build Tools com C++ e WebView2; no Linux, as dependências listadas no workflow de CI.
 
 ```bash
-npm install
-npm run dev          # app completo (compila o engine e abre a janela)
-npm run dev:vite     # só a interface, sem Rust
+git clone https://github.com/Medza-Primos-Organizacao/medza-agentes.git
+cd medza-agentes
+npm ci
+npm run dev
+```
+
+Para gerar o instalador da sua máquina:
+
+```bash
+npm run build
+```
+
+Os arquivos ficam em `installers/`. Para gerar apenas o `.app` no macOS, use `npm run build -- --bundles app`. O build não exige credenciais, modelos de voz baixados ou chave de assinatura do updater.
+
+```bash
 npm run typecheck
-npm test             # testes da interface
-cargo test -p omni-engine -p omni-core -p omni-protocol
-npm run build        # instalador local
+npm test
+npm run build:engine
+cargo test -p omni-engine -p omni-core -p omni-protocol -- --test-threads=1
+cargo test -p omni-agents --lib
 ```
 
-### Arquitetura
+O desenvolvimento usa `ai.medza.agents.dev`; a distribuição usa `ai.medza.agents`, com engine na porta 47421. Dados de desenvolvimento e do aplicativo instalado ficam separados.
 
-```mermaid
-flowchart LR
-    UI[React + TypeScript] -->|invoke| Tauri[Tauri / Rust]
-    Tauri -->|socket local| Engine[OMNI Engine]
-    Engine --> PTY[Terminais e CLIs dos agentes]
-    Engine --> HTTP[Servidor do celular]
-    Celular[Navegador do celular] -->|Tailscale| HTTP
-```
+## Manutenção e distribuição
 
-- **Interface (React):** painéis, abas, editor, git, histórico e configurações.
-- **Tauri/Rust:** janela, diálogos, arquivos, perfis de conta e atualizações.
-- **OMNI Engine:** processo próprio que segura as sessões e sobrevive ao fechamento da janela; é
-  ele que serve a página do celular.
+Leia [docs/distribuicao.md](docs/distribuicao.md), [docs/privacidade.md](docs/privacidade.md) e [skills/README.md](skills/README.md). A versão fica em `VERSION`; use `npm run version:sync` ao alterá-la.
 
-Documentos: [`spec.md`](spec.md) (produto e arquitetura),
-[`docs/multiplataforma.md`](docs/multiplataforma.md) (build e release nos três sistemas),
-[`docs/mobile-and-account-usage.md`](docs/mobile-and-account-usage.md) (celular e uso de conta),
-[`roadmaps/omni-agents/roadmap.md`](roadmaps/omni-agents/roadmap.md) (histórico de decisões).
+Verificação local desta preparação: build macOS Apple Silicon e testes automatizados. Os outros instaladores precisam passar pelo GitHub Actions e por uso real no respectivo sistema; um workflow configurado ainda não é uma validação executada.
 
----
+## Licença e créditos
 
-## Contribuindo
-
-Issues e pull requests são bem-vindos. Achou um bug ou tem uma ideia?
-[Abra uma issue](https://github.com/FelipeCamposM/OMNI-AGENTS/issues).
-
-## Licença
-
-[MIT](LICENSE) © Felipe Campos Macedo
+Código do aplicativo sob [MIT](LICENSE), preservando o aviso de copyright de Felipe Campos Macedo. As skills mantêm suas próprias licenças e atribuições em cada pasta. Consulte [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

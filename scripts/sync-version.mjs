@@ -34,6 +34,19 @@ if (!/^\d+\.\d+\.\d+$/.test(versao)) {
 /** Cada alvo sabe ler e escrever a própria versão. */
 const ALVOS = [
   {
+    arquivo: "package-lock.json",
+    ler: (t) => {
+      const j = JSON.parse(t);
+      return j.version === j.packages?.[""]?.version ? j.version : "divergente";
+    },
+    escrever: (t, v) => {
+      const j = JSON.parse(t);
+      j.version = v;
+      j.packages[""].version = v;
+      return JSON.stringify(j, null, 2) + "\n";
+    },
+  },
+  {
     arquivo: "package.json",
     ler: (t) => JSON.parse(t).version,
     escrever: (t, v) => {

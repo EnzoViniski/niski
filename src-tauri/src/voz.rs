@@ -13,6 +13,8 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Instant;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+#[path = "integridade_modelo.rs"]
+mod integridade_modelo;
 
 const MODELO_ARQUIVO: &str = "ggml-large-v3-turbo-q5_0.bin";
 const MODELO_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin";
@@ -102,11 +104,10 @@ fn baixar() -> Result<(), String> {
     if !status.success() {
         return Err("Falha ao baixar o modelo de voz; tente de novo (o download continua de onde parou)".into());
     }
-    let saida = Command::new("shasum").args(["-a", "256"]).arg(&parcial).output().map_err(|e| e.to_string())?;
-    let hash = String::from_utf8_lossy(&saida.stdout);
-    if hash.split_whitespace().next() != Some(MODELO_SHA256) {
+    // SHA-256 em Rust: o Windows não fornece o `shasum` que existe no macOS.
+    if let Err(erro) = integridade_modelo::conferir(&parcial, MODELO_BYTES, MODELO_SHA256) {
         let _ = std::fs::remove_file(&parcial);
-        return Err("O modelo baixado veio corrompido (SHA256 não confere); tente de novo".into());
+        return Err(format!("O modelo de voz não passou na verificação: {erro}. Tente de novo."));
     }
     std::fs::rename(&parcial, &destino).map_err(|e| e.to_string())?;
     omni_core::registro::info("voz_modelo_baixado", &[("ms", &inicio.elapsed().as_millis().to_string())]);

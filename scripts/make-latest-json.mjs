@@ -19,12 +19,17 @@ const INSTALLERS = join(RAIZ, "installers");
 const CONF = join(RAIZ, "src-tauri", "tauri.conf.json");
 
 const conf = JSON.parse(readFileSync(CONF, "utf8"));
+const identidade = JSON.parse(readFileSync(join(RAIZ, "identidade.json"), "utf8"));
+if (!identidade.updater?.pubkey || !identidade.updater?.endpoint) {
+  console.error("Atualização automática desativada. Distribua os instaladores; não há chave própria configurada.");
+  process.exit(1);
+}
 const versao = conf.version;
 
 // A URL do endpoint aponta para `releases/latest`, mas o asset em si mora numa
 // tag. Convenção: v<versao>. Mudou aqui, muda na hora de criar o Release.
 // Precisa bater com plugins.updater.endpoints no tauri.conf.json.
-const REPO = JSON.parse(readFileSync(join(RAIZ, "identidade.json"), "utf8")).repositorio;
+const REPO = identidade.repositorio;
 const TAG = `v${versao}`;
 
 const notasIdx = process.argv.indexOf("--notes");
@@ -54,7 +59,7 @@ function nomeBase() {
   // Mesmo replace de espaço->ponto que collect-installers.mjs aplica ao copiar — precisa
   // bater com o nome de arquivo real em installers/ (que já é o nome real do asset no
   // GitHub, que também troca espaço por ponto sozinho).
-  return `${conf.productName.replaceAll(" ", ".")}_${versao}_x64`;
+  return `${identidade.nome.replaceAll(" ", ".")}_${versao}_x64`;
 }
 
 const artefato = CANDIDATOS.find((c) => arquivos.includes(c) && arquivos.includes(`${c}.sig`));

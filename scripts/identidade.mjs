@@ -39,12 +39,14 @@ function janelas(titulo) {
 /** Sobreposição para `tauri build --config`. `ajuste` permite derivar variantes (build local). */
 export function sobreposicaoDoTauri(id, ajuste = {}) {
   const nome = ajuste.nome ?? id.nome;
-  const updater = ajuste.updater ?? (id.updater?.endpoint ? { endpoints: [id.updater.endpoint], ...(id.updater.pubkey ? { pubkey: id.updater.pubkey } : {}) } : undefined);
+  // Sem chave própria, distribuição manual. Nunca herdar a chave/endpoint do upstream.
+  const assinado = Boolean(id.updater?.pubkey && id.updater?.endpoint);
+  const updater = ajuste.updater ?? { endpoints: assinado ? [id.updater.endpoint] : [], pubkey: id.updater?.pubkey ?? "" };
   return {
     productName: nome,
     identifier: ajuste.bundleId ?? id.bundleId,
     app: { windows: janelas(nome) },
-    ...(ajuste.bundle ? { bundle: ajuste.bundle } : {}),
+    bundle: { createUpdaterArtifacts: assinado, ...ajuste.bundle },
     ...(updater ? { plugins: { updater } } : {}),
   };
 }

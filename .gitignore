@@ -22,6 +22,31 @@ logs/
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
+
+# Estado e credenciais locais: distribuição contém só código e exemplos sintéticos.
+.codex/
+.agents/
+**/engine.token
+**/mobile.json
+**/.credentials.json
+**/.claude.json
+**/.Codex.json
+**/conversations.json
+**/sessions.json
+**/workspace.json
+**/workspace-*.json
+**/profiles.json
+**/memoria-compartilhada.json
+**/arquivo-conversas/
+*.key
+*.pem
+*.p12
+*.pfx
+ggml-*.bin
+*.parcial
+publicacao/
 
 # Editor
 .vscode/

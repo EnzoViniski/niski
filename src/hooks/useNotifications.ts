@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ATUALIZACAO_AUTOMATICA } from "../lib/identidade";
 
 export type SettingsSection = "sobre";
 
@@ -18,6 +19,7 @@ export function useNotifications() {
   const [itens, setItens] = useState<Notificacao[]>([]);
 
   useEffect(() => {
+    if (!ATUALIZACAO_AUTOMATICA) return;
     let cancelado = false;
 
     async function apurar() {

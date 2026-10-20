@@ -1,7 +1,7 @@
 {
-  "productName": "OMNI AGENTS",
-  "version": "0.7.2",
-  "identifier": "com.omni.agents",
+  "productName": "Medza Agents",
+  "version": "0.8.0",
+  "identifier": "ai.medza.agents",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "OMNI AGENTS",
+        "title": "Medza Agents",
         "width": 1000,
         "height": 720,
         "minWidth": 720,
@@ -44,7 +44,10 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "createUpdaterArtifacts": true,
+    "createUpdaterArtifacts": false,
+    "resources": {
+      "../skills/basicas/": "skills/basicas/"
+    },
     "externalBin": [
       "binaries/omni-engine",
       "binaries/omni-shim"
@@ -65,10 +68,8 @@
       "requireLiteralLeadingDot": false
     },
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE1RUVCQjE2QkYwQjU3QUQKUldTdFZ3dS9GcnZ1cGFVdEJEclZIVzFydnVDTTh2RXorWlFESEFwR2JIbEVJK2sxeUovbDdHamcK",
-      "endpoints": [
-        "https://github.com/FelipeCamposM/OMNI-AGENTS/releases/latest/download/latest.json"
-      ],
+      "pubkey": "",
+      "endpoints": [],
       "windows": {
         "installMode": "passive"
       }

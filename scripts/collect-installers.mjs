@@ -11,15 +11,18 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // `src-tauri` virou membro de um Cargo workspace (crates/omni-engine, omni-protocol) — o target/
 // compartilhado do workspace fica na raiz do repo, não mais em src-tauri/target/.
-const BUNDLE = join(RAIZ, "target", "release", "bundle");
+const indiceDoAlvo = process.argv.indexOf("--target");
+const alvo = indiceDoAlvo >= 0 ? process.argv[indiceDoAlvo + 1] : undefined;
+const BUNDLE = join(RAIZ, "target", ...(alvo ? [alvo] : []), "release", "bundle");
 const DESTINO = join(RAIZ, "installers");
 
 /** Instaladores + os artefatos que o updater do Tauri publica no Release. */
-const EXTENSOES = [".exe", ".msi", ".zip", ".sig"];
+const EXTENSOES = [".exe", ".msi", ".zip", ".sig", ".dmg", ".deb", ".rpm", ".appimage", ".tar.gz"];
 
 /**
  * `target/` guarda artefatos de nomes de produto antigos para sempre — o build
@@ -27,8 +30,10 @@ const EXTENSOES = [".exe", ".msi", ".zip", ".sig"];
  * junto com o instalador atual.
  */
 const PRODUTO = JSON.parse(
-  readFileSync(join(RAIZ, "src-tauri", "tauri.conf.json"), "utf8")
-).productName;
+  readFileSync(join(RAIZ, "identidade.json"), "utf8")
+).nome;
+const VERSAO = readFileSync(join(RAIZ, "VERSION"), "utf8").trim();
+const NOMES = [PRODUTO, PRODUTO.replaceAll(" ", "."), PRODUTO.toLowerCase().replaceAll(" ", "-"), PRODUTO.toLowerCase().replaceAll(" ", "_")];
 
 function arquivosDoBundle() {
   if (!existsSync(BUNDLE)) return [];
@@ -37,15 +42,27 @@ function arquivosDoBundle() {
     .flatMap((d) => {
       const sub = join(BUNDLE, d.name);
       return readdirSync(sub)
-        .filter((f) => f.startsWith(PRODUTO))
+        .filter((f) => NOMES.some((nome) => f.startsWith(`${nome}_${VERSAO}_`)))
         .filter((f) => EXTENSOES.some((e) => f.toLowerCase().endsWith(e)))
         .map((f) => join(sub, f));
     });
 }
 
 const encontrados = arquivosDoBundle();
+// `.app.zip` também funciona sem montar um DMG, inclusive em ambientes sem hdiutil.
+const app = join(BUNDLE, "macos", `${PRODUTO}.app`);
+let zipDoApp = null;
+if (process.platform === "darwin" && existsSync(app)) {
+  const versaoDoApp = execFileSync("plutil", ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", join(app, "Contents/Info.plist")], { encoding: "utf8" }).trim();
+  if (versaoDoApp === VERSAO) {
+    mkdirSync(DESTINO, { recursive: true });
+    zipDoApp = join(DESTINO, `${PRODUTO.replaceAll(" ", ".")}_${VERSAO}_${alvo ?? process.arch}.app.zip`);
+    execFileSync("ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", app, zipDoApp]);
+    console.log(`[installers] ${zipDoApp}`);
+  }
+}
 
-if (encontrados.length === 0) {
+if (encontrados.length === 0 && !zipDoApp) {
   // Não é erro: `npm run build:vite` sozinho não gera bundle. Falhar aqui
   // quebraria o script de build por um passo que nem devia ter rodado.
   console.warn(`[installers] Nada de "${PRODUTO}" em ${BUNDLE} — rode "npm run build" antes.`);

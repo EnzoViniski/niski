@@ -6,6 +6,7 @@ import { NotificationBell } from "../components/NotificationBell";
 // O plugin do updater não existe fora do Tauri; sem isto o import dinâmico
 // rejeita e o teste não distinguiria "sem atualização" de "falhou".
 const check = vi.fn();
+vi.mock("../lib/identidade", () => ({ ATUALIZACAO_AUTOMATICA: true }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: () => check() }));
 
 beforeEach(() => {

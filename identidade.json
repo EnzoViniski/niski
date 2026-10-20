@@ -7,9 +7,9 @@
   "portaDoCelular": 47422,
   "portaDeDev": 47441,
   "pastaDePerfis": "OMNI-AGENTS",
-  "repositorio": "EnzoViniski/OMNI-AGENTS",
+  "repositorio": "Medza-Primos-Organizacao/medza-agentes",
   "updater": {
-    "endpoint": "https://github.com/EnzoViniski/OMNI-AGENTS/releases/latest/download/latest.json",
+    "endpoint": "https://github.com/Medza-Primos-Organizacao/medza-agentes/releases/latest/download/latest.json",
     "pubkey": ""
   }
 }

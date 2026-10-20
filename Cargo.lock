@@ -2932,7 +2932,7 @@ dependencies = [
 
 [[package]]
 name = "omni-agents"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
  "block2",
  "cpal",
@@ -2943,6 +2943,7 @@ dependencies = [
  "omni-protocol",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

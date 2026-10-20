@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { resolveResource } from "@tauri-apps/api/path";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Button, Select } from "../../components/ui";
 import { AgentIcon } from "../../components/ui/AgentIcon";
@@ -104,6 +105,14 @@ export function SkillsManager({ projectPath }: SkillsManagerProps) {
     });
   }
 
+  async function instalarPacoteMedza() {
+    await run("medza", async () => {
+      const pasta = await resolveResource("skills/basicas");
+      const resumo = await installSkillEverywhere(scopes.filter((item) => item.kind === "global"), pasta);
+      setResultado(`Pacote Medza: ${resumo.instaladas} instalações. ${resumo.existentes} versões existentes preservadas.`);
+    });
+  }
+
   const scopeOptions = scopes.map((item) => ({
     value: item.id,
     label: item.label,
@@ -144,6 +153,9 @@ export function SkillsManager({ projectPath }: SkillsManagerProps) {
             </Button>
             {scopes.some((item) => item.kind === "global") && <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => void instalarEmTodas()}>
               {busy === "install-all" ? "Instalando…" : "Instalar em todas as contas…"}
+            </Button>}
+            {scopes.some((item) => item.kind === "global") && <Button size="sm" disabled={busy !== null} onClick={() => void instalarPacoteMedza()}>
+              {busy === "medza" ? "Instalando…" : "Instalar pacote Medza"}
             </Button>}
           </div>
 

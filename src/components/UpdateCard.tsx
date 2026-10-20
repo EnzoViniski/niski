@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "./ui";
+import { ATUALIZACAO_AUTOMATICA, PAGINA_DE_DOWNLOADS } from "../lib/identidade";
 
 type Fase = "ocioso" | "checando" | "disponivel" | "baixando" | "pronto" | "atual" | "erro";
 
@@ -26,6 +27,7 @@ export function UpdateCard() {
   const [erro, setErro] = useState<string | null>(null);
 
   const checar = useCallback(async (silencioso = false) => {
+    if (!ATUALIZACAO_AUTOMATICA) return;
     if (!silencioso) setFase("checando");
     setErro(null);
     try {
@@ -51,6 +53,7 @@ export function UpdateCard() {
   }, [checar]);
 
   async function instalar() {
+    if (!ATUALIZACAO_AUTOMATICA) return;
     setFase("baixando");
     setProgresso(0);
     setErro(null);
@@ -86,6 +89,15 @@ export function UpdateCard() {
     const { relaunch } = await import("@tauri-apps/plugin-process");
     await relaunch();
   }
+
+  if (!ATUALIZACAO_AUTOMATICA) return (
+    <Card>
+      <p className="text-xs text-text-muted">Baixe as novas versões na página do Medza Agents.</p>
+      <Button onClick={() => { void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(PAGINA_DE_DOWNLOADS)); }}>
+        Ver versões para baixar
+      </Button>
+    </Card>
+  );
 
   return (
     <Card>
