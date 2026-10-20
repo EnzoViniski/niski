@@ -17,6 +17,10 @@ static ASSETS: include_dir::Dir<'_> = include_dir::include_dir!("$CARGO_MANIFEST
 // rotas e planos daqui (spawn, fila, timeline) sem torná-los públicos.
 #[path = "orquestracao.rs"]
 pub(crate) mod orquestracao;
+// Fork: teto de sessões ativas (agentes e terminais rodando comando), configurável. Sem ele, um toque
+// repetido no botão do celular enche o PC de PTYs.
+#[path = "limite_de_sessoes.rs"]
+pub(crate) mod limite_de_sessoes;
 
 pub struct MobileRuntime {
     config: Mutex<MobileConfig>,
@@ -978,10 +982,7 @@ async fn bifurcar_rota(State(state): State<Arc<EngineState>>, RoutePath(id): Rou
         let fonte = sessao.meta.lock().map(|meta| meta.clone()).map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Sessão indisponível"))?;
         let provider = fonte.provider.clone().filter(|p| p == "claude" || p == "codex")
             .ok_or_else(||error(StatusCode::CONFLICT,"Só dá para bifurcar conversas do Claude e do Codex"))?;
-        if state.sessions.lock().expect("sessions poisoned").values()
-            .filter(|entry| matches!(entry,SessionEntry::Live(_))).count() >= MAX_SESSOES {
-            return Err(error(StatusCode::TOO_MANY_REQUESTS,"Muitas sessões abertas neste PC; feche alguma antes"));
-        }
+        limite_de_sessoes::conferir(&state)?; // Fork: teto único e configurável.
         let resposta = bifurcar(&state, fonte, &provider, true).map_err(|erro|error(StatusCode::INTERNAL_SERVER_ERROR,&erro.to_string()))?;
         let EngineResponse::Session { session } = resposta else { return Err(error(StatusCode::INTERNAL_SERVER_ERROR,"Resposta inesperada")); };
         Ok((StatusCode::CREATED,Json(json!({"id":session.conversation_id,"title":session.name}))))
@@ -1238,10 +1239,7 @@ async fn abrir_terminal(State(state): State<Arc<EngineState>>, Json(body): Json<
         let projeto = known_projects(&state).into_iter().find(|projeto| projeto.id == body.project_id && !projeto.path.is_empty())
             .ok_or_else(||error(StatusCode::NOT_FOUND,"Projeto não encontrado neste PC"))?;
         if !Path::new(&projeto.path).is_dir() { return Err(error(StatusCode::CONFLICT,"A pasta do projeto não existe mais neste PC")); }
-        if state.sessions.lock().expect("sessions poisoned").values()
-            .filter(|entry| matches!(entry,SessionEntry::Live(_))).count() >= MAX_SESSOES {
-            return Err(error(StatusCode::TOO_MANY_REQUESTS,"Muitas sessões abertas neste PC; feche alguma antes"));
-        }
+        limite_de_sessoes::conferir(&state)?; // Fork: teto único e configurável.
         // Headless: ninguém exibe esta PTY num terminal de verdade até o desktop abrir a aba.
         let resposta = spawn_terminal(&state, projeto.id, "Terminal".into(), projeto.path, None, None, 32, 120,
             SessionOrigin { headless: true, ..SessionOrigin::default() })
@@ -1433,11 +1431,6 @@ async fn modo(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<St
 #[derive(Deserialize)] #[serde(deny_unknown_fields)]
 struct SpawnBody { project_id: String, provider: String, profile_id: Option<String>, #[serde(default)] titulo: Option<String> }
 
-/// Teto de sessões vivas abertas pelo celular somadas às do desktop. Sem ele, um toque repetido no
-/// botão enche o PC de PTYs.
-/// ponytail: número fixo; se incomodar, vira configuração na tela de Celular.
-const MAX_SESSOES: usize = 16;
-
 /// Resolve o pedido do celular contra o que o servidor já conhece. Nada aqui sai do corpo do
 /// request além de escolhas dentro de listas fechadas.
 fn resolve_spawn(state: &Arc<EngineState>, body: &SpawnBody) -> Result<SpawnPlan, ApiError> {
@@ -1467,10 +1460,7 @@ fn resolve_spawn(state: &Arc<EngineState>, body: &SpawnBody) -> Result<SpawnPlan
         return Err(error(StatusCode::BAD_REQUEST,"Título inválido"));
     }
 
-    if state.sessions.lock().expect("sessions poisoned").values()
-        .filter(|entry| matches!(entry,SessionEntry::Live(_))).count() >= MAX_SESSOES {
-        return Err(error(StatusCode::TOO_MANY_REQUESTS,"Muitas sessões abertas neste PC; feche alguma antes"));
-    }
+    limite_de_sessoes::conferir(state)?; // Fork: teto único e configurável.
 
     // Fixar o `--session-id` do Claude aqui é o que torna o caminho do transcript conhecido de
     // imediato — sem isso a timeline do celular ficaria vazia até alguém descobrir o arquivo.
@@ -1949,10 +1939,7 @@ async fn retomar_rota(State(state): State<Arc<EngineState>>, RoutePath(id): Rout
         if !valor_seguro(valor) { return Err(error(StatusCode::BAD_REQUEST,"Valor inválido")); }
     }
     tokio::task::spawn_blocking(move || {
-        if state.sessions.lock().expect("sessions poisoned").values()
-            .filter(|entry| matches!(entry,SessionEntry::Live(_))).count() >= MAX_SESSOES {
-            return Err(error(StatusCode::TOO_MANY_REQUESTS,"Muitas sessões abertas neste PC; feche alguma antes"));
-        }
+        limite_de_sessoes::conferir(&state)?; // Fork: teto único e configurável.
         let plano = plano_de_retomada(&state,&id,body)?;
         let conversa = plano.conversation_id.clone();
         enqueue(&state,&conversa,&headers,ActionKind::Retomar(plano))

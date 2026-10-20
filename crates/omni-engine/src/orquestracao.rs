@@ -276,6 +276,8 @@ fn no(state: &EngineState, conversa: &str, perfis: &[omni_core::Profile], agente
         "tarefa": agente.map(|a| a.tarefa.clone()),
         "editar": agente.map(|a| a.editar.clone()).unwrap_or_default(),
         "criar": agente.map(|a| a.criar.clone()).unwrap_or_default(),
+        // Fork: worktree isolada do subagente (`criar_agente` com `worktree`).
+        "branch": agente.and_then(|a| a.branch.clone()),
         "criado_em": agente.map(|a| a.criado_em),
         "estado": estado,
         "estado_texto": estado.texto(),

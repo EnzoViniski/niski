@@ -443,3 +443,71 @@ async fn orquestrador_responde_permissao_do_subagente_e_arriscado_fica_com_o_usu
     assert!(chegou("resposta 3"), "negar manda a opção No");
     let _ = ferramenta(&state, &token, "parar_agente", json!({"agente": agente})).await;
 }
+
+/// Fork: `criar_agente` com `worktree` — cada subagente numa worktree isolada (branch `medza/<nome>`,
+/// `.worktreeinclude` copiado), sem disputa de arquivo entre eles, e a pasta principal intacta.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn criar_agente_em_worktree_isolada() {
+    let (dir, state, projeto) = fixture();
+    start(state.clone());
+    publicar(&state, &projeto, &cli_falsa(dir.path()));
+    let token = ligar(&state, "orq-a", "claude");
+
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "x", "editar": ["src/a.ts"], "worktree": true})).await;
+    assert!(erro && texto.contains("não é um repositório git"), "{texto}");
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "x", "editar": ["src/a.ts"], "worktree": 3})).await;
+    assert!(erro && texto.contains("true/false"), "{texto}");
+
+    let git = |args: &[&str]| assert!(std::process::Command::new("git").args(args).current_dir(&projeto).output().unwrap().status.success(), "{args:?}");
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "t@t"]);
+    git(&["config", "user.name", "t"]);
+    std::fs::write(projeto.join(".gitignore"), ".env\n").unwrap();
+    std::fs::write(projeto.join(".worktreeinclude"), ".env\n").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-q", "-m", "inicio"]);
+    std::fs::write(projeto.join(".env"), "X=1\n").unwrap();
+
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "Tela de login nova",
+        "editar": ["src/a.ts"], "worktree": true})).await;
+    assert!(!erro, "{texto}");
+    let criado: Value = serde_json::from_str(&texto).unwrap();
+    let caminho = PathBuf::from(criado["worktree"].as_str().unwrap());
+    assert!(caminho.ends_with(".medza-worktrees/projeto/tela-de-login-nova"), "{caminho:?}");
+    assert_eq!(criado["branch"], "medza/tela-de-login-nova");
+    assert_eq!(std::fs::read_to_string(caminho.join(".env")).unwrap(), "X=1\n");
+    let agente = criado["agente"].as_str().unwrap().to_owned();
+    let (_, Some(sessao)) = current(&state, &agente).unwrap() else { panic!("sem sessão") };
+    assert_eq!(PathBuf::from(sessao.meta.lock().unwrap().cwd.clone()), caminho);
+
+    // O mesmo arquivo noutro subagente isolado não é disputa: cada um tem a sua cópia.
+    let (erro, texto) = ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "tarefa": "y",
+        "editar": ["src/a.ts"], "worktree": "Outra Parte"})).await;
+    assert!(!erro, "{texto}");
+    assert_eq!(serde_json::from_str::<Value>(&texto).unwrap()["branch"], "medza/outra-parte");
+
+    // O briefing diz onde ele está e pede commit na branch dele.
+    let recebido = dir.path().join("bin").join("recebido.txt");
+    let chegou = |trecho: &str| std::fs::read_to_string(&recebido).unwrap_or_default().contains(trecho);
+    let limite = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    while !chegou("medza/tela-de-login-nova") && std::time::Instant::now() < limite { tokio::time::sleep(std::time::Duration::from_millis(200)).await; }
+    assert!(chegou("## Sua pasta (worktree isolada)") && chegou("medza/tela-de-login-nova"));
+
+    let (_, texto) = ferramenta(&state, &token, "listar_agentes", json!({})).await;
+    assert!(texto.contains("medza/outra-parte"), "{texto}");
+    std::fs::write(caminho.join("rascunho.txt"), "x").unwrap();
+    let (erro, texto) = ferramenta(&state, &token, "conferir_arquivos", json!({})).await;
+    assert!(!erro, "{texto}");
+    let conferido: Value = serde_json::from_str(&texto).unwrap();
+    assert_eq!(conferido["em_worktrees"].as_array().unwrap().len(), 2);
+    assert!(conferido["em_worktrees"].as_array().unwrap().iter().any(|w| w["nao_commitadas"] == 1), "{texto}");
+    // A pasta do orquestrador continua em main, sem nada novo.
+    let status = std::process::Command::new("git").args(["status", "--porcelain"]).current_dir(&projeto).output().unwrap();
+    assert!(String::from_utf8_lossy(&status.stdout).trim().is_empty());
+
+    for id in [agente, serde_json::from_str::<Value>(&texto).unwrap()["em_worktrees"][1]["agente"].as_str().unwrap().to_owned()] {
+        let (erro, texto) = ferramenta(&state, &token, "parar_agente", json!({"agente": id})).await;
+        assert!(!erro, "{texto}");
+    }
+}
