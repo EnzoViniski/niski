@@ -1,3 +1,9 @@
+// Fork: paleta e registro dos handlers já usados na interface.
+import { AcoesDaPaleta, useAcoesDaPaleta } from "./features/paleta/acoes";
+import { acoesParaAbrirConversa } from "./features/paleta/abrirConversa";
+import { ConversaDoHistorico } from "./features/paleta/ConversaDoHistorico";
+import { Paleta } from "./features/paleta/Paleta";
+import type { Conversation } from "./mobile/api";
 import { TitleBar } from "./components/TitleBar";
 import { LayoutPresetPicker } from "./features/workspace/LayoutPresetPicker";
 import { useEffect, useMemo, useState } from "react";
@@ -40,9 +46,14 @@ import type { SettingsSection } from "./hooks/useNotifications";
 import { useSettings } from "./hooks/useSettings";
 import { matchesShortcut } from "./lib/shortcuts";
 
-type View = "workspace" | "settings" | "history" | "fluxos";
+type View = "workspace" | "settings" | "history" | "fluxos" | "conversa";
 
-export function App() {
+export function App() { return <AcoesDaPaleta><AppComPaleta /></AcoesDaPaleta>; }
+
+function AppComPaleta() {
+  const [conversaSemProjeto, setConversaSemProjeto] = useState<string | null>(null);
+  const [lateralOculta, setLateralOculta] = useState(false);
+  useAcoesDaPaleta("app", [{ id: "alternar-lateral", titulo: "Alternar barra lateral", executar: () => setLateralOculta((atual) => !atual) }]);
   const [view, setView] = useState<View>("workspace");
   const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>();
   // Para onde o "fechar" das Configurações volta: a tela de antes, com o workspace intacto no reducer.
@@ -170,6 +181,13 @@ export function App() {
     setView("workspace");
   }
 
+  // Fork: mesma ação da lateral, incluindo seleção do workspace dono da conversa.
+  function abrirConversaDaPaleta(conversa: Conversation) {
+    const acoes = acoesParaAbrirConversa(conversa, workspaces, sessions, activeProject);
+    if (acoes.length) { acoes.forEach(dispatch); setView("workspace"); }
+    else { setConversaSemProjeto(conversa.id); setView("conversa"); }
+  }
+
   /** Reabre uma conversa do Histórico num terminal do projeto dela — adicionando o projeto ao
    *  workspace ativo se ele ainda não estiver aberto em nenhum. */
   async function resumeHistory(entry: HistoryEntry, profileId: string = entry.profile_id) {
@@ -230,7 +248,11 @@ export function App() {
         }}
       />
       <div className="flex min-h-0 flex-1">
+      <Paleta workspaces={workspaces} projectPath={activeProject?.path ?? null}
+        onProjeto={(workspaceId, projectId) => { dispatch({ type: "SELECT_WORKSPACE", workspaceId }); dispatch({ type: "SELECT_PROJECT", projectId }); setView("workspace"); }}
+        onConversa={abrirConversaDaPaleta} onArquivo={(path) => openFile(path, fileKind(path))} />
       <QuickOpen projectPath={activeProject?.path ?? null} onOpenFile={(path) => openFile(path, fileKind(path))} />
+      <div className={lateralOculta ? "hidden" : "contents"}>
       <Sidebar
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
@@ -346,6 +368,8 @@ export function App() {
         }}
       />
 
+      </div>
+
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
         <main className="flex-1 min-h-0">
           {view === "history" ? (
@@ -372,6 +396,11 @@ export function App() {
                   onClose={closeSettings}
                 />
               </div>
+            </div>
+          ) : view === "conversa" && conversaSemProjeto ? (
+            <div className="flex h-full flex-col">
+              <button className="px-3 py-2 text-left text-xs text-accent" onClick={() => setView("workspace")}>Voltar ao projeto</button>
+              <div className="min-h-0 flex-1"><ConversaDoHistorico id={conversaSemProjeto} aoRetomar={setConversaSemProjeto} /></div>
             </div>
           ) : (
             <WorkspaceView

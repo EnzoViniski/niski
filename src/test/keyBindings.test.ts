@@ -29,7 +29,7 @@ describe("atalhos do terminal", () => {
     expect(ctx.write).toHaveBeenCalledWith("\x1b\r");
   });
 
-  it("Ctrl+C copia só quando há seleção; sem seleção continua sendo SIGINT", () => {
+  it("Ctrl+C copia só quando há seleção fora do Mac; sem seleção continua sendo SIGINT", () => {
     const comSelecao = press({ key: "c", ctrlKey: true }, true);
     expect(comSelecao.handled).toBe(false);
     expect(comSelecao.ctx.copySelection).toHaveBeenCalled();

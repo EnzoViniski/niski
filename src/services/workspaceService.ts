@@ -2,6 +2,8 @@ import type { LayoutNode, Project, WorkspaceCollection, WorkspaceState } from ".
 
 export const WORKSPACE_STORAGE_KEY = "omni-agents-workspace";
 const PANE_KINDS = new Set([
+  // Fork: histórico aberto pela paleta também sobrevive ao reinício.
+  "conversa-historica",
   "agent",
   "terminal",
   "command",

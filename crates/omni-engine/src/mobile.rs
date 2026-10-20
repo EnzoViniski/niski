@@ -17,6 +17,9 @@ static ASSETS: include_dir::Dir<'_> = include_dir::include_dir!("$CARGO_MANIFEST
 // rotas e planos daqui (spawn, fila, timeline) sem torná-los públicos.
 #[path = "orquestracao.rs"]
 pub(crate) mod orquestracao;
+// Fork: busca do histórico em módulo isolado, com prazo e limites.
+#[path = "busca_historico.rs"]
+mod busca_historico;
 
 pub struct MobileRuntime {
     config: Mutex<MobileConfig>,
@@ -595,6 +598,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/contas",get(contas))
         .route("/contas/{id}/uso",post(atualizar_uso))
         .route("/historico/levar",post(levar_do_historico))
+        .route("/historico/buscar",post(busca_historico::rota)) // Fork: busca textual limitada.
         .route("/extensoes",get(extensoes))
         .route("/extensoes/compartilhar",post(compartilhar_extensoes))
         .route("/extensoes/principal",post(definir_principal))

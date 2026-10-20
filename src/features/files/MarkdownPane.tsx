@@ -1,3 +1,5 @@
+// Fork: dica de salvar segue a plataforma.
+import { rotuloDoAtalho } from "../../lib/plataforma";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -97,7 +99,7 @@ export function MarkdownPane({ projectPath, tab, fileSaveMode, onDirtyChange }: 
             title={
               editing
                 ? "Parar de editar e voltar para o texto renderizado"
-                : "Editar o texto deste arquivo Markdown (abre o editor de código, com salvamento automático/Ctrl+S)"
+                : `Editar o texto deste arquivo Markdown (abre o editor de código, com salvamento automático/${rotuloDoAtalho("Ctrl+S")})`
             }
           >
             {editing ? "✓ Editando — clique para visualizar" : "✎ Editar texto"}

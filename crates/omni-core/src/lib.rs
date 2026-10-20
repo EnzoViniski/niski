@@ -4,6 +4,8 @@ pub mod usage;
 pub mod conversations;
 pub mod feed;
 pub mod history;
+// Fork: busca textual limitada nos transcripts do índice.
+pub mod busca_historico;
 pub mod runtime;
 pub mod targets;
 pub mod compartilhar;

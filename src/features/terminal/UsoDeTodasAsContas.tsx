@@ -1,3 +1,5 @@
+// Fork: a paleta abre o mesmo popover do botão do rodapé.
+import { useAcoesDaPaleta } from "../paleta/acoes";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
@@ -145,6 +147,7 @@ export function ListaDeUsoDasContas({ ativo, engineOnline, contaAtiva }: { ativo
  */
 export function UsoDeTodasAsContas({ engineOnline, contaAtiva }: { engineOnline: boolean; contaAtiva: string | null }) {
   const [aberto, setAberto] = useState(false);
+  useAcoesDaPaleta("uso", [{ id: "uso", titulo: "Uso de todas as contas", executar: () => setAberto(true) }]);
   const [posicao, setPosicao] = useState<{ left: number; bottom: number } | null>(null);
   const botao = useRef<HTMLButtonElement>(null);
   const painel = useRef<HTMLDivElement>(null);

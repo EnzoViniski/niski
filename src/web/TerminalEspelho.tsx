@@ -1,3 +1,5 @@
+// Fork: cópia, paste e SIGINT usam a mesma regra do terminal desktop.
+import { handleTerminalKey } from "../features/terminal/keyBindings";
 import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
@@ -104,6 +106,12 @@ export default function TerminalEspelho({ saida: rotaSaida, teclas: rotaTeclas, 
         }).catch((motivo) => setErro(String(motivo)));
       }, 12);
     });
+
+    terminal.attachCustomKeyEventHandler((evento) => handleTerminalKey(evento, {
+      hasSelection: () => terminal.hasSelection(),
+      copySelection: () => { void navigator.clipboard.writeText(terminal.getSelection()).catch(() => undefined); },
+      write: (dados) => { void request(rotaTeclas, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dados }) }).catch(() => setErro("Não foi possível enviar a tecla.")); },
+    }));
 
     async function ler() {
       if (cancelado) return;

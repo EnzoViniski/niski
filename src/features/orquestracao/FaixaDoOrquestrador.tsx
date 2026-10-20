@@ -1,3 +1,5 @@
+// Fork: a paleta usa o mesmo pedido de abertura do botão Ver fluxo.
+import { useAcoesDaPaleta } from "../paleta/acoes";
 import { useEffect, useState } from "react";
 import { BlocksIcon } from "../../components/ui/PixelIcon";
 import { pedirAbrirFluxo } from "./abrirFluxo";
@@ -30,6 +32,10 @@ export function FaixaDoOrquestrador({ conversaId, provider, titulo }: { conversa
     const t = window.setTimeout(() => setConfirmar(null), 4_000);
     return () => window.clearTimeout(t);
   }, [confirmar]);
+  useAcoesDaPaleta(`orquestrador-${conversaId}`, conversaId && (papel.orquestradora || papel.teveFluxo || papel.dona) ? [{
+    id: `fluxo-${papel.dona ?? conversaId}`, titulo: `Abrir fluxo do orquestrador · ${titulo ?? "Conversa"}`,
+    executar: () => pedirAbrirFluxo(papel.dona ?? conversaId, `Fluxo · ${titulo ?? "orquestradora"}`.slice(0, 60)),
+  }] : []);
   if (!conversaId) return null;
 
   async function trocar(ativo: boolean) {

@@ -1,3 +1,5 @@
+// Fork: a paleta abre o mesmo seletor de branch usado pelo atalho.
+import { useAcoesDaPaleta } from "../paleta/acoes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { matchesShortcut } from "../../lib/shortcuts";
 import { GitBranchIcon, GithubIcon } from "../../components/ui/PixelIcon";
@@ -54,6 +56,7 @@ export function GitBranchStatus({ projectPath, abrirPara = "cima", atalho = true
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  useAcoesDaPaleta("branch", atalho && projectPath ? [{ id: "branch", titulo: "Criar ou trocar branch", executar: () => setOpen(true) }] : []);
   const [branches, setBranches] = useState<GitBranch[] | null>(null);
   const [nome, setNome] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);

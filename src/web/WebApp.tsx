@@ -1,3 +1,5 @@
+// Fork: mesma tecla modificadora do desktop.
+import { teclaModificadora } from "../lib/plataforma";
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { AgentIcon } from "../components/ui/AgentIcon";
 import { MarcaDoProduto } from "../components/ui/MarcaDoProduto";
@@ -139,7 +141,7 @@ export function WebApp() {
     function tecla(evento: KeyboardEvent) {
       const alvo = evento.target as HTMLElement | null;
       const digitando = alvo?.closest?.("input, textarea, [contenteditable], .xterm");
-      if ((evento.key === "/" && !digitando) || (evento.key.toLowerCase() === "k" && (evento.ctrlKey || evento.metaKey))) {
+      if ((evento.key === "/" && !digitando) || (evento.key.toLowerCase() === "k" && teclaModificadora(evento))) {
         evento.preventDefault();
         busca.current?.focus();
         busca.current?.select();

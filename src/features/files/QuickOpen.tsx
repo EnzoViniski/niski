@@ -1,3 +1,5 @@
+// Fork: a paleta reutiliza a mesma busca de arquivos do atalho.
+import { useAcoesDaPaleta } from "../paleta/acoes";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { matchesShortcut } from "../../lib/shortcuts";
 import { iconForEntry } from "./fileIcons";
@@ -38,6 +40,7 @@ interface QuickOpenProps {
  * até com o foco no terminal (igual o VS Code) — o xterm nunca recebe o ^P. */
 export function QuickOpen({ projectPath, onOpenFile }: QuickOpenProps) {
   const [open, setOpen] = useState(false);
+  useAcoesDaPaleta("arquivos", projectPath ? [{ id: "buscar-arquivo", titulo: "Buscar arquivo pelo nome", executar: () => setOpen(true) }] : []);
   const [query, setQuery] = useState("");
   const [files, setFiles] = useState<FileEntry[] | null>(null);
   const [selected, setSelected] = useState(0);

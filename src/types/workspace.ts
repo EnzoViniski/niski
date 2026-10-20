@@ -1,4 +1,6 @@
 export type PaneKind =
+  // Fork: conversa arquivada, sem criar PTY ao abrir pela paleta.
+  | "conversa-historica"
   | "agent"
   | "terminal"
   | "command"

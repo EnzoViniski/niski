@@ -229,6 +229,8 @@ function NewTabMenu({ onCreate }: { onCreate: (kind: PaneKind, title: string) =>
 /** Aba de arquivo mostra o ícone do arquivo; aba sem caminho (agente, terminal, kanban) mostra o
  *  do tipo de painel. */
 const ICONE_POR_KIND: Partial<Record<PaneNode["tabs"][number]["kind"], React.ComponentType<{ className?: string }>>> = {
+  // Fork: conversa arquivada aberta pela paleta.
+  "conversa-historica": ChatIcon,
   agent: ChatIcon,
   terminal: TerminalIcon,
   command: ListIcon,
