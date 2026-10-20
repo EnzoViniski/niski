@@ -301,7 +301,7 @@ describe("TerminalPane — failover automático de conta", () => {
     renderPane();
 
     await waitFor(() => expect(engine.engineApi).toHaveBeenCalledWith(
-      "POST", "/conversas/conv-1/prompt", expect.stringContaining("Mensagem automática do OMNI"), expect.anything(),
+      "POST", "/conversas/conv-1/prompt", expect.stringContaining("Mensagem automática do Medza"), expect.anything(),
     ), { timeout: 5_000 });
     expect(engine.engineApi.mock.calls.filter(([metodo]) => metodo === "POST")).toHaveLength(1);
   });

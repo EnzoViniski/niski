@@ -14,6 +14,7 @@ import {
   type AgentCliStatus,
   type Profile,
 } from "./terminalService";
+import { NOME_CURTO } from "../../lib/identidade";
 
 const DESCRIPTIONS: Record<AgentCliId, string> = {
   cursor: "Cursor Agent CLI",
@@ -97,7 +98,7 @@ export function AgentConnections() {
       <div>
         <h2 className="pixel-text text-text-primary text-sm">Conexões de agentes</h2>
         <p className="mt-1 text-[11px] text-text-muted">
-          O login acontece diretamente no provider. O OMNI não lê nem armazena credenciais — só o
+          O login acontece diretamente no provider. O {NOME_CURTO} não lê nem armazena credenciais — só o
           nome da conta e a pasta de configuração dela.
         </p>
       </div>
@@ -148,7 +149,7 @@ export function AgentConnections() {
 
               {connection === "missing" && (
                 <InstalarFerramenta id={agent.id} nome={agent.label}
-                  motivo={`O OMNI não encontrou a CLI do ${agent.label} neste computador.`} />
+                  motivo={`O ${NOME_CURTO} não encontrou a CLI do ${agent.label} neste computador.`} />
               )}
 
               {adding === agent.id && (

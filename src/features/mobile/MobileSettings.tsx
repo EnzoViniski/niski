@@ -6,7 +6,7 @@ import { Button, Field, Input } from "../../components/ui";
 import { MarcaDoProduto } from "../../components/ui/MarcaDoProduto";
 import { coresDaPaleta } from "../../lib/palettes";
 import { InstalarFerramenta } from "../terminal/InstalarFerramenta";
-import { NOME_DO_PRODUTO, PORTA_DO_CELULAR } from "../../lib/identidade";
+import { NOME_CURTO, NOME_DO_PRODUTO, PORTA_DO_CELULAR } from "../../lib/identidade";
 
 interface Settings {
   config: { enabled: boolean; bind: string; token: string; serve: boolean };
@@ -216,7 +216,7 @@ export function MobileSettings({ accent }: { accent?: string } = {}) {
           <p className="mt-1 text-xs text-text-secondary">
             Use os agentes deste PC a partir do celular ou de outro computador (um notebook, o PC do
             trabalho): você conversa por lá e eles rodam aqui. Funciona
-            de qualquer lugar, inclusive no 4G — o PC precisa estar ligado. Fechar a janela do OMNI não
+            de qualquer lugar, inclusive no 4G — o PC precisa estar ligado. Fechar a janela do {NOME_CURTO} não
             desliga o acesso.
           </p>
         </div>
@@ -248,7 +248,7 @@ export function MobileSettings({ accent }: { accent?: string } = {}) {
       <Passo n={2} titulo="Escolha como o outro aparelho chega até aqui" feito={ligado}>
         <div className="grid gap-2 md:grid-cols-2">
           <OpcaoModo ativo={!serve} titulo="Direto" selo="funciona na hora" onSelect={() => setServe(false)}>
-            O OMNI usa o endereço do Tailscale deste PC automaticamente. Não precisa configurar nada.
+            O {NOME_CURTO} usa o endereço do Tailscale deste PC automaticamente. Não precisa configurar nada.
           </OpcaoModo>
           <OpcaoModo ativo={serve} titulo="Seguro com HTTPS" selo="recomendado" onSelect={() => setServe(true)}>
             O Tailscale publica com certificado e nome fixo. Pede para liberar uma vez na sua conta Tailscale.
@@ -388,7 +388,7 @@ export function MobileSettings({ accent }: { accent?: string } = {}) {
     {(error || status?.error) && <div className="glass space-y-1 rounded-none border-l-2 border-danger p-4">
       <p role="alert" className="text-xs text-danger">{error || status?.error}</p>
       <p className="text-[10px] text-text-muted">
-        Se a mensagem falar em engine desatualizado, feche o OMNI, encerre <code>omni-engine.exe</code> no
+        Se a mensagem falar em engine desatualizado, feche o {NOME_CURTO}, encerre <code>omni-engine.exe</code> no
         Gerenciador de Tarefas e abra o app de novo.
       </p>
     </div>}

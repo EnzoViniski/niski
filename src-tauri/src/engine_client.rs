@@ -84,7 +84,7 @@ pub fn ensure_engine() -> EngineResponse {
     registro::erro("engine_sem_resposta", &[("exe", &executavel), ("porta", &engine_port().to_string())]);
     EngineResponse::Error {
         code: "ENGINE_START_TIMEOUT".into(),
-        message: "O OMNI Engine não respondeu após 3 segundos.".into(),
+        message: format!("O engine do {} não respondeu após 3 segundos.", omni_protocol::NOME_DO_PRODUTO),
     }
 }
 
@@ -673,10 +673,12 @@ fn outdated_engine_hint(response: EngineResponse) -> EngineResponse {
         {
             EngineResponse::Error {
                 code: "ENGINE_OUTDATED".into(),
-                message: "O OMNI Engine em execução é mais antigo que o app e não conhece este \
-comando. Feche o OMNI, encerre o processo omni-engine.exe no Gerenciador de Tarefas e abra o app \
-de novo."
-                    .into(),
+                message: format!(
+                    "O engine do {nome} em execução é mais antigo que o app e não conhece este \
+comando. Feche o {nome}, encerre o processo omni-engine.exe no Gerenciador de Tarefas e abra o app \
+de novo.",
+                    nome = omni_protocol::NOME_DO_PRODUTO
+                ),
             }
         }
         other => other,

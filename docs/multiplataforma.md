@@ -1,60 +1,58 @@
 # Windows, macOS e Linux
 
-Um código só. Cada sistema compila o próprio instalador no GitHub Actions.
+Um código só. Cada sistema compila o próprio instalador no GitHub Actions (workflow
+**Instaladores Medza**, `.github/workflows/release.yml`).
 
 ## Release
 
 1. Subir `VERSION`, rodar `npm run version:sync`, escrever a entrada em `src/lib/changelog.ts`, commitar.
-2. `git tag v0.5.0 && git push origin v0.5.0` — a tag precisa bater com `VERSION` (o workflow confere).
-3. `.github/workflows/release.yml` compila nas três plataformas e cria um Release **em rascunho** com:
-   - Windows: `*-setup.exe` (+ `.msi`)
-   - macOS: `.dmg` universal (Intel e Apple Silicon) e `.app.tar.gz` do updater
-   - Linux: `.AppImage`, `.deb`, `.rpm`
-   - `latest.json` com as três plataformas, cada uma com assinatura do updater
-4. Conferir o rascunho e clicar **Publish release**. Publicar como release normal, nunca pre-release.
+2. `git tag v<versão> && git push origin v<versão>`: a tag precisa bater com `VERSION` (o workflow confere).
+3. O workflow compila nas quatro combinações e cria um Release **em rascunho** com:
+   - Windows x64: `*-setup.exe` (NSIS)
+   - macOS Apple Silicon (`aarch64`) e Intel (`x64`): um `.dmg` para cada
+   - Linux x64: `.AppImage` e `.deb`
+4. Conferir o rascunho, testar os instaladores e clicar **Publish release**.
 
-Secrets do repositório (uma vez): `TAURI_SIGNING_PRIVATE_KEY` e `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
-Mesma chave do build local — a pública gravada nos apps instalados não muda.
+Sem tag, **Actions → Instaladores Medza → Run workflow** gera os mesmos arquivos como artefatos.
+O workflow usa só o token automático do Actions: não há secrets para cadastrar.
 
-`npm run build` local continua gerando o instalador Windows para teste.
+`npm run build` local gera o instalador do sistema em que roda, em `installers/`.
 
-`.github/workflows/ci.yml` roda testes do engine e compila o app nas três plataformas a cada push.
+`.github/workflows/ci.yml` roda os testes do engine e compila o app nas três plataformas a cada push na `main`.
 
-## Atualização automática
+## Atualização
 
-| Sistema | Atualiza sozinho |
-|---|---|
-| Windows | sim (NSIS) |
-| macOS | sim (`.app.tar.gz`) |
-| Linux | só o AppImage; `.deb`/`.rpm` precisam reinstalar |
+Não há atualização automática nesta distribuição: `identidade.json` está sem chave pública do
+updater. Para atualizar, baixe e instale a versão nova por cima. Os dados ficam na pasta do app e
+são mantidos.
 
-No Windows o hook do NSIS encerra o engine antes de trocar os arquivos. No macOS/Linux não há hook:
-o app compara o binário que o engine carregou com o arquivo em disco (`Pong.engine_exe_modified_ms`)
-e, se mudou, reinicia o engine. Nos dois casos as sessões abertas caem na atualização.
+No Windows o hook do NSIS encerra o engine antes de trocar os arquivos. No macOS/Linux o app
+compara o binário que o engine carregou com o arquivo em disco (`Pong.engine_exe_modified_ms`) e,
+se mudou, reinicia o engine. Nos dois casos as sessões abertas caem na atualização.
 
 ## Primeira abertura no macOS (app sem Apple Developer)
 
 O app é assinado ad-hoc (`bundle.macOS.signingIdentity: "-"`), não notarizado.
 
-1. Abrir o `.dmg` e arrastar **OMNI AGENTS** para **Aplicativos**.
-2. Abrir o app. O macOS avisa que não pôde verificar o desenvolvedor — fechar o aviso.
-3. **Ajustes do Sistema → Privacidade e Segurança** → rolar até o aviso do OMNI AGENTS → **Abrir Mesmo Assim**.
-4. Confirmar com a senha. Das próximas vezes abre direto; atualizações pelo app não repetem o aviso.
+1. Abrir o `.dmg` e arrastar **Medza Agents** para **Aplicativos**.
+2. Abrir o app. O macOS avisa que não pôde verificar o desenvolvedor: fechar o aviso.
+3. **Ajustes do Sistema → Privacidade e Segurança** → rolar até o aviso do Medza Agents → **Abrir Mesmo Assim**.
+4. Confirmar com a senha. Das próximas vezes abre direto.
 
 Se aparecer "está danificado", rodar no Terminal:
-`xattr -dr com.apple.quarantine "/Applications/OMNI AGENTS.app"`
+`xattr -dr com.apple.quarantine "/Applications/Medza Agents.app"`
 
 ## Windows: aviso do SmartScreen
 
 Sem certificado de assinatura de código o SmartScreen mostra "O Windows protegeu o computador"
-(**Mais informações → Executar assim mesmo**). A assinatura do updater (`TAURI_SIGNING_*`) não
-resolve isso — ela só protege a atualização automática. Só some com certificado Authenticode.
+(**Mais informações → Executar assim mesmo**). Só some com certificado Authenticode.
 
 ## Diferenças por sistema
 
 | | Windows | macOS | Linux |
 |---|---|---|---|
-| Dados do engine | `%LOCALAPPDATA%\com.omni.agents` | `~/Library/Application Support/com.omni.agents` | `~/.local/share/com.omni.agents` |
+| Dados do engine | `%LOCALAPPDATA%\ai.medza.agents` | `~/Library/Application Support/ai.medza.agents` | `~/.local/share/ai.medza.agents` |
+| Voz (Whisper) | CPU | Metal | CPU |
 | Shell dos terminais | Git Bash, senão PowerShell | `$SHELL -l` | `$SHELL -l` |
 | Login do agente | janela PowerShell | Terminal.app | x-terminal-emulator / gnome-terminal / konsole / xfce4-terminal / xterm |
 | Processo do agente | ToolHelp (`claude.exe`) | `ps` | `ps` |
@@ -63,7 +61,7 @@ resolve isso — ela só protege a atualização automática. Só some com certi
 App aberto pelo Finder/menu herda PATH mínimo; na inicialização o app importa o PATH do shell de
 login do usuário (`engine_client::import_login_shell_path`) para achar `claude`/`codex`.
 
-## Roteiro de teste (macOS/Linux)
+## Roteiro de teste
 
 Marcar o que funcionou e mandar print do que não funcionou.
 
@@ -75,10 +73,10 @@ Marcar o que funcionou e mandar print do que não funcionou.
 6. Com o Claude parado, clicar ↻ no rodapé: aparece 5H/SEMANA com reset.
 7. Painel de arquivos: abrir, editar e salvar um arquivo. Painel git: status e histórico aparecem.
 8. Conectar conta nova (Configurações → Agentes): abre o Terminal com o login do CLI.
-9. Fechar o app e abrir de novo: terminais voltam.
-10. Atualização: com a versão N instalada, publicar N+1 e confirmar que o app atualiza e o
-    `ENGINE: ONLINE` volta (engine reiniciado).
-11. Atalhos usam **Ctrl**, não Cmd, no macOS — anotar quais incomodam.
+9. Visão Conversa: tocar no microfone, baixar o modelo de voz na primeira vez, ditar e conferir o texto no campo.
+10. Configurações → Skills → **Instalar pacote Medza**: as quatro skills aparecem na conta.
+11. Fechar o app e abrir de novo: terminais voltam.
+12. Atalhos usam **Ctrl**, não Cmd, no macOS: anotar quais incomodam.
 
 Riscos conhecidos a observar:
 - **AppImage:** o engine continua rodando depois que o app fecha, mas a imagem montada do AppImage

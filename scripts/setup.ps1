@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Setup completo e build do OMNI AGENTS para Windows.
+    Setup completo e build do Medza Agents para Windows.
 
 .DESCRIPTION
     Instala automaticamente: Rust, dependencias Node, icones, e gera o
@@ -93,7 +93,7 @@ function New-AppIcon {
 # ─────────────────────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor Magenta
-Write-Host "   OMNI AGENTS - Setup e Build Completo       " -ForegroundColor Magenta
+Write-Host "   Medza Agents - Setup e Build Completo       " -ForegroundColor Magenta
 Write-Host "  ============================================" -ForegroundColor Magenta
 Write-Host ""
 
@@ -165,6 +165,16 @@ if (-not $clBin) {
     Write-OK "MSVC linker disponivel"
 }
 
+# O Whisper (whisper.cpp) e compilado junto com o app e precisa do CMake.
+Write-Step "Verificando CMake (voz local)..."
+if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
+    Write-Warn "cmake nao encontrado no PATH. O build da voz local vai falhar sem ele:"
+    Write-Warn "  winget install Kitware.CMake"
+    Write-Warn "Continuando mesmo assim..."
+} else {
+    Write-OK "CMake disponivel"
+}
+
 # ─── 4. npm install ───────────────────────────────────────────────────────────
 Write-Step "Instalando dependencias Node.js (npm install)..."
 npm install
@@ -216,20 +226,20 @@ if ($DevOnly) {
     Write-Step "Iniciando modo de desenvolvimento..."
     Write-OK "O aplicativo Tauri sera aberto em uma janela nativa."
     Write-Host ""
-    npx tauri dev
+    npm run dev
 } else {
     Write-Step "Compilando aplicativo Tauri..."
     Write-Warn "PRIMEIRA compilacao Rust: pode levar alguns minutos (compilando os crates)."
     Write-Warn "Compilacoes seguintes sao muito mais rapidas."
     Write-Host ""
 
-    npx tauri build
-    if ($LASTEXITCODE -ne 0) { Write-Fail "Build do Tauri falhou. Veja os erros acima." }
+    npm run build
+    if ($LASTEXITCODE -ne 0) { Write-Fail "Build do Medza Agents falhou. Veja os erros acima." }
 
     # Localiza os artefatos gerados
-    $bundle = "src-tauri\target\release\bundle"
-    $nsisExe = Get-ChildItem "$bundle\nsis\*-setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-    $msiFile  = Get-ChildItem "$bundle\msi\*.msi"       -ErrorAction SilentlyContinue | Select-Object -First 1
+    $bundle = "$Root\installers"
+    $nsisExe = Get-ChildItem "$bundle\*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+    $msiFile  = Get-ChildItem "$bundle\*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
 
     Write-Host ""
     Write-Host "  ============================================" -ForegroundColor Green
@@ -248,7 +258,7 @@ if ($DevOnly) {
         Write-Host ""
     }
 
-    Write-Host "  Execute o instalador para instalar o OMNI AGENTS." -ForegroundColor White
+    Write-Host "  Execute o instalador para instalar o Medza Agents." -ForegroundColor White
     Write-Host "  O usuario final nao precisa de Python ou Rust." -ForegroundColor Cyan
     Write-Host ""
 

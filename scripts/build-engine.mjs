@@ -64,11 +64,11 @@ async function copyEngine(source, destination) {
   }
 
   if (existsSync(destination) && digest(source) === digest(destination)) {
-    console.log("OMNI Engine já está atualizado; mantendo a instância em execução.");
+    console.log("Engine já está atualizado; mantendo a instância em execução.");
     return;
   }
 
-  console.log("OMNI Engine em execução está desatualizado; reiniciando o sidecar...");
+  console.log("Engine em execução está desatualizado; reiniciando o sidecar...");
   await shutdownRunningEngine();
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {
@@ -83,7 +83,7 @@ async function copyEngine(source, destination) {
   // não respondeu ao shutdown de dev, e a alternativa seria matar às cegas — que é justamente o que
   // derrubava o app instalado.
   throw new Error(
-    `Não foi possível atualizar o OMNI Engine de desenvolvimento em ${destination}: outro processo ` +
+    `Não foi possível atualizar o Engine de desenvolvimento em ${destination}: outro processo ` +
       `está usando o arquivo. O app instalado não foi tocado. Feche o app de dev ` +
       `(ou encerre o processo omni-engine) e rode de novo.`,
   );
@@ -146,5 +146,5 @@ if (triple === "universal-apple-darwin") {
 } else {
   await copyEngine(buildShim(requested && requested !== host ? requested : undefined), shimDestination);
 }
-console.log(`OMNI Engine copiado para src-tauri/binaries/omni-engine-${triple}${extension} (${profile}).`);
-console.log(`OMNI Shim copiado para src-tauri/binaries/omni-shim-${triple}${extension} (${profile}).`);
+console.log(`Engine copiado para src-tauri/binaries/omni-engine-${triple}${extension} (${profile}).`);
+console.log(`Shim copiado para src-tauri/binaries/omni-shim-${triple}${extension} (${profile}).`);

@@ -16,6 +16,8 @@ base64 = "0.22"
 # Antigravity CLI grava cada conversa num SQLite (`conversations/<id>.db`). `bundled`: não depende de
 # sqlite instalado no sistema.
 rusqlite = { version = "0.32", features = ["bundled"] }
+# Também na árvore (via tauri): `canonicalize` sem o prefixo `\\?\` do Windows, que o git recusa.
+dunce = "1"
 
 [dev-dependencies]
 tempfile = "3"

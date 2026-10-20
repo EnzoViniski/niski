@@ -4,6 +4,7 @@ import { AgentIcon } from "../../components/ui/AgentIcon";
 import { Button } from "../../components/ui";
 import { CloudIcon, FolderIcon, PackageIcon, ReloadIcon, ServerIcon, StarFilledIcon, StarIcon } from "../../components/ui/PixelIcon";
 import { fonteDoApp, type ExtensoesDaConta, type FonteDeExtensoes, type Mcp, type Plugin } from "./extensoesService";
+import { NOME_CURTO } from "../../lib/identidade";
 
 type Provider = "claude" | "codex" | "cursor";
 type Tipo = "mcps" | "plugins" | "conectores";
@@ -163,7 +164,7 @@ export function ExtensoesSettings({ projectPath, fonte: fonteRecebida }: {
       {erro && <p role="alert" className="border-l-2 border-danger pl-3 text-xs text-danger">Não deu para ler as configurações: {erro}</p>}
 
       {contas !== null && daIa.length === 0 && (
-        <div className="ext-vazio glass">Nenhuma conta do {IAS.find((item) => item.id === ia)?.nome} cadastrada no OMNI.</div>
+        <div className="ext-vazio glass">Nenhuma conta do {IAS.find((item) => item.id === ia)?.nome} cadastrada no {NOME_CURTO}.</div>
       )}
 
       <div key={`${ia}-${tipoAtual}`} className="ext-contas">

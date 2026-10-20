@@ -19,6 +19,7 @@ import { CodigoOuCaminho } from "./CaminhoClicavel";
 import { ContagemDoDiff, MiniDiff, somarDiffs } from "./MiniDiff";
 import { progressoDasTarefas } from "./ListaDeTarefas";
 import { nomeDaPlataforma } from "../lib/plataformasDeAgente";
+import { NOME_CURTO } from "../lib/identidade";
 
 /** Os quadros do spinner do Claude Code, em vai-e-volta — é o que faz parecer que ele "respira". */
 const QUADROS = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
@@ -470,7 +471,7 @@ export function PairingScreen({ parear }: PairingScreenProps) {
         {erro && <p role="alert" className="text-danger text-xs">{erro}</p>}
       </div>
       <p className="text-[11px] text-text-muted">
-        Ainda não tem o OMNI no Authy? No PC, abra Configurações → Celular → Proteger com o Authy.
+        Ainda não tem o {NOME_CURTO} no Authy? No PC, abra Configurações → Celular → Proteger com o Authy.
       </p>
     </section>
   );

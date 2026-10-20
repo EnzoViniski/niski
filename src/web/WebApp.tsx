@@ -13,7 +13,7 @@ import { useDados } from "../mobile/useDados";
 import { usePoll } from "../mobile/usePoll";
 import { request, temConversa, type Conversation } from "../mobile/api";
 import { UsoDasContas } from "./UsoDasContas";
-import { NOME_DO_PRODUTO } from "../lib/identidade";
+import { NOME_CURTO, NOME_DO_PRODUTO } from "../lib/identidade";
 import { nomeDaPlataforma } from "../lib/plataformasDeAgente";
 import { rotuloDoEstado, tomDoEstado as tomDoEstadoDaSessao } from "../lib/estadosDaSessao";
 
@@ -284,7 +284,7 @@ export function WebApp() {
             <div className="w-projetos-bloco">
               <h2 className="w-rotulo">Projetos</h2>
               {catalog && projetos.length === 0 && (
-                <p className="w-vazio">Nenhum projeto conhecido. Abra um projeto no OMNI do PC.</p>
+                <p className="w-vazio">Nenhum projeto conhecido. Abra um projeto no {NOME_CURTO} do PC.</p>
               )}
               <ul className="w-projetos">
                 {projetos.map((project) => {
@@ -392,7 +392,7 @@ export function WebApp() {
             <>
               <div className="w-abas" role="tablist" aria-label="Visualização">
                 <button type="button" role="tab" aria-selected={abaVisivel === "conversa"} disabled={soTerminal}
-                  title={soTerminal ? "O OMNI ainda não lê as conversas deste agente — use o terminal" : undefined}
+                  title={soTerminal ? `O ${NOME_CURTO} ainda não lê as conversas deste agente — use o terminal` : undefined}
                   className={`w-aba${abaVisivel === "conversa" ? " w-aba-ativa" : ""}`} onClick={() => setAba("conversa")}>
                   <ChatIcon aria-hidden className="h-3.5 w-3.5" />Conversa
                 </button>

@@ -1,13 +1,14 @@
 import { request } from "./api";
+import { NOME_CURTO } from "../lib/identidade";
 
 /**
  * Linha que separa o texto do usuário da lista de anexos no prompt. O agente lê os caminhos e abre
  * os arquivos com as próprias ferramentas — é assim que as CLIs recebem arquivo. O desktop cola
  * imagem pelo clipboard do PC, que o celular não alcança.
  */
-export const MARCADOR_ANEXOS = "[Anexos enviados pelo OMNI]";
+export const MARCADOR_ANEXOS = `[Anexos enviados pelo ${NOME_CURTO}]`;
 /** O marcador das versões anteriores — mensagens antigas continuam virando cartões. */
-const MARCADORES_ANTIGOS = ["[Anexos enviados pelo celular]"];
+const MARCADORES_ANTIGOS = ["[Anexos enviados pelo celular]", "[Anexos enviados pelo OMNI]"];
 
 /** Evento que entrega arquivos a uma conversa aberta (`detail: File[]`). O app do PC usa: o arrastar
  *  do Windows chega pelo Tauri como caminhos, fora dos eventos de soltar do navegador. */

@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Default capability for OMNI AGENTS",
+  "description": "Default capability for Medza Agents",
   "windows": ["main"],
   "permissions": [
     "core:default",

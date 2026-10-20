@@ -9,6 +9,7 @@ import {
   restaurarKit, ROTULO_ESFORCO, SAIDAS, salvarAgente, type AgenteSalvo, type CliDoAgente, type Escopo, type ModeloDaCli, type ModeloDeAgente,
 } from "./agentesService";
 import { ManualDeAgentes } from "./ManualDeAgentes";
+import { NOME_CURTO } from "../../lib/identidade";
 
 const CLIS: { value: CliDoAgente; label: string }[] = [
   { value: "claude", label: "Claude" },
@@ -106,9 +107,9 @@ export function ModelosDeAgentes({ projectPath }: { projectPath: string | null }
           </Button>
           <span className="flex-1" />
           <Button variant="ghost" size="sm" onClick={() => setManual(true)}>Como usar</Button>
-          <Button variant="ghost" size="sm" title="Regrava os 7 modelos que vêm com o OMNI (os seus continuam)"
+          <Button variant="ghost" size="sm" title={`Regrava os 7 modelos que vêm com o ${NOME_CURTO} (os seus continuam)`}
             onClick={() => void restaurarKit().then(recarregar).catch((e) => setErro(erroDe(e)))}>
-            Restaurar kit do OMNI
+            Restaurar kit do {NOME_CURTO}
           </Button>
         </div>
         {erro && <p role="alert" className="text-xs text-danger">{erro}</p>}

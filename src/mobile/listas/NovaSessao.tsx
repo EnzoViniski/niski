@@ -5,6 +5,7 @@ import { Select } from "../../components/ui/Select";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { ChatIcon } from "../../components/ui/PixelIcon";
 import { request, actionKey, ApiError, type Projects } from "../api";
+import { NOME_CURTO } from "../../lib/identidade";
 
 export function NovaSessao({ project, catalog, onCriada, classeBotao = "w-full" }: {
   project: { id: string; name: string }; catalog: Projects; onCriada: () => Promise<void>;
@@ -20,7 +21,7 @@ export function NovaSessao({ project, catalog, onCriada, classeBotao = "w-full" 
 
   const contas = catalog.profiles.filter(p => p.provider === provider);
   if (catalog.agents.length === 0) {
-    return <p className="m-dica">Abra o OMNI no PC uma vez para liberar a criação de sessões daqui.</p>;
+    return <p className="m-dica">Abra o {NOME_CURTO} no PC uma vez para liberar a criação de sessões daqui.</p>;
   }
 
   async function criar() {

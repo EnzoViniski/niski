@@ -4,11 +4,12 @@ import { FolderIcon } from "../../components/ui/PixelIcon";
 import { haQuanto } from "../../lib/tempo";
 import type { Conversation, Projects } from "../api";
 import { Vazio } from "./Secao";
+import { NOME_CURTO } from "../../lib/identidade";
 
 export function ProjectList({ projects, conversations, abrir }: {
   projects: Projects["projects"]; conversations: Conversation[]; abrir: (id: string) => void;
 }) {
-  if (projects.length === 0) return <Vazio>Nenhum projeto conhecido ainda. Abra um projeto no OMNI do PC.</Vazio>;
+  if (projects.length === 0) return <Vazio>Nenhum projeto conhecido ainda. Abra um projeto no {NOME_CURTO} do PC.</Vazio>;
   // Projeto mexido por último primeiro, como a lista de conversas.
   const ultimaAtividade = (id: string) => Math.max(0, ...conversations.filter(c => c.project_id === id).map(c => c.updated_at_ms ?? 0));
   const ordenados = [...projects].sort((a, b) => ultimaAtividade(b.id) - ultimaAtividade(a.id));

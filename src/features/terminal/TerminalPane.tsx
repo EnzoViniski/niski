@@ -43,6 +43,7 @@ import { useSession } from "./sessionProviders";
 // Fork (retomar-sempre): saídas quando a aba não consegue voltar (pasta sumida, conversa não achada).
 import { ConversaNaoAchada, PastaSumida } from "../retomada/AvisoDeRetomada";
 import { cliNaoAchouAConversa, ehPastaSumida } from "../retomada/retomadaService";
+import { NOME_CURTO } from "../../lib/identidade";
 
 /** Colar imagem numa CLI de agente: ESC v (meta+v) — o que o Alt+V já mandava e funcionava.
  *  Se alguma CLI passar a escutar ^V (0x16) em vez disso, é aqui que muda. */
@@ -89,7 +90,7 @@ const CONTINUAR_RITMO_MS = 1_500;
 /** Mensagem que o OMNI manda sozinho depois de trocar de conta no meio de uma tarefa. Diz que é
  *  automática para ninguém (você nem o agente) achar que foi digitada. */
 export const MENSAGEM_DE_CONTINUAR =
-  "Continue de onde parou. (Mensagem automática do OMNI: a conta anterior atingiu o limite de uso e esta conversa foi passada para outra conta.)";
+  `Continue de onde parou. (Mensagem automática do ${NOME_CURTO}: a conta anterior atingiu o limite de uso e esta conversa foi passada para outra conta.)`;
 
 type FailoverStatus = {
   tone: "working" | "success" | "warning";
@@ -486,7 +487,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
           headers: [["Content-Type", "application/json"], ["Idempotency-Key", `continuar-${pedido.conversationId}-${pedido.ate}`]],
         });
         if (envio.status >= 400) throw new Error(JSON.parse(envio.body || "{}")?.error ?? `HTTP ${envio.status}`);
-        setFailoverStatus((atual) => atual && { ...atual, text: `${atual.text} · continuando`, detail: `${atual.detail} O OMNI mandou "continue" sozinho, porque a troca aconteceu no meio de uma tarefa.` });
+        setFailoverStatus((atual) => atual && { ...atual, text: `${atual.text} · continuando`, detail: `${atual.detail} O ${NOME_CURTO} mandou "continue" sozinho, porque a troca aconteceu no meio de uma tarefa.` });
       } catch (reason) {
         if (!cancelled) setFailoverStatus((atual) => atual && { ...atual, tone: "warning", detail: `${atual.detail} Não consegui mandar o "continue" sozinho (${reason instanceof Error ? reason.message : String(reason)}); mande a próxima mensagem.` });
       }

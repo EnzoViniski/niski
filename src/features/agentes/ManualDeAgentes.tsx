@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { CloseIcon } from "../../components/ui/PixelIcon";
+import { NOME_CURTO } from "../../lib/identidade";
 
 interface Secao { id: string; titulo: string; imagem?: string; legenda?: string; corpo: ReactNode }
 
@@ -8,7 +9,7 @@ const SECOES: Secao[] = [
   {
     id: "visao", titulo: "Como tudo se encaixa",
     corpo: <>
-      <p>O OMNI monta <b>times de agentes</b> em duas peças:</p>
+      <p>O {NOME_CURTO} monta <b>times de agentes</b> em duas peças:</p>
       <ol>
         <li><b>Modelos de agentes</b>: cada um é um especialista (QA, revisor, dev…) salvo num arquivo <code>.md</code> — papel, instruções, IA, modelo, esforço e ferramentas.</li>
         <li><b>Fluxos</b>: o caminho que os agentes percorrem, montado num canvas como no n8n. Cada caixa é uma etapa; as setas dizem quem vem depois.</li>
@@ -19,7 +20,7 @@ const SECOES: Secao[] = [
   {
     id: "modelos", titulo: "Modelos de agentes", imagem: "/manual/modelos.webp", legenda: "Configurações → Modelos de agentes",
     corpo: <>
-      <p>Em <b>Configurações → Modelos de agentes</b> ficam os agentes salvos. O OMNI já vem com 7: orquestrador, arquiteto, dev, QA, revisor, segurança e documentação.</p>
+      <p>Em <b>Configurações → Modelos de agentes</b> ficam os agentes salvos. O {NOME_CURTO} já vem com 7: orquestrador, arquiteto, dev, QA, revisor, segurança e documentação.</p>
       <ul>
         <li><b>Global</b> vale em todo projeto (<code>~/.omni/agents</code>). <b>Projeto</b> fica em <code>.omni/agents</code> e vai no git — o time inteiro recebe.</li>
         <li><b>No Claude Code</b> copia o agente para <code>.claude/agents</code>: o próprio Claude passa a usá-lo como subagente.</li>
@@ -69,7 +70,7 @@ const SECOES: Secao[] = [
     id: "executar", titulo: "Executar", imagem: "/manual/executar.webp", legenda: "O cartão de início mostra o que vai acontecer",
     corpo: <>
       <p>Com um projeto aberto, clique em <b>Executar</b>. O cartão de início mostra, etapa por etapa, o que vai acontecer; você escreve a tarefa com o critério de pronto e inicia.</p>
-      <p>O OMNI cria a branch <code>omni/&lt;fluxo&gt;-&lt;id&gt;</code> num worktree separado. Se o fluxo termina num PR, ele sai no GitHub (pelo <code>gh</code>) só depois da sua aprovação.</p>
+      <p>O {NOME_CURTO} cria a branch <code>omni/&lt;fluxo&gt;-&lt;id&gt;</code> num worktree separado. Se o fluxo termina num PR, ele sai no GitHub (pelo <code>gh</code>) só depois da sua aprovação.</p>
     </>,
   },
   {

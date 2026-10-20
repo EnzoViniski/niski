@@ -19,6 +19,7 @@ import { FaixaDoOrquestrador } from "../orquestracao/FaixaDoOrquestrador";
 import { rotuloDoEstado } from "../../lib/estadosDaSessao";
 import "../../mobile/mobile.css";
 import "../../web/web.css";
+import { NOME_CURTO } from "../../lib/identidade";
 
 /**
  * Aba de agente no modo escolhido em Configurações → Aparência → Agentes.
@@ -234,7 +235,7 @@ function ChatDaSessao({ sessionId, onVerTerminal, onRevisao }: { sessionId: stri
           continue;
         }
         const dados = await request<Timeline>(`/conversas/${encodeURIComponent(sessao.conversation_id)}/timeline`);
-        if (!dados.conversation) throw new ApiError("O engine em execução é anterior à visão Conversa. Reinicie o OMNI.", 0);
+        if (!dados.conversation) throw new ApiError(`O engine em execução é anterior à visão Conversa. Reinicie o ${NOME_CURTO}.`, 0);
         setConversa(dados.conversation);
         setErro(null);
         return;

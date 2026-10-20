@@ -531,7 +531,7 @@ fn abrir_pr(v: &Viva, no: &fluxos::No) -> Result<String> {
     let e = v.lock().map_err(|_| anyhow!("execucao"))?.clone();
     let branch = e.branch.clone().ok_or_else(|| anyhow!("Sem branch: o projeto não é git"))?;
     let titulo = no.config["titulo_pr"].as_str().filter(|t| !t.trim().is_empty()).map(str::to_owned)
-        .unwrap_or_else(|| e.entrada.lines().next().unwrap_or("Mudanças do OMNI").chars().take(72).collect());
+        .unwrap_or_else(|| e.entrada.lines().next().map(str::to_owned).unwrap_or_else(|| format!("Mudanças do {}", omni_protocol::NOME_DO_PRODUTO)).chars().take(72).collect());
     git(&e.pasta, &["add", "-A"])?;
     if !git(&e.pasta, &["status", "--porcelain"])?.is_empty() {
         git(&e.pasta, &["commit", "-m", &titulo, "-m", &format!("Feito pelo fluxo “{}” do {}.", e.fluxo.nome, omni_protocol::NOME_DO_PRODUTO)])?;

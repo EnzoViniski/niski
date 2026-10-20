@@ -4,6 +4,8 @@
  * Entrada nova sempre no topo, escrita em linguagem de usuário — quem lê isso
  * é quem usa o app, não quem escreve o código.
  */
+import { NOME_CURTO } from "./identidade";
+
 export interface EntradaChangelog {
   version: string;
   date: string;
@@ -13,6 +15,20 @@ export interface EntradaChangelog {
 }
 
 export const CHANGELOG: EntradaChangelog[] = [
+  {
+    version: "0.8.0",
+    date: "2026-10-20",
+    changes: [
+      `Primeira versão do ${NOME_CURTO}, com nome, pasta de dados e página de downloads próprios. Cada pessoa entra com as próprias contas.`,
+      "Ditado por voz na visão Conversa: a fala vira texto no próprio computador, sem chave de API, e você revisa antes de enviar. Na primeira vez, o app baixa o modelo de voz (cerca de 574 MB).",
+      "Memória pessoal em Configurações → Memória: escreva seu contexto uma vez e ele vale nas novas conversas do Claude e do Codex.",
+      "Pacote de skills incluído (frontend-design, webapp-testing, copywriting e seo-audit). Para usar, clique em Instalar pacote Medza em Configurações → Skills.",
+      "Modelos locais pelo Codex, com Ollama ou LM Studio já instalados no computador.",
+      "Fila de contas: escolha a conta Automática no Novo agente e o app pula as contas sem uso disponível.",
+      "Prompts e agentes agendados, para rodar uma vez ou de forma recorrente.",
+      "Conversas mais protegidas: o histórico é preservado ao trocar de conta, e o app recupera o workspace anterior quando o arquivo salvo tem problema.",
+    ],
+  },
   {
     version: "0.7.2",
     date: "2026-10-19",
@@ -36,7 +52,7 @@ export const CHANGELOG: EntradaChangelog[] = [
       "Pause, retome ou cancele uma execução, veja o histórico de cada etapa e abra qualquer agente numa conversa para pedir um ajuste ou que ele desfaça o que fez.",
       "Antes de executar, um cartão mostra etapa por etapa o que vai acontecer.",
       "Crie um fluxo inteiro descrevendo o processo para a IA, ou importe e copie fluxos em JSON.",
-      "Modelos de agentes nas Configurações: o OMNI já vem com 7 (orquestrador, arquiteto, dev, QA, revisor, segurança e documentação). Crie novos com IA a partir de uma frase, também direto de uma etapa do fluxo.",
+      `Modelos de agentes nas Configurações: o ${NOME_CURTO} já vem com 7 (orquestrador, arquiteto, dev, QA, revisor, segurança e documentação). Crie novos com IA a partir de uma frase, também direto de uma etapa do fluxo.`,
       "Escolha a IA, o modelo e o esforço de cada agente, e mude o modelo e o esforço só numa etapa quando quiser.",
       "Ligar uma etapa à outra ficou mais fácil: soltar a seta no vazio cria a próxima etapa já ligada, e um × remove a ligação.",
       "Manual com imagens explicando agentes e fluxos, no botão \"Como usar\".",
@@ -55,7 +71,7 @@ export const CHANGELOG: EntradaChangelog[] = [
     date: "2026-10-17",
     changes: [
       "Nova página Relatórios nas Configurações: quanto de IA você usou por dia, por conta, por modelo e por projeto, quantos commits a IA fez e quantas linhas escreveu, e em que horário você mais usa.",
-      "Quando os tokens de uma conta acabam no meio de uma tarefa, o OMNI troca para outra conta e manda sozinho um \"continue\" marcado como automático. A troca aparece na própria conversa.",
+      `Quando os tokens de uma conta acabam no meio de uma tarefa, o ${NOME_CURTO} troca para outra conta e manda sozinho um "continue" marcado como automático. A troca aparece na própria conversa.`,
       "Tela de Novo agente e painel vazio redesenhados, com um mascote em pixel passeando e animações.",
       "O fundo da conversa no app pode ficar colorido como no navegador, com a opacidade das linhas ajustável em Aparência.",
       "Campo de digitação da conversa com visual novo; uma barra no topo mostra quando o agente está trabalhando.",
@@ -138,7 +154,7 @@ export const CHANGELOG: EntradaChangelog[] = [
       "No navegador do computador: terminais sem agente para rodar comandos como npm run dev, o uso de cada conta igual ao do app e um visual mais caprichado.",
       "A barra lateral separa CHATS (conversas com IA) de TERMINALS e mostra o status de cada conversa: trabalhando, aprovar, interrompido ou finalizado.",
       "Avisos de conversa: agora é um só por conversa, abrir a conversa limpa o aviso e ele não volta sozinho.",
-      "Corrigido: o OMNI podia trocar de conta e reabrir uma conversa sozinho quando o agente mostrava na tela algum texto sobre limite de uso. E conversas que tinham acabado de terminar apareciam como interrompidas.",
+      `Corrigido: o ${NOME_CURTO} podia trocar de conta e reabrir uma conversa sozinho quando o agente mostrava na tela algum texto sobre limite de uso. E conversas que tinham acabado de terminar apareciam como interrompidas.`,
       "Corrigido: abrir uma conversa nova em projeto do WSL às vezes dava tempo esgotado e acabava criando sessões repetidas.",
       "Conversas abertas pelo celular numa pasta nova não ficam mais presas na pergunta \"confia nesta pasta?\".",
       "Com o Docker fechado, a barra lateral mostra só \"Docker fechado\", sem mensagem de erro.",
@@ -153,7 +169,7 @@ export const CHANGELOG: EntradaChangelog[] = [
       "Depois da troca, a conversa reabre na outra conta sem escrever nada no terminal por você. Aparece só o aviso \"conta trocada\", e você continua com a próxima mensagem.",
       "A barra de baixo mostra qual conta está sendo usada naquela aba, e as Configurações mostram o e-mail de cada conta conectada.",
       "O Histórico agora fecha como as Configurações: pelo botão Fechar no topo ou com Esc.",
-      "A aba Celular ficou mais bonita, com o código QR nas cores do app, e ganhou o endereço para abrir o OMNI em outro computador, como um notebook.",
+      `A aba Celular ficou mais bonita, com o código QR nas cores do app, e ganhou o endereço para abrir o ${NOME_CURTO} em outro computador, como um notebook.`,
     ],
   },
   {
@@ -246,7 +262,7 @@ export const CHANGELOG: EntradaChangelog[] = [
     date: "2026-09-15",
     changes: [
       "A conversa no celular virou um chat: suas mensagens e as do agente em balões, e um aviso animado enquanto ele trabalha.",
-      "Adicionar o OMNI à tela inicial do celular agora mostra o ícone do app.",
+      `Adicionar o ${NOME_CURTO} à tela inicial do celular agora mostra o ícone do app.`,
       "O app da tela inicial do iPhone pode ser liberado com o código de 6 dígitos do Authy, em Configurações → Celular.",
       "Sessões abertas pelo celular começam a funcionar na hora, sem ficar travadas.",
       "O endereço do celular usa o Tailscale automaticamente e o botão de liberar o acesso seguro volta a abrir o navegador.",
@@ -255,7 +271,7 @@ export const CHANGELOG: EntradaChangelog[] = [
       "A árvore de arquivos se atualiza sozinha e permite criar arquivos e pastas direto nela.",
       "Os avisos só aparecem quando o agente termina ou pede aprovação.",
       "Ajuste de transparência do fundo dos terminais em Configurações.",
-      "Rodar o OMNI em modo de desenvolvimento dentro de um terminal do app instalado não mistura mais os dois.",
+      `Rodar o ${NOME_CURTO} em modo de desenvolvimento dentro de um terminal do app instalado não mistura mais os dois.`,
     ],
   },
   {

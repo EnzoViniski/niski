@@ -4,6 +4,7 @@ import { ChartIcon, LoaderIcon, PlayIcon, ReloadIcon, SparkleIcon } from "../com
 import { Select } from "../components/ui/Select";
 import { ApiError, request } from "./api";
 import { lembrarAjustes } from "../lib/escolhasSalvas";
+import { NOME_CURTO } from "../lib/identidade";
 
 /** `GET /conversas/{id}/opcoes`: o que dá para escolher nesta conversa e o que está valendo agora. */
 export interface Opcoes {
@@ -76,7 +77,7 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
   useEffect(() => { void carregar(); }, [carregar]);
 
   if (engineAntigo) {
-    return <span className="m-chip-aviso" title="O engine em execução é anterior a esta tela">Reinicie o OMNI para trocar conta e modelo</span>;
+    return <span className="m-chip-aviso" title="O engine em execução é anterior a esta tela">{`Reinicie o ${NOME_CURTO} para trocar conta e modelo`}</span>;
   }
   if (!opcoes || opcoes.models.length === 0 && opcoes.profiles.length < 2) return null;
 

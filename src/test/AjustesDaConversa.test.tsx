@@ -42,6 +42,6 @@ describe("AjustesDaConversa", () => {
   it("engine antigo sem a rota explica em vez de sumir", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("Not Found", { status: 404 })));
     render(<AjustesDaConversa conversaId="c" pronto onAplicar={vi.fn()} />);
-    expect(await screen.findByText(/reinicie o OMNI/i)).toBeInTheDocument();
+    expect(await screen.findByText(/reinicie o Medza/i)).toBeInTheDocument();
   });
 });

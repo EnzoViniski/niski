@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button } from "../../components/ui";
+import { NOME_CURTO } from "../../lib/identidade";
 
 /** O que o Rust responde sobre instalar uma ferramenta neste sistema (`src-tauri/src/instalacao.rs`). */
 interface Instalacao {
@@ -84,7 +85,7 @@ export function InstalarFerramenta({ id, nome, motivo }: InstalarFerramentaProps
       {instalacao.automatico && (
         <p className="text-[10px] text-text-muted">
           Abre um terminal e roda o instalador oficial. Quando terminar, clique em “Verificar novamente”
-          aqui embaixo — e, se ainda não aparecer, feche e abra o OMNI.
+          aqui embaixo — e, se ainda não aparecer, feche e abra o {NOME_CURTO}.
         </p>
       )}
       {erro && <p role="alert" className="text-[11px] text-danger">{erro}</p>}

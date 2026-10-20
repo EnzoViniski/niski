@@ -113,7 +113,7 @@ pub fn nome_a_partir_de(texto: &str) -> String {
 fn raiz_principal(pasta: &Path) -> Result<PathBuf, String> {
     let comum = git(pasta, &["rev-parse", "--git-common-dir"])?;
     let comum = absoluto(pasta, &comum);
-    let comum = comum.canonicalize().unwrap_or(comum);
+    let comum = dunce::canonicalize(&comum).unwrap_or(comum);
     comum.parent().map(Path::to_path_buf).ok_or_else(|| "Repositório sem pasta de trabalho".to_owned())
 }
 
@@ -212,8 +212,8 @@ fn raiz_isolada(caminho: &Path) -> Result<PathBuf, String> {
     let (_, nome) = da_pasta(&raiz).ok_or_else(nao_e)?;
     let principal = raiz_principal(&raiz)?;
     // Fork: o sufixo pode ser imitado em qualquer pasta; exige a base deste repositório.
-    let raiz = raiz.canonicalize().map_err(|_| nao_e())?;
-    let esperado = pasta_base(&principal).join(&nome).canonicalize().map_err(|_| nao_e())?;
+    let raiz = dunce::canonicalize(&raiz).map_err(|_| nao_e())?;
+    let esperado = dunce::canonicalize(pasta_base(&principal).join(&nome)).map_err(|_| nao_e())?;
     if raiz == principal || raiz != esperado { return Err(nao_e()); }
     Ok(raiz)
 }
@@ -260,7 +260,7 @@ mod tests {
     /// Repositório de verdade numa pasta temporária: `<tmp>/app` com um commit, `.gitignore` e `.env`.
     fn repo() -> (tempfile::TempDir, PathBuf) {
         let dir = tempfile::tempdir().unwrap();
-        let raiz = dir.path().canonicalize().unwrap().join("app");
+        let raiz = dunce::canonicalize(dir.path()).unwrap().join("app");
         std::fs::create_dir_all(raiz.join("src")).unwrap();
         for args in [vec!["init", "-q", "-b", "main"], vec!["config", "user.email", "t@t"], vec!["config", "user.name", "t"]] {
             git(&raiz, &args).unwrap();
@@ -307,7 +307,7 @@ mod tests {
     fn cria_fora_do_repo_com_branch_propria_e_remove_com_aviso() {
         let (dir, raiz) = repo();
         let wt = criar(&raiz, "Tela de Login").unwrap();
-        let esperado = dir.path().canonicalize().unwrap().join(".medza-worktrees/app/tela-de-login");
+        let esperado = dunce::canonicalize(dir.path()).unwrap().join(".medza-worktrees/app/tela-de-login");
         assert_eq!(PathBuf::from(&wt.caminho), esperado);
         assert_eq!(wt.branch, "medza/tela-de-login");
         assert_eq!(wt.copiados, 3);
@@ -352,7 +352,7 @@ mod tests {
     fn recusa_remover_worktree_fora_da_base_do_repositorio() {
         let (dir, raiz) = repo();
         for relativo in ["fora/.medza-worktrees/app/tarefa", ".medza-worktrees/outro/tarefa"] {
-            let externa = dir.path().canonicalize().unwrap().join(relativo);
+            let externa = dunce::canonicalize(dir.path()).unwrap().join(relativo);
             std::fs::create_dir_all(externa.parent().unwrap()).unwrap();
             git(&raiz, &["worktree", "add", "--detach", externa.to_str().unwrap(), "HEAD"]).unwrap();
             assert!(estado(&externa).is_err(), "aceitou estado de {}", externa.display());
@@ -399,7 +399,7 @@ mod tests {
         assert!(wt.pasta_de_trabalho.ends_with(".medza-worktrees/app/a/src"), "{}", wt.pasta_de_trabalho);
         // Orquestrador numa worktree isolada abre subagente isolado: mesma base, não aninhada.
         let filha = criar(Path::new(&wt.caminho), "b").unwrap();
-        assert_eq!(PathBuf::from(&filha.caminho), dir.path().canonicalize().unwrap().join(".medza-worktrees/app/b"));
+        assert_eq!(PathBuf::from(&filha.caminho), dunce::canonicalize(dir.path()).unwrap().join(".medza-worktrees/app/b"));
     }
 
     #[test]

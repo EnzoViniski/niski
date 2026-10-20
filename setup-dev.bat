@@ -1,7 +1,7 @@
 @echo off
 echo.
-echo  PDF to Markdown - Modo Desenvolvimento
-echo  =======================================
+echo  Medza Agents - Modo Desenvolvimento
+echo  ===================================
 echo.
 echo  Instala dependencias e abre o app no modo dev (com hot-reload).
 echo.

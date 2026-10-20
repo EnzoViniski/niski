@@ -19,6 +19,7 @@ import {
 } from "./historyService";
 // Fork (retomar-sempre): erro de retomada com saídas (outra pasta, conversa nova com o histórico).
 import { RetomadaError, type AcaoDeRetomada, type OpcoesDeRetomada } from "../retomada/retomadaService";
+import { NOME_CURTO } from "../../lib/identidade";
 
 const PROVIDERS = [
   { value: "claude" as const, label: "Claude", icon: <AgentIcon provider="claude" size={14} /> },
@@ -161,7 +162,7 @@ export function HistoryView({ onResume, lock, actions, onClose }: HistoryViewPro
           <p className="text-text-secondary text-[11px]">
             {lock
               ? `Conversas do ${lock.provider === "claude" ? "Claude" : "Codex"} neste projeto. Escolha uma, veja as mensagens e reabra na conta que quiser.`
-              : "Tudo que o Claude Code e o Codex gravaram, em todas as contas — com o OMNI aberto ou não."}
+              : `Tudo que o Claude Code e o Codex gravaram, em todas as contas — com o ${NOME_CURTO} aberto ou não.`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

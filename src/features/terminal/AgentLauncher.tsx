@@ -23,6 +23,7 @@ import {
   type AgentLaunch,
   type Profile,
 } from "./terminalService";
+import { NOME_DO_PRODUTO } from "../../lib/identidade";
 
 interface AgentLauncherProps {
   projectName: string;
@@ -355,7 +356,7 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
         )}
         {!loading && !error && !agents.some((item) => item.available) && (
           <p role="alert" className="launcher-alerta is-aviso">
-            Nenhuma CLI compatível foi encontrada no PATH. Instale uma delas e reinicie o OMNI Agents.
+            Nenhuma CLI compatível foi encontrada no PATH. Instale uma delas e reinicie o {NOME_DO_PRODUTO}.
           </p>
         )}
 

@@ -512,16 +512,19 @@ mod tests {
     fn timeline_do_codex_mostra_o_patch_uma_vez_so() {
         let dir = tempfile::tempdir().unwrap();
         let patch = "*** Begin Patch\n*** Add File: novo.md\n+oi\n*** End Patch";
+        // `cwd` só vale se for absoluto, e `/proj` não é no Windows.
+        let proj = if cfg!(windows) { r"C:\proj" } else { "/proj" };
+        let arquivo = |nome: &str| Path::new(proj).join(nome).to_string_lossy().into_owned();
         let c = conversa(dir.path(), "codex", &[
-            json!({"type": "turn_context", "payload": {"cwd": "/proj", "approval_policy": "never", "sandbox_policy": {"type": "danger-full-access"}}}),
+            json!({"type": "turn_context", "payload": {"cwd": proj, "approval_policy": "never", "sandbox_policy": {"type": "danger-full-access"}}}),
             json!({"type": "response_item", "payload": {"type": "custom_tool_call", "name": "exec",
                 "input": format!("await tools.apply_patch({});", serde_json::to_string(patch).unwrap())}}),
             json!({"type": "event_msg", "payload": {"type": "item_completed", "item": {"type": "FileChange", "status": "completed",
-                "changes": {"/proj/novo.md": {"type": "add", "unified_diff": "", "move_path": null}}}}}),
+                "changes": {arquivo("novo.md"): {"type": "add", "unified_diff": "", "move_path": null}}}}}),
             // Outro patch, por variável: só o `FileChange` mostra.
             json!({"type": "response_item", "payload": {"type": "custom_tool_call", "name": "exec", "input": "await tools.apply_patch(p);"}}),
             json!({"type": "event_msg", "payload": {"type": "item_completed", "item": {"type": "FileChange", "status": "completed",
-                "changes": {"/proj/b.ts": {"type": "update", "unified_diff": "@@ -1 +1 @@\n-a\n+b\n", "move_path": null}}}}}),
+                "changes": {arquivo("b.ts"): {"type": "update", "unified_diff": "@@ -1 +1 @@\n-a\n+b\n", "move_path": null}}}}}),
         ]);
         let corpo = serde_json::to_value(crate::conversations::timeline(&c, &conta(dir.path(), &c.segments[0].provider), None, 50)).unwrap();
         assert_eq!(corpo["modo_de_permissao"], "acessoTotal");
