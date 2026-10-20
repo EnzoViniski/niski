@@ -6,26 +6,54 @@ import { ReloadIcon } from "./ui/PixelIcon";
  * (`scripts/build-mac-local.mjs`), o Rust percebe pela data dos executáveis
  * (`src-tauri/src/atualizacao.rs`) e aparece este botão na barra: um clique e o app reabre
  * sozinho já com o código novo. Fora do Tauri não aparece.
+ *
+ * Fork (retomar-sempre): com o engine também novo, o botão sempre pede confirmação e diz que o
+ * engine será reiniciado (e quantos agentes param). Confirmado, o engine é encerrado de fato antes de
+ * reabrir (`trocar_engine`) — antes, com algum agente trabalhando, o reinício só trocava a tela e a
+ * interface nova seguia falando com o engine antigo. "Só a tela" continua possível.
  */
 
-interface VersaoNova {
+export interface VersaoNova {
   disponivel: boolean;
   reinicia_agentes: boolean;
-  /** Fork: agentes trabalhando agora; com algum, reabrir só troca a interface. */
+  /** Fork: agentes trabalhando agora. */
   agentes_ocupados?: number;
   engine_pendente?: boolean;
+  /** Fork (retomar-sempre): esta janela está falando com o engine antigo (troca adiada). */
+  engine_antigo_rodando?: boolean;
 }
 
 const INTERVALO_MS = 15_000;
 
-async function chamar<T>(comando: string): Promise<T> {
+async function chamar<T>(comando: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(comando);
+  return invoke<T>(comando, args);
+}
+
+function agentes(n: number) {
+  return `${n} ${n === 1 ? "agente trabalhando agora será interrompido" : "agentes trabalhando agora serão interrompidos"}`;
+}
+
+/** Textos do botão e da confirmação, separados para teste. */
+export function textosDaAtualizacao(versao: VersaoNova) {
+  const ocupados = versao.agentes_ocupados ?? 0;
+  const engine = Boolean(versao.engine_pendente);
+  const rotulo = !engine ? "Reiniciar para atualizar"
+    : versao.engine_antigo_rodando ? "Engine desatualizado · atualizar"
+    : "Atualizar app e engine";
+  const dica = !engine
+    ? "Versão nova instalada. Só a tela muda: os agentes seguem rodando."
+    : versao.engine_antigo_rodando
+    ? "A tela já é a nova, mas o engine (que roda os agentes) ainda é o antigo: algumas funções podem não responder até atualizar."
+    : "Versão nova instalada, inclusive do engine que roda os agentes.";
+  const confirmacao = `O engine também será reiniciado${ocupados > 0 ? `: ${agentes(ocupados)}` : ""}. As conversas abertas voltam com --resume (a mesma conversa, com o histórico) quando você abrir cada aba.`;
+  return { rotulo, dica, confirmacao, ocupados, engine };
 }
 
 export function AvisoDeAtualizacao() {
   const [versao, setVersao] = useState<VersaoNova | null>(null);
   const [confirmando, setConfirmando] = useState(false);
+  const [reiniciando, setReiniciando] = useState(false);
 
   useEffect(() => {
     if (!("__TAURI_INTERNALS__" in window)) return;
@@ -39,39 +67,57 @@ export function AvisoDeAtualizacao() {
     return () => { vivo = false; window.clearInterval(id); window.removeEventListener("focus", checar); };
   }, []);
 
-  // A confirmação some sozinha se ninguém clicar de novo.
+  // A confirmação some sozinha se ninguém decidir.
   useEffect(() => {
     if (!confirmando) return;
-    const id = window.setTimeout(() => setConfirmando(false), 5000);
-    return () => window.clearTimeout(id);
+    const id = window.setTimeout(() => setConfirmando(false), 20_000);
+    const esc = (event: KeyboardEvent) => { if (event.key === "Escape") setConfirmando(false); };
+    window.addEventListener("keydown", esc);
+    return () => { window.clearTimeout(id); window.removeEventListener("keydown", esc); };
   }, [confirmando]);
 
   if (!versao?.disponivel) return null;
+  const { rotulo, dica, confirmacao, ocupados, engine } = textosDaAtualizacao(versao);
 
-  // Fork: com agente trabalhando, reabrir troca só a interface — o engine e os agentes seguem
-  // rodando (`engine_client::ensure_engine` adia a troca). Parados todos, a troca do engine reabre as
-  // conversas com o histórico, sem cortar trabalho nenhum.
-  const ocupados = versao.agentes_ocupados ?? 0;
-  const dica = ocupados > 0
-    ? `Versão nova instalada. ${ocupados} ${ocupados === 1 ? "agente está" : "agentes estão"} trabalhando: reabrir atualiza a tela e eles seguem rodando. A parte que reinicia os agentes fica para quando todos pararem.`
-    : versao.reinicia_agentes
-    ? "Versão nova instalada. Nenhum agente trabalhando agora: reabrir reinicia as conversas abertas, que voltam com o histórico."
-    : "Versão nova instalada. Os agentes seguem rodando.";
-
-  function clicar() {
-    if (versao?.reinicia_agentes && !confirmando) { setConfirmando(true); return; }
-    void chamar("reiniciar_para_atualizar").catch(() => undefined);
+  function reiniciar(trocarEngine: boolean) {
+    setReiniciando(true);
+    void chamar("reiniciar_para_atualizar", { trocarEngine }).catch(() => setReiniciando(false));
   }
 
-  const rotulo = confirmando ? "Confirmar: reabre as conversas"
-    : ocupados > 0 ? "Atualizar (agentes seguem)"
-    : versao.engine_pendente ? "Concluir atualização"
-    : "Reiniciar para atualizar";
+  function clicar() {
+    if (engine) { setConfirmando((atual) => !atual); return; }
+    reiniciar(false);
+  }
 
   return (
-    <button type="button" className="titlebar-acao titlebar-atualizar" title={dica} onClick={clicar}>
-      <ReloadIcon aria-hidden className="h-3.5 w-3.5" />
-      {rotulo}
-    </button>
+    <span className="relative flex self-stretch">
+      <button type="button" className={`titlebar-acao titlebar-atualizar${confirmando ? " is-aberto" : ""}`} title={dica}
+        aria-expanded={engine ? confirmando : undefined} onClick={clicar} disabled={reiniciando}>
+        <ReloadIcon aria-hidden className="h-3.5 w-3.5" />
+        {reiniciando ? "Reiniciando…" : rotulo}
+      </button>
+      {confirmando && (
+        <div role="dialog" aria-label="Confirmar atualização"
+          className="absolute right-0 top-full z-[70] mt-1 w-80 border-2 border-border-subtle bg-bg-elevated p-3 text-xs text-text-secondary shadow-lg">
+          <p>{confirmacao}</p>
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <button type="button" className="px-2 py-1 text-text-muted hover:text-text-primary" onClick={() => setConfirmando(false)}>
+              Cancelar
+            </button>
+            {ocupados > 0 && (
+              <button type="button" className="border border-border-subtle px-2 py-1 hover:text-text-primary" disabled={reiniciando}
+                title="Reabre só a tela; o engine antigo e os agentes seguem rodando até você atualizar de novo."
+                onClick={() => reiniciar(false)}>
+                Só a tela agora
+              </button>
+            )}
+            <button type="button" className="bg-accent px-2 py-1 font-bold text-bg-primary hover:opacity-90" disabled={reiniciando}
+              onClick={() => reiniciar(true)}>
+              Reiniciar app e engine
+            </button>
+          </div>
+        </div>
+      )}
+    </span>
   );
 }
