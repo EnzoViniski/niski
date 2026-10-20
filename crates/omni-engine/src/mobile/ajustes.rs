@@ -293,19 +293,21 @@ pub(super) fn retomar(state: &Arc<EngineState>, action: &Action, plano: &Retomad
         provider: plano.provider.clone(), profile_id: alvo_id, external_session_id: Some(plano.session_id.clone()),
         transcript_path: transcript, terminal_session_id: Some(sessao.id.clone()), started_at_ms: agora, ended_at_ms: None,
     };
-    let mut indice = omni_core::conversations::read_index(&dir);
-    match indice.iter_mut().find(|c| c.id == plano.conversation_id) {
-        Some(conversa) => {
-            if let Some(ultimo) = conversa.segments.last_mut() { ultimo.ended_at_ms.get_or_insert(agora); }
-            conversa.segments.push(segmento);
+    // Fork (fix-orquestracao): ler-alterar-gravar sob a trava do índice.
+    omni_core::indice_de_conversas::mudar_indice(&dir, |indice| {
+        match indice.iter_mut().find(|c| c.id == plano.conversation_id) {
+            Some(conversa) => {
+                if let Some(ultimo) = conversa.segments.last_mut() { ultimo.ended_at_ms.get_or_insert(agora); }
+                conversa.segments.push(segmento);
+            }
+            None => indice.push(omni_core::conversations::Conversation {
+                id: plano.conversation_id.clone(), project_id: plano.project_id.clone(), cwd: plano.cwd.clone(),
+                title: plano.title.clone(), title_source: omni_core::conversations::TitleSource::Auto,
+                created_at_ms: agora, segments: vec![segmento],
+            }),
         }
-        None => indice.push(omni_core::conversations::Conversation {
-            id: plano.conversation_id.clone(), project_id: plano.project_id.clone(), cwd: plano.cwd.clone(),
-            title: plano.title.clone(), title_source: omni_core::conversations::TitleSource::Auto,
-            created_at_ms: agora, segments: vec![segmento],
-        }),
-    }
-    omni_core::conversations::write_index(&dir,&indice)?;
+        true
+    })?;
     if plano.provider == "claude" { passar_pela_confianca(state,&sessao.id); }
     Ok(())
 }
@@ -362,12 +364,17 @@ pub(super) fn reabrir_com(state: &Arc<EngineState>, conversation_id: &str, ajust
     };
     if trocou_conta {
         let agora = now_ms();
-        if let Some(ultimo) = conversa.segments.last_mut() { ultimo.ended_at_ms = Some(agora); }
-        conversa.segments.push(omni_core::conversations::Segment {
+        let novo = omni_core::conversations::Segment {
             provider: segmento.provider.clone(), profile_id: alvo_id, external_session_id: Some(sessao_externa),
             transcript_path: transcript, terminal_session_id: Some(sessao_id.clone()), started_at_ms: agora, ended_at_ms: None,
-        });
-        omni_core::conversations::write_index(&dir,&indice)?;
+        };
+        // Fork (fix-orquestracao): o segmento novo entra no índice relido sob a trava.
+        omni_core::indice_de_conversas::mudar_indice(&dir, |indice| {
+            let Some(conversa) = indice.iter_mut().find(|c| c.id == conversation_id) else { return false };
+            if let Some(ultimo) = conversa.segments.last_mut() { ultimo.ended_at_ms = Some(agora); }
+            conversa.segments.push(novo);
+            true
+        })?;
     }
     restart_session(state,&sessao_id)?;
     // Conta nova numa pasta que ela nunca abriu: o Claude pergunta se confia nela.

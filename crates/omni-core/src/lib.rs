@@ -35,6 +35,8 @@ pub mod diff_do_agente;
 pub mod ganchos;
 // Fork (Fase 3): fila de contas — escolha pura da conta com explicação.
 pub mod roteamento;
+// Fork (fix-orquestracao): ler-alterar-gravar o índice de conversas sob trava, com `.tmp` exclusivo.
+pub mod indice_de_conversas;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};

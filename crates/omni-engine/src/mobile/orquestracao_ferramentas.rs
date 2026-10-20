@@ -202,6 +202,13 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
         return Err(format!("Plataforma desconhecida: {plataforma}. Disponíveis: {}", nomes.join(", ")));
     };
     let perfis = omni_core::profiles(dir(state));
+    // Conferir o limite e abrir sob a mesma trava: duas chamadas juntas não passam as duas.
+    // Fork (fix-orquestracao, achado 8): a trava vem antes da escolha da conta, e a da Fila de contas
+    // (`trava_da_escolha`, também usada pelos fluxos) fica até a sessão abrir — duas criações juntas não
+    // escolhem a mesma conta de teto 1.
+    static CRIANDO: Mutex<()> = Mutex::new(());
+    let _criando = CRIANDO.lock().expect("criando poisoned");
+    let escolhendo = super::super::roteamento::trava_da_escolha();
     // Fork (3B): `conta: "auto"` escolhe pela Fila de contas (sessão interativa: sem troca sozinha depois).
     let mut por_que: Option<Vec<String>> = None;
     let conta = match texto_do_campo(args, "conta") {
@@ -220,9 +227,6 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
         None => None,
     };
 
-    // Conferir o limite e abrir sob a mesma trava: duas chamadas juntas não passam as duas.
-    static CRIANDO: Mutex<()> = Mutex::new(());
-    let _criando = CRIANDO.lock().expect("criando poisoned");
     regra::pode_criar(vivos(state, orquestrador), ler_registro(state).limite())?;
     // Dois subagentes vivos nunca dividem um caminho; o que é dos outros entra no briefing como "não mexa".
     let outros = arquivos_dos_vivos(state, orquestrador);
@@ -276,6 +280,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
         if let Some(wt) = &worktree { let _ = worktree_isolada::remover(Path::new(&wt.caminho), true); }
         return Err(format!("Não consegui abrir o subagente: {e}"));
     }
+    drop(escolhendo); // Fork (fix-orquestracao): a sessão aberta já ocupa a vaga da conta.
 
     let agente = regra::Agente { conversation_key: conversa.clone(), plataforma: plataforma.clone(), conta: plano.profile_id.clone(),
         modelo: modelo.clone(), esforco: esforco.clone(), tarefa: objetivo.clone(), criado_em: now_ms(), editar, criar: criar_,
@@ -517,7 +522,8 @@ fn pedido_de(cap: &interaction::Capabilities) -> Option<Value> {
         return Some(json!({"tipo": "permissao", "texto": regra::resumir(&texto, 3_000),
             // Fork (Onda 2): pedido do gancho traz a ferramenta e o prazo (depois dele a CLI pergunta no terminal).
             "ferramenta": cap.pedido.as_ref().map(|p| p.ferramenta.clone()), "expira_em_ms": cap.pedido.as_ref().map(|p| p.expira_em_ms),
-            "arriscado": briefing::pedido_arriscado(&texto),
+            // Fork (fix-orquestracao, achado 1): o do pedido estruturado vem da entrada inteira (o texto é cortado).
+            "arriscado": cap.pedido.as_ref().map_or_else(|| briefing::pedido_arriscado(&texto), |p| p.arriscado),
             "como_responder": "responder_pedido(agente, permitir: true|false)"}));
     }
     cap.escolha.as_ref().map(|menu| json!({"tipo": "pergunta", "pergunta": menu.pergunta, "detalhe": menu.detalhe,
@@ -540,8 +546,15 @@ fn responder(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Resu
             return Err(format!("Este pedido {motivo}: só o usuário aprova. Avise-o (ele responde no fluxo) ou negue com permitir: false."));
         }
         let terminal = sessao.meta.lock().map(|m| m.id.clone()).map_err(|_| "Sessão indisponível".to_owned())?;
-        let decisao = if permitir { crate::ganchos::Decisao::Permitir } else { crate::ganchos::Decisao::Negar(texto_do_campo(args, "mensagem").map(str::to_owned)) };
-        crate::ganchos::responder(&terminal, Some(&pedido.id), decisao).map_err(|_| "O pedido já foi respondido ou mudou. Veja com ler_conversa.".to_owned())?;
+        let mudou = || "O pedido já foi respondido ou mudou. Veja com ler_conversa.".to_owned();
+        // Fork (fix-orquestracao, achado 11): cada pedido volta por onde veio — o do app-server do Codex
+        // não existe nos ganchos do Claude (antes aprovar ou negar pelo MCP sempre falhava).
+        if pedido.origem == "codex_app_server" {
+            crate::codex_app_server::responder(&terminal, &pedido.id, permitir).map_err(|_| mudou())?;
+        } else {
+            let decisao = if permitir { crate::ganchos::Decisao::Permitir } else { crate::ganchos::Decisao::Negar(texto_do_campo(args, "mensagem").map(str::to_owned)) };
+            crate::ganchos::responder(&terminal, Some(&pedido.id), decisao).map_err(|_| mudou())?;
+        }
         let resumo = if permitir { "permitido" } else { "negado" };
         registro::info("orquestracao_pedido_respondido", &[("orquestrador", orquestrador), ("agente", agente), ("resposta", resumo)]);
         return Ok(format!("Pedido {resumo}. Use esperar(agente) para acompanhar."));
@@ -636,6 +649,39 @@ mod testes_dos_ganchos {
         assert!(crate::ganchos::pedido(&terminal).is_some(), "continua esperando o usuário");
         responder(&state, "orq", &json!({"agente": "sub", "permitir": false, "mensagem": "não apague"})).unwrap();
         assert!(resposta.await.unwrap().contains("Negado no Medza: não apague"));
+        let _ = close_session(&state, &terminal);
+    }
+
+    /// Fork (fix-orquestracao, achado 11): pedido do app-server do Codex responde pelo app-server (antes ia
+    /// para os ganchos do Claude, que não o conhecem, e aprovar ou negar pelo MCP sempre falhava).
+    #[cfg(unix)]
+    #[test]
+    fn orquestrador_responde_pedido_do_app_server_do_codex() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = Arc::new(EngineState { persist_lock: Mutex::new(()), mobile: MobileRuntime::new(dir.path()),
+            token: "test-only".into(), state_file: dir.path().join("sessions.json"), sessions: Mutex::new(HashMap::new()),
+            id_sequence: AtomicU64::new(1) });
+        let terminal = format!("terminal-teste-{}", uuid::Uuid::new_v4());
+        atomic_write_json(&dir.path().join("conversations.json"), &json!({"version": 1, "conversations": [{"id": "sub", "project_id": "p",
+            "cwd": "/tmp", "title": "sub", "created_at_ms": 1, "segments": [{"provider": "codex", "profile_id": null,
+            "external_session_id": null, "transcript_path": null, "terminal_session_id": terminal, "started_at_ms": 1, "ended_at_ms": null}]}]})).unwrap();
+        mudar_registro(&state, |r| r.adicionar("orq", regra::Agente { conversation_key: "sub".into(), plataforma: "codex".into(),
+            tarefa: "listar".into(), ..Default::default() })).unwrap();
+        spawn_terminal_inner(&state, terminal.clone(), "p".into(), "Sub".into(), "/tmp".into(), Some("/bin/sh".into()), None, 30, 100,
+            now_ms(), SessionOrigin { provider: Some("codex".into()), conversation_id: Some("sub".into()), ..SessionOrigin::default() }).unwrap();
+        let log = crate::codex_app_server::falso_com_pedido_de_teste(&terminal, dir.path());
+        let lido: Value = serde_json::from_str(&ler(&state, "orq", &json!({"agente": "sub"})).unwrap()).unwrap();
+        assert_eq!(lido["pedido"]["tipo"], "permissao", "{lido}");
+
+        let texto = responder(&state, "orq", &json!({"agente": "sub", "permitir": true})).unwrap();
+        assert!(texto.contains("permitido"), "{texto}");
+        let decisao = || std::fs::read_to_string(&log).unwrap_or_default().lines().filter_map(|l| serde_json::from_str::<Value>(l).ok())
+            .find(|m| m.get("result").is_some());
+        let limite = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while decisao().is_none() && std::time::Instant::now() < limite { std::thread::sleep(std::time::Duration::from_millis(20)); }
+        let resposta = decisao().expect("o app-server recebeu a decisão");
+        assert_eq!(resposta["result"]["decision"], "accept");
+        crate::codex_app_server::esquecer(&terminal);
         let _ = close_session(&state, &terminal);
     }
 }

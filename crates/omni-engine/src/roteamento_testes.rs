@@ -154,3 +154,78 @@ fn concorrencia_conta_sessoes_vivas_da_conta() {
     let ids: Vec<String> = state.sessions.lock().unwrap().keys().cloned().collect();
     for id in ids { let _ = close_session(&state, &id); }
 }
+
+/// Fork (fix-orquestracao, achado 2): pasta confidencial vale também nas worktrees do mesmo
+/// repositório — a isolada do Medza (`.medza-worktrees/<repo>/<nome>`) e uma `git worktree` comum —, e
+/// numa subpasta delas. Antes o orquestrador numa worktree escapava da regra e "auto" usava qualquer conta.
+#[cfg(unix)]
+#[test]
+fn confidencial_vale_nas_worktrees_do_projeto_original() {
+    let (dir, state) = fixture();
+    let base = dir.path().canonicalize().unwrap();
+    let repo = base.join("empresa");
+    std::fs::create_dir_all(repo.join("src")).unwrap();
+    let git = |pasta: &Path, args: &[&str]| assert!(std::process::Command::new("git").args(args).current_dir(pasta)
+        .output().unwrap().status.success(), "{args:?}");
+    git(&repo, &["init", "-q", "-b", "main"]);
+    std::fs::write(repo.join("src/a.txt"), "a").unwrap();
+    git(&repo, &["add", "."]);
+    git(&repo, &["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "inicio"]);
+    let isolada = omni_core::worktree_isolada::criar(&repo, "tarefa").unwrap();
+    let comum = base.join("empresa-wt");
+    git(&repo, &["worktree", "add", "-q", "-b", "outra", &comum.to_string_lossy(), "HEAD"]);
+    atomic_write_json(&dir.path().join(ARQUIVO), &json!({"etapas": ["a", "b"], "contas": {"b": {"confidencial_ok": true}},
+        "projetos_confidenciais": [repo.to_string_lossy()]})).unwrap();
+
+    let conta = |projeto: &Path| escolher_para(&state, "claude", Some(&projeto.to_string_lossy()), false, false, &[]).perfil_id;
+    assert_eq!(conta(&base.join("livre")).as_deref(), Some("a"), "fora do projeto vale a fila");
+    assert_eq!(conta(&repo).as_deref(), Some("b"));
+    assert_eq!(conta(Path::new(&isolada.caminho)).as_deref(), Some("b"), "worktree isolada do Medza");
+    assert_eq!(conta(&Path::new(&isolada.caminho).join("src")).as_deref(), Some("b"), "subpasta da worktree isolada");
+    assert_eq!(conta(&comum).as_deref(), Some("b"), "git worktree comum");
+    // Worktree isolada já apagada (sem git para perguntar): o caminho `.medza-worktrees` ainda diz de onde veio.
+    assert_eq!(conta(&base.join(".medza-worktrees/empresa/sumiu")).as_deref(), Some("b"));
+    // Só a subpasta é confidencial: a mesma subpasta na worktree também é; outra pasta dela não.
+    atomic_write_json(&dir.path().join(ARQUIVO), &json!({"etapas": ["a", "b"], "contas": {"b": {"confidencial_ok": true}},
+        "projetos_confidenciais": [repo.join("src").to_string_lossy()]})).unwrap();
+    assert_eq!(conta(&Path::new(&isolada.caminho).join("src")).as_deref(), Some("b"));
+    assert_eq!(conta(Path::new(&isolada.caminho)).as_deref(), Some("a"));
+}
+
+/// Fork (fix-orquestracao, achado 9): execução sem tela dos fluxos ocupa vaga da conta enquanto roda.
+/// Duas execuções juntas numa fila com teto 1 na primeira conta não caem as duas nela.
+#[test]
+fn execucao_sem_tela_conta_no_teto_de_concorrencia() {
+    let (dir, state) = fixture();
+    atomic_write_json(&dir.path().join(ARQUIVO), &json!({"etapas": ["a", "b"], "contas": {"a": {"max_concorrencia": 1}}})).unwrap();
+    // Enquanto roda, a vaga da conta está ocupada para qualquer outra escolha.
+    let usada = com_queda_sem_tela(&state, "claude", "auto", "/p", None, false, |perfil| {
+        assert_eq!(sessoes_por_perfil(&state).get("a"), Some(&1));
+        assert_eq!(escolher_para(&state, "claude", None, false, false, &[]).perfil_id.as_deref(), Some("b"));
+        Ok(perfil.map(|p| p.id).unwrap_or_default())
+    }).unwrap();
+    assert_eq!(usada, "a");
+    assert_eq!(sessoes_por_perfil(&state).get("a"), None, "terminou: a vaga volta");
+
+    // Duas execuções ao mesmo tempo: escolha e reserva na mesma seção crítica.
+    let barreira = std::sync::Barrier::new(2);
+    let usadas: Vec<String> = std::thread::scope(|s| {
+        let rodar = || s.spawn(|| { barreira.wait(); com_queda_sem_tela(&state, "claude", "auto", "/p", None, false, |perfil| {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            Ok(perfil.map(|p| p.id).unwrap_or_default())
+        }).unwrap() });
+        let (um, outro) = (rodar(), rodar());
+        vec![um.join().unwrap(), outro.join().unwrap()]
+    });
+    let mut usadas = usadas;
+    usadas.sort();
+    assert_eq!(usadas, ["a", "b"]);
+
+    // Conta fixa do modelo de agente (fora da fila) também ocupa a vaga enquanto roda.
+    {
+        let _vaga = ocupar_sem_tela(&state, "a");
+        assert_eq!(sessoes_por_perfil(&state).get("a"), Some(&1));
+        assert_eq!(escolher_para(&state, "claude", None, false, false, &[]).perfil_id.as_deref(), Some("b"));
+    }
+    assert_eq!(sessoes_por_perfil(&state).get("a"), None);
+}

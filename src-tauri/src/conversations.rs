@@ -9,7 +9,7 @@
 //! Consequência de projeto: **não existe tailer**. Sem mensagens para guardar, não há motivo para
 //! seguir arquivo nenhum — o `.jsonl` só é lido sob demanda, no handoff forçado.
 
-use omni_protocol::{atomic_write_json, read_json_or_default};
+use omni_protocol::read_json_or_default;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -62,8 +62,22 @@ fn load() -> ConversationStore {
     store_path().map(|path| read_json_or_default(&path)).unwrap_or_default()
 }
 
-fn save(store: &ConversationStore) -> Result<(), String> {
-    atomic_write_json(&store_path()?, store).map_err(|error| error.to_string())
+/// Fork (fix-orquestracao): ler-alterar-gravar o índice na mesma transação do engine (trava entre
+/// processos e `.tmp` exclusivo, `omni_core::indice_de_conversas`). Antes a casca regravava o índice
+/// lido lá atrás e podia apagar o que o engine gravou no meio (e disputava o mesmo `.tmp`).
+fn mudar(f: impl FnOnce(&mut Vec<Conversation>) -> Result<(), String>) -> Result<(), String> {
+    let dir = crate::engine_client::engine_dir()?;
+    fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    let mut erro = None;
+    omni_core::indice_de_conversas::mudar_indice(&dir, |conversas| match f(conversas) {
+        Ok(()) => true,
+        Err(e) => { erro = Some(e); false }
+    }).map_err(|error| error.to_string())?;
+    erro.map_or(Ok(()), Err)
+}
+
+fn achar<'a>(conversas: &'a mut [Conversation], conversation_id: &str) -> Result<&'a mut Conversation, String> {
+    conversas.iter_mut().find(|conversation| conversation.id == conversation_id).ok_or_else(|| "Conversa não encontrada".to_string())
 }
 
 fn now_ms() -> u64 {
@@ -166,7 +180,6 @@ pub fn begin_conversation(
         }],
     };
 
-    let mut store = load();
     let plan = LaunchPlan {
         conversation_id: conversation.id.clone(),
         title: conversation.title.clone(),
@@ -178,8 +191,7 @@ pub fn begin_conversation(
         handoff_path: None,
         notice: None,
     };
-    store.conversations.push(conversation);
-    save(&store)?;
+    mudar(|conversas| { conversas.push(conversation); Ok(()) })?; // Fork (fix-orquestracao)
     Ok(plan)
 }
 
@@ -187,12 +199,13 @@ pub fn begin_conversation(
 /// sessão parar.
 #[tauri::command(async)]
 pub fn attach_terminal(conversation_id: String, terminal_session_id: String) -> Result<(), String> {
-    let mut store = load();
-    let conversation = find_mut(&mut store, &conversation_id)?;
-    if let Some(segment) = conversation.segments.last_mut() {
-        segment.terminal_session_id = Some(terminal_session_id);
-    }
-    save(&store)
+    // Fork (fix-orquestracao): na transação do índice.
+    mudar(|conversas| {
+        if let Some(segment) = achar(conversas, &conversation_id)?.segments.last_mut() {
+            segment.terminal_session_id = Some(terminal_session_id);
+        }
+        Ok(())
+    })
 }
 
 /// Prompt do handoff gracioso: pede ao agente que ainda responde para deixar o briefing em disco
@@ -269,7 +282,7 @@ pub fn plan_switch(
                 );
                 plan.initial_command = format!("{target_command} --resume {session_id}");
                 plan.external_session_id = Some(session_id.clone());
-                push_segment(&mut store, &conversation_id, &plan, Some(destination))?;
+                push_segment(&conversation_id, &plan, Some(destination))?;
                 return Ok(plan);
             }
         }
@@ -296,7 +309,7 @@ pub fn plan_switch(
             )?;
             plan.initial_command = format!("{target_command} resume {session_id}");
             plan.external_session_id = Some(session_id);
-            push_segment(&mut store, &conversation_id, &plan, Some(destination))?;
+            push_segment(&conversation_id, &plan, Some(destination))?;
             return Ok(plan);
         }
     }
@@ -321,7 +334,7 @@ pub fn plan_switch(
          comum entre os CLIs. Cache de prompt, estado interno e aprovações não transferem."
             .into()
     });
-    push_segment(&mut store, &conversation_id, &plan, None)?;
+    push_segment(&conversation_id, &plan, None)?;
     Ok(plan)
 }
 
@@ -364,25 +377,27 @@ fn copy_codex_transcript(
 }
 
 fn push_segment(
-    store: &mut ConversationStore,
     conversation_id: &str,
     plan: &LaunchPlan,
     transcript_path: Option<PathBuf>,
 ) -> Result<(), String> {
-    let conversation = find_mut(store, conversation_id)?;
-    if let Some(previous) = conversation.segments.last_mut() {
-        previous.ended_at_ms = Some(now_ms());
-    }
-    conversation.segments.push(Segment {
-        provider: plan.provider.clone(),
-        profile_id: plan.profile_id.clone(),
-        external_session_id: plan.external_session_id.clone(),
-        transcript_path: transcript_path.map(|path| path.to_string_lossy().into_owned()),
-        terminal_session_id: None,
-        started_at_ms: now_ms(),
-        ended_at_ms: None,
-    });
-    save(store)
+    // Fork (fix-orquestracao): grava sobre o índice relido na transação, não sobre o lido antes.
+    mudar(|conversas| {
+        let conversation = achar(conversas, conversation_id)?;
+        if let Some(previous) = conversation.segments.last_mut() {
+            previous.ended_at_ms = Some(now_ms());
+        }
+        conversation.segments.push(Segment {
+            provider: plan.provider.clone(),
+            profile_id: plan.profile_id.clone(),
+            external_session_id: plan.external_session_id.clone(),
+            transcript_path: transcript_path.map(|path| path.to_string_lossy().into_owned()),
+            terminal_session_id: None,
+            started_at_ms: now_ms(),
+            ended_at_ms: None,
+        });
+        Ok(())
+    })
 }
 
 fn write_handoff(conversation: &Conversation, body: &str) -> Result<PathBuf, String> {

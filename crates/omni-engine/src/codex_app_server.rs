@@ -698,26 +698,27 @@ fn vincular(state: &EngineState, terminal: &str, e: &Estado) {
         return;
     }
     let dir = state.state_file.parent().unwrap();
-    let mut indice = omni_core::conversations::read_index(dir);
-    let mut mudou = false;
-    for s in indice
-        .iter_mut()
-        .flat_map(|c| &mut c.segments)
-        .filter(|s| s.provider == "codex" && s.terminal_session_id.as_deref() == Some(terminal))
-    {
-        if s.external_session_id.as_deref() != Some(&e.thread)
-            || (e.caminho.is_some() && s.transcript_path != e.caminho)
+    // Fork (fix-orquestracao, achado 4): ler-alterar-gravar sob a trava do índice (os ganchos e a
+    // casca gravam o mesmo arquivo).
+    let _ = omni_core::indice_de_conversas::mudar_indice(dir, |indice| {
+        let mut mudou = false;
+        for s in indice
+            .iter_mut()
+            .flat_map(|c| &mut c.segments)
+            .filter(|s| s.provider == "codex" && s.terminal_session_id.as_deref() == Some(terminal))
         {
-            s.external_session_id = Some(e.thread.clone());
-            if e.caminho.is_some() {
-                s.transcript_path = e.caminho.clone();
+            if s.external_session_id.as_deref() != Some(&e.thread)
+                || (e.caminho.is_some() && s.transcript_path != e.caminho)
+            {
+                s.external_session_id = Some(e.thread.clone());
+                if e.caminho.is_some() {
+                    s.transcript_path = e.caminho.clone();
+                }
+                mudou = true;
             }
-            mudou = true;
         }
-    }
-    if mudou {
-        let _ = omni_core::conversations::write_index(dir, &indice);
-    }
+        mudou
+    });
 }
 
 fn estado_da_sessao(e: &Estado) -> SessionState {
@@ -903,6 +904,33 @@ pub(crate) fn uso_da_conta(
         secondary,
         reason: None,
     })
+}
+
+/// Fork (fix-orquestracao): app-server falso (fixture sintética) ligado a `terminal`, com um pedido de
+/// aprovação pendente — para testes de outros módulos (o orquestrador). Devolve o log JSON-RPC.
+#[cfg(test)]
+pub(crate) fn falso_com_pedido_de_teste(terminal: &str, dir: &Path) -> PathBuf {
+    let log = dir.join("rpc.jsonl");
+    let mut p = Command::new("node")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/fixtures/codex-app-server-falso.mjs"))
+        .env("MEDZA_FAKE_LOG", &log)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let (r, w) = (p.stdout.take().unwrap(), p.stdin.take().unwrap());
+    let c = cliente(Estado::default(), Box::new(r), Box::new(w), false, vec![p], None);
+    iniciar_thread(&c, "/tmp", None).unwrap();
+    CLIENTES.lock().unwrap().insert(terminal.into(), c.clone());
+    let rev = c.revision(&c.estado.lock().unwrap());
+    enviar_prompt(terminal, "aprovar", &rev, false).unwrap();
+    let limite = Instant::now() + Duration::from_secs(5);
+    while c.estado.lock().unwrap().pedidos.is_empty() {
+        assert!(Instant::now() < limite, "Prazo da fixture");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    log
 }
 
 #[cfg(test)]

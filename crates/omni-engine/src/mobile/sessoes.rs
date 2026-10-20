@@ -202,11 +202,10 @@ pub(super) fn spawn_from_mobile(state:&Arc<EngineState>, action:&Action, plan:&S
     )?;
 
     // Grava a conversa só depois do spawn dar certo: falhou, não fica conversa órfã na lista.
-    let mut index = omni_core::conversations::read_index(&dir);
     let mut conversation = conversation;
     conversation.segments[0].terminal_session_id = Some(session.id.clone());
-    index.push(conversation);
-    omni_core::conversations::write_index(&dir,&index)?;
+    // Fork (fix-orquestracao): ler-alterar-gravar sob a trava do índice.
+    omni_core::indice_de_conversas::mudar_indice(&dir, |index| { index.push(conversation); true })?;
     if plan.provider == "claude" { passar_pela_confianca(state,&session.id); }
     Ok(())
 }

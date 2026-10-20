@@ -447,3 +447,66 @@ async fn statusline_vira_uso_da_conta_e_contas_prefere_a_mais_nova() {
     assert_eq!(usage.source, "claude_cache", "sem statusline, a leitura antiga vale");
     c.fechar(&terminal);
 }
+
+/// Fork (fix-orquestracao, achado 1): o risco sai do comando inteiro, não do resumo cortado em 2.000
+/// caracteres — um `rm -rf` depois do corte continuava aprovável pelo orquestrador. O corte aparece (…).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn risco_do_pedido_olha_o_comando_inteiro_mesmo_cortado_na_tela() {
+    let c = cena(PORTA_FALSA + 5);
+    let (terminal, _sessao) = c.abrir(&quieta(&c));
+    let token = token_de(&terminal);
+    let comando = format!("echo {} && rm -rf ~/projeto", "a".repeat(2_100));
+    let corpo = json!({"hook_event_name": "PermissionRequest", "session_id": "s", "tool_name": "Bash", "tool_input": {"command": comando}});
+    let (pedido_http, app) = (c.pedido("/ganchos/permissao", Some(&token), corpo), router(c.state.clone()));
+    let espera = tokio::spawn(async move { app.oneshot(pedido_http).await.unwrap().status() });
+    let visto = pedido_pendente(&terminal).await;
+    assert!(visto.resumo.chars().count() <= 2_000 && visto.resumo.ends_with('…'), "a tela mostra que cortou");
+    assert!(!visto.resumo.contains("rm -rf"), "o trecho perigoso ficou depois do corte");
+    assert_eq!(visto.arriscado, Some("apaga arquivos em massa"));
+    responder(&terminal, Some(&visto.id), Decisao::Negar(None)).unwrap();
+    assert_eq!(espera.await.unwrap(), StatusCode::OK);
+    c.fechar(&terminal);
+}
+
+/// Fork (fix-orquestracao, achado 5): depois de `/clear` ou `/branch` a CLI roda outra sessão. Além do
+/// índice, a identidade da sessão (meta) e o comando de reinício passam a apontar para ela: reiniciar
+/// retoma a nova e bifurcar copia a nova, não a anterior.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn troca_de_sessao_da_cli_atualiza_meta_e_comando_de_reinicio() {
+    let c = cena(PORTA_FALSA + 6);
+    let terminal = format!("terminal-teste-{}", uuid::Uuid::new_v4());
+    atomic_write_json(&c.dir.path().join("conversations.json"), &json!({"version": 1, "conversations": [{
+        "id": "conv", "project_id": "p", "cwd": c.projeto.to_string_lossy(), "title": "conv", "created_at_ms": 1,
+        "segments": [{"provider": "claude", "profile_id": "claude-p", "external_session_id": "sess-1", "transcript_path": null,
+            "terminal_session_id": terminal, "started_at_ms": 1, "ended_at_ms": null}]}]})).unwrap();
+    let comando = format!("{} --model opus --session-id sess-1", quieta(&c));
+    spawn_terminal_inner(&c.state, terminal.clone(), "p".into(), "Claude".into(), c.projeto.to_string_lossy().into_owned(),
+        Some("/bin/sh".into()), Some(comando.clone()), 30, 100, now_ms(),
+        SessionOrigin { external_session_id: Some("sess-1".into()), ..c.origem() }).unwrap();
+    let sessao = viva(&c.state, &terminal).unwrap();
+    let token = token_de(&terminal);
+    let evento = |sid: &str| json!({"hook_event_name": "UserPromptSubmit", "session_id": sid,
+        "transcript_path": c.conta.join(format!("{sid}.jsonl")).to_string_lossy()});
+
+    // A mesma sessão com que a CLI abriu: nada muda.
+    c.chamar(c.pedido("/ganchos", Some(&token), evento("sess-1"))).await;
+    assert_eq!(sessao.meta.lock().unwrap().initial_command.as_deref(), Some(comando.as_str()));
+
+    // `/clear`: sessão nova.
+    c.chamar(c.pedido("/ganchos", Some(&token), evento("sess-2"))).await;
+    let meta = sessao.meta.lock().unwrap().clone();
+    assert_eq!(meta.external_session_id.as_deref(), Some("sess-2"));
+    let reaberto = meta.initial_command.clone().unwrap();
+    assert!(reaberto.contains("--session-id sess-2") && !reaberto.contains("sess-1") && reaberto.contains("--model opus"), "{reaberto}");
+    let indice = omni_core::conversations::read_index(c.dir.path());
+    assert_eq!(indice[0].segments[0].external_session_id.as_deref(), Some("sess-2"));
+    assert!(fs::read_to_string(c.dir.path().join("sessions.json")).unwrap().contains("sess-2"), "a troca fica gravada");
+
+    // Com a sessão nova já gravada pela CLI, reiniciar retoma ela.
+    let transcript = omni_core::conversations::claude_transcript_path(&c.conta, &meta.cwd, "sess-2");
+    fs::create_dir_all(transcript.parent().unwrap()).unwrap();
+    fs::write(&transcript, "{}\n").unwrap();
+    let reinicio = comando_ao_reiniciar(&meta).unwrap();
+    assert!(reinicio.contains("--resume sess-2") && !reinicio.contains("--session-id"), "{reinicio}");
+    c.fechar(&terminal);
+}
