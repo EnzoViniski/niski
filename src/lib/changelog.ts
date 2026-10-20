@@ -16,6 +16,15 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.8.4",
+    date: "2026-10-20",
+    changes: [
+      "Novo estilo Minimalista, em Configurações → Aparência → Estilo da interface: cantos arredondados, cores lisas e a fonte do sistema, no espírito dos apps do Claude e do Codex. O estilo Clássico continua como padrão e igual ao de sempre.",
+      "No Minimalista, cada conversa mostra o ícone do agente num quadradinho com a cor dele, na lateral, nas abas e na Conversa, para saber de relance quem está em cada uma.",
+      "A troca vale na hora, sem reiniciar, e a escolha fica guardada como o resto da aparência.",
+    ],
+  },
+  {
     version: "0.8.3",
     date: "2026-10-20",
     changes: [
