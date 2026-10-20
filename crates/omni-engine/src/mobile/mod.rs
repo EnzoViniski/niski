@@ -48,6 +48,8 @@ mod ajustes;
 use ajustes::*;
 mod fila;
 use fila::*;
+// Fork (Onda 2): "Responder no terminal" e os ajustes dos ganchos do Claude.
+mod ganchos_rotas;
 pub(crate) use celular::{check, settings, totp};
 pub(crate) use catalogo::{publish};
 pub(crate) use contas::{comando_do_agente};
@@ -219,6 +221,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .merge(orquestracao::rotas())
         // Fork: modo com que o app abre o Antigravity (`antigravity_permissoes.rs`).
         .merge(crate::antigravity_permissoes::rotas())
+        .merge(ganchos_rotas::rotas()) // Fork (Onda 2): ganchos do Claude.
 }
 
 fn router(state: Arc<EngineState>) -> Router {

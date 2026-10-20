@@ -94,7 +94,10 @@ pub(super) fn destravar(state: &Arc<EngineState>, id: &str) -> Result<Json<Value
 }
 
 #[derive(Deserialize)] #[serde(deny_unknown_fields)] pub(super) struct PromptBody { texto: String, #[serde(default)] fila: bool }
-#[derive(Deserialize)] #[serde(deny_unknown_fields)] pub(super) struct ApprovalBody { permitir: bool }
+/// Fork (Onda 2, item 2): `pedido` é o id do pedido do gancho que a tela mostrou; `mensagem`, o "dizer o
+/// que fazer" de quem nega. Sem pedido do gancho, os dois são ignorados e vale a tecla na tela.
+#[derive(Deserialize)] #[serde(deny_unknown_fields)] pub(super) struct ApprovalBody { permitir: bool,
+    #[serde(default)] pedido: Option<String>, #[serde(default)] mensagem: Option<String> }
 pub(super) async fn prompt(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<PromptBody>) -> Result<(StatusCode,Json<Value>),ApiError> {
     if body.texto.trim().is_empty() || body.texto.len() > 16_000 || body.texto.chars().any(|c|c.is_control() && c != '\n' && c != '\t') || body.texto.trim_start().starts_with('/') {
         return Err(error(StatusCode::BAD_REQUEST,"Envie texto de até 16000 bytes, sem comandos slash ou caracteres de controle"));
@@ -103,6 +106,8 @@ pub(super) async fn prompt(State(state): State<Arc<EngineState>>, RoutePath(id):
     enqueue_async(state,id,headers,kind).await
 }
 pub(super) async fn approve(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<ApprovalBody>) -> Result<(StatusCode,Json<Value>),ApiError> {
+    // Fork (Onda 2): pedido segurado pelo gancho responde direto, sem tecla nem fila.
+    if let Some(resposta) = ganchos_rotas::responder_pelo_gancho(&state,&id,body.permitir,body.pedido.clone(),body.mensagem.clone()).await { return resposta; }
     enqueue_async(state,id,headers,ActionKind::Approval(body.permitir)).await
 }
 

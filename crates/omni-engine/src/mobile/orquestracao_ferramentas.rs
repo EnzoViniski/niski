@@ -56,7 +56,8 @@ pub(super) fn lista() -> Value {
          "description": "Responde um pedido que um subagente fez na tela: permissão (permitir true/false) ou pergunta/menu da CLI (opcao = número). Aprove o que está dentro da tarefa e dos arquivos dele; negue e oriente com mandar_prompt o que sair disso. Pedido arriscado (apagar em massa, push/publicar, instalar global, sudo, credenciais) só o usuário aprova: avise-o, ele responde no fluxo.",
          "inputSchema": {"type": "object", "required": ["agente"], "properties": {"agente": agente,
             "permitir": {"type": "boolean", "description": "Para pedido de permissão"},
-            "opcao": {"type": "integer", "minimum": 1, "description": "Para pergunta ou menu: o número da opção"}}}},
+            "opcao": {"type": "integer", "minimum": 1, "description": "Para pergunta ou menu: o número da opção"},
+            "mensagem": {"type": "string", "description": "Ao negar (permitir: false) um pedido que veio pelo gancho do Claude: o que ele deve fazer em vez disso"}}}},
         {"name": "parar_agente",
          "description": "Encerra a CLI de um subagente (a conversa continua no histórico). Libera vaga no limite. A worktree isolada dele (se tiver) e a branch ficam: mescle e apague pelo app.",
          "inputSchema": {"type": "object", "required": ["agente"], "properties": {"agente": agente}}},
@@ -500,6 +501,8 @@ fn pedido_de(cap: &interaction::Capabilities) -> Option<Value> {
     if cap.approve {
         let texto = cap.approval_text.clone().unwrap_or_default();
         return Some(json!({"tipo": "permissao", "texto": regra::resumir(&texto, 3_000),
+            // Fork (Onda 2): pedido do gancho traz a ferramenta e o prazo (depois dele a CLI pergunta no terminal).
+            "ferramenta": cap.pedido.as_ref().map(|p| p.ferramenta.clone()), "expira_em_ms": cap.pedido.as_ref().map(|p| p.expira_em_ms),
             "arriscado": briefing::pedido_arriscado(&texto),
             "como_responder": "responder_pedido(agente, permitir: true|false)"}));
     }
@@ -515,7 +518,20 @@ fn responder(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Resu
     let agente = obrigatorio(args, "agente")?;
     do_orquestrador(state, orquestrador, agente)?;
     let (_, sessao, cap) = estado_de(state, agente);
-    let (Some(_), Some(cap)) = (sessao, cap) else { return Err("O agente está parado.".into()) };
+    let (Some(sessao), Some(cap)) = (sessao, cap) else { return Err("O agente está parado.".into()) };
+    // Fork (Onda 2): pedido segurado pelo gancho do Claude responde direto, com o id do que foi lido.
+    if let (Some(pedido), Some(permitir)) = (cap.pedido.as_ref(), args.get("permitir").and_then(Value::as_bool)) {
+        if let Some(motivo) = pedido.arriscado.filter(|_| permitir) {
+            registro::info("orquestracao_pedido_para_o_usuario", &[("orquestrador", orquestrador), ("agente", agente)]);
+            return Err(format!("Este pedido {motivo}: só o usuário aprova. Avise-o (ele responde no fluxo) ou negue com permitir: false."));
+        }
+        let terminal = sessao.meta.lock().map(|m| m.id.clone()).map_err(|_| "Sessão indisponível".to_owned())?;
+        let decisao = if permitir { crate::ganchos::Decisao::Permitir } else { crate::ganchos::Decisao::Negar(texto_do_campo(args, "mensagem").map(str::to_owned)) };
+        crate::ganchos::responder(&terminal, Some(&pedido.id), decisao).map_err(|_| "O pedido já foi respondido ou mudou. Veja com ler_conversa.".to_owned())?;
+        let resumo = if permitir { "permitido" } else { "negado" };
+        registro::info("orquestracao_pedido_respondido", &[("orquestrador", orquestrador), ("agente", agente), ("resposta", resumo)]);
+        return Ok(format!("Pedido {resumo}. Use esperar(agente) para acompanhar."));
+    }
     let (kind, resumo) = match (args.get("permitir").and_then(Value::as_bool), args.get("opcao").and_then(Value::as_u64)) {
         (Some(permitir), _) if cap.approve => {
             let texto = cap.approval_text.clone().unwrap_or_default();

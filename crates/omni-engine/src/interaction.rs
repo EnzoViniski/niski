@@ -36,6 +36,10 @@ pub struct Capabilities {
     /// Menu de escolha da própria CLI na tela (ex.: "Teach auto mode about your environment?"): sem
     /// responder, o campo fica travado. A conversa mostra as opções e manda o número.
     pub escolha: Option<Escolha>,
+    /// Fork (Onda 2, item 2): pedido de permissão segurado pelo gancho `PermissionRequest` (ferramenta,
+    /// resumo, prazo). Responder com o `id` dele (`/aprovar` com `pedido`): outro id → 412.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pedido: Option<crate::ganchos::PedidoVisivel>,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -434,9 +438,14 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
     // Fork: `capabilities` entra em cada leitura da conversa; aqui o `ps` de até 1 s atrás basta.
     let available = !session.reserved.load(Ordering::SeqCst) && provider_running_recente(meta.pid,provider);
     let dialog = approval(&context.parser.screen().contents(),provider);
-    let approve = available && dialog.is_some();
-    let prompt = available && ready(context.parser.screen(),provider);
-    let enfileirar = available && !prompt && pode_enfileirar(context.parser.screen(),provider);
+    // Fork (Onda 2): pedido do gancho vale como o diálogo (a conexão aberta prova que a CLI está viva),
+    // e o turno dos ganchos vence a tela, que com statusline própria não mostra "esc to interrupt".
+    let pedido = crate::ganchos::pedido(&meta.id);
+    let em_turno = crate::ganchos::em_turno(&meta.id);
+    let approve = pedido.is_some() || (available && dialog.is_some());
+    let prompt = available && pedido.is_none() && em_turno != Some(true) && ready(context.parser.screen(),provider);
+    let enfileirar = available && !prompt && pedido.is_none() && (pode_enfileirar(context.parser.screen(),provider)
+        || (em_turno == Some(true) && pode_enfileirar_pelos_ganchos(context.parser.screen(),provider)));
     let escolha = (available && !approve && !prompt).then(|| escolha(&linha_a_linha(context.parser.screen()))).flatten();
     let reason = (!(approve || prompt || escolha.is_some())).then(|| match provider {
         // ponytail: diagnóstico detalhado enquanto a tela do agy não está calibrada em todos os casos;
@@ -446,7 +455,13 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
         // pista nenhuma de por que a conversa travava. O chat se destrava sozinho (`destravar`).
         _ => motivo_geral(context.parser.screen(), provider, available, session.reserved.load(Ordering::SeqCst), &meta.id),
     });
-    Capabilities { prompt, approve, revision: context.revision(session), approval_text: dialog.map(|d|d.2), reason, enfileirar, escolha }
+    let approval_text = pedido.as_ref().map(|p| p.resumo.clone()).or_else(|| dialog.map(|d|d.2));
+    Capabilities { prompt, approve, revision: context.revision(session), approval_text, reason, enfileirar, escolha, pedido }
+}
+
+/// Fork: campo vazio no meio de um turno que só os ganchos enxergam (sem o rodapé "esc to interrupt").
+fn pode_enfileirar_pelos_ganchos(screen: &vt100::Screen, provider: &str) -> bool {
+    provider == "claude" && screen.bracketed_paste() && composer_vazio(screen) && approval(&screen.contents(),provider).is_none()
 }
 
 /// Fork: por que o campo do Claude/Codex não foi reconhecido. Mesma ideia do `motivo_antigravity`.
@@ -510,7 +525,10 @@ pub fn account_usage(state: &Arc<EngineState>, profile_id: &str, refresh: bool) 
     };
     let before = read_cache();
     if !refresh {
-        return match before {
+        // Fork (Onda 2, item 3): a statusline (quando a conta liga) é a fonte preferida se for mais nova;
+        // o `cachedUsageUtilization` continua de reserva (aposentar é decisão do Enzo).
+        let statusline = crate::ganchos::uso_da_statusline(&dir, profile_id);
+        return match omni_core::usage::mais_recente(before, statusline) {
             Some(usage) => Ok(EngineResponse::AccountUsage { usage }),
             None => with_reason(None, "Sem consulta de uso ainda. Clique em atualizar."),
         };

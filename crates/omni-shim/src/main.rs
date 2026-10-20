@@ -11,6 +11,8 @@
 //! Toda a configuração chega por variável de ambiente, posta pelo engine ao abrir a sessão.
 
 mod wrapper;
+// Fork (Onda 2, item 3): modo statusline (repassa o JSON ao engine e roda a statusline do usuário).
+mod statusline;
 
 use omni_core::targets::{command_for, resolve, ssh_connections, to_remote, Target};
 use std::{env, path::PathBuf, process::Command};
@@ -25,6 +27,14 @@ const REMOTE_ROOT: &str = "OMNI_TARGET_REMOTE_ROOT";
 const DATA_DIR: &str = "OMNI_TARGET_DATA_DIR";
 
 fn main() {
+    // Fork: `--medza-statusline <porta>` com o token da PTY no ambiente: modo statusline. Sem o token,
+    // segue o caminho de sempre.
+    let argumentos: Vec<String> = env::args().skip(1).collect();
+    if argumentos.first().map(String::as_str) == Some(omni_core::ganchos::ARGUMENTO_DA_STATUSLINE) {
+        if let Ok(token) = env::var(omni_core::ganchos::VARIAVEL_DO_TOKEN) {
+            std::process::exit(statusline::rodar(&argumentos[1..], &token));
+        }
+    }
     // Sem argumento não há o que rodar. Código 2 = erro de uso, como qualquer utilitário POSIX.
     let comando = env::args().skip(1).collect::<Vec<_>>().join(" ");
     if comando.trim().is_empty() {
