@@ -1,6 +1,8 @@
 import { emptyWorkspace } from "../../services/workspaceService";
 import type { WorkspaceCollection, WorkspacesAction } from "../../types/workspace";
 import { collectResourceIds, workspaceReducer } from "./workspaceReducer";
+// Fork: restaurar backup e adotar projetos de sessões órfãs/conversas recentes.
+import { adotarProjetos, restaurarColecao } from "./recuperarWorkspace";
 
 let sequence = 0;
 
@@ -19,6 +21,10 @@ export function workspacesReducer(state: WorkspaceCollection, action: Workspaces
       };
       return { ...state, workspaces: [...state.workspaces, workspace], activeWorkspaceId: workspace.id };
     }
+    case "RESTAURAR_COLECAO":
+      return restaurarColecao(action.colecao);
+    case "ADOTAR_PROJETOS":
+      return adotarProjetos(state, action.projetos);
     case "SELECT_WORKSPACE":
       return state.workspaces.some((workspace) => workspace.id === action.workspaceId)
         ? { ...state, activeWorkspaceId: action.workspaceId }

@@ -13,7 +13,10 @@ const CHAVE = "omni-todo";
 function lerTodos(): Todo[] {
   try {
     const salvos = JSON.parse(localStorage.getItem(CHAVE) ?? "[]");
-    return Array.isArray(salvos) ? salvos : [];
+    // Fork: item inválido sai sozinho, não a lista inteira (nem quebra a tela).
+    return Array.isArray(salvos)
+      ? salvos.filter((todo): todo is Todo => Boolean(todo) && typeof todo.id === "string" && typeof todo.texto === "string" && typeof todo.feita === "boolean")
+      : [];
   } catch {
     return [];
   }

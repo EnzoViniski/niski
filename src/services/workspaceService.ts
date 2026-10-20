@@ -1,110 +1,67 @@
-import type { LayoutNode, Project, WorkspaceCollection, WorkspaceState } from "../types/workspace";
+import type { WorkspaceCollection, WorkspaceState } from "../types/workspace";
+// Fork: leitura tolerante (conserta em vez de descartar) e backup do JSON cru antes de mexer.
+import {
+  consertarColecao,
+  consertarWorkspace,
+  houveConserto,
+  relatorioVazio,
+  resumoDoRelatorio,
+  workspaceVazio,
+  type RelatorioDoConserto,
+} from "./consertarWorkspace";
+import { guardarBackup, registrarEventoDoWorkspace } from "./backupDoWorkspace";
 
 export const WORKSPACE_STORAGE_KEY = "omni-agents-workspace";
-const PANE_KINDS = new Set([
-  // Fork: histórico aberto pela paleta também sobrevive ao reinício.
-  "conversa-historica",
-  "agent",
-  "terminal",
-  "command",
-  "file",
-  "markdown",
-  "git-diff",
-  // Fork: painel de revisão persiste como as demais abas.
-  "revisao",
-  "git-graph",
-  "kanban",
-  "logs",
-  "docker-logs",
-  // Fork: aba Navegador.
-  "web",
-]);
+// Fork: a lista de kinds mora em `consertarWorkspace.ts` (fonte única tipada por `PaneKind`).
+export { PANE_KINDS } from "./consertarWorkspace";
 
 export function emptyWorkspace(): WorkspaceState {
-  return {
-    version: 1,
-    id: "default",
-    name: "Workspace",
-    projects: [],
-    activeProjectId: null,
-    updatedAt: new Date().toISOString(),
-  };
+  return workspaceVazio();
 }
 
-function isWorkspace(value: unknown): value is WorkspaceState {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<WorkspaceState>;
-  return (
-    candidate.version === 1 &&
-    typeof candidate.id === "string" &&
-    typeof candidate.name === "string" &&
-    Array.isArray(candidate.projects) &&
-    candidate.projects.every(isProject) &&
-    (candidate.activeProjectId === null ||
-      (typeof candidate.activeProjectId === "string" &&
-        candidate.projects.some((project) => project.id === candidate.activeProjectId)))
-  );
-}
-
-function isProject(value: unknown): value is Project {
-  if (!value || typeof value !== "object") return false;
-  const project = value as Partial<Project>;
-  return (
-    typeof project.id === "string" &&
-    typeof project.name === "string" &&
-    typeof project.path === "string" &&
-    typeof project.activePaneId === "string" &&
-    isLayoutNode(project.layout) &&
-    hasPane(project.layout, project.activePaneId)
-  );
-}
-
-function isLayoutNode(value: unknown): value is LayoutNode {
-  if (!value || typeof value !== "object") return false;
-  const node = value as Partial<LayoutNode>;
-  if (node.type === "pane") {
-    return (
-      typeof node.id === "string" &&
-      Array.isArray(node.tabs) &&
-      node.tabs.every(
-        (tab) =>
-          tab &&
-          typeof tab.id === "string" &&
-          typeof tab.title === "string" &&
-          typeof tab.kind === "string" && PANE_KINDS.has(tab.kind)
-      ) &&
-      (node.tabs.length === 0
-        ? node.activeTabId === null
-        : typeof node.activeTabId === "string" && node.tabs.some((tab) => tab.id === node.activeTabId))
-    );
+/** Fork: lê o JSON cru; `undefined` = chave ausente, `{ ilegivel }` = texto que não é JSON. */
+function lerBruto(chave: string): { bruto: string; valor: unknown; ilegivel: boolean } | undefined {
+  let bruto: string | null;
+  try {
+    bruto = localStorage.getItem(chave);
+  } catch {
+    return undefined;
   }
-  return (
-    node.type === "split" &&
-    typeof node.id === "string" &&
-    (node.direction === "horizontal" || node.direction === "vertical") &&
-    typeof node.ratio === "number" &&
-    node.ratio >= 0.2 &&
-    node.ratio <= 0.8 &&
-    isLayoutNode(node.first) &&
-    isLayoutNode(node.second)
-  );
+  if (!bruto) return undefined;
+  try {
+    return { bruto, valor: JSON.parse(bruto), ilegivel: false };
+  } catch {
+    return { bruto, valor: undefined, ilegivel: true };
+  }
 }
 
-function hasPane(node: LayoutNode, paneId: string): boolean {
-  return node.type === "pane"
-    ? node.id === paneId
-    : hasPane(node.first, paneId) || hasPane(node.second, paneId);
+/** Fork: antes de qualquer descarte ou conserto, guarda o original e registra só as contagens. */
+function avisarConserto(chave: string, bruto: string, relatorio: RelatorioDoConserto | null): void {
+  if (!relatorio) {
+    guardarBackup(chave, bruto, "ilegivel");
+    registrarEventoDoWorkspace("workspace_ilegivel", `chave=${chave} bytes=${bruto.length}`);
+    return;
+  }
+  if (houveConserto(relatorio)) {
+    guardarBackup(chave, bruto, "conserto");
+    registrarEventoDoWorkspace("workspace_consertado", resumoDoRelatorio(relatorio, { chave }));
+  } else if (relatorio.abasDeVersaoNova > 0) {
+    // Aba de versão mais nova fica intacta (não é conserto), mas vale saber que apareceu.
+    registrarEventoDoWorkspace("workspace_aba_desconhecida", resumoDoRelatorio(relatorio, { chave }));
+  }
 }
 
 export function loadWorkspace(): WorkspaceState {
-  try {
-    const raw = localStorage.getItem(WORKSPACE_STORAGE_KEY);
-    if (!raw) return emptyWorkspace();
-    const parsed: unknown = JSON.parse(raw);
-    return isWorkspace(parsed) ? parsed : emptyWorkspace();
-  } catch {
+  const lido = lerBruto(WORKSPACE_STORAGE_KEY);
+  if (!lido) return emptyWorkspace();
+  if (lido.ilegivel) {
+    avisarConserto(WORKSPACE_STORAGE_KEY, lido.bruto, null);
     return emptyWorkspace();
   }
+  const relatorio = relatorioVazio();
+  const workspace = consertarWorkspace(lido.valor, relatorio);
+  avisarConserto(WORKSPACE_STORAGE_KEY, lido.bruto, relatorio);
+  return workspace ?? emptyWorkspace();
 }
 
 export function saveWorkspace(workspace: WorkspaceState): void {
@@ -112,20 +69,6 @@ export function saveWorkspace(workspace: WorkspaceState): void {
 }
 
 export const WORKSPACES_STORAGE_KEY = "omni-agents-workspaces";
-
-function normalizeCollection(raw: unknown): WorkspaceCollection | null {
-  if (!raw || typeof raw !== "object") return null;
-  const candidate = raw as Partial<WorkspaceCollection>;
-  if (candidate.version !== 1 || !Array.isArray(candidate.workspaces)) return null;
-  // Um workspace estruturalmente inválido é descartado sozinho, não a coleção inteira —
-  // diferente do "tudo ou nada" de isWorkspace, proporcional a uma lista de N itens.
-  const workspaces = candidate.workspaces.filter(isWorkspace);
-  if (workspaces.length === 0) return { version: 1, workspaces: [emptyWorkspace()], activeWorkspaceId: null };
-  const activeWorkspaceId = workspaces.some((workspace) => workspace.id === candidate.activeWorkspaceId)
-    ? (candidate.activeWorkspaceId as string)
-    : workspaces[0].id;
-  return { version: 1, workspaces, activeWorkspaceId };
-}
 
 function migrateLegacyWorkspace(): WorkspaceCollection {
   const legacy = loadWorkspace();
@@ -135,14 +78,17 @@ function migrateLegacyWorkspace(): WorkspaceCollection {
 }
 
 export function loadWorkspaces(): WorkspaceCollection {
-  try {
-    const raw = localStorage.getItem(WORKSPACES_STORAGE_KEY);
-    if (raw) {
-      const normalized = normalizeCollection(JSON.parse(raw));
-      if (normalized) return normalized;
+  const lido = lerBruto(WORKSPACES_STORAGE_KEY);
+  if (lido) {
+    // Fork: cada nível conserta o que dá (`consertarColecao`); só sem lista de workspaces nenhuma
+    // é que cai na chave legada — e aí o original já ficou guardado no backup.
+    const relatorio = relatorioVazio();
+    const colecao = lido.ilegivel ? null : consertarColecao(lido.valor, relatorio);
+    if (colecao) {
+      avisarConserto(WORKSPACES_STORAGE_KEY, lido.bruto, relatorio);
+      return colecao;
     }
-  } catch {
-    // cai para a migração da chave legada abaixo
+    avisarConserto(WORKSPACES_STORAGE_KEY, lido.bruto, null);
   }
   return migrateLegacyWorkspace();
 }

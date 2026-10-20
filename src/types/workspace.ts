@@ -126,8 +126,21 @@ export type WorkspaceAction =
  * `workspaceReducer.ts` monta a árvore de splits correspondente a partir das panes atuais. */
 export type LayoutPreset = "columns-2" | "rows-2" | "grid-2x2" | "main-plus-side";
 
+/** Fork: projeto que volta ao workspace com as abas das sessões dele (sessões órfãs ou conversas
+ *  recentes, `features/workspace/recuperarWorkspace.ts`). `id` = o `project_id` das sessões, para a
+ *  lateral reencontrá-las. */
+export interface ProjetoParaAdotar {
+  id: string;
+  path: string;
+  abas: { sessionId: string; title: string; provider?: string }[];
+}
+
 export type WorkspacesAction =
   | { type: "ADD_WORKSPACE"; name?: string }
+  /** Fork: volta um backup inteiro do workspace (`features/workspace/RecuperacaoDoWorkspace.tsx`). */
+  | { type: "RESTAURAR_COLECAO"; colecao: WorkspaceCollection }
+  /** Fork: adiciona ao workspace ativo projetos de sessões órfãs ou de conversas recentes. */
+  | { type: "ADOTAR_PROJETOS"; projetos: ProjetoParaAdotar[] }
   | { type: "SELECT_WORKSPACE"; workspaceId: string }
   | { type: "CLOSE_WORKSPACE"; workspaceId: string }
   | { type: "RENAME_WORKSPACE"; workspaceId: string; name: string }
