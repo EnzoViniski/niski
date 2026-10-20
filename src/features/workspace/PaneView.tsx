@@ -30,6 +30,7 @@ import { TAB_DRAG_EVENT, type DropZone, type TabDragState } from "./tabPointerDr
 import { TabDropOverlay } from "./TabDropOverlay";
 import { WorkspaceTabBar } from "./WorkspaceTabBar";
 import { PainelVazio } from "./PainelVazio";
+import { ehKindConhecido } from "../../services/consertarWorkspace";
 import { EtiquetaDoProjeto, useProjetoDeFora, useProjetosDasAbas } from "./projetosDasAbas";
 
 interface PaneViewProps {
@@ -252,6 +253,13 @@ export function PaneView({
           <GitGraphPane projectPath={projectPath} />
         ) : tab?.kind === "kanban" ? (
           <KanbanBoard projectId={projectId} kanban={kanban} dispatch={kanbanDispatch} />
+        // Fork: aba salva por uma versão mais nova do app (kind que esta não conhece) fica
+        // preservada no workspace e mostra só um aviso, sem quebrar (`services/consertarWorkspace.ts`).
+        ) : !ehKindConhecido(tab.kind) ? (
+          <div className="h-full p-4 text-xs overflow-auto">
+            <p className="text-text-primary">Aba de uma versão mais nova do app.</p>
+            <p className="mt-1 text-text-muted">Ela continua guardada no workspace e volta a abrir quando o app for atualizado.</p>
+          </div>
         ) : (
           <div className="h-full p-4 font-mono text-xs overflow-auto">
             <div className="text-text-muted mb-4">{tab?.kind ?? "painel"}://{pane.id}</div>
