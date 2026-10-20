@@ -7,6 +7,8 @@ export type PaneKind =
   | "file"
   | "markdown"
   | "git-diff"
+  /** Fork: revisão do projeto/worktree da sessão em resourceId. */
+  | "revisao"
   | "git-graph"
   | "kanban"
   | "logs"
@@ -116,6 +118,8 @@ export type WorkspaceAction =
   | { type: "ABRIR_LINK"; url: string; title: string; paneId?: string }
   /** Fork: fluxo do orquestrador numa aba ao lado (`features/orquestracao/abrirFluxo.ts`). */
   | { type: "ABRIR_FLUXO"; orquestrador: string; title: string; paneId?: string }
+  /** Fork: revisão ao lado do agente de origem. */
+  | { type: "ABRIR_REVISAO"; sessionId: string; paneId: string; projectId?: string }
   | { type: "PLACE_SESSION"; sessionId: string; title: string; targetPaneId: string; zone: "center" | "left" | "right" | "top" | "bottom" };
 
 /** Layouts prontos (estilo Snap Layouts do Windows) — `buildPresetLayout` em

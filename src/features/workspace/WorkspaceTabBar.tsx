@@ -237,6 +237,8 @@ const ICONE_POR_KIND: Partial<Record<PaneNode["tabs"][number]["kind"], React.Com
   kanban: KanbanIcon,
   "git-graph": GitBranchIcon,
   "git-diff": GitBranchIcon,
+  // Fork: painel de revisão.
+  revisao: GitBranchIcon,
   web: GlobeIcon,
   // Fork: fluxo do orquestrador.
   orquestracao: BlocksIcon,

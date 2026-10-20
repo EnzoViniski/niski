@@ -2,6 +2,8 @@ import { samePath } from "../../lib/paths";
 import { colocarConversa } from "./colocarConversa";
 import { abrirLink } from "./abrirLink";
 import { abrirFluxo } from "../orquestracao/abrirFluxo";
+// Fork: revisão ao lado da sessão de origem.
+import { abrirRevisao } from "../revisao/abrirRevisao";
 import type {
   LayoutNode,
   LayoutPreset,
@@ -234,6 +236,9 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
     // Fork: fluxo do orquestrador ao lado da conversa.
     case "ABRIR_FLUXO":
       return abrirFluxo(state, action, workspaceReducer);
+    // Fork: revisão por sessão no layout.
+    case "ABRIR_REVISAO":
+      return abrirRevisao(state, action, workspaceReducer);
     case "FOCUS_PANE":
       return updateActiveProject(state, (project) =>
         findPane(project.layout, action.paneId)
