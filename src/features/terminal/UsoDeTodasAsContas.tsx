@@ -10,8 +10,8 @@ import type { Usage, UsageWindow } from "./AccountUsage";
 import { listProfiles, type Profile } from "./terminalService";
 import { timeAgo } from "./AgentUsageStatus";
 import { AGENTES_COM_USO } from "../../mobile/api";
+import { nomeDaPlataforma } from "../../lib/plataformasDeAgente";
 
-const AGENTE: Record<string, string> = { claude: "Claude", codex: "Codex", antigravity: "Antigravity" };
 
 function Janela({ rotulo, janela }: { rotulo: string; janela: UsageWindow | null }) {
   const usado = janela ? Math.min(100, Math.max(0, janela.used_percent)) : 0;
@@ -94,10 +94,10 @@ export function ListaDeUsoDasContas({ ativo, engineOnline, contaAtiva }: { ativo
           const doAgente = contas.filter((conta) => conta.provider === provider);
           if (doAgente.length === 0) return null;
           return (
-            <section key={provider} aria-label={AGENTE[provider]} className="flex flex-col gap-1.5">
+            <section key={provider} aria-label={nomeDaPlataforma(provider)} className="flex flex-col gap-1.5">
               <p className="flex items-center gap-1.5 px-0.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">
                 <AgentIcon provider={provider} size={11} className="shrink-0" />
-                {AGENTE[provider]}
+                {nomeDaPlataforma(provider)}
                 <span className="h-px flex-1 bg-border-subtle" />
                 <span className="font-normal normal-case tracking-normal">{doAgente.length} {doAgente.length === 1 ? "conta" : "contas"}</span>
               </p>
@@ -117,7 +117,7 @@ export function ListaDeUsoDasContas({ ativo, engineOnline, contaAtiva }: { ativo
                           </span>
                           {conta.email && <span className="block truncate text-[10px] text-text-muted">{conta.email}</span>}
                         </span>
-                        <button type="button" aria-label={`Atualizar uso de ${conta.name} (${AGENTE[conta.provider]})`} title="Consultar o uso agora"
+                        <button type="button" aria-label={`Atualizar uso de ${conta.name} (${nomeDaPlataforma(conta.provider)})`} title="Consultar o uso agora"
                           disabled={girando} onClick={() => void atualizar(conta.id)} className="uso-atualizar">
                           <ReloadIcon aria-hidden className={`h-3.5 w-3.5${girando ? " animate-spin" : ""}`} />
                         </button>

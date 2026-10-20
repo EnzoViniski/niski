@@ -11,13 +11,11 @@ import { useSession } from "./sessionProviders";
 import { listProfiles, type Profile } from "./terminalService";
 import { UsoDeTodasAsContas } from "./UsoDeTodasAsContas";
 import { AGENTES_COM_USO } from "../../mobile/api";
+import { haQuantoTempo } from "../../lib/tempo";
 
+// Fork: o "há quanto tempo" é um só (`lib/tempo.ts`); `timeAgo` fica como o nome de sempre.
 export function timeAgo(ms: number, now: number) {
-  const seconds = Math.max(0, Math.round((now - ms) / 1000));
-  if (seconds < 60) return "agora";
-  if (seconds < 3600) return `há ${Math.floor(seconds / 60)} min`;
-  if (seconds < 86_400) return `há ${Math.floor(seconds / 3600)} h`;
-  return `há ${Math.floor(seconds / 86_400)} d`;
+  return haQuantoTempo(ms, now, "longo");
 }
 
 const percent = (window: UsageWindow | null) => (window ? `${window.used_percent.toLocaleString("pt-BR")}%` : "—");

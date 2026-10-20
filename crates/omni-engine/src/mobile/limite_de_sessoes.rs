@@ -2,7 +2,7 @@
 //! espalhadas pelo `mobile.rs`, contando até shell parado no prompt). Regra e número em
 //! `omni_core::limite_de_sessoes`; aqui só a contagem das PTYs vivas.
 //!
-//! Filho de `mobile` (declarado lá com `#[path]`) para usar `ApiError` e o estado sem torná-los públicos.
+//! Filho de `mobile` (mora em `mobile/`) para usar `ApiError` e o estado sem torná-los públicos.
 
 use super::*;
 

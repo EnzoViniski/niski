@@ -16,6 +16,7 @@ import "./orquestracao.css";
 import "./fluxoAoVivo.css";
 // Fatia (c): mandar prompt a qualquer nó, aprovar/negar e parar pelo fluxo.
 import { AcoesContext, AcoesDoNo, ParaQuem, useAcoesDoFluxo } from "./InteragirPeloFluxo";
+import { nomeLongoDaPlataforma } from "../../lib/plataformasDeAgente";
 
 /**
  * Fork: fluxo ao vivo de uma conversa orquestradora, numa aba do layout (`PaneKind "orquestracao"`).
@@ -31,7 +32,6 @@ import { AcoesContext, AcoesDoNo, ParaQuem, useAcoesDoFluxo } from "./InteragirP
 const INTERVALO_MS = 2_000;
 const INTERVALO_PAUSADO_MS = 8_000;
 
-const NOME_DA_PLATAFORMA: Record<string, string> = { claude: "Claude Code", codex: "Codex", antigravity: "Antigravity", cursor: "Cursor" };
 
 export type DadosDoNoAoVivo = { no: NoAoVivo; centro: boolean; orquestrador: string };
 export type NoDoOrquestrador = Node<DadosDoNoAoVivo, "orq">;
@@ -81,7 +81,7 @@ const NoAoVivoView = memo(function NoAoVivoView({ data }: NodeProps<NoDoOrquestr
         : <Handle type="target" position={Position.Left} className="orq-porta" isConnectable={false} />}
       <div className="fx-no-topo">
         <span className="fx-no-icone"><AgentIcon provider={plataforma} size={14} /></span>
-        <span className="fx-no-tipo">{centro ? "Orquestrador" : (NOME_DA_PLATAFORMA[plataforma] ?? plataforma)}</span>
+        <span className="fx-no-tipo">{centro ? "Orquestrador" : (nomeLongoDaPlataforma(plataforma) ?? plataforma)}</span>
         <span className={`orq-estado st-${no.estado}`}><span className="orq-ponto" aria-hidden />{no.estado_texto}</span>
       </div>
       <div className="fx-no-titulo">{centro ? (no.titulo ?? "Orquestrador") : (no.tarefa ?? no.titulo ?? "Subagente")}</div>

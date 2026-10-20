@@ -1,6 +1,7 @@
 import { exists, mkdir, readDir, readTextFile, remove, rename } from "@tauri-apps/plugin-fs";
 import { baseName, copyIntoProject, joinPath } from "../files/filesService";
 import { MULTI_ACCOUNT_PROVIDERS, type AgentCliId, type Profile } from "../terminal/terminalService";
+import { nomeDaPlataforma } from "../../lib/plataformasDeAgente";
 
 export interface SkillInfo {
   /** Nome da pasta — é o identificador real, o `name` do frontmatter é só rótulo. */
@@ -38,7 +39,6 @@ export function disabledSkillsDir(scope: SkillScope) {
   return joinPath(scope.root, DISABLED_DIR);
 }
 
-const PROVIDER_LABEL: Record<string, string> = { claude: "Claude", codex: "Codex", cursor: "Cursor" };
 
 /** Um escopo por conta cadastrada das CLIs que têm pasta de skills, mais o projeto aberto.
  *  Cursor fica de fora: o CLI dele (`agent`) não lê `skills/`. */
@@ -47,7 +47,7 @@ export function skillScopes(profiles: Profile[], projectPath: string | null): Sk
     .filter((profile) => MULTI_ACCOUNT_PROVIDERS.includes(profile.provider))
     .map((profile) => ({
       id: `profile:${profile.id}`,
-      label: `${PROVIDER_LABEL[profile.provider] ?? profile.provider} · ${profile.name}`,
+      label: `${nomeDaPlataforma(profile.provider) ?? profile.provider} · ${profile.name}`,
       provider: profile.provider,
       kind: "global" as const,
       root: profile.config_dir,

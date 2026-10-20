@@ -14,15 +14,12 @@ import { usePoll } from "../mobile/usePoll";
 import { request, temConversa, type Conversation } from "../mobile/api";
 import { UsoDasContas } from "./UsoDasContas";
 import { NOME_DO_PRODUTO } from "../lib/identidade";
+import { nomeDaPlataforma } from "../lib/plataformasDeAgente";
+import { rotuloDoEstado, tomDoEstado as tomDoEstadoDaSessao } from "../lib/estadosDaSessao";
 
 /** O xterm só baixa quando alguém abre a aba Terminal: quem só conversa não paga por ele. */
 const TerminalEspelho = lazy(() => import("./TerminalEspelho"));
 
-const NOME_DO_AGENTE: Record<string, string> = { claude: "Claude", codex: "Codex", cursor: "Cursor" };
-const ESTADO: Record<string, string> = {
-  working: "Trabalhando", answered: "Esperando você", approval_required: "Aprovação pendente",
-  stopped: "Encerrado", orphan: "Sessão anterior", crashed: "Interrompido",
-};
 
 type Aba = "conversa" | "terminal";
 
@@ -79,11 +76,7 @@ function lerAba(): Aba {
 }
 
 function tomDoEstado(conversa: Conversation): string {
-  if (conversa.capabilities?.approve || conversa.state === "approval_required") return "m-dot-alerta";
-  if (conversa.state === "working") return "m-dot-ativo";
-  if (conversa.state === "answered") return "m-dot-ok";
-  if (conversa.state === "crashed") return "m-dot-erro";
-  return "m-dot-parado";
+  return tomDoEstadoDaSessao(conversa.state, Boolean(conversa.capabilities?.approve));
 }
 
 /**
@@ -262,8 +255,8 @@ export function WebApp() {
               <span className="w-topo-titulo">{conversa.title}</span>
               <span className="w-topo-sub">
                 <span className={`m-dot ${tomDoEstado(conversa)}`} aria-hidden />
-                {[ESTADO[conversa.state ?? ""] ?? (conversa.historical ? "Histórico" : "Sem sessão aberta"),
-                  NOME_DO_AGENTE[conversa.provider ?? ""] ?? conversa.provider, conta, projetoDaConversa]
+                {[rotuloDoEstado(conversa.state, "web") ?? (conversa.historical ? "Histórico" : "Sem sessão aberta"),
+                  nomeDaPlataforma(conversa.provider) ?? conversa.provider, conta, projetoDaConversa]
                   .filter(Boolean).join(" · ")}
               </span>
             </div>
