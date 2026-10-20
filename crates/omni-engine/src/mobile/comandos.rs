@@ -98,6 +98,15 @@ fn executar_com(state: &Arc<EngineState>, action: &Action, pedido: &Pedido, roda
             let session = session.ok_or_else(||anyhow!("Sessão encerrada"))?;
             let provider = session.meta.lock().map_err(|_|anyhow!("metadata poisoned"))?.provider.clone().unwrap_or_default();
             let texto = oficiais::montar(&provider,&body.comando,body.argumento.as_deref()).map_err(|e|anyhow!(e))?;
+            // Fork: /compact é comando da TUI; no app-server usamos o RPC oficial, sem turn/start.
+            if body.comando == "compact" && codex_app_server::ativo(&action.session_id) {
+                anyhow::ensure!(now_ms().saturating_sub(action.created_at_ms) < 60_000, "Ação expirada");
+                let sessions = state.sessions.lock().map_err(|_|anyhow!("sessions poisoned"))?;
+                anyhow::ensure!(matches!(sessions.get(&action.session_id),Some(SessionEntry::Live(s)) if Arc::ptr_eq(s,&session)), "Sessão trocada");
+                anyhow::ensure!(!session.reserved.load(Ordering::SeqCst), "Sessão reservada");
+                drop(sessions);
+                return codex_app_server::compactar(&action.session_id,&action.revision);
+            }
             if body.comando == "fast" && opcoes_da_conversa(state,&action.conversation_id).map_err(|_|anyhow!("Opções indisponíveis"))?["fast_supported"] != true {
                 return Err(anyhow!("O modelo atual não confirma suporte a fast"));
             }

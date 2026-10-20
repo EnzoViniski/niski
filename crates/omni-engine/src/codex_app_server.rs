@@ -12,7 +12,22 @@ use std::{
 
 const AJUSTES: &str = "codex-app-server.json";
 static CLIENTES: LazyLock<Mutex<HashMap<String, Arc<Cliente>>>> = LazyLock::new(Default::default);
-static FALLBACK: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(Default::default);
+static FALLBACK: LazyLock<Mutex<HashMap<String, std::thread::ThreadId>>> =
+    LazyLock::new(Default::default);
+// Fork: parada, preparação e fallback do mesmo terminal compartilham a trava até o fim do reinício.
+static CICLOS: LazyLock<Mutex<HashMap<String, std::sync::Weak<Mutex<()>>>>> =
+    LazyLock::new(Default::default);
+
+fn ciclo(terminal: &str) -> Arc<Mutex<()>> {
+    let mut ciclos = CICLOS.lock().unwrap();
+    ciclos.retain(|_, trava| trava.strong_count() > 0);
+    if let Some(trava) = ciclos.get(terminal).and_then(std::sync::Weak::upgrade) {
+        return trava;
+    }
+    let trava = Arc::new(Mutex::new(()));
+    ciclos.insert(terminal.into(), Arc::downgrade(&trava));
+    trava
+}
 
 #[derive(Clone)]
 struct Pendente {
@@ -306,6 +321,12 @@ pub(crate) fn ativo(id: &str) -> bool {
     obter(id).is_some()
 }
 pub(crate) fn esquecer(id: &str) {
+    // Fork: o stop só prossegue para matar a PTY depois de qualquer fallback já iniciado.
+    let trava = ciclo(id);
+    let _ciclo = trava.lock().unwrap();
+    remover_cliente(id);
+}
+fn remover_cliente(id: &str) {
     let c = CLIENTES.lock().unwrap().remove(id);
     if let Some(c) = c {
         c.fechar();
@@ -545,11 +566,24 @@ fn preparar_com(
         &[(String, String)],
     ) -> Result<(Arc<Cliente>, String)>,
 ) -> Option<String> {
-    esquecer(terminal);
+    // Fork: o reinício do fallback já possui a trava; sua marca vale para uma única preparação.
+    let fallback = {
+        let mut pendentes = FALLBACK.lock().unwrap();
+        // Só o próprio monitor pode reutilizar a trava que já segura durante o reinício.
+        if pendentes.get(terminal) == Some(&std::thread::current().id()) {
+            pendentes.remove(terminal);
+            true
+        } else {
+            false
+        }
+    };
+    let trava = (!fallback).then(|| ciclo(terminal));
+    let _ciclo = trava.as_ref().map(|trava| trava.lock().unwrap());
+    remover_cliente(terminal);
     let Some(original) = comando.as_ref() else {
         return comando;
     };
-    if FALLBACK.lock().unwrap().remove(terminal)
+    if fallback
         || origem.provider.as_deref() != Some("codex")
         || !origem
             .conversation_id
@@ -601,6 +635,22 @@ fn falhou(terminal: &str, fase: &str) {
     );
 }
 
+// Fork: ponto único da transição para PTY; o stop aguarda o reinício inteiro.
+fn tentar_fallback(terminal: &str, c: &Arc<Cliente>, retomar: impl FnOnce()) {
+    let trava = ciclo(terminal);
+    let _ciclo = trava.lock().unwrap();
+    // Fork: a checagem inicial do monitor pode ser anterior ao stop ou à troca de geração.
+    if c.encerrado.load(Ordering::SeqCst)
+        || !CLIENTES.lock().unwrap().get(terminal).is_some_and(|atual| atual.geracao == c.geracao)
+    {
+        return;
+    }
+    FALLBACK.lock().unwrap().insert(terminal.into(), std::thread::current().id());
+    retomar();
+    // Fork: reinício recusado antes da preparação também não deixa uma marca para outra geração.
+    FALLBACK.lock().unwrap().remove(terminal);
+}
+
 fn acompanhar(state: std::sync::Weak<EngineState>, terminal: String, c: Arc<Cliente>) {
     std::thread::spawn(move || {
         let inicio = Instant::now();
@@ -648,12 +698,13 @@ fn acompanhar(state: std::sync::Weak<EngineState>, terminal: String, c: Arc<Clie
                     if !anexou { "anexo_terminal" } else { "conexao" },
                 );
                 // A revisão do RPC nunca é válida na PTY. Reiniciar abre só resume, sem reenviar texto.
-                FALLBACK.lock().unwrap().insert(terminal.clone());
-                let e = c.estado.lock().unwrap().clone();
-                sessao.meta.lock().unwrap().external_session_id = Some(e.thread.clone());
-                vincular(&state, &terminal, &e);
-                esquecer(&terminal);
-                let _ = restart_session(&state, &terminal);
+                tentar_fallback(&terminal, &c, || {
+                    let e = c.estado.lock().unwrap().clone();
+                    sessao.meta.lock().unwrap().external_session_id = Some(e.thread.clone());
+                    vincular(&state, &terminal, &e);
+                    remover_cliente(&terminal);
+                    let _ = restart_session(&state, &terminal);
+                });
                 break;
             }
             let e = c.estado.lock().unwrap().clone();
@@ -788,6 +839,27 @@ pub(crate) fn enviar_prompt(terminal: &str, texto: &str, revisao: &str, fila: bo
     }
     Ok(())
 }
+// Fork: https://developers.openai.com/codex/app-server — compactação não é entrada de turno.
+pub(crate) fn compactar(terminal: &str, revisao: &str) -> Result<()> {
+    let c = obter(terminal).ok_or_else(|| anyhow!("App-server encerrado"))?;
+    let thread = {
+        let mut e = c.estado.lock().unwrap();
+        anyhow::ensure!(revisao == c.revision(&e), "Contexto mudou antes da execução");
+        anyhow::ensure!(e.turno.is_none() && !e.ocupado && e.pedidos.is_empty(), "Sessão ocupada");
+        anyhow::ensure!(!c.morreu.load(Ordering::SeqCst), "App-server desconectado");
+        // A resposta é imediata; os eventos turn/* confirmam o progresso e o término.
+        e.ocupado = true;
+        e.revisao += 1;
+        e.thread.clone()
+    };
+    let resultado = c.pedir("thread/compact/start", json!({"threadId":thread})).map(|_| ());
+    if resultado.is_err() {
+        let mut e = c.estado.lock().unwrap();
+        e.ocupado = false;
+        e.revisao += 1;
+    }
+    resultado
+}
 pub(crate) fn responder(terminal: &str, pedido: &str, permitir: bool) -> Result<()> {
     let c = obter(terminal).ok_or_else(|| anyhow!("App-server encerrado"))?;
     let mut e = c.estado.lock().unwrap();
@@ -807,15 +879,15 @@ pub(crate) fn responder(terminal: &str, pedido: &str, permitir: bool) -> Result<
 pub(crate) fn interromper(terminal: &str) -> Option<Result<()>> {
     let c = obter(terminal)?;
     let e = c.estado.lock().unwrap().clone();
-    Some(if let Some(turno) = e.turno {
+    // Fork: sem turno interrompível, Esc/Ctrl+C continuam pertencendo ao terminal.
+    let turno = e.turno?;
+    Some(
         c.pedir(
             "turn/interrupt",
             json!({"threadId":e.thread,"turnId":turno}),
         )
-        .map(|_| ())
-    } else {
-        Ok(())
-    })
+        .map(|_| ()),
+    )
 }
 
 /// Timeline textual continua no rollout oficial. Plano e contexto chegam antes da gravação dele.
