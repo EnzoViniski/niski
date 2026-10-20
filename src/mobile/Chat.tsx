@@ -18,6 +18,7 @@ import { ArquivosDoAgente, type ArquivosDaMensagem } from "./ArquivosDoAgente";
 import { CodigoOuCaminho } from "./CaminhoClicavel";
 import { ContagemDoDiff, MiniDiff, somarDiffs } from "./MiniDiff";
 import { progressoDasTarefas } from "./ListaDeTarefas";
+import { nomeDaPlataforma } from "../lib/plataformasDeAgente";
 
 /** Os quadros do spinner do Claude Code, em vai-e-volta — é o que faz parecer que ele "respira". */
 const QUADROS = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
@@ -69,7 +70,6 @@ export function horarioCurto(iso: string | null | undefined): string | null {
     : `${data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} ${hora}`;
 }
 
-const NOME_DO_AGENTE: Record<string, string> = { claude: "Claude", codex: "Codex", cursor: "Cursor" };
 
 /** Anexo já no PC (caminho) ou ainda só no celular (com prévia local). */
 interface AnexoVisivel { nome: string; previa?: string | null }
@@ -169,7 +169,7 @@ export const MessageBubble = memo(function MessageBubble({ lado, provider, texto
   const corpo = doUsuario ? semMarcasDeImagem(separado.texto) : separado.texto;
   const anexos = separado.anexos;
   const cartoes = anexosLocais ?? anexos.map((caminho) => ({ nome: nomeDoCaminho(caminho) }));
-  const autor = doUsuario ? "Você" : NOME_DO_AGENTE[provider ?? ""] ?? provider ?? "Agente";
+  const autor = doUsuario ? "Você" : nomeDaPlataforma(provider) ?? provider ?? "Agente";
   const hora = horarioCurto(horario);
   return (
     <article className={`bubble ${doUsuario ? "bubble-user" : "bubble-agent"}${pendente ? " bubble-pending" : ""}${continua ? " bubble-continua" : ""}`}>

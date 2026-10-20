@@ -4,6 +4,7 @@ import { ReloadIcon } from "../components/ui/PixelIcon";
 import { AGENTES_COM_USO, request } from "../mobile/api";
 import { usePoll } from "../mobile/usePoll";
 import { resetShort, usageTone, type UsageWindow } from "../lib/uso";
+import { nomeDaPlataforma } from "../lib/plataformasDeAgente";
 
 interface Conta {
   id: string;
@@ -12,7 +13,6 @@ interface Conta {
   usage: { status: string; primary: UsageWindow | null; secondary: UsageWindow | null; reason: string | null } | null;
 }
 
-const AGENTE: Record<string, string> = { claude: "Claude", codex: "Codex", cursor: "Cursor" };
 
 /** O uso muda devagar (o PC relê a cada poucos minutos): um minuto entre leituras basta. */
 const INTERVALO_MS = 60_000;
@@ -88,7 +88,7 @@ export function UsoDasContas({ contaAtiva }: { contaAtiva: string | null }) {
             <span className="w-uso-nome">
               <AgentIcon provider={conta.provider} size={12} className="shrink-0" />
               <span className="w-atencao-texto">{conta.name}</span>
-              <span className="w-uso-agente">{AGENTE[conta.provider] ?? conta.provider}</span>
+              <span className="w-uso-agente">{nomeDaPlataforma(conta.provider) ?? conta.provider}</span>
             </span>
             {erros[conta.id] && <span className="w-uso-vazio w-uso-erro" role="alert">{erros[conta.id]}</span>}
             {conta.usage && conta.usage.status !== "unavailable" ? (
