@@ -261,11 +261,26 @@ fn versao_da_cli(comando: &str) -> Option<(u32, u32, u32)> {
     let data = omni_protocol::modified_ms(&caminho)?;
     let chave = (caminho.clone(), data);
     if let Some(v) = RUNTIME.versoes.lock().ok()?.get(&chave) { return *v; }
-    let saida = std::process::Command::new(&caminho).arg("--version").stdin(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null()).output().ok();
-    let versao = saida.and_then(|s| regra::versao_de(&String::from_utf8_lossy(&s.stdout)));
+    let versao = saida_com_prazo(&caminho, std::time::Duration::from_secs(3)).and_then(|s| regra::versao_de(&s));
     RUNTIME.versoes.lock().ok()?.insert(chave, versao);
     versao
+}
+
+/// `<cli> --version` com prazo: uma CLI travada não pode segurar a abertura da sessão.
+fn saida_com_prazo(caminho: &Path, prazo: std::time::Duration) -> Option<String> {
+    let mut filho = std::process::Command::new(caminho).arg("--version").stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null()).spawn().ok()?;
+    let limite = std::time::Instant::now() + prazo;
+    loop {
+        match filho.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if std::time::Instant::now() < limite => std::thread::sleep(std::time::Duration::from_millis(50)),
+            _ => { let _ = filho.kill(); let _ = filho.wait(); return None; }
+        }
+    }
+    let mut saida = String::new();
+    filho.stdout.take()?.read_to_string(&mut saida).ok()?;
+    Some(saida)
 }
 
 fn esquecer_token(terminal: &str) {

@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CartaoDePermissao } from "../mobile/conversa/CartaoDePermissao";
 import { formatarRestante } from "../mobile/conversa/pedidoDoGancho";
-import { textoDoContexto } from "../mobile/conversa/ChipDeContexto";
+import { rotuloDosGanchos, textoDoContexto } from "../mobile/conversa/ChipDeContexto";
 import { usarTransporte, type PedidoDoGancho } from "../mobile/api";
 
 // Fork (Onda 2, item 2): cartão de permissão com o pedido segurado pelo gancho do Claude.
@@ -77,5 +77,8 @@ describe("cartão de permissão", () => {
     expect(textoDoContexto({ estado: "ativos", contexto: { pct: 34.4, custo_usd: 0.82, modelo: "Opus" } })).toBe("Contexto 34% · ~US$ 0,82");
     expect(textoDoContexto({ estado: "ativos", contexto: null })).toBeNull();
     expect(textoDoContexto(null)).toBeNull();
+    expect(rotuloDosGanchos({ estado: "ativos" })?.texto).toBe("eventos ✓");
+    expect(rotuloDosGanchos({ estado: "sem_eventos" })?.texto).toBe("lendo o terminal");
+    expect(rotuloDosGanchos({ estado: "tela" })).toBeNull();
   });
 });
