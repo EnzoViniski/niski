@@ -1283,7 +1283,8 @@ fn cursor_report(data: &str, (row, col): (u16, u16)) -> Option<String> {
 }
 
 fn write_terminal(state: &EngineState, session_id: &str, data: &str) -> Result<EngineResponse> {
-    if matches!(data,"\x1b"|"\x03") { if let Some(r)=codex_app_server::interromper(session_id) { r?; return Ok(EngineResponse::Ok); } } // Fork: 3A.
+    // Fork: só um turno interrompível consome Esc/Ctrl+C no RPC; sem turno, as teclas chegam à TUI.
+    if matches!(data,"\x1b"|"\x03") { if let Some(r)=codex_app_server::interromper(session_id) { r?; return Ok(EngineResponse::Ok); } }
     let sessions = state.sessions.lock().map_err(|_| anyhow!("sessions lock poisoned"))?;
     let SessionEntry::Live(session) = sessions.get(session_id).ok_or_else(|| anyhow!("session not found"))? else {
         return Err(anyhow!("session is not running"));
