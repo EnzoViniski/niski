@@ -302,6 +302,31 @@ pub fn resumo_da_ferramenta(ferramenta: &str, entrada: &Value, max: usize) -> St
     cortar(&completo, max)
 }
 
+/// Fork (fix-orquestracao, achado 5): a linha da CLI do Claude com a sessão `sid` no lugar da que ela
+/// tinha (`--session-id`, `--resume`/`-r <id>`, `--fork-session` saem; `--session-id <sid>` entra onde
+/// estava o primeiro, ou no fim). O reinício (`comando_ao_reiniciar`) troca para `--resume <sid>` quando o
+/// transcript dela já existe. Separa só por espaço simples, então o resto da linha volta igual.
+pub fn comando_com_sessao(comando: &str, sid: &str) -> String {
+    let partes: Vec<&str> = comando.split(' ').collect();
+    let (mut saida, mut posicao, mut i) = (Vec::with_capacity(partes.len() + 2), None, 0);
+    while i < partes.len() {
+        let parte = partes[i];
+        let com_valor = matches!(parte, "--session-id" | "--resume" | "-r")
+            && partes.get(i + 1).is_some_and(|v| !v.is_empty() && !v.starts_with('-'));
+        let sozinho = parte == "--fork-session" || parte.starts_with("--session-id=") || parte.starts_with("--resume=");
+        if com_valor || sozinho {
+            posicao.get_or_insert(saida.len());
+            i += if com_valor { 2 } else { 1 };
+            continue;
+        }
+        saida.push(parte.to_owned());
+        i += 1;
+    }
+    let novo = format!("--session-id {sid}");
+    match posicao { Some(p) => saida.insert(p, novo), None => saida.push(novo) }
+    saida.join(" ")
+}
+
 pub fn cortar(texto: &str, max: usize) -> String {
     if texto.chars().count() <= max { return texto.to_owned(); }
     let mut saida: String = texto.chars().take(max.saturating_sub(1)).collect();

@@ -517,7 +517,8 @@ fn pedido_de(cap: &interaction::Capabilities) -> Option<Value> {
         return Some(json!({"tipo": "permissao", "texto": regra::resumir(&texto, 3_000),
             // Fork (Onda 2): pedido do gancho traz a ferramenta e o prazo (depois dele a CLI pergunta no terminal).
             "ferramenta": cap.pedido.as_ref().map(|p| p.ferramenta.clone()), "expira_em_ms": cap.pedido.as_ref().map(|p| p.expira_em_ms),
-            "arriscado": briefing::pedido_arriscado(&texto),
+            // Fork (fix-orquestracao, achado 1): o do pedido estruturado vem da entrada inteira (o texto é cortado).
+            "arriscado": cap.pedido.as_ref().map_or_else(|| briefing::pedido_arriscado(&texto), |p| p.arriscado),
             "como_responder": "responder_pedido(agente, permitir: true|false)"}));
     }
     cap.escolha.as_ref().map(|menu| json!({"tipo": "pergunta", "pergunta": menu.pergunta, "detalhe": menu.detalhe,

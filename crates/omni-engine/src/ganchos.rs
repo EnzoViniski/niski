@@ -537,15 +537,36 @@ fn confirmar(state: &EngineState, chave: &str) {
 /// ela, e a timeline lê o transcript certo.
 fn atualizar_transcript(state: &EngineState, sessao: &LiveSession, terminal: &str, sid: &str, caminho: &str) {
     if Path::new(caminho).file_stem().and_then(|s| s.to_str()) != Some(sid) { return; }
-    let Some(conversa) = sessao.meta.lock().ok().and_then(|m| m.conversation_id.clone()) else { return };
-    let dir = dir_de(state);
-    let mut indice = omni_core::conversations::read_index(&dir);
-    let Some(segmento) = indice.iter_mut().find(|c| c.id == conversa).and_then(|c| c.segments.last_mut()) else { return };
-    if segmento.provider != "claude" || segmento.terminal_session_id.as_deref().is_some_and(|t| t != terminal) { return; }
-    if segmento.external_session_id.as_deref() == Some(sid) && segmento.transcript_path.as_deref() == Some(caminho) { return; }
-    segmento.external_session_id = Some(sid.to_owned());
-    segmento.transcript_path = Some(caminho.to_owned());
-    if omni_core::conversations::write_index(&dir, &indice).is_ok() {
+    // Fork (fix-orquestracao, achado 5): a identidade da sessão também troca — reiniciar e bifurcar
+    // usavam o id anterior e voltavam ao contexto de antes do `/clear`. O comando de reinício só sabe
+    // virar `--resume <id>` quando a linha tem `--session-id <id>` do id da sessão (`comando_ao_reiniciar`):
+    // mudar só o id deixava o reinício repetir `--session-id <antigo>`, que a CLI recusa. Por isso a linha
+    // troca junto (`comando_com_sessao`). Só quando a sessão já tinha id e ele mudou (a primeira notícia
+    // de uma sessão aberta sem id não muda o reinício).
+    let (conversa, trocou) = {
+        let Ok(mut meta) = sessao.meta.lock() else { return };
+        let trocou = meta.provider.as_deref() == Some("claude") && meta.external_session_id.as_deref().is_some_and(|antes| antes != sid);
+        if trocou {
+            meta.external_session_id = Some(sid.to_owned());
+            meta.initial_command = meta.initial_command.as_deref().map(|comando| regra::comando_com_sessao(comando, sid));
+        }
+        (meta.conversation_id.clone(), trocou)
+    };
+    if trocou {
+        let _ = state.persist();
+        registro::info("gancho_sessao_trocada", &[("terminal", terminal)]);
+    }
+    let Some(conversa) = conversa else { return };
+    // Fork (fix-orquestracao, achado 4): ler-alterar-gravar sob a trava do índice.
+    let mudou = omni_core::indice_de_conversas::mudar_indice(&dir_de(state), |indice| {
+        let Some(segmento) = indice.iter_mut().find(|c| c.id == conversa).and_then(|c| c.segments.last_mut()) else { return false };
+        if segmento.provider != "claude" || segmento.terminal_session_id.as_deref().is_some_and(|t| t != terminal) { return false; }
+        if segmento.external_session_id.as_deref() == Some(sid) && segmento.transcript_path.as_deref() == Some(caminho) { return false; }
+        segmento.external_session_id = Some(sid.to_owned());
+        segmento.transcript_path = Some(caminho.to_owned());
+        true
+    });
+    if mudou.unwrap_or(false) {
         registro::info("gancho_transcript_trocado", &[("terminal", terminal), ("conversa", &conversa)]);
     }
 }
@@ -585,7 +606,10 @@ async fn permissao(State(state): State<Arc<EngineState>>, headers: HeaderMap, co
     let texto = evento.resumo.clone().unwrap_or_else(|| ferramenta.clone());
     let (remetente, receptor) = oneshot::channel();
     let id = uuid::Uuid::new_v4().to_string();
-    let novo = Pedido { id: id.clone(), ferramenta: ferramenta.clone(), arriscado: omni_core::orquestracao::briefing::pedido_arriscado(&texto),
+    // Fork (fix-orquestracao, achado 1): o risco sai da entrada inteira; o corte em 2.000 (com "…") é só
+    // para a tela. Antes um `rm -rf` depois do corte passava como pedido comum.
+    let completo = regra::resumo_da_ferramenta(&ferramenta, valor.get("tool_input").unwrap_or(&Value::Null), usize::MAX);
+    let novo = Pedido { id: id.clone(), ferramenta: ferramenta.clone(), arriscado: omni_core::orquestracao::briefing::pedido_arriscado(&completo),
         texto, servidor_mcp: evento.servidor_mcp.clone(), expira_em_ms: now_ms() + prazo_ms, resposta: Some(remetente) };
     if com_estado(&terminal, |e| e.pedidos.push_back(novo)).is_none() { return StatusCode::OK.into_response(); }
     let _guarda = Guarda { terminal: terminal.clone(), id: id.clone() };

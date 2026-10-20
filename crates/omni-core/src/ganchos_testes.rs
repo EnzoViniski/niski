@@ -212,3 +212,17 @@ fn statusline_vira_medicao_e_uso_da_conta() {
     let velha = medicao(&json!({"rate_limits": {"five_hour": {"used_percentage": 1, "resets_at": 10}}}), 20_000);
     assert_eq!(velha.uso("p").unwrap().status, "stale");
 }
+
+/// Fork (fix-orquestracao, achado 5): depois de `/clear`/`/branch`, a linha de reinício aponta para a
+/// sessão nova no lugar da antiga, sem perder as outras opções nem repetir o `--fork-session`.
+#[test]
+fn comando_com_sessao_troca_o_id_da_linha() {
+    assert_eq!(comando_com_sessao("claude --model opus --session-id velho", "novo"), "claude --model opus --session-id novo");
+    assert_eq!(comando_com_sessao("claude --resume velho --model opus", "novo"), "claude --session-id novo --model opus");
+    assert_eq!(comando_com_sessao("claude -r velho", "novo"), "claude --session-id novo");
+    assert_eq!(comando_com_sessao("claude --resume x --fork-session --session-id y", "novo"), "claude --session-id novo");
+    assert_eq!(comando_com_sessao("\"/pasta com espaço/claude\"  --model opus", "novo"), "\"/pasta com espaço/claude\"  --model opus --session-id novo");
+    assert_eq!(comando_com_sessao("claude --session-id=velho", "novo"), "claude --session-id novo");
+    // `--resume` sem id (abre a lista da CLI) não é o id da sessão: fica e o id vai no fim.
+    assert_eq!(comando_com_sessao("claude --resume --model opus", "novo"), "claude --resume --model opus --session-id novo");
+}
