@@ -25,15 +25,8 @@ export const ATTENTION_ORDER: AttentionReason[] = [
   "stopped",
 ];
 
-export const ATTENTION_LABEL: Record<AttentionReason, string> = {
-  approval_required: "aprovação pendente",
-  usage_limit: "limite de uso atingido",
-  api_error: "erro de API",
-  crashed: "travou",
-  orphan: "sessão órfã",
-  answered: "terminou",
-  stopped: "parado",
-};
+// Fork: o rótulo mora em `lib/estadosDaSessao.ts`, com os dos estados; o nome antigo continua valendo.
+export { ROTULO_DA_ATENCAO as ATTENTION_LABEL } from "../../lib/estadosDaSessao";
 
 export interface AttentionItem {
   sessionId: string;

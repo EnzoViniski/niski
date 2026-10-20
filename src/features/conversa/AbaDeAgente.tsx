@@ -16,6 +16,7 @@ import { PastaDaConversaContext } from "../../mobile/CaminhoClicavel";
 import { GitBranchStatus } from "../git/GitBranchStatus";
 // Fork: "Tornar orquestradora" / "Ver fluxo (N)" na faixa da conversa.
 import { FaixaDoOrquestrador } from "../orquestracao/FaixaDoOrquestrador";
+import { rotuloDoEstado } from "../../lib/estadosDaSessao";
 import "../../mobile/mobile.css";
 import "../../web/web.css";
 
@@ -139,11 +140,6 @@ function AbasDoAgente({ vendo, onTrocar }: { vendo: "conversa" | "terminal"; onT
   );
 }
 
-const ESTADO: Record<string, string> = {
-  working: "Trabalhando", answered: "Pronta para a próxima mensagem", approval_required: "Esperando sua aprovação",
-  stopped: "Sessão encerrada", orphan: "Sessão anterior", crashed: "A sessão caiu",
-};
-
 /** Título e estado da conversa, à direita das abas — o que a web mostra no topo. */
 function ResumoDaConversa({ conversa }: { conversa: Conversation }) {
   const status = statusDaConversa(
@@ -156,7 +152,7 @@ function ResumoDaConversa({ conversa }: { conversa: Conversation }) {
     <div className="aba-agente-resumo" title={conversa.title}>
       {conversa.provider && <AgentIcon provider={conversa.provider} size={14} className="shrink-0" />}
       <span className="aba-agente-titulo">{conversa.title}</span>
-      <span className="aba-agente-estado">{aviso ?? ESTADO[conversa.state ?? ""] ?? "Sem sessão aberta"}</span>
+      <span className="aba-agente-estado">{aviso ?? rotuloDoEstado(conversa.state, "detalhado") ?? "Sem sessão aberta"}</span>
       <EtiquetaDoStatus status={status} />
     </div>
   );

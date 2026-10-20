@@ -28,9 +28,11 @@ import { useRota, type Rota } from "./rota";
 import { useDados } from "./useDados";
 import { usePoll } from "./usePoll";
 import { NOME_DO_PRODUTO } from "../lib/identidade";
+// Fork: nome da plataforma, rótulo/tom do estado e "há quanto tempo" num lugar só (`src/lib`).
+import { nomeDaPlataforma } from "../lib/plataformasDeAgente";
+import { rotuloDoEstado, tomDoEstado } from "../lib/estadosDaSessao";
+import { haQuanto } from "../lib/tempo";
 
-const STATES: Record<string,string> = { working: "Trabalhando", answered: "Resposta disponível", approval_required: "Aprovação pendente", stopped: "Encerrado", orphan: "Sessão anterior", crashed: "Interrompido" };
-const NOME_DO_AGENTE: Record<string, string> = { claude: "Claude", codex: "Codex", cursor: "Cursor" };
 
 /** Busca compartilhada pelo celular e pela web: todas as palavras precisam aparecer em algum dos
  * campos visíveis da conversa, da conta ou do projeto. */
@@ -48,7 +50,7 @@ export function filterConversations(
     const texto = [
       conversa.title,
       conversa.provider,
-      NOME_DO_AGENTE[conversa.provider ?? ""],
+      nomeDaPlataforma(conversa.provider),
       conversa.profile_id ? contas.get(conversa.profile_id) : null,
       pastas.get(conversa.project_id),
     ].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
@@ -56,24 +58,8 @@ export function filterConversations(
   });
 }
 
-/** Cor do ponto de estado, na mesma linguagem do PC: trabalhando pulsa no acento, pronto é verde. */
-function tomDoEstado(state: string | null, approve: boolean): string {
-  if (approve || state === "approval_required") return "m-dot-alerta";
-  if (state === "working") return "m-dot-ativo";
-  if (state === "answered") return "m-dot-ok";
-  if (state === "crashed") return "m-dot-erro";
-  return "m-dot-parado";
-}
-
-/** "agora", "5 min", "3 h", "2 d": quanto faz desde a última atividade da conversa. */
-export function haQuanto(ms: number | undefined, agora = Date.now()): string | null {
-  if (!ms) return null;
-  const minutos = Math.floor(Math.max(0, agora - ms) / 60_000);
-  if (minutos < 1) return "agora";
-  if (minutos < 60) return `${minutos} min`;
-  if (minutos < 24 * 60) return `${Math.floor(minutos / 60)} h`;
-  return `${Math.floor(minutos / (24 * 60))} d`;
-}
+// Fork: "há quanto tempo" único (`lib/tempo.ts`); continua exportado daqui para quem já importava.
+export { haQuanto };
 
 /** Guarda uma preferência só desta aba. Navegador sem armazenamento segue sem ela. */
 function lerSessao(chave: string): string | null {
@@ -188,7 +174,7 @@ export function ConversationList({ conversations, perfis, projetos = [], mostrar
     );
     const conta = perfis.find(p => p.id === c.profile_id)?.name;
     const projeto = mostrarProjeto ? projetos.find(p => p.id === c.project_id)?.name : null;
-    const detalhe = [STATES[c.state ?? ""] ?? "Histórico", NOME_DO_AGENTE[c.provider ?? ""] ?? c.provider, conta, projeto]
+    const detalhe = [rotuloDoEstado(c.state) ?? "Histórico", nomeDaPlataforma(c.provider) ?? c.provider, conta, projeto]
       .filter(Boolean).join(" · ");
     return <li key={c.id}>
       <button type="button" className={`m-card glass glass-hover${c.id === ativa ? " m-card-ativo" : ""}`} data-status={status} onClick={() => abrir(c.id)}
@@ -1111,7 +1097,7 @@ export function MobileApp() {
         <span className={`m-dot ${tomDoEstado(conversa.state, aprovar)}`} aria-hidden />
         {conversa.provider && <AgentIcon provider={conversa.provider} size={12} className="shrink-0" />}
         <span className="truncate">
-          {[NOME_DO_AGENTE[conversa.provider ?? ""] ?? conversa.provider, STATES[conversa.state ?? ""] ?? "Sem sessão ativa", projeto?.name]
+          {[nomeDaPlataforma(conversa.provider) ?? conversa.provider, rotuloDoEstado(conversa.state) ?? "Sem sessão ativa", projeto?.name]
             .filter(Boolean).join(" · ")}
         </span>
       </>;
