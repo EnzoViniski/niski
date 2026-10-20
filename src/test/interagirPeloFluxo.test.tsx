@@ -121,4 +121,21 @@ describe("interagir pelo fluxo", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Responda o pedido de permissão antes.");
     expect(posts("/prompt")).toHaveLength(0);
   });
+
+  // Fork (Onda 2): pedido segurado pelo gancho do Claude — responde com o id do pedido, mostra o prazo
+  // e deixa mandar para o terminal.
+  it("pedido do gancho: aprova com o id, mostra o prazo e solta para o terminal", async () => {
+    const pedido = { id: "ped-1", origem: "gancho" as const, ferramenta: "Bash", resumo: "Bash · npm test", expira_em_ms: Date.now() + 125_000 };
+    fluxo.agentes[1] = { ...fluxo.agentes[1], arriscado: null, capabilities: cap({ approve: true, approval_text: "Bash · npm test", pedido }) };
+    montar();
+    expect(await screen.findByText("Bash · npm test")).toBeInTheDocument();
+    expect(screen.getByText(/Vai para o terminal em 2:0\d/)).toBeInTheDocument();
+    fireEvent.click(botaoDoNo("Permitir"));
+    await waitFor(() => expect(posts("/aprovar")).toHaveLength(1));
+    expect(JSON.parse(String(posts("/aprovar")[0][2]))).toEqual({ permitir: true, pedido: "ped-1" });
+    fireEvent.click(botaoDoNo("No terminal"));
+    await waitFor(() => expect(posts("/pedido/terminal")).toHaveLength(1));
+    expect(posts("/pedido/terminal")[0][1]).toBe("/conversas/sub-2/pedido/terminal");
+    expect(JSON.parse(String(posts("/pedido/terminal")[0][2]))).toEqual({ pedido: "ped-1" });
+  });
 });

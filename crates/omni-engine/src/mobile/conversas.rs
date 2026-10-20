@@ -91,7 +91,8 @@ pub(super) fn resumo(state: &EngineState, c: &omni_core::conversations::Conversa
         .and_then(|s| s.interaction.lock().ok().and_then(|c| interaction::tokens_do_turno(&c.parser.screen().contents())));
     json!({"id":c.id,"title":omni_core::conversations::display_title(c),"project_id":c.project_id,"provider":c.segments.last().map(|s|&s.provider),
         "profile_id":c.segments.last().and_then(|s|s.profile_id.as_ref()),"state":status,"mode":mode,"capabilities":capabilities,
-        "attention":attention,"tokens":tokens,"fast":fast,"notice":meta.as_ref().and_then(|m|m.notice.clone()),"live":live.is_some(),"updated_at_ms":atividade(c,live.as_ref())})
+        "attention":attention,"tokens":tokens,"fast":fast,"ganchos":meta.as_ref().map(|m| crate::ganchos::resumo(&m.id)), // Fork (Onda 2)
+        "notice":meta.as_ref().and_then(|m|m.notice.clone()),"live":live.is_some(),"updated_at_ms":atividade(c,live.as_ref())})
 }
 
 /// Último sinal de vida da conversa: saída do terminal, escrita no transcript ou a criação. É o que

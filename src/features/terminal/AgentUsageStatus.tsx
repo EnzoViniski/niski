@@ -198,6 +198,7 @@ export function AgentUsageStatus({ engineOnline, activeSessionId }: AgentUsageSt
     resets("5 horas", usage?.primary ?? null),
     resets("Semana", usage?.secondary ?? null),
     checked,
+    (usage as { source?: string } | null)?.source === "claude_statusline" && "Fonte: statusline do Claude Code", // Fork (Onda 2)
     reason,
   ].filter(Boolean).join("\n");
   return (

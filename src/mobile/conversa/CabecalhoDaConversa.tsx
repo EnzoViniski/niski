@@ -3,6 +3,8 @@ import { AgentIcon } from "../../components/ui/AgentIcon";
 import { nomeDaPlataforma } from "../../lib/plataformasDeAgente";
 import { rotuloDoEstado, tomDoEstado } from "../../lib/estadosDaSessao";
 import type { Conversation } from "../api";
+// Fork (Onda 2, item 3): contexto e custo estimado vindos da statusline.
+import { ChipDeContexto } from "./ChipDeContexto";
 
 /** Ponto de estado, agente e "Claude · Trabalhando · projeto" abaixo do título. */
 export function CabecalhoDaConversa({ conversa, projeto }: { conversa: Conversation; projeto?: { name: string } | null }) {
@@ -14,5 +16,6 @@ export function CabecalhoDaConversa({ conversa, projeto }: { conversa: Conversat
       {[nomeDaPlataforma(conversa.provider) ?? conversa.provider, rotuloDoEstado(conversa.state) ?? "Sem sessão ativa", projeto?.name]
         .filter(Boolean).join(" · ")}
     </span>
+    <ChipDeContexto ganchos={conversa.ganchos} />
   </>;
 }

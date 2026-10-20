@@ -56,7 +56,8 @@ pub(super) fn lista() -> Value {
          "description": "Responde um pedido que um subagente fez na tela: permissão (permitir true/false) ou pergunta/menu da CLI (opcao = número). Aprove o que está dentro da tarefa e dos arquivos dele; negue e oriente com mandar_prompt o que sair disso. Pedido arriscado (apagar em massa, push/publicar, instalar global, sudo, credenciais) só o usuário aprova: avise-o, ele responde no fluxo.",
          "inputSchema": {"type": "object", "required": ["agente"], "properties": {"agente": agente,
             "permitir": {"type": "boolean", "description": "Para pedido de permissão"},
-            "opcao": {"type": "integer", "minimum": 1, "description": "Para pergunta ou menu: o número da opção"}}}},
+            "opcao": {"type": "integer", "minimum": 1, "description": "Para pergunta ou menu: o número da opção"},
+            "mensagem": {"type": "string", "description": "Ao negar (permitir: false) um pedido que veio pelo gancho do Claude: o que ele deve fazer em vez disso"}}}},
         {"name": "parar_agente",
          "description": "Encerra a CLI de um subagente (a conversa continua no histórico). Libera vaga no limite. A worktree isolada dele (se tiver) e a branch ficam: mescle e apague pelo app.",
          "inputSchema": {"type": "object", "required": ["agente"], "properties": {"agente": agente}}},
@@ -500,6 +501,8 @@ fn pedido_de(cap: &interaction::Capabilities) -> Option<Value> {
     if cap.approve {
         let texto = cap.approval_text.clone().unwrap_or_default();
         return Some(json!({"tipo": "permissao", "texto": regra::resumir(&texto, 3_000),
+            // Fork (Onda 2): pedido do gancho traz a ferramenta e o prazo (depois dele a CLI pergunta no terminal).
+            "ferramenta": cap.pedido.as_ref().map(|p| p.ferramenta.clone()), "expira_em_ms": cap.pedido.as_ref().map(|p| p.expira_em_ms),
             "arriscado": briefing::pedido_arriscado(&texto),
             "como_responder": "responder_pedido(agente, permitir: true|false)"}));
     }
@@ -515,7 +518,20 @@ fn responder(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Resu
     let agente = obrigatorio(args, "agente")?;
     do_orquestrador(state, orquestrador, agente)?;
     let (_, sessao, cap) = estado_de(state, agente);
-    let (Some(_), Some(cap)) = (sessao, cap) else { return Err("O agente está parado.".into()) };
+    let (Some(sessao), Some(cap)) = (sessao, cap) else { return Err("O agente está parado.".into()) };
+    // Fork (Onda 2): pedido segurado pelo gancho do Claude responde direto, com o id do que foi lido.
+    if let (Some(pedido), Some(permitir)) = (cap.pedido.as_ref(), args.get("permitir").and_then(Value::as_bool)) {
+        if let Some(motivo) = pedido.arriscado.filter(|_| permitir) {
+            registro::info("orquestracao_pedido_para_o_usuario", &[("orquestrador", orquestrador), ("agente", agente)]);
+            return Err(format!("Este pedido {motivo}: só o usuário aprova. Avise-o (ele responde no fluxo) ou negue com permitir: false."));
+        }
+        let terminal = sessao.meta.lock().map(|m| m.id.clone()).map_err(|_| "Sessão indisponível".to_owned())?;
+        let decisao = if permitir { crate::ganchos::Decisao::Permitir } else { crate::ganchos::Decisao::Negar(texto_do_campo(args, "mensagem").map(str::to_owned)) };
+        crate::ganchos::responder(&terminal, Some(&pedido.id), decisao).map_err(|_| "O pedido já foi respondido ou mudou. Veja com ler_conversa.".to_owned())?;
+        let resumo = if permitir { "permitido" } else { "negado" };
+        registro::info("orquestracao_pedido_respondido", &[("orquestrador", orquestrador), ("agente", agente), ("resposta", resumo)]);
+        return Ok(format!("Pedido {resumo}. Use esperar(agente) para acompanhar."));
+    }
     let (kind, resumo) = match (args.get("permitir").and_then(Value::as_bool), args.get("opcao").and_then(Value::as_u64)) {
         (Some(permitir), _) if cap.approve => {
             let texto = cap.approval_text.clone().unwrap_or_default();
@@ -547,4 +563,65 @@ pub(super) fn parar(state: &EngineState, orquestrador: &str, agente: &str) -> Re
     stop_session(state, &id).map_err(|e| e.to_string())?;
     registro::info("orquestracao_agente_parado", &[("orquestrador", orquestrador), ("agente", agente)]);
     Ok("Agente parado.".into())
+}
+
+/// Fork (Onda 2): pedido segurado pelo gancho do Claude no subagente — o orquestrador aprova o
+/// comum direto (sem tecla) e o arriscado fica com o usuário. CLI falsa que só espera; o POST do
+/// `PermissionRequest` é feito aqui, como a CLI faria.
+#[cfg(test)]
+mod testes_dos_ganchos {
+    use super::*;
+    use axum::body::{to_bytes, Body};
+    use tower::ServiceExt;
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn orquestrador_aprova_ls_pelo_gancho_e_rm_rf_fica_com_o_usuario() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = Arc::new(EngineState { persist_lock: Mutex::new(()), mobile: MobileRuntime::new(dir.path()),
+            token: "test-only".into(), state_file: dir.path().join("sessions.json"), sessions: Mutex::new(HashMap::new()),
+            id_sequence: AtomicU64::new(1) });
+        let porta = 47_997;
+        crate::ganchos::definir_porta(&state, porta);
+        // Fork: ganchos vêm desligados por padrão; os testes ligam explicitamente.
+        omni_core::ganchos::gravar_ajustes(dir.path(), &omni_core::ganchos::Ajustes { ligado: true, ..Default::default() }).unwrap();
+        let (projeto, conta, bin) = (dir.path().join("projeto"), dir.path().join("conta"), dir.path().join("bin"));
+        for pasta in [&projeto, &conta, &bin] { std::fs::create_dir_all(pasta).unwrap(); }
+        let script = bin.join("claude");
+        std::fs::write(&script, "#!/bin/sh\nprintf '\\033[?2004h\\r\\n\\342\\235\\257 '\nwhile IFS= read -r l; do :; done\n").unwrap();
+        let terminal = format!("terminal-teste-{}", uuid::Uuid::new_v4());
+        atomic_write_json(&dir.path().join("conversations.json"), &json!({"version": 1, "conversations": [{"id": "sub", "project_id": "p",
+            "cwd": projeto.to_string_lossy(), "title": "sub", "created_at_ms": 1, "segments": [{"provider": "claude", "profile_id": null,
+            "external_session_id": null, "transcript_path": null, "terminal_session_id": terminal, "started_at_ms": 1, "ended_at_ms": null}]}]})).unwrap();
+        mudar_registro(&state, |r| r.adicionar("orq", regra::Agente { conversation_key: "sub".into(), plataforma: "claude".into(),
+            tarefa: "listar".into(), ..Default::default() })).unwrap();
+        spawn_terminal_inner(&state, terminal.clone(), "p".into(), "Sub".into(), projeto.to_string_lossy().into_owned(), Some("/bin/sh".into()),
+            Some(format!("/bin/sh {}", script.to_string_lossy())), 30, 100, now_ms(), SessionOrigin { provider: Some("claude".into()),
+            conversation_id: Some("sub".into()), env: vec![("CLAUDE_CONFIG_DIR".into(), conta.to_string_lossy().into_owned())], ..SessionOrigin::default() }).unwrap();
+        let token = crate::ganchos::token_de_teste(&terminal).expect("token");
+        let pedir = |comando: &str| {
+            let pedido = axum::http::Request::builder().method("POST").uri("/ganchos/permissao").header("host", format!("127.0.0.1:{porta}"))
+                .header("authorization", format!("Bearer {token}")).header("content-type", "application/json")
+                .body(Body::from(json!({"hook_event_name": "PermissionRequest", "tool_name": "Bash", "tool_input": {"command": comando}}).to_string())).unwrap();
+            let app = crate::ganchos::router(state.clone());
+            tokio::spawn(async move { let r = app.oneshot(pedido).await.unwrap(); String::from_utf8_lossy(&to_bytes(r.into_body(), usize::MAX).await.unwrap()).into_owned() })
+        };
+        let esperar_pedido = || async { for _ in 0..100 { if crate::ganchos::pedido(&terminal).is_some() { return; } tokio::time::sleep(std::time::Duration::from_millis(100)).await; } panic!("sem pedido") };
+
+        let resposta = pedir("ls src");
+        esperar_pedido().await;
+        let lido: Value = serde_json::from_str(&ler(&state, "orq", &json!({"agente": "sub"})).unwrap()).unwrap();
+        assert_eq!((lido["pedido"]["tipo"].as_str(), lido["pedido"]["ferramenta"].as_str()), (Some("permissao"), Some("Bash")), "{lido}");
+        assert!(responder(&state, "orq", &json!({"agente": "sub", "permitir": true})).unwrap().contains("permitido"));
+        assert!(resposta.await.unwrap().contains("\"allow\""));
+
+        let resposta = pedir("rm -rf build");
+        esperar_pedido().await;
+        let erro = responder(&state, "orq", &json!({"agente": "sub", "permitir": true})).unwrap_err();
+        assert!(erro.contains("só o usuário aprova"), "{erro}");
+        assert!(crate::ganchos::pedido(&terminal).is_some(), "continua esperando o usuário");
+        responder(&state, "orq", &json!({"agente": "sub", "permitir": false, "mensagem": "não apague"})).unwrap();
+        assert!(resposta.await.unwrap().contains("Negado no Medza: não apague"));
+        let _ = close_session(&state, &terminal);
+    }
 }

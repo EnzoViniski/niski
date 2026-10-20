@@ -11,7 +11,9 @@ pub(super) async fn contas(State(state): State<Arc<EngineState>>) -> Json<Value>
         let lista: Vec<Value> = omni_core::profiles(&dir).into_iter().map(|perfil| {
             let uso = match perfil.provider.as_str() {
                 "codex" => Some(omni_core::usage::read_codex(&perfil.id,Path::new(&perfil.config_dir),agora)),
-                "claude" => omni_core::usage::read_claude_cache(&perfil.id,&omni_core::usage::claude_state_path(&perfil),agora),
+                // Fork (Onda 2, item 3): statusline quando é mais nova; o cache do `.claude.json` segue de reserva.
+                "claude" => omni_core::usage::mais_recente(omni_core::usage::read_claude_cache(&perfil.id,&omni_core::usage::claude_state_path(&perfil),agora),
+                    crate::ganchos::uso_da_statusline(&dir,&perfil.id)),
                 _ => None,
             };
             json!({"id":perfil.id,"provider":perfil.provider,"name":perfil.name,"usage":uso})

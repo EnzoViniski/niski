@@ -110,8 +110,8 @@ async fn metodo_nao_permitido() -> Response {
 }
 
 /// Loopback com a porta certa no `Host` e, se houver `Origin`, também loopback: defesa contra DNS
-/// rebinding (página da web chamando o servidor pelo navegador).
-fn origem_local(headers: &HeaderMap, porta: u16) -> bool {
+/// rebinding (página da web chamando o servidor pelo navegador). Fork: também usada pelos ganchos.
+pub(crate) fn origem_local(headers: &HeaderMap, porta: u16) -> bool {
     let aceitos = [format!("127.0.0.1:{porta}"), format!("localhost:{porta}")];
     let host = headers.get("host").and_then(|v| v.to_str().ok()).unwrap_or("");
     let origem_ok = headers.get("origin").and_then(|v| v.to_str().ok())

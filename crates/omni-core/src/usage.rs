@@ -142,6 +142,16 @@ fn claude_cache(state: &Value, profile_id: &str, now_ms: u64) -> Option<AccountU
         observed_at_ms: cache.get("fetchedAtMs").and_then(Value::as_u64), primary, secondary, reason: None })
 }
 
+/// Fork (Onda 2, item 3): entre duas leituras de uso da mesma conta, a mais nova (`observed_at_ms`).
+/// A statusline (`claude_statusline`) é a fonte preferida quando existe; a leitura do
+/// `cachedUsageUtilization` continua como reserva. Aposentar a reserva é decisão do Enzo.
+pub fn mais_recente(a: Option<AccountUsage>, b: Option<AccountUsage>) -> Option<AccountUsage> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(if b.observed_at_ms.unwrap_or(0) > a.observed_at_ms.unwrap_or(0) { b } else { a }),
+        (a, b) => a.or(b),
+    }
+}
+
 /// Conservative screen grammar. Reset text is preserved, not interpreted in the PC timezone.
 pub fn parse_claude_screen(screen: &str, profile_id: &str, now_ms: u64) -> AccountUsage {
     let mut result = AccountUsage::unavailable(profile_id, "claude", "Formato de /usage não reconhecido");
@@ -273,5 +283,15 @@ mod tests {
         assert!(parse_claude_screen(&screen.replace("% used","% remaining"),"p",10).primary.is_none());
         assert!(parse_claude_screen(&screen.replace("██ 12% used","10% 12% used"),"p",10).primary.is_none());
         assert!(parse_claude_screen(&format!("{screen}\nCurrent session"),"p",10).primary.is_none());
+    }
+    /// Fork: a statusline vence quando é mais nova; a leitura antiga continua de reserva.
+    #[test] fn mais_recente_prefere_a_leitura_mais_nova() {
+        let uso = |fonte: &str, em: Option<u64>| AccountUsage { profile_id: "p".into(), provider: "claude".into(), source: fonte.into(),
+            status: "available".into(), observed_at_ms: em, primary: None, secondary: None, reason: None };
+        assert_eq!(mais_recente(Some(uso("claude_cache", Some(10))), Some(uso("claude_statusline", Some(20)))).unwrap().source, "claude_statusline");
+        assert_eq!(mais_recente(Some(uso("claude_cache", Some(30))), Some(uso("claude_statusline", Some(20)))).unwrap().source, "claude_cache");
+        assert_eq!(mais_recente(None, Some(uso("claude_statusline", Some(1)))).unwrap().source, "claude_statusline");
+        assert_eq!(mais_recente(Some(uso("claude_cache", None)), None).unwrap().source, "claude_cache");
+        assert!(mais_recente(None, None).is_none());
     }
 }

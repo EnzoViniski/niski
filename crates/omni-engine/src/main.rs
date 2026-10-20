@@ -3,6 +3,9 @@ mod economia;
 // Fork: modo do Antigravity nas sessões do app e o diálogo de permissão dele na conversa.
 mod antigravity_permissoes;
 mod fluxos;
+// Fork (Onda 2): ganchos HTTP do Claude por sessão, pedidos de permissão e statusline.
+mod ganchos;
+mod preparo_da_sessao;
 mod interaction;
 mod mobile;
 // Fork: reinício do Codex retoma a mesma conversa (`codex resume <id>`).
@@ -103,7 +106,9 @@ fn settle(session: &LiveSession) -> TerminalSession {
     let mut interaction = session.interaction.lock().expect("screen poisoned");
     let mut meta = session.meta.lock().expect("session metadata poisoned");
     let tracked = screen_tracked(meta.provider.as_deref());
-    let screen_in_turn = tracked && in_turn(&interaction.parser.screen().contents(), meta.provider.as_deref().unwrap_or(""));
+    // Fork: com ganchos confirmados, o turno vem deles (a statusline esconde o "esc to interrupt").
+    let screen_in_turn = tracked && ganchos::em_turno(&meta.id)
+        .unwrap_or_else(|| in_turn(&interaction.parser.screen().contents(), meta.provider.as_deref().unwrap_or("")));
     let idle_ms = now_ms().saturating_sub(meta.last_activity_at_ms);
     // Shell puro calado mas com filho vivo (dev server) continua rodando. Só consulta os processos
     // quando ia virar `Answered`: shell no prompt sai do `Working` e não paga mais nada.
@@ -220,6 +225,8 @@ async fn main() -> Result<()> {
     mobile::start(state.clone());
     // Fork: servidor MCP do orquestrador (porta do engine + 3, só loopback).
     mobile::orquestracao::iniciar(state.clone(), port);
+    // Fork: servidor dos ganchos HTTP do Claude (porta do engine + 4, só loopback).
+    ganchos::iniciar(state.clone(), port);
     fluxos::carregar(&state);
 
     loop {
@@ -723,8 +730,9 @@ pub(crate) fn spawn_terminal_inner(
             config_do_antigravity().map(|dir| omni_core::antigravity::log_da_sessao(&dir, &id))))
     } else { initial_command };
     compartilhar_extensoes(state, origin.provider.as_deref(), origin.profile_id.as_deref());
-    // Fork: conversa orquestradora digita com as flags de MCP e ganha um token novo só no ambiente da PTY.
-    let (digitado, env_do_orquestrador) = mobile::orquestracao::preparar(state, origin.conversation_id.as_deref(), origin.provider.as_deref(), initial_command.clone());
+    // Fork: flags de MCP (orquestradora) e `--settings` dos ganchos (Claude) só no que é digitado; os
+    // tokens vão só no ambiente da PTY.
+    let (digitado, env_do_orquestrador) = preparo_da_sessao::preparar(state, &id, &origin, &cwd, initial_command.clone());
     let (pid, writer, master, child, reader) =
         open_pty_and_spawn(&cwd, &shell, rows, cols, &[origin.env.clone(), env_do_orquestrador].concat(), origin.provider.is_some())?;
     let metadata = TerminalSession {
@@ -1027,8 +1035,8 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
             // Reinício e troca de conta do failover também passam aqui: a conta nova recebe as
             // extensões da principal antes de a CLI subir.
             compartilhar_extensoes(state, meta.provider.as_deref(), meta.profile_id.as_deref());
-            // Fork: orquestradora reabre com as flags de MCP e um token novo (só no ambiente da PTY).
-            let (comando, env_do_orquestrador) = mobile::orquestracao::preparar(state, meta.conversation_id.as_deref(), meta.provider.as_deref(),
+            // Fork: reabre com as flags de MCP/ganchos e tokens novos (só no ambiente da PTY).
+            let (comando, env_do_orquestrador) = preparo_da_sessao::preparar(state, &meta.id, &SessionOrigin::of(&meta), &meta.cwd,
                 comando_ao_reiniciar_com_codex(state, &meta));
             let (pid, writer, master, child, reader) =
                 open_pty_and_spawn(&meta.cwd, &meta.shell, meta.rows, meta.cols, &[meta.env.clone(), env_do_orquestrador].concat(), meta.provider.is_some())?;
@@ -1161,11 +1169,13 @@ fn append_output(session: &LiveSession, bytes: &[u8], watched_pid: Option<u32>) 
     }
     let length = data.len();
     let mut interaction = session.interaction.lock().expect("screen poisoned");
-    let tracked_provider = {
+    let (tracked_provider, terminal) = {
         let meta = session.meta.lock().expect("metadata poisoned");
         if meta.pid != watched_pid { return; }
-        meta.provider.clone().filter(|provider| screen_tracked(Some(provider)))
+        (meta.provider.clone().filter(|provider| screen_tracked(Some(provider))), meta.id.clone())
     };
+    // Fork: turno pelos ganchos quando confirmados; senão, pela tela.
+    let no_turno = |screen_text: &str, provider: &str| ganchos::em_turno(&terminal).unwrap_or_else(|| in_turn(screen_text, provider));
     interaction.parser.process(bytes);
     if session.headless.load(Ordering::SeqCst) {
         answer_terminal_queries(session, &data, interaction.parser.screen());
@@ -1174,10 +1184,12 @@ fn append_output(session: &LiveSession, bytes: &[u8], watched_pid: Option<u32>) 
     let approval_requested = match &tracked_provider {
         // O diálogo real, reconhecido estrito — não "do you want to" solto numa resposta do agente.
         Some(provider) => {
-            let dialog = interaction::approval(&screen_text, provider).is_some();
-            let trabalhando = in_turn(&screen_text, provider);
+            // Fork: pedido de permissão segurado pelo gancho conta como o diálogo na tela.
+            let dialog = interaction::approval(&screen_text, provider).is_some() || ganchos::tem_pedido(&terminal);
+            let trabalhando = no_turno(&screen_text, provider);
             // Turno novo começando: o que já estava na tela é passado.
             if trabalhando && !interaction.turn_active {
+                ganchos::tela_viu_turno(&terminal);
                 interaction.avisos_antes_do_turno = notice_counts(&screen_text);
                 interaction.turnos_iniciados += 1;
             }
@@ -1202,8 +1214,9 @@ fn append_output(session: &LiveSession, bytes: &[u8], watched_pid: Option<u32>) 
     };
     // No meio do turno ("esc to interrupt" na tela) o agente está trabalhando: o que aparecer é
     // saída dele, não a CLI avisando que parou.
-    let em_turno = tracked_provider.as_deref().is_some_and(|provider| in_turn(&screen_text, provider));
-    let notice = if em_turno { None } else { notice_since(counts, *base) };
+    let em_turno = tracked_provider.as_deref().is_some_and(|provider| no_turno(&screen_text, provider));
+    // Fork: o `StopFailure` do gancho vale mesmo sem a linha do erro na tela.
+    let notice = if em_turno { None } else { notice_since(counts, *base).or_else(|| ganchos::aviso(&terminal)) };
     if let Ok(mut output) = session.output.lock() {
         let sequence = output.next_seq;
         output.next_seq += 1;
@@ -1272,6 +1285,8 @@ fn write_terminal(state: &EngineState, session_id: &str, data: &str) -> Result<E
     let mut interaction = session.interaction.lock().map_err(|_| anyhow!("screen poisoned"))?;
     if session.reserved.load(Ordering::SeqCst) { return Err(anyhow!("Consulta de uso em andamento; aguarde")); }
     interaction.input_revision += 1;
+    // Fork: Esc/Ctrl+C no meio do turno — o gancho `Stop` não vem, a tela volta a valer.
+    ganchos::escreveu(session_id, data);
     let mut writer = session.writer.lock().map_err(|_| anyhow!("terminal writer poisoned"))?;
     writer.write_all(data.as_bytes())?;
     writer.flush()?;
@@ -1319,6 +1334,8 @@ fn close_session(state: &EngineState, session_id: &str) -> Result<EngineResponse
         .lock()
         .map_err(|_| anyhow!("sessions lock poisoned"))?
         .remove(session_id);
+    // Fork: token, pedidos e arquivo de ganchos da sessão somem junto.
+    ganchos::esquecer(session_id);
     if let Some(SessionEntry::Live(session)) = entry {
         let _ = session
             .child
