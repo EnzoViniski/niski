@@ -401,11 +401,15 @@ fn rodar_modelo(state: &EngineState, v: &Viva, no: &str, mut modelo: omni_core::
     if !modelo.esforco.is_empty() && !argumento_seguro(&modelo.esforco) { return Err(anyhow!("Esforço inválido: {}", modelo.esforco)); }
     let dir = state.state_file.parent().ok_or_else(|| anyhow!("engine"))?;
     let perfis = omni_core::profiles(dir);
+    let da_fila = perfil_da_fila.is_some();
     let perfil = perfil_da_fila.or_else(|| perfis.iter().filter(|p| p.provider == modelo.cli)
         .find(|p| !modelo.conta.is_empty() && p.id == modelo.conta)
         .or_else(|| perfis.iter().find(|p| p.provider == modelo.cli && p.builtin))
         .or_else(|| perfis.iter().find(|p| p.provider == modelo.cli))
         .cloned());
+    // Fork (fix-orquestracao, achado 9): a conta fixa do modelo também ocupa vaga enquanto a CLI roda
+    // (a da fila já vem ocupada por `com_queda_sem_tela`).
+    let _vaga = perfil.as_ref().filter(|_| !da_fila).map(|p| mobile::roteamento::ocupar_sem_tela(state, &p.id));
     if ajuste.max_turnos.is_some() { blocos::conferir_goal(&modelo.cli, perfil.as_ref(), pasta)?; } // Fork
     let mut c = comando_da_cli(exe);
     match modelo.cli.as_str() {

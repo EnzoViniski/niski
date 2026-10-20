@@ -202,6 +202,13 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
         return Err(format!("Plataforma desconhecida: {plataforma}. Disponíveis: {}", nomes.join(", ")));
     };
     let perfis = omni_core::profiles(dir(state));
+    // Conferir o limite e abrir sob a mesma trava: duas chamadas juntas não passam as duas.
+    // Fork (fix-orquestracao, achado 8): a trava vem antes da escolha da conta, e a da Fila de contas
+    // (`trava_da_escolha`, também usada pelos fluxos) fica até a sessão abrir — duas criações juntas não
+    // escolhem a mesma conta de teto 1.
+    static CRIANDO: Mutex<()> = Mutex::new(());
+    let _criando = CRIANDO.lock().expect("criando poisoned");
+    let escolhendo = super::super::roteamento::trava_da_escolha();
     // Fork (3B): `conta: "auto"` escolhe pela Fila de contas (sessão interativa: sem troca sozinha depois).
     let mut por_que: Option<Vec<String>> = None;
     let conta = match texto_do_campo(args, "conta") {
@@ -220,9 +227,6 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
         None => None,
     };
 
-    // Conferir o limite e abrir sob a mesma trava: duas chamadas juntas não passam as duas.
-    static CRIANDO: Mutex<()> = Mutex::new(());
-    let _criando = CRIANDO.lock().expect("criando poisoned");
     regra::pode_criar(vivos(state, orquestrador), ler_registro(state).limite())?;
     // Dois subagentes vivos nunca dividem um caminho; o que é dos outros entra no briefing como "não mexa".
     let outros = arquivos_dos_vivos(state, orquestrador);
@@ -276,6 +280,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
         if let Some(wt) = &worktree { let _ = worktree_isolada::remover(Path::new(&wt.caminho), true); }
         return Err(format!("Não consegui abrir o subagente: {e}"));
     }
+    drop(escolhendo); // Fork (fix-orquestracao): a sessão aberta já ocupa a vaga da conta.
 
     let agente = regra::Agente { conversation_key: conversa.clone(), plataforma: plataforma.clone(), conta: plano.profile_id.clone(),
         modelo: modelo.clone(), esforco: esforco.clone(), tarefa: objetivo.clone(), criado_em: now_ms(), editar, criar: criar_,

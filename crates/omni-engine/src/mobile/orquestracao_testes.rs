@@ -549,3 +549,31 @@ async fn criar_agente_com_conta_automatica_usa_a_fila() {
     let (erro, texto) = ferramenta(&state, &token, "parar_agente", json!({"agente": agente})).await;
     assert!(!erro, "{texto}");
 }
+
+/// Fork (fix-orquestracao, achado 8): duas `criar_agente` com `conta: "auto"` ao mesmo tempo não caem
+/// as duas na conta de teto 1: escolher a conta e ocupar a vaga ficam na mesma seção crítica.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn criacoes_simultaneas_com_conta_automatica_respeitam_o_teto() {
+    let (dir, state, projeto) = fixture();
+    start(state.clone());
+    publicar(&state, &projeto, &cli_falsa(dir.path()));
+    let perfil = |id: &str, nome: &str| json!({"id": id, "provider": "claude", "name": nome,
+        "config_dir": dir.path().join("contas").join(id), "builtin": false, "created_at_ms": 0});
+    atomic_write_json(&dir.path().join("profiles.json"), &json!({"profiles": [perfil("a", "Pessoal"), perfil("b", "Empresa")]})).unwrap();
+    atomic_write_json(&dir.path().join("routing.json"), &json!({"modo": "fila", "etapas": ["b", "a"],
+        "contas": {"b": {"max_concorrencia": 1}}})).unwrap();
+    let token = ligar(&state, "orq-a", "claude");
+    let criar = |tarefa: &'static str| ferramenta(&state, &token, "criar_agente", json!({"plataforma": "claude", "conta": "auto",
+        "tarefa": tarefa, "somente_leitura": true}));
+    let ((erro_1, texto_1), (erro_2, texto_2)) = tokio::join!(criar("primeira"), criar("segunda"));
+    assert!(!erro_1 && !erro_2, "{texto_1}\n{texto_2}");
+    let criados: Vec<Value> = [texto_1, texto_2].iter().map(|t| serde_json::from_str(t).unwrap()).collect();
+    let mut contas: Vec<&str> = criados.iter().map(|c| c["conta"].as_str().unwrap()).collect();
+    contas.sort();
+    assert_eq!(contas, ["Empresa", "Pessoal"], "a segunda não pode passar do teto da Empresa");
+    for criado in &criados {
+        let (erro, texto) = ferramenta(&state, &token, "parar_agente", json!({"agente": criado["agente"]})).await;
+        assert!(!erro, "{texto}");
+    }
+}

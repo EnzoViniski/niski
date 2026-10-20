@@ -75,7 +75,49 @@ pub(crate) fn sessoes_por_perfil(state: &EngineState) -> HashMap<String, u32> {
         let perfil = sessao.meta.lock().ok().and_then(|m| m.provider.as_ref().and(m.profile_id.clone()));
         if let Some(perfil) = perfil { *contagem.entry(perfil).or_insert(0) += 1; }
     }
+    // Fork (fix-orquestracao, achado 9): execuções sem tela (fluxos) também ocupam a conta.
+    let dir = pasta(state);
+    for ((pasta_das_vagas, perfil), n) in SEM_TELA.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter() {
+        if pasta_das_vagas == dir { *contagem.entry(perfil.clone()).or_insert(0) += n; }
+    }
     contagem
+}
+
+/// Fork (fix-orquestracao, achado 2): a pasta e, se ela é uma worktree, a mesma pasta no checkout
+/// principal do repositório — a regra de confidencial é do projeto, e um orquestrador (ou fluxo) numa
+/// worktree irmã escapava dela. Pergunta ao git (worktree isolada do Medza ou `git worktree` comum); sem
+/// git (worktree isolada já apagada), `<pai>/.medza-worktrees/<repo>/<nome>/<resto>` vira `<pai>/<repo>/<resto>`.
+fn pastas_do_projeto(projeto: &str) -> Vec<String> {
+    let caminho = Path::new(projeto.trim());
+    let mut pastas = vec![projeto.to_owned()];
+    pastas.extend(no_checkout_principal(caminho));
+    pastas.extend(pela_worktree_isolada(caminho));
+    pastas
+}
+
+fn no_checkout_principal(caminho: &Path) -> Option<String> {
+    if !caminho.is_dir() { return None; }
+    let saida = std::process::Command::new("git").args(["rev-parse", "--path-format=absolute", "--git-common-dir", "--show-prefix"])
+        .current_dir(caminho).env("GIT_OPTIONAL_LOCKS", "0").stdin(std::process::Stdio::null()).stderr(std::process::Stdio::null())
+        .output().ok().filter(|saida| saida.status.success())?;
+    let texto = String::from_utf8_lossy(&saida.stdout);
+    let mut linhas = texto.lines();
+    let comum = PathBuf::from(linhas.next()?);
+    let comum = comum.canonicalize().unwrap_or(comum);
+    // Só o `.git` de um checkout (submódulo e repositório nu ficam de fora).
+    if comum.file_name().is_none_or(|nome| nome != ".git") { return None; }
+    let raiz = comum.parent()?;
+    let prefixo = linhas.next().unwrap_or("").trim_end_matches('/');
+    Some(if prefixo.is_empty() { raiz.to_path_buf() } else { raiz.join(prefixo) }.to_string_lossy().into_owned())
+}
+
+fn pela_worktree_isolada(caminho: &Path) -> Option<String> {
+    let partes: Vec<std::path::Component> = caminho.components().collect();
+    let i = partes.iter().rposition(|c| c.as_os_str() == omni_core::worktree_isolada::PASTA)?;
+    let repo = partes.get(i + 1)?;
+    partes.get(i + 2)?;
+    let original: PathBuf = partes[..i].iter().chain(std::iter::once(repo)).chain(partes[i + 3..].iter()).collect();
+    Some(original.to_string_lossy().into_owned())
 }
 
 /// Sem nenhuma conta deste provider na fila, valem todas as cadastradas, na ordem do cadastro:
@@ -100,7 +142,8 @@ pub(crate) fn escolher_para(state: &EngineState, provider: &str, projeto: Option
     let do_provider: Vec<omni_core::Profile> = perfis.iter().filter(|p| p.provider == provider).cloned().collect();
     let pedido = Pedido {
         provider: provider.to_owned(),
-        confidencial: confidencial || projeto.is_some_and(|p| politica.confidencial(p)),
+        // Fork (fix-orquestracao, achado 2): vale a pasta e a mesma pasta no projeto original (worktree).
+        confidencial: confidencial || projeto.is_some_and(|p| pastas_do_projeto(p).iter().any(|pasta| politica.confidencial(pasta))),
         sessoes_em_uso: sessoes_por_perfil(state), agora_ms: agora, headless,
     };
     let contas = efetiva.contas(&perfis);
@@ -137,6 +180,39 @@ pub(crate) fn previa(state: &EngineState, provider: &str) -> Value {
     escolha_em_json(state, &escolher_para(state, provider, None, false, false, &[]))
 }
 
+/* ── Vagas: escolha e reserva ────────────────────────────────────────────────────────────────── */
+
+// Fork (fix-orquestracao, achados 8 e 9): o teto de sessões por conta contava só as PTYs; a CLI sem tela
+// dos fluxos não ocupava vaga, e quem escolhia junto (dois fluxos, dois `criar_agente`) via a mesma conta
+// livre. Agora a execução sem tela ocupa uma `Vaga` enquanto roda, e quem escolhe para usar já (fluxo,
+// `criar_agente`) escolhe e ocupa sob `trava_da_escolha`.
+static ESCOLHENDO: Mutex<()> = Mutex::new(());
+static SEM_TELA: std::sync::LazyLock<Mutex<HashMap<(PathBuf, String), u32>>> = std::sync::LazyLock::new(Default::default);
+
+/// Segure do momento de escolher a conta até a vaga dela estar ocupada (sessão aberta ou `Vaga` na mão).
+pub(crate) fn trava_da_escolha() -> std::sync::MutexGuard<'static, ()> {
+    ESCOLHENDO.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Vaga de uma execução sem tela numa conta; solta quando sai de escopo.
+pub(crate) struct Vaga { chave: (PathBuf, String) }
+
+impl Drop for Vaga {
+    fn drop(&mut self) {
+        let mut vagas = SEM_TELA.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(n) = vagas.get_mut(&self.chave) {
+            *n = n.saturating_sub(1);
+            if *n == 0 { vagas.remove(&self.chave); }
+        }
+    }
+}
+
+pub(crate) fn ocupar_sem_tela(state: &EngineState, perfil: &str) -> Vaga {
+    let chave = (pasta(state).to_path_buf(), perfil.to_owned());
+    *SEM_TELA.lock().unwrap_or_else(std::sync::PoisonError::into_inner).entry(chave.clone()).or_insert(0) += 1;
+    Vaga { chave }
+}
+
 /* ── Fluxos (sem tela) ───────────────────────────────────────────────────────────────────────── */
 
 /// Roda um agente de fluxo pela fila. `rodar(None)` = a escolha de conta de sempre (do modelo de
@@ -151,12 +227,21 @@ pub(crate) fn com_queda_sem_tela(state: &EngineState, provider: &str, conta: &st
     if !pela_fila { return rodar(None); }
     let perfil_de = |id: &str| omni_core::profiles(dir).into_iter().find(|p| p.id == id && p.provider == provider);
     if retomando {
-        return rodar(conta_anterior.as_deref().and_then(perfil_de));
+        let perfil = conta_anterior.as_deref().and_then(perfil_de);
+        let _vaga = perfil.as_ref().map(|p| ocupar_sem_tela(state, &p.id)); // Fork (fix-orquestracao)
+        return rodar(perfil);
     }
     let mut falharam: Vec<String> = Vec::new();
     loop {
         let refs: Vec<&str> = falharam.iter().map(String::as_str).collect();
-        let escolha = escolher_para(state, provider, Some(projeto), false, true, &refs);
+        // Fork (fix-orquestracao, achado 9): escolher e ocupar a vaga na mesma seção crítica; a vaga
+        // fica ocupada enquanto `rodar` roda (até o fim desta volta).
+        let (escolha, _vaga) = {
+            let _escolhendo = trava_da_escolha();
+            let escolha = escolher_para(state, provider, Some(projeto), false, true, &refs);
+            let vaga = escolha.perfil_id.as_deref().map(|id| ocupar_sem_tela(state, id));
+            (escolha, vaga)
+        };
         let Some(id) = escolha.perfil_id else {
             return Err(anyhow!("Fila de contas sem conta para {provider}: {}", escolha.explicacao.join("; ")));
         };
