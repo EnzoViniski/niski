@@ -8,13 +8,14 @@ const MAX_ITENS: usize = 500;
 const MAX_VISTOS: usize = 4_096;
 const ARQUIVO: &str = "atividade-vista.json";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-enum Tipo { PrecisaDeVoce, Terminou, Erro, Limite, SubagenteTerminou }
+enum Tipo { Agendamento, PrecisaDeVoce, Terminou, Erro, Limite, SubagenteTerminou }
 
 impl Tipo {
     fn resumo(self) -> &'static str {
         match self {
+            Self::Agendamento => "Agendamento",
             Self::PrecisaDeVoce => "Precisa de você",
             Self::Terminou => "Terminou o turno",
             Self::Erro => "O agente encontrou um erro",
@@ -24,7 +25,7 @@ impl Tipo {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) struct Item {
     id: String,
     conversa: String,
@@ -132,6 +133,7 @@ fn coletar(state: &EngineState) -> Vec<Item> {
             visto: false, resumo: tipo.resumo().into(), orquestrador,
         });
     }
+    itens.extend(super::agendamentos::atividade(state).into_iter().filter_map(|i| serde_json::from_value(i).ok())); // Fork: tipo agendamento (3D).
     itens
 }
 

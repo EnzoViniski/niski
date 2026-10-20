@@ -22,6 +22,8 @@ pub(crate) mod limite_de_sessoes;
 // Fork: caixa única de atividade do engine, compartilhada por PC e celular.
 #[path = "../atividade.rs"]
 mod caixa_de_atividade;
+#[path = "../agendamentos.rs"]
+mod agendamentos; // Fork: executor e rotas de agendamentos.
 
 // Fork (Onda 2.0): o antigo `mobile.rs` dividido por assunto, só movido. Cada filho faz
 // `use super::*` e este módulo traz os itens de volta com `use filho::*`.
@@ -114,6 +116,7 @@ impl MobileRuntime {
 }
 
 pub fn start(state: Arc<EngineState>) {
+    agendamentos::iniciar(state.clone()); // Fork: continua com a janela fechada.
     caixa_de_atividade::iniciar(state.clone()); // Fork: observa mesmo sem clientes conectados.
     // A primeira leitura do histórico abre o começo de todo transcript de todas as contas: segundos,
     // numa máquina com muito histórico. Feita já na subida, quando ninguém está esperando, a primeira
@@ -181,6 +184,7 @@ pub fn start(state: Arc<EngineState>) {
 /// ao servidor HTTP (`router`) e ao desktop (`local`).
 fn rotas() -> Router<Arc<EngineState>> {
     Router::new().route("/conversas",get(conversations))
+        .merge(agendamentos::rotas()) // Fork: agendamentos (3D).
         .merge(caixa_de_atividade::rotas()) // Fork: atividade e vistos, mesma API nos dois transportes.
         .route("/projetos",get(projects))
         .route("/painel",get(painel))

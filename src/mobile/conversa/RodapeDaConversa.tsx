@@ -1,6 +1,6 @@
 // Fork (Onda 2.0): o rodapé da conversa — avisos, campo de mensagem, ajustes, renomear, modo,
 // bifurcar e ocultar — saiu do `ConversationDetail` (antes no `MobileApp.tsx`) sem mudança de lógica.
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { ArchiveIcon, EditIcon, GitBranchIcon } from "../../components/ui/PixelIcon";
 import type { Conversation, Timeline } from "../api";
 import { Composer } from "../Composer";
@@ -9,6 +9,7 @@ import { modoVigente, SeloDoModo } from "../SeloDoModo";
 import { AjustesDaConversa, type Ajustes } from "../AjustesDaConversa";
 import type { Anexo } from "../anexos";
 import { ControlesDaConversa, type ComandoDaConversa, type ModoDePermissao } from "./ControlesDaConversa";
+import { TelaDeAgendamentos } from "../../features/agendamentos/TelaDeAgendamentos"; // Fork: agenda da conversa (3D).
 import { RenomearConversa } from "./RenomearConversa";
 
 export interface RodapeDaConversaProps {
@@ -49,9 +50,12 @@ export function RodapeDaConversa({ conversation, timeline, falhaEnvio, error, an
   texto, onTexto, anexos, onAdicionar, onRemover, onEnviar, podeEnviar, busy, onRenomear, onAjustar, onRetomar, onModo, onComando,
   bifurcando, onBifurcar, onOcultar, abrirConversa, onParar, parando, buscarArquivos }: RodapeDaConversaProps) {
   const [editandoNome, setEditandoNome] = useState(false);
+  const [agendando, setAgendando] = useState(false);
+  const fecharAgenda = useCallback(() => setAgendando(false), []);
   const capability = conversation.capabilities;
 
   return <>
+    {agendando && <TelaDeAgendamentos inicial={{ conversa: conversation.id, titulo: conversation.title, prompt: texto }} onFechar={fecharAgenda} />}
     {(falhaEnvio || error) && <p role="alert" className="m-alerta">{falhaEnvio ?? error}</p>}
     {anexoGrande && <p className="m-aviso">Tire o anexo acima de 25 MB para enviar.</p>}
     {/* O motivo genérico só aparece com o agente parado: trabalhando, o "ocupado" é esperado e o
@@ -101,10 +105,10 @@ export function RodapeDaConversa({ conversation, timeline, falhaEnvio, error, an
           </button>
         )}
       </>}
-      // Sessão ligada = há `capabilities` (engine antigo não manda `live`).
-      direita={conversation.capabilities && <ControlesDaConversa conversaId={conversation.id} provider={conversation.provider}
+      // Fork: agendar também funciona com a conversa fechada ou durante turno.
+      direita={<ControlesDaConversa conversaId={conversation.id} provider={conversation.provider}
         modo={modoVigente(conversation.mode, timeline?.modo_de_permissao)} fast={conversation.fast}
-        pronto={Boolean(conversation.capabilities?.prompt) && !busy} onModo={onModo} onComando={onComando} />}
+        pronto={Boolean(conversation.capabilities?.prompt) && !busy} onModo={onModo} onComando={onComando} onAgendar={() => setAgendando(true)} />}
       onParar={onParar}
       parando={parando}
       buscarArquivos={buscarArquivos} />

@@ -1,5 +1,6 @@
 //! Read-only provider data. Never reads authentication files or calls provider APIs.
 pub mod cli_path;
+pub mod agendamentos; // Fork: calendário e destinos dos agendamentos.
 // Fork: comandos interativos permitidos nos controles da Conversa.
 pub mod comandos_oficiais;
 pub mod usage;

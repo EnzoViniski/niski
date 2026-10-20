@@ -9,8 +9,9 @@ export type ModoDePermissao = "default" | "acceptEdits" | "plan" | "auto";
 export type ComandoDaConversa = "fast" | "branch" | "rewind" | "compact";
 const MODOS: ModoDePermissao[] = ["default", "acceptEdits", "plan", "auto"];
 
-export function ControlesDaConversa({ conversaId, provider, modo, fast, pronto, onModo, onComando }: {
+export function ControlesDaConversa({ conversaId, provider, modo, fast, pronto, onModo, onComando, onAgendar }: {
   conversaId: string; provider: string | null; modo?: string | null; fast?: boolean | null; pronto: boolean;
+  onAgendar?: () => void; // Fork: agendar o rascunho pelo menu existente (3D).
   onModo: (alvo: ModoDePermissao) => Promise<void>;
   onComando: (comando: ComandoDaConversa, argumento?: string) => Promise<void>;
 }) {
@@ -32,7 +33,7 @@ export function ControlesDaConversa({ conversaId, provider, modo, fast, pronto, 
     setPedido(nome); setErro(null); setMenu(false);
     try { await acao(); } catch (e) { setErro(String(e)); } finally { setPedido(null); }
   }
-  if (provider !== "claude" && provider !== "codex") return null;
+  if (provider !== "claude" && provider !== "codex" && !onAgendar) return null;
   return <div className="conversa-controles" aria-label="Controles da conversa">
     {provider === "claude" && <label className="conversa-controle-modo">
       <span className="sr-only">Modo do agente</span>
@@ -46,14 +47,15 @@ export function ControlesDaConversa({ conversaId, provider, modo, fast, pronto, 
       aria-label={fast === true ? "Desligar fast" : "Ligar fast"} aria-pressed={fast === true}
       title="Fast tem custo maior. O estado é confirmado pela CLI."
       onClick={() => void executar("fast", () => onComando("fast", fast === true ? "off" : "on"))}>Fast{fast == null ? " ?" : fast ? " ligado" : " desligado"}</button>}
-    <button type="button" className="composer-botao" aria-label="Mais controles" aria-expanded={menu} disabled={bloqueado}
+    <button type="button" className="composer-botao" aria-label="Mais controles" aria-expanded={menu} disabled={bloqueado && !onAgendar}
       onClick={() => setMenu(!menu)}>…</button>
     {menu && <div className="conversa-controles-menu" role="group" aria-label="Mais ações da conversa">
+      {onAgendar && <button type="button" onClick={() => { setMenu(false); onAgendar(); }}>Agendar esta mensagem</button>}
       {provider === "claude" && <>
         <button type="button" disabled={bloqueado} onClick={() => void executar("rewind", async () => { await onComando("rewind"); setTerminal("rewind"); })}>Voltar a um ponto</button>
         <button type="button" disabled={bloqueado} onClick={() => void executar("branch", async () => { await onComando("branch"); setTerminal("branch"); })}>Ramificar aqui</button>
       </>}
-      <button type="button" disabled={bloqueado} onClick={() => void executar("compact", () => onComando("compact"))}>Compactar</button>
+      {(provider === "claude" || provider === "codex") && <button type="button" disabled={bloqueado} onClick={() => void executar("compact", () => onComando("compact"))}>Compactar</button>}
     </div>}
     {pedido && <span role="status" className="m-dica">Aguardando a CLI…</span>}
     {erro && <span role="alert" className="m-alerta">{erro}</span>}
