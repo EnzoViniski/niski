@@ -293,11 +293,18 @@ fn preparar(state: &Arc<EngineState>, a: &Agendamento) -> Result<String, ApiErro
             } else {
                 conversa
             };
-            if current(state, alvo)
-                .ok()
-                .is_some_and(|(_, viva)| viva.is_some())
-            {
-                return Ok(alvo.clone());
+            if let Ok((_, Some(viva))) = current(state, alvo) {
+                // Fork: Stop conserva Live no mapa; só reutiliza uma sessão com processo ativo.
+                let (sid, ativa) = {
+                    let meta = viva.meta.lock().map_err(|_| falha())?;
+                    (meta.id.clone(), meta.pid.is_some() && matches!(meta.state,
+                        SessionState::Working | SessionState::Answered | SessionState::ApprovalRequired))
+                };
+                if ativa && viva.child.lock().map_err(|_| falha())?.try_wait().map_err(|_| falha())?.is_none() {
+                    return Ok(alvo.clone());
+                }
+                // O planejador de retomada também recusa uma Live vinculada, mesmo já encerrada.
+                close_session(state, &sid).map_err(|_| falha())?;
             }
             limite_de_sessoes::conferir(state)?;
             let plano = plano_de_retomada(

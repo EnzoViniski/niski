@@ -1,6 +1,9 @@
 use super::*;
 use omni_core::agendamentos::Regra;
 
+#[path = "agendamentos_sessao_testes.rs"]
+mod sessao;
+
 fn agenda(regra: Regra) -> Agendamento {
     Agendamento {
         id: "teste".into(),
@@ -569,7 +572,15 @@ fn conversa_fechada_reabre_com_resume_na_mesma_conta() {
     // Outra ocorrência na mesma conversa reutiliza a sessão viva.
     assert_eq!(preparar(&state, &a).unwrap(), "conv-teste");
     assert_eq!(state.sessions.lock().unwrap().len(), 1);
-    let _ = close_session(&state, &sid);
+    // Fork: Stop mantém a entrada Live, mas a próxima ocorrência deve retomar em outra PTY.
+    stop_session(&state, &sid).unwrap();
+    assert!(matches!(state.sessions.lock().unwrap().get(&sid), Some(SessionEntry::Live(_))));
+    assert_eq!(preparar(&state, &a).unwrap(), "conv-teste");
+    let (_, Some(retomada)) = current(&state, "conv-teste").unwrap() else { panic!("não retomou após Stop") };
+    let nova_sid = retomada.meta.lock().unwrap().id.clone();
+    assert_ne!(nova_sid, sid);
+    assert_eq!(state.sessions.lock().unwrap().len(), 1);
+    let _ = close_session(&state, &nova_sid);
     assert_eq!(args.unwrap(), "--resume\nsessao-sintetica\n");
     assert_eq!(conta.unwrap(), perfil.to_string_lossy());
 }
