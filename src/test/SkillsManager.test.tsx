@@ -81,8 +81,7 @@ it("explica como começar quando não existem contas nem projeto", async () => {
   expect(await screen.findByText(/Nenhuma conta de Claude ou Codex cadastrada/)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Instalar skill…" })).not.toBeInTheDocument();
 });
-// Bug: refresh atualiza a lista, mas não limpa error depois de uma leitura bem-sucedida.
-it.fails("limpa o aviso de falha ao recuperar pelo botão Atualizar", async () => {
+it("limpa o aviso de falha ao recuperar pelo botão Atualizar", async () => {
   vi.mocked(listSkills).mockRejectedValueOnce(new Error("Não foi possível listar"));
   render(<SkillsManager projectPath={null} />);
   expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível listar");

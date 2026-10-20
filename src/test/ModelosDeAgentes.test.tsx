@@ -111,8 +111,7 @@ it("mantém o editor aberto quando salvar falha", async () => {
   expect(screen.getByRole("textbox", { name: "Nome" })).toHaveValue("novo");
 });
 
-// Bug: nomeDeArquivo remove o hífen final a cada tecla no onChange de ag-nome.
-it.fails("permite digitar um nome de agente com hífen", async () => {
+it("permite digitar um nome de agente com hífen", async () => {
   render(<ModelosDeAgentes projectPath={null} />);
   await userEvent.click(screen.getByRole("button", { name: "Em branco" }));
   const nome = screen.getByRole("textbox", { name: "Nome" });

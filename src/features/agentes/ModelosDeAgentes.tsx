@@ -62,7 +62,9 @@ export function ModelosDeAgentes({ projectPath }: { projectPath: string | null }
     if (!edicao) return;
     setSalvando(true); setErro(null);
     try {
-      const { modelo, escopo, nomeAnterior, escopoAnterior } = edicao;
+      const { escopo, nomeAnterior, escopoAnterior } = edicao;
+      // Fork: normalize só ao salvar para preservar o hífen durante a digitação; o backend valida o nome.
+      const modelo = { ...edicao.modelo, name: nomeDeArquivo(edicao.modelo.name) };
       // Mudou de escopo: grava no novo e tira do antigo, para não ficar duplicado.
       await salvarAgente(escopo, projectPath, modelo, escopoAnterior === escopo ? nomeAnterior : undefined);
       if (escopoAnterior && escopoAnterior !== escopo && nomeAnterior) await apagarAgente(escopoAnterior, projectPath, nomeAnterior);
@@ -236,7 +238,7 @@ function EditorDeAgente({ edicao, perfis, modelos, temProjeto, salvando, onMudar
       }>
       <div className="agente-editor-grade">
         <Field label="Nome" htmlFor="ag-nome" description="Vira o nome do arquivo: minúsculas, números e hífen.">
-          <Input id="ag-nome" value={modelo.name} onChange={(e) => mudar({ name: nomeDeArquivo(e.target.value) || e.target.value.toLowerCase() })} placeholder="revisor-a11y" />
+          <Input id="ag-nome" value={modelo.name} onChange={(e) => mudar({ name: e.target.value })} placeholder="revisor-a11y" />
         </Field>
         <Field label="Onde salvar" htmlFor="ag-escopo" description={escopo === "global" ? "Vale em todo projeto (~/.omni/agents)." : "Só neste projeto (.omni/agents, vai no git)."}>
           <Select id="ag-escopo" value={escopo} onChange={(v) => onMudar({ ...edicao, escopo: v })}

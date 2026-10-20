@@ -106,8 +106,7 @@ it("conclui mesmo se a captura do resultado não estiver disponível", async () 
   await passar(1000);
   expect(dispatch).toHaveBeenCalledWith({ type: "TASK_FINISHED", id: "task", outcome: "done", resultNote: "" });
 });
-// Bug: o delay de inicialização continua depois do cleanup (useKanbanDispatcher.ts:118–121).
-it.fails("não envia o prompt depois de desmontar durante a inicialização", async () => {
+it("não envia o prompt depois de desmontar durante a inicialização", async () => {
   const { unmount } = montar();
   await passar(0);
   expect(spawnTerminal).toHaveBeenCalledOnce();
