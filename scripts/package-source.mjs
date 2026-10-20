@@ -13,8 +13,8 @@ if (destino === RAIZ || !relative(destino, RAIZ).startsWith("..")) throw new Err
 if (existsSync(destino) && readdirSync(destino).length) throw new Error("A pasta de destino precisa estar vazia.");
 if (git("status", "--porcelain").trim()) throw new Error("Faça commit das alterações antes de exportar a versão atual.");
 
-const privado = (nome) => /^(?:roadmaps\/|docs\/fork\/|docs\/screenshots\/|\.git(?:\/|$)|\.claude\/|\.codex\/|\.agents\/|\.omni(?:-agents)?\/|installers\/|target[^/]*\/|node_modules\/|dist(?:-mobile)?\/)/.test(nome)
-  || ["CLAUDE.md", "AGENTS.md", "roadmap.md", "src-tauri/Cargo.lock"].includes(nome)
+const privado = (nome) => /^(?:roadmaps\/|docs\/fork\/|docs\/screenshots\/|screenshots\/|\.git(?:\/|$)|\.claude\/|\.codex\/|\.agents\/|\.omni(?:-agents)?\/|installers\/|target[^/]*\/|node_modules\/|dist(?:-mobile)?\/)/.test(nome)
+  || ["CLAUDE.md", "AGENTS.md", "RESUME.md", "promptbase.md", "roadmap.md", "src-tauri/Cargo.lock"].includes(nome)
   || /(?:^|\/)(?:engine\.token|mobile\.json|\.credentials\.json|\.claude\.json|\.Codex\.json|conversations\.json|sessions\.json|profiles\.json|workspace(?:-[^/]*)?\.json|memoria-compartilhada\.json)$/.test(nome)
   || /(?:^|\/)(?:arquivo-conversas|logs)(?:\/|$)/.test(nome)
   || /\.(?:key|pem|p12|pfx|jsonl|log|parcial)$/.test(nome)
