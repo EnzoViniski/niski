@@ -1,0 +1,18 @@
+// Fork (Onda 2.0): o subtítulo da conversa no topo do celular, antes inline no `MobileApp`, sem mudança.
+import { AgentIcon } from "../../components/ui/AgentIcon";
+import { nomeDaPlataforma } from "../../lib/plataformasDeAgente";
+import { rotuloDoEstado, tomDoEstado } from "../../lib/estadosDaSessao";
+import type { Conversation } from "../api";
+
+/** Ponto de estado, agente e "Claude · Trabalhando · projeto" abaixo do título. */
+export function CabecalhoDaConversa({ conversa, projeto }: { conversa: Conversation; projeto?: { name: string } | null }) {
+  const aprovar = Boolean(conversa.capabilities?.approve);
+  return <>
+    <span className={`m-dot ${tomDoEstado(conversa.state, aprovar)}`} aria-hidden />
+    {conversa.provider && <AgentIcon provider={conversa.provider} size={12} className="shrink-0" />}
+    <span className="truncate">
+      {[nomeDaPlataforma(conversa.provider) ?? conversa.provider, rotuloDoEstado(conversa.state) ?? "Sem sessão ativa", projeto?.name]
+        .filter(Boolean).join(" · ")}
+    </span>
+  </>;
+}
