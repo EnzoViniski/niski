@@ -339,10 +339,22 @@ fn comando_da_cli(exe: &Path) -> Command {
     if exe.extension().is_some_and(|e| e.eq_ignore_ascii_case("cmd")) { let mut c = Command::new("cmd"); c.arg("/C").arg(exe); c } else { Command::new(exe) }
 }
 
+/// Fork (3B): conta pela Fila de contas (`conta: auto` no modelo de agente, ou sem conta com "usar nos
+/// fluxos" ligado) e, só aqui (sem tela), queda para a próxima conta quando a CLI falha por limite ou
+/// login. Retomar fica na conta em que a sessão nasceu. Ver `roteamento.rs`.
+#[allow(clippy::too_many_arguments)]
+fn rodar_agente(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &str, retomar: Option<&str>, pasta: &str, projeto: &str, ajuste: &Ajuste) -> Result<String> {
+    let modelo = modelo_do_agente(agente, projeto)?;
+    let anterior = v.lock().ok().and_then(|e| e.nos.get(no).and_then(|n| n.conta.clone()));
+    mobile::roteamento::com_queda_sem_tela(state, &modelo.cli, &modelo.conta, projeto, anterior, retomar.is_some(),
+        |perfil| rodar_agente_na_conta(state, v, no, agente, prompt, retomar, pasta, projeto, ajuste, perfil))
+}
+
 /// Roda um agente sem tela, guardando cada evento no histórico do nó. Pausar/cancelar mata o processo
 /// (e aqui vira `PAUSADO`). Devolve o texto final.
 #[allow(clippy::too_many_arguments)]
-fn rodar_agente(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &str, retomar: Option<&str>, pasta: &str, projeto: &str, ajuste: &Ajuste) -> Result<String> {
+fn rodar_agente_na_conta(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &str, retomar: Option<&str>, pasta: &str, projeto: &str, ajuste: &Ajuste,
+    perfil_da_fila: Option<omni_core::Profile>) -> Result<String> {
     let mut modelo = modelo_do_agente(agente, projeto)?;
     if let Some(m) = &ajuste.modelo { modelo.modelo = m.clone(); }
     if let Some(e) = &ajuste.esforco { modelo.esforco = e.clone(); }
@@ -350,11 +362,11 @@ fn rodar_agente(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &
     if !modelo.esforco.is_empty() && !argumento_seguro(&modelo.esforco) { return Err(anyhow!("Esforço inválido: {}", modelo.esforco)); }
     let dir = state.state_file.parent().ok_or_else(|| anyhow!("engine"))?;
     let perfis = omni_core::profiles(dir);
-    let perfil = perfis.iter().filter(|p| p.provider == modelo.cli)
+    let perfil = perfil_da_fila.or_else(|| perfis.iter().filter(|p| p.provider == modelo.cli)
         .find(|p| !modelo.conta.is_empty() && p.id == modelo.conta)
         .or_else(|| perfis.iter().find(|p| p.provider == modelo.cli && p.builtin))
         .or_else(|| perfis.iter().find(|p| p.provider == modelo.cli))
-        .cloned();
+        .cloned());
     let exe = executavel(&modelo.cli).ok_or_else(|| anyhow!("CLI “{}” não encontrada neste PC", modelo.cli))?;
     let mut c = comando_da_cli(&exe);
     match modelo.cli.as_str() {

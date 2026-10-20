@@ -4,15 +4,16 @@
 //! sessões abertas é o engine; aqui só entram valores e sai a escolha com a explicação. Assim a
 //! regra inteira é testável em tabela e a tela pode mostrar "por que esta conta" sem repetir a regra.
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::path::Path;
 
 use crate::usage::{AccountUsage, UsageWindow};
 
 /// Assinatura cobra por janela de uso; API cobra por token. Só a API tem orçamento "normal" —
 /// na assinatura o orçamento só vale para o uso extra (ver [`Conta::uso_extra`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum TipoConta { Assinatura, Api }
+pub enum TipoConta { #[default] Assinatura, Api }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Conta {
@@ -83,16 +84,75 @@ pub enum Modo {
     Auto,
 }
 
+/// O que o usuário ajusta por conta na tela "Fila de contas" e fica no `routing.json`. Apelido e
+/// provider não entram: vêm do `profiles.json`, que é o dono deles (ver [`Politica::contas`]).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct AjustesDaConta {
+    #[serde(default)] pub tipo: TipoConta,
+    #[serde(default)] pub plano: Option<String>,
+    #[serde(default)] pub uso_extra: bool,
+    #[serde(default)] pub orcamento_usd: Option<f64>,
+    /// Quanto já foi gasto do orçamento, como o usuário digitou (o app não sabe a fatura).
+    #[serde(default)] pub gasto_usd: f64,
+    #[serde(default)] pub expira_em_ms: Option<u64>,
+    #[serde(default)] pub max_concorrencia: Option<u32>,
+    #[serde(default)] pub confidencial_ok: bool,
+}
+
+/// Teto de etapas e de pastas confidenciais: o arquivo é editado pela tela, não precisa de mais.
+const MAXIMO_DE_ITENS: usize = 64;
+
 /// Formato do `routing.json`. Ler e gravar o arquivo é do engine; aqui só a (de)serialização,
 /// para o formato ter um dono só.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Politica {
     #[serde(default)] pub modo: Modo,
     /// Ids de perfil, na ordem de preferência.
     #[serde(default)] pub etapas: Vec<String>,
+    /// Ajustes por id de perfil. Conta sem entrada usa o padrão (assinatura, sem uso extra).
+    #[serde(default)] pub contas: BTreeMap<String, AjustesDaConta>,
+    /// Pastas de projeto confidenciais (a pasta e tudo dentro dela): só contas com `confidencial_ok`.
+    #[serde(default)] pub projetos_confidenciais: Vec<String>,
+    /// Agentes de fluxo sem conta definida também usam a fila (e trocam de conta após falha).
+    #[serde(default)] pub usar_em_fluxos: bool,
 }
 
 impl Politica {
+    /// Junta o cadastro (`profiles.json`) com os ajustes desta política.
+    pub fn contas(&self, perfis: &[crate::Profile]) -> Vec<Conta> {
+        perfis.iter().map(|perfil| {
+            let ajustes = self.contas.get(&perfil.id).cloned().unwrap_or_default();
+            Conta { perfil_id: perfil.id.clone(), apelido: perfil.name.clone(), provider: perfil.provider.clone(),
+                tipo: ajustes.tipo, plano: ajustes.plano, uso_extra: ajustes.uso_extra, orcamento_usd: ajustes.orcamento_usd,
+                gasto_usd: ajustes.gasto_usd, expira_em_ms: ajustes.expira_em_ms, max_concorrencia: ajustes.max_concorrencia,
+                confidencial_ok: ajustes.confidencial_ok }
+        }).collect()
+    }
+
+    /// O projeto está dentro de uma pasta marcada como confidencial (por componente de caminho:
+    /// `/a/b` não cobre `/a/bc`).
+    pub fn confidencial(&self, projeto: &str) -> bool {
+        let projeto = Path::new(projeto.trim());
+        self.projetos_confidenciais.iter().map(|p| p.trim()).filter(|p| !p.is_empty()).any(|pasta| projeto.starts_with(pasta))
+    }
+
+    /// Números que o usuário digita: finitos, não negativos e com teto de concorrência ≥ 1.
+    pub fn validar(&self) -> Result<(), String> {
+        if self.etapas.len() > MAXIMO_DE_ITENS || self.projetos_confidenciais.len() > MAXIMO_DE_ITENS || self.contas.len() > MAXIMO_DE_ITENS {
+            return Err(format!("no máximo {MAXIMO_DE_ITENS} contas e pastas"));
+        }
+        if self.etapas.iter().any(|id| id.trim().is_empty() || id.len() > 200) { return Err("etapa sem id de conta".into()); }
+        for (id, ajustes) in &self.contas {
+            let valido = |n: f64| n.is_finite() && n >= 0.0;
+            if !valido(ajustes.gasto_usd) || ajustes.orcamento_usd.is_some_and(|o| !valido(o)) {
+                return Err(format!("{id}: orçamento e gasto são valores em US$ a partir de 0"));
+            }
+            if ajustes.max_concorrencia == Some(0) { return Err(format!("{id}: sessões simultâneas a partir de 1")); }
+            if ajustes.plano.as_ref().is_some_and(|p| p.chars().count() > 60) { return Err(format!("{id}: plano com até 60 caracteres")); }
+        }
+        Ok(())
+    }
+
     pub fn carregar(texto: &str) -> Result<Self, String> {
         serde_json::from_str(texto).map_err(|erro| format!("routing.json inválido: {erro}"))
     }
@@ -116,11 +176,15 @@ pub struct Pedido {
     pub headless: bool,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct Escolha {
     pub perfil_id: Option<String>,
     /// Uma linha por conta avaliada: por que foi pulada, e por que a escolhida venceu.
     pub explicacao: Vec<String>,
+    /// Só na sessão interativa após falha: a conta que a fila escolheria, para o aviso sugerir
+    /// (o usuário decide; nada troca sozinho).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sugestao: Option<String>,
 }
 
 /// Situação de uma conta que passou nos filtros, para ordenar e explicar.
@@ -141,11 +205,25 @@ pub fn escolher(politica: &Politica, contas: &[Conta], cotas: &HashMap<String, C
 /// histórico debaixo do usuário, então devolve `None` com o aviso para a interface mostrar.
 pub fn proxima_apos_falha(politica: &Politica, contas: &[Conta], cotas: &HashMap<String, Cota>,
     pedido: &Pedido, falharam: &[&str]) -> Escolha {
-    if !pedido.headless {
-        return Escolha { perfil_id: None, explicacao: vec![
-            "sessão interativa: sem troca automática de conta; avise o usuário para escolher outra".to_owned()] };
+    let escolha = escolher_sem(politica, contas, cotas, pedido, falharam);
+    if pedido.headless { return escolha; }
+    let mut explicacao = vec!["sessão interativa: sem troca automática de conta; avise o usuário para escolher outra".to_owned()];
+    if let Some(conta) = escolha.perfil_id.as_ref().and_then(|id| contas.iter().find(|c| &c.perfil_id == id)) {
+        explicacao.push(format!("sugestão: {}", rotulo(conta)));
     }
-    escolher_sem(politica, contas, cotas, pedido, falharam)
+    explicacao.extend(escolha.explicacao);
+    Escolha { perfil_id: None, explicacao, sugestao: escolha.perfil_id }
+}
+
+/// A CLI sem tela falhou por algo da conta (limite de uso, cobrança, login) e não da tarefa? Só
+/// então vale tentar a próxima conta. Erro de contexto (prompt longo demais) seria igual em
+/// qualquer conta. Lista curta e conservadora: na dúvida, não troca.
+pub fn falha_de_conta(erro: &str) -> bool {
+    let texto = erro.to_lowercase();
+    const DA_TAREFA: [&str; 3] = ["context", "too long", "prompt is"];
+    const DA_CONTA: [&str; 12] = ["usage limit", "rate limit", "rate_limit", "limit reached", "hit your limit", "429", "quota",
+        "credit balance", "401", "unauthorized", "/login", "not logged in"];
+    !DA_TAREFA.iter().any(|t| texto.contains(t)) && DA_CONTA.iter().any(|t| texto.contains(t))
 }
 
 fn escolher_sem(politica: &Politica, contas: &[Conta], cotas: &HashMap<String, Cota>, pedido: &Pedido,
@@ -167,7 +245,7 @@ fn escolher_sem(politica: &Politica, contas: &[Conta], cotas: &HashMap<String, C
                 // No modo fila a primeira apta encerra: as seguintes nem são consultadas.
                 if politica.modo == Modo::Fila {
                     explicacao.push(format!("{nome}: escolhida — primeira da fila que passou nos filtros ({})", apta.resumo));
-                    return Escolha { perfil_id: Some(conta.perfil_id.clone()), explicacao };
+                    return Escolha { perfil_id: Some(conta.perfil_id.clone()), explicacao, sugestao: None };
                 }
                 aptas.push(apta);
             }
@@ -182,14 +260,14 @@ fn escolher_sem(politica: &Politica, contas: &[Conta], cotas: &HashMap<String, C
     });
     let Some(vencedora) = aptas.first() else {
         explicacao.push("nenhuma conta da fila passou nos filtros".to_owned());
-        return Escolha { perfil_id: None, explicacao };
+        return Escolha { perfil_id: None, explicacao, sugestao: None };
     };
     let motivo = if vencedora.pior.is_some() { "menor uso entre as aptas" } else { "nenhuma apta tem cota conhecida; vale a ordem da fila" };
     explicacao.push(format!("{}: escolhida — {motivo} ({})", rotulo(vencedora.conta), vencedora.resumo));
     for outra in &aptas[1..] {
         explicacao.push(format!("{}: apta, mas perdeu no modo auto ({})", rotulo(outra.conta), outra.resumo));
     }
-    Escolha { perfil_id: Some(vencedora.conta.perfil_id.clone()), explicacao }
+    Escolha { perfil_id: Some(vencedora.conta.perfil_id.clone()), explicacao, sugestao: None }
 }
 
 fn rotulo(conta: &Conta) -> String { format!("{} ({})", conta.apelido, conta.perfil_id) }
@@ -214,8 +292,10 @@ fn avaliar<'a>(conta: &'a Conta, cota: Option<&Cota>, pedido: &Pedido) -> Result
     if conta.max_concorrencia.is_some_and(|max| em_uso >= max) {
         return Err(format!("concorrência no máximo ({em_uso} de {})", conta.max_concorrencia.unwrap_or_default()));
     }
+    // Sem janelas, mas com a fonte que tentou ler: a explicação diz qual e há quanto tempo.
     let Some(cota) = cota.filter(|c| !c.janelas.is_empty()) else {
-        return Ok(Apta { conta, pior: None, resumo: "cota desconhecida".to_owned() });
+        let resumo = match cota { Some(c) => format!("cota desconhecida, {}", idade(c, pedido.agora_ms)), None => "cota desconhecida".to_owned() };
+        return Ok(Apta { conta, pior: None, resumo });
     };
     let mut pior = 0.0_f64;
     let mut partes = Vec::new();
@@ -279,7 +359,7 @@ mod testes {
             ("d".to_owned(), cota(0.0, Some(AGORA + HORA))),
         ]);
         Cenario {
-            politica: Politica { modo: Modo::Fila, etapas: fila(&["a", "b", "c"]) },
+            politica: Politica { modo: Modo::Fila, etapas: fila(&["a", "b", "c"]), ..Default::default() },
             contas: vec![conta("a", "claude"), conta("b", "claude"), c, conta("d", "codex")],
             cotas,
             pedido: Pedido { provider: "claude".into(), agora_ms: AGORA, headless: true, ..Default::default() },
@@ -300,14 +380,14 @@ mod testes {
             ("fila pega a primeira apta", |_| {}, Some("a"), "primeira da fila"),
             ("auto pega o menor uso", |c| c.politica.modo = Modo::Auto, Some("b"), "menor uso"),
             ("auto deixa desconhecida por último", |c| {
-                c.politica = Politica { modo: Modo::Auto, etapas: fila(&["c", "a"]) };
+                c.politica = Politica { modo: Modo::Auto, etapas: fila(&["c", "a"]), ..Default::default() };
             }, Some("a"), "cota desconhecida"),
             ("auto só com desconhecidas segue a fila", |c| {
-                c.politica = Politica { modo: Modo::Auto, etapas: fila(&["c"]) };
+                c.politica = Politica { modo: Modo::Auto, etapas: fila(&["c"]), ..Default::default() };
             }, Some("c"), "nenhuma apta tem cota conhecida"),
             ("auto empata pela ordem da fila", |c| {
                 c.cotas.insert("a".into(), cota(20.0, Some(AGORA + HORA)));
-                c.politica = Politica { modo: Modo::Auto, etapas: fila(&["b", "a"]) };
+                c.politica = Politica { modo: Modo::Auto, etapas: fila(&["b", "a"]), ..Default::default() };
             }, Some("b"), "perdeu no modo auto"),
             ("provider diferente", |c| c.politica.etapas = fila(&["d", "a"]), Some("a"), "provider codex ≠ claude"),
             ("confidencial só em conta liberada", |c| c.pedido.confidencial = true, Some("c"), "projeto confidencial"),
@@ -380,7 +460,7 @@ mod testes {
     #[test]
     fn repeticao_nao_duplica_no_auto() {
         let mut cenario = base();
-        cenario.politica = Politica { modo: Modo::Auto, etapas: fila(&["b", "a", "b"]) };
+        cenario.politica = Politica { modo: Modo::Auto, etapas: fila(&["b", "a", "b"]), ..Default::default() };
         let escolha = escolher(&cenario.politica, &cenario.contas, &cenario.cotas, &cenario.pedido);
         assert_eq!(escolha.perfil_id.as_deref(), Some("b"));
         assert_eq!(escolha.explicacao.iter().filter(|l| l.starts_with("conta b")).count(), 1, "{:?}", escolha.explicacao);
@@ -400,19 +480,81 @@ mod testes {
         let escolha = proxima_apos_falha(&cenario.politica, &cenario.contas, &cenario.cotas, &cenario.pedido, &["a"]);
         assert_eq!(escolha.perfil_id, None);
         assert!(escolha.explicacao[0].contains("sessão interativa"));
+        // Fork (3B): o aviso sugere a próxima, sem trocar.
+        assert_eq!(escolha.sugestao.as_deref(), Some("b"));
+        assert!(escolha.explicacao[1].contains("sugestão: conta b (b)"), "{:?}", escolha.explicacao);
         // A escolha inicial continua valendo no interativo; só a troca sozinha é que não.
         assert_eq!(escolher(&cenario.politica, &cenario.contas, &cenario.cotas, &cenario.pedido).perfil_id.as_deref(), Some("a"));
     }
 
     #[test]
     fn routing_json_ida_e_volta_e_padroes() {
-        let politica = Politica { modo: Modo::Auto, etapas: fila(&["claude-a", "codex-b"]) };
+        let politica = Politica { modo: Modo::Auto, etapas: fila(&["claude-a", "codex-b"]), ..Default::default() };
         let texto = politica.salvar();
         assert!(texto.contains("\"auto\""));
         assert_eq!(Politica::carregar(&texto).unwrap(), politica);
-        assert_eq!(Politica::carregar("{}").unwrap(), Politica { modo: Modo::Fila, etapas: vec![] });
+        assert_eq!(Politica::carregar("{}").unwrap(), Politica { modo: Modo::Fila, etapas: vec![], ..Default::default() });
         assert_eq!(Politica::de_valor(serde_json::json!({ "modo": "fila", "etapas": ["x"] })).unwrap().etapas, fila(&["x"]));
         assert!(Politica::carregar("{\"modo\":\"aleatorio\"}").is_err());
+    }
+
+    fn perfil(id: &str, provider: &str) -> crate::Profile {
+        crate::Profile { id: id.into(), provider: provider.into(), name: format!("Conta {id}"), config_dir: String::new(), builtin: false,
+            created_at_ms: 0, last_used_at_ms: None, authenticated: false, email: None }
+    }
+
+    #[test]
+    fn contas_juntam_cadastro_e_ajustes() {
+        let mut politica = Politica::default();
+        politica.contas.insert("a".into(), AjustesDaConta { tipo: TipoConta::Api, orcamento_usd: Some(5.0), max_concorrencia: Some(2), ..Default::default() });
+        let contas = politica.contas(&[perfil("a", "claude"), perfil("b", "codex")]);
+        assert_eq!((contas[0].apelido.as_str(), contas[0].tipo, contas[0].orcamento_usd, contas[0].max_concorrencia),
+            ("Conta a", TipoConta::Api, Some(5.0), Some(2)));
+        // Sem ajuste: assinatura, sem uso extra, sem confidencial (lado seguro).
+        assert_eq!((contas[1].provider.as_str(), contas[1].tipo, contas[1].uso_extra, contas[1].confidencial_ok), ("codex", TipoConta::Assinatura, false, false));
+        let texto = politica.salvar();
+        assert_eq!(Politica::carregar(&texto).unwrap(), politica);
+    }
+
+    #[test]
+    fn projeto_confidencial_por_pasta() {
+        let politica = Politica { projetos_confidenciais: vec!["/empresa/cliente".into(), " ".into()], ..Default::default() };
+        assert!(politica.confidencial("/empresa/cliente"));
+        assert!(politica.confidencial("/empresa/cliente/app"));
+        assert!(!politica.confidencial("/empresa/cliente-b"));
+        assert!(!politica.confidencial("/outro"));
+    }
+
+    #[test]
+    fn validar_numeros_digitados() {
+        let com = |ajustes: AjustesDaConta| Politica { contas: BTreeMap::from([("a".to_owned(), ajustes)]), ..Default::default() };
+        assert!(com(AjustesDaConta { orcamento_usd: Some(10.0), gasto_usd: 2.5, max_concorrencia: Some(1), ..Default::default() }).validar().is_ok());
+        assert!(com(AjustesDaConta { orcamento_usd: Some(-1.0), ..Default::default() }).validar().is_err());
+        assert!(com(AjustesDaConta { gasto_usd: f64::NAN, ..Default::default() }).validar().is_err());
+        assert!(com(AjustesDaConta { max_concorrencia: Some(0), ..Default::default() }).validar().is_err());
+        assert!(Politica { etapas: vec!["".into()], ..Default::default() }.validar().is_err());
+    }
+
+    #[test]
+    fn cota_desconhecida_diz_fonte_e_idade() {
+        let mut cenario = base();
+        cenario.cotas.insert("c".into(), Cota { janelas: vec![], fonte: "claude_cache".into(), observado_em_ms: None });
+        cenario.politica.etapas = fila(&["c"]);
+        let escolha = escolher(&cenario.politica, &cenario.contas, &cenario.cotas, &cenario.pedido);
+        assert_eq!(escolha.perfil_id.as_deref(), Some("c"));
+        assert!(escolha.explicacao.iter().any(|l| l.contains("cota desconhecida, fonte claude_cache, idade desconhecida")), "{:?}", escolha.explicacao);
+    }
+
+    #[test]
+    fn falha_de_conta_so_para_limite_e_login() {
+        for erro in ["Claude AI usage limit reached|1760000000", "You've hit your usage limit. Try again later", "API Error: 429 rate_limit_error",
+            "Invalid API key · Please run /login", "Your credit balance is too low", "401 Unauthorized"] {
+            assert!(falha_de_conta(erro), "{erro}");
+        }
+        for erro in ["Prompt is too long", "context window limit reached", "CLI “claude” não encontrada neste PC", "__pausado__",
+            "claude saiu com erro: sem detalhe"] {
+            assert!(!falha_de_conta(erro), "{erro}");
+        }
     }
 
     #[test]
