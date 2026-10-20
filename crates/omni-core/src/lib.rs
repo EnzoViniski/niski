@@ -22,6 +22,9 @@ pub mod modelos_claude;
 pub mod entregaveis;
 // Fork: registro e regra pura do orquestrador de agentes (o servidor MCP mora no engine).
 pub mod orquestracao;
+// Fork: teto de sessões ativas (configurável) e agente em worktree isolada do git.
+pub mod limite_de_sessoes;
+pub mod worktree_isolada;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};

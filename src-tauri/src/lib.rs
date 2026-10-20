@@ -26,6 +26,9 @@ mod abrir_caminho;
 mod navegador;
 // Fork: agente numa branch própria (worktree do git).
 mod worktree;
+// Fork: agente em worktree isolada (branch medza/<nome>) e limite de sessões configurável.
+mod worktree_isolada;
+mod limite_de_sessoes;
 #[cfg(target_os = "macos")]
 mod tela_cheia;
 
@@ -71,6 +74,11 @@ pub fn run() {
             navegador::navegador_fechar,
             navegador::navegador_abrir_fora,
             worktree::git_worktree_da_branch,
+            worktree_isolada::criar_worktree_isolada,
+            worktree_isolada::estado_da_worktree_isolada,
+            worktree_isolada::remover_worktree_isolada,
+            limite_de_sessoes::limite_de_sessoes,
+            limite_de_sessoes::definir_limite_de_sessoes,
             voz::voz_estado,
             voz::voz_baixar_modelo,
             voz::voz_gravar,

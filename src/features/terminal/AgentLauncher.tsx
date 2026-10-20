@@ -9,6 +9,7 @@ import { contaDoAgente, lembrarAgente, lembrarConta, ultimoAgente } from "../../
 import { levarParaConta, resumeCommand, type HistoryEntry, type HistoryProvider } from "../history/historyService";
 import { gitBranches, gitWorktreeDaBranch, type GitBranch } from "../git/gitService";
 import { isRemoteProject } from "../projects/targetState";
+import { criarWorktreeIsolada, nomeDaWorktree, PASTA_DAS_WORKTREES, PREFIXO_DA_BRANCH } from "./worktreeIsolada";
 import {
   AGENT_RESUME_FLAG,
   listAgentClis,
@@ -45,6 +46,10 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
   const [branch, setBranch] = useState<string>("");
   const [branchNova, setBranchNova] = useState("");
   const [preparando, setPreparando] = useState(false);
+  // Fork: "Isolar em worktree" — cópia do repo só do agente, fora da pasta, na branch medza/<nome>.
+  const [isolar, setIsolar] = useState(false);
+  const [nomeDaWt, setNomeDaWt] = useState("");
+  const [erroDaWt, setErroDaWt] = useState<string | null>(null);
   useEffect(() => {
     if (isRemoteProject(projectPath)) return;
     let vivo = true;
@@ -115,7 +120,13 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
     if (profile) lembrarConta(agent.id, profile.id);
     let cwd: string | undefined;
     const alvoBranch = branch === NOVA ? branchNova.trim() : branch;
-    if (alvoBranch && alvoBranch !== branchAtual) {
+    if (isolar) {
+      setPreparando(true);
+      setErroDaWt(null);
+      try { cwd = (await criarWorktreeIsolada(projectPath, nomeDaWt.trim() || agent.id)).pasta_de_trabalho; }
+      catch (reason) { setErroDaWt(reason instanceof Error ? reason.message : String(reason)); setPreparando(false); return; }
+      setPreparando(false);
+    } else if (alvoBranch && alvoBranch !== branchAtual) {
       setPreparando(true);
       setError(null);
       try { cwd = await gitWorktreeDaBranch(projectPath, alvoBranch, branch === NOVA); }
@@ -261,7 +272,7 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
                 { value: NOVA, label: "Nova branch…", hint: `a partir de ${branchAtual}` },
               ]}
               onChange={setBranch}
-              disabled={loading || preparando}
+              disabled={loading || preparando || isolar}
             />
             {branch === NOVA && (
               <input className="launcher-branch-nova" autoFocus value={branchNova} onChange={(e) => setBranchNova(e.target.value)}
@@ -269,7 +280,31 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
             )}
           </div>
         )}
-        {branch && branch !== branchAtual && (
+        {branches.length > 0 && (
+          <div className="launcher-campo">
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-text-secondary">
+              <input type="checkbox" checked={isolar} disabled={loading || preparando}
+                onChange={(event) => { setIsolar(event.target.checked); setErroDaWt(null); }} className="accent-[rgb(var(--c-accent))]" />
+              Isolar em worktree
+            </label>
+            {isolar && (
+              <input className="launcher-branch-nova" value={nomeDaWt} onChange={(e) => setNomeDaWt(e.target.value)}
+                placeholder={agent?.id ?? "agente"} aria-label="Nome da worktree" spellCheck={false} />
+            )}
+          </div>
+        )}
+        {isolar && (
+          <p className="launcher-nota">
+            O agente trabalha numa cópia do repositório só dele, fora da pasta do projeto
+            (../{PASTA_DAS_WORKTREES}/…/{nomeDaWorktree(nomeDaWt) || agent?.id || "agente"}), na branch nova{" "}
+            {PREFIXO_DA_BRANCH}{nomeDaWorktree(nomeDaWt) || agent?.id || "agente"} a partir de {branchAtual}. Os arquivos do
+            .worktreeinclude (ex.: .env) são copiados. Ao encerrar o agente, você escolhe manter ou apagar a worktree.
+          </p>
+        )}
+        {erroDaWt && (
+          <p role="alert" className="launcher-alerta is-erro">Não deu para criar a worktree: {erroDaWt}</p>
+        )}
+        {!isolar && branch && branch !== branchAtual && (
           <p className="launcher-nota">
             O agente trabalha numa cópia da pasta só dele (worktree do git) na branch {branch === NOVA ? (branchNova.trim() || "nova") : branch}.
             Os agentes desta pasta continuam em {branchAtual}, sem nada mudar debaixo deles.
@@ -296,7 +331,7 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
             {loading ? (
               "Detectando CLIs…"
             ) : preparando ? (
-              "Preparando a branch…"
+              isolar ? "Criando a worktree…" : "Preparando a branch…"
             ) : (
               <span className="inline-flex items-center gap-1.5">
                 {agent && <AgentIcon provider={agent.id} size={14} className="shrink-0" />}

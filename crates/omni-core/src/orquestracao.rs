@@ -70,6 +70,12 @@ pub struct Agente {
     pub editar: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub criar: Vec<String>,
+    /// Fork: worktree isolada onde ele roda (`criar_agente` com `worktree`), e a branch dela. Sem isso,
+    /// roda na pasta do orquestrador.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worktree: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
 }
 
 impl Agente {

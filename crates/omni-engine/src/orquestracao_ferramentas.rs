@@ -7,6 +7,7 @@
 
 use super::*;
 use omni_core::orquestracao::briefing;
+use omni_core::worktree_isolada;
 
 fn caminhos(descricao: &str) -> Value {
     json!({"type": "array", "items": {"type": "string"}, "description": format!("{descricao}. Relativos à pasta do orquestrador")})
@@ -19,7 +20,7 @@ pub(super) fn lista() -> Value {
          "description": "Lista as plataformas de agente que o app suporta (Claude Code, Codex, Antigravity…), as contas de cada uma e os modelos conhecidos. Um modelo fora da lista também é aceito.",
          "inputSchema": {"type": "object", "properties": {}}},
         {"name": "criar_agente",
-         "description": "Abre um subagente focado numa tarefa, na mesma pasta deste orquestrador. O engine monta o briefing dele (tarefa, contexto, arquivos para ler, para editar e para criar, o que é dos outros subagentes, critérios de pronto e regras) e manda assim que a CLI ficar pronta. Arquivos de `editar`/`criar` não podem sobrepor os de outro subagente vivo: divida o trabalho em pedaços disjuntos. Respeita o limite de subagentes vivos. Depois use esperar e ler_conversa.",
+         "description": "Abre um subagente focado numa tarefa, na mesma pasta deste orquestrador. O engine monta o briefing dele (tarefa, contexto, arquivos para ler, para editar e para criar, o que é dos outros subagentes, critérios de pronto e regras) e manda assim que a CLI ficar pronta. Arquivos de `editar`/`criar` não podem sobrepor os de outro subagente vivo: divida o trabalho em pedaços disjuntos. Respeita o limite de subagentes vivos. Com `worktree`, ele roda numa worktree isolada do git (pasta própria fora do repo, branch `medza/<nome>`, com os arquivos do `.worktreeinclude`): use para subagentes que EDITAM código em paralelo, assim um não pisa no outro; no fim ele commita na branch dele e você mescla (git merge medza/<nome>). Depois use esperar e ler_conversa.",
          "inputSchema": {"type": "object", "required": ["plataforma", "tarefa"], "properties": {
             "plataforma": {"type": "string", "description": "Id da plataforma (ex.: claude, codex, antigravity)"},
             "conta": {"type": "string", "description": "Id ou nome da conta; sem ela, a conta padrão da plataforma"},
@@ -32,9 +33,10 @@ pub(super) fn lista() -> Value {
             "criar": caminhos("Arquivos ou pastas que ele pode CRIAR — só estes"),
             "criterios": {"type": "array", "items": {"type": "string"}, "description": "Como saber que acabou (ex.: 'npm test passa')"},
             "somente_leitura": {"type": "boolean", "description": "Tarefa só de leitura/análise, sem editar nem criar"},
+            "worktree": {"type": ["boolean", "string"], "description": "true (nome tirado da tarefa) ou um nome: roda numa worktree isolada do git, na branch medza/<nome>. A pasta do orquestrador precisa ser um repositório git com ao menos um commit"},
             "titulo": {"type": "string", "description": "Nome da conversa do subagente"}}}},
         {"name": "conferir_arquivos",
-         "description": "Cruza os arquivos alterados na pasta (git status) com o que cada subagente podia mexer: por subagente, sem dono (fora de todas as listas) e em disputa.",
+         "description": "Cruza os arquivos alterados na pasta (git status) com o que cada subagente podia mexer: por subagente, sem dono (fora de todas as listas) e em disputa. Subagentes em worktree isolada vêm à parte (em_worktrees), com a branch e quantas mudanças não commitadas têm.",
          "inputSchema": {"type": "object", "properties": {}}},
         {"name": "mandar_prompt",
          "description": "Manda uma mensagem a um subagente. Com ele trabalhando, entra na fila da CLI dele.",
@@ -56,7 +58,7 @@ pub(super) fn lista() -> Value {
             "permitir": {"type": "boolean", "description": "Para pedido de permissão"},
             "opcao": {"type": "integer", "minimum": 1, "description": "Para pergunta ou menu: o número da opção"}}}},
         {"name": "parar_agente",
-         "description": "Encerra a CLI de um subagente (a conversa continua no histórico). Libera vaga no limite.",
+         "description": "Encerra a CLI de um subagente (a conversa continua no histórico). Libera vaga no limite. A worktree isolada dele (se tiver) e a branch ficam: mescle e apague pelo app.",
          "inputSchema": {"type": "object", "required": ["agente"], "properties": {"agente": agente}}},
     ])
 }
@@ -160,7 +162,7 @@ fn nome_do_agente(a: &regra::Agente) -> String {
 /// `(nome, caminhos)` dos subagentes vivos deste orquestrador que têm arquivos.
 fn arquivos_dos_vivos(state: &EngineState, orquestrador: &str) -> Vec<(String, Vec<String>)> {
     ler_registro(state).orquestrador(orquestrador).map(|o| o.agentes.iter()
-        .filter(|a| a.arquivos().next().is_some() && estado_de(state, &a.conversation_key).0.vivo())
+        .filter(|a| a.worktree.is_none() && a.arquivos().next().is_some() && estado_de(state, &a.conversation_key).0.vivo())
         .map(|a| (nome_do_agente(a), a.arquivos().cloned().collect())).collect()).unwrap_or_default()
 }
 
@@ -176,6 +178,14 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
     let esforco = texto_do_campo(args, "esforco").map(str::to_owned);
     let extras = regra::argumentos_de_modelo(&plataforma, modelo.as_deref(), esforco.as_deref())?;
     let titulo = texto_do_campo(args, "titulo").map(str::to_owned);
+    // Fork: `worktree` = true (nome da tarefa) ou um nome.
+    let nome_da_worktree = match args.get("worktree") {
+        None | Some(Value::Null) | Some(Value::Bool(false)) => None,
+        Some(Value::Bool(true)) => Some(worktree_isolada::nome_a_partir_de(titulo.as_deref().unwrap_or(&objetivo))),
+        Some(Value::String(nome)) if nome.trim().is_empty() => None,
+        Some(Value::String(nome)) => Some(worktree_isolada::nome_valido(nome)?),
+        Some(_) => return Err("`worktree` é true/false ou um nome".into()),
+    };
     let (mae, _) = current(state, orquestrador).map_err(mensagem_do_erro)?;
     // Harness: o que ele pode mexer, relativo à pasta do orquestrador.
     let editar = briefing::normalizar_lista(&textos(args, "editar"), &mae.cwd)?;
@@ -202,7 +212,8 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
     // Dois subagentes vivos nunca dividem um caminho; o que é dos outros entra no briefing como "não mexa".
     let outros = arquivos_dos_vivos(state, orquestrador);
     let pedidos: Vec<String> = editar.iter().chain(criar_.iter()).cloned().collect();
-    let choques = briefing::conflitos(&pedidos, &outros);
+    // Em worktree própria ele não toca a pasta dos outros: a disputa vira merge, não arquivo pisado.
+    let choques = if nome_da_worktree.is_some() { Vec::new() } else { briefing::conflitos(&pedidos, &outros) };
     if !choques.is_empty() {
         let lista: Vec<String> = choques.iter().map(|(pedido, dele, dono)| format!("{pedido} (já é de {dono}: {dele})")).collect();
         return Err(format!("Arquivos de outro subagente vivo: {}. Divida o trabalho em arquivos disjuntos, espere o outro terminar \
@@ -227,15 +238,33 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
                 .to_string_lossy().into_owned());
         }
     }
+    // Fork: worktree isolada. Criada só agora (limite e posse de arquivos já conferidos) e apagada se o
+    // subagente não abrir.
+    let worktree = match &nome_da_worktree {
+        Some(nome) => Some(worktree_isolada::criar(Path::new(&plano.cwd), nome).map_err(|e| format!("Não consegui criar a worktree: {e}"))?),
+        None => None,
+    };
+    if let Some(wt) = &worktree {
+        plano.cwd = wt.pasta_de_trabalho.clone();
+        if let (Some(sessao), Some(perfil)) = (&plano.external_session_id, perfis.iter().find(|p| Some(&p.id) == plano.profile_id.as_ref())) {
+            plano.transcript_path = Some(omni_core::conversations::claude_transcript_path(Path::new(&perfil.config_dir), &plano.cwd, sessao)
+                .to_string_lossy().into_owned());
+        }
+    }
+    let tarefa = match &worktree { Some(wt) => tarefa + &secao_da_worktree(wt), None => tarefa };
     plano.command += &extras;
     let conversa = format!("conv-{}", uuid::Uuid::new_v4());
     plano.conversation_id = Some(conversa.clone());
     let acao = Action { id: state.next_id(), conversation_id: String::new(), session_id: String::new(), state: "executing".into(),
         created_at_ms: now_ms(), error: None, key: String::new(), revision: String::new(), kind: ActionKind::Spawn(plano.clone()) };
-    spawn_from_mobile(state, &acao, &plano).map_err(|e| format!("Não consegui abrir o subagente: {e}"))?;
+    if let Err(e) = spawn_from_mobile(state, &acao, &plano) {
+        if let Some(wt) = &worktree { let _ = worktree_isolada::remover(Path::new(&wt.caminho), true); }
+        return Err(format!("Não consegui abrir o subagente: {e}"));
+    }
 
     let agente = regra::Agente { conversation_key: conversa.clone(), plataforma: plataforma.clone(), conta: plano.profile_id.clone(),
-        modelo: modelo.clone(), esforco: esforco.clone(), tarefa: objetivo.clone(), criado_em: now_ms(), editar, criar: criar_ };
+        modelo: modelo.clone(), esforco: esforco.clone(), tarefa: objetivo.clone(), criado_em: now_ms(), editar, criar: criar_,
+        worktree: worktree.as_ref().map(|wt| wt.caminho.clone()), branch: worktree.as_ref().map(|wt| wt.branch.clone()) };
     mudar_registro(state, |r| r.adicionar(orquestrador, agente)).map_err(|_| "Abri o subagente, mas não consegui gravar o registro".to_owned())?;
     drop(_criando);
     registro::info("orquestracao_agente_criado", &[("orquestrador", orquestrador), ("agente", &conversa), ("provider", &plataforma),
@@ -247,8 +276,16 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
     Ok(em_json(json!({
         "agente": conversa, "plataforma": plataforma, "conta": nome_da_conta(&perfis, plano.profile_id.as_deref()),
         "modelo": modelo, "esforco": esforco, "estado": "abrindo",
+        "worktree": worktree.as_ref().map(|wt| wt.caminho.clone()), "branch": worktree.as_ref().map(|wt| wt.branch.clone()),
         "nota": "A tarefa vai assim que a CLI ficar pronta. Chame esperar(agente) e depois ler_conversa(agente).",
     })))
+}
+
+/// Fork: o que o subagente numa worktree isolada precisa saber, no fim do briefing.
+fn secao_da_worktree(wt: &worktree_isolada::WorktreeIsolada) -> String {
+    format!("\n## Sua pasta (worktree isolada)\nVocê trabalha em `{}`, na branch `{}`: uma cópia do repositório só sua. Os outros \
+        subagentes não veem suas mudanças até o orquestrador mesclar. Ao terminar, faça commit das suas mudanças nesta branch \
+        (sem push) e diga o hash do commit.\n", wt.pasta_de_trabalho, wt.branch)
 }
 
 /// Põe o prompt na fila de ações do chat (a mesma do celular) e espera ele ser digitado.
@@ -419,7 +456,7 @@ pub(super) fn listar_agentes(state: &EngineState, orquestrador: &str) -> Value {
         let (estado, _, cap) = estado_de(state, &a.conversation_key);
         json!({"agente": a.conversation_key, "pedido": cap.as_ref().and_then(pedido_de), "plataforma": a.plataforma, "conta": nome_da_conta(&perfis, a.conta.as_deref()),
             "modelo": a.modelo, "tarefa": regra::resumir(&a.tarefa, 200), "estado": estado.texto(),
-            "editar": a.editar, "criar": a.criar,
+            "editar": a.editar, "criar": a.criar, "worktree": a.worktree, "branch": a.branch,
             "ultima_mensagem": ultima_do_agente(state, &a.conversation_key).map(|t| regra::resumir(&t, 300))})
     }).collect()).unwrap_or_default();
     let vivos = agentes.iter().filter(|a| !matches!(a["estado"].as_str(), Some("parado" | "erro"))).count();
@@ -433,9 +470,17 @@ fn conferir(state: &EngineState, orquestrador: &str) -> Result<String, String> {
         .stdin(std::process::Stdio::null()).output().map_err(|_| "Não consegui rodar o git nesta pasta".to_owned())?;
     if !saida.status.success() { return Err("A pasta do orquestrador não é um repositório git: não dá para conferir".into()); }
     let mudados = briefing::caminhos_do_git_status(&String::from_utf8_lossy(&saida.stdout));
-    let agentes: Vec<(String, Vec<String>)> = ler_registro(state).orquestrador(orquestrador)
-        .map(|o| o.agentes.iter().map(|a| (format!("{} ({})", nome_do_agente(a), a.conversation_key), a.arquivos().cloned().collect())).collect())
-        .unwrap_or_default();
+    let registro = ler_registro(state);
+    let todos = registro.orquestrador(orquestrador).map(|o| o.agentes.as_slice()).unwrap_or_default();
+    // Fork: subagente em worktree isolada mexe na pasta dele, não nesta: entra à parte, com a branch.
+    let agentes: Vec<(String, Vec<String>)> = todos.iter().filter(|a| a.worktree.is_none())
+        .map(|a| (format!("{} ({})", nome_do_agente(a), a.conversation_key), a.arquivos().cloned().collect())).collect();
+    let em_worktrees: Vec<Value> = todos.iter().filter_map(|a| {
+        let caminho = a.worktree.as_deref()?;
+        let estado = worktree_isolada::estado(Path::new(caminho)).ok();
+        Some(json!({"agente": a.conversation_key, "branch": a.branch, "worktree": caminho, "existe": estado.is_some(),
+            "nao_commitadas": estado.map(|e| e.mudancas)}))
+    }).collect();
     let mut por_agente: std::collections::BTreeMap<String, Vec<String>> = Default::default();
     let (mut sem_dono, mut em_disputa) = (Vec::new(), Vec::new());
     for arquivo in mudados.iter().take(500) {
@@ -446,6 +491,7 @@ fn conferir(state: &EngineState, orquestrador: &str) -> Result<String, String> {
         }
     }
     Ok(em_json(json!({"alterados": mudados.len(), "por_agente": por_agente, "sem_dono": sem_dono, "em_disputa": em_disputa,
+        "em_worktrees": em_worktrees,
         "nota": "sem_dono inclui o que você ou o usuário mudaram, e o que já estava alterado antes dos subagentes."})))
 }
 

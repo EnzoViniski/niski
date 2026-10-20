@@ -6,7 +6,7 @@ import { Paleta } from "./features/paleta/Paleta";
 import type { Conversation } from "./mobile/api";
 import { TitleBar } from "./components/TitleBar";
 import { LayoutPresetPicker } from "./features/workspace/LayoutPresetPicker";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppBackground } from "./components/backgrounds/AppBackground";
 import { SettingsView } from "./components/SettingsView";
 import { Sidebar } from "./components/Sidebar";
@@ -22,6 +22,8 @@ import { ProjetosDasAbasContext, montarProjetosDasAbas } from "./features/worksp
 import { useLinksEmAba } from "./features/navegador/useLinksEmAba";
 import { useAberturasDoOrquestrador } from "./features/orquestracao/abrirFluxo";
 import { useTerminalSessions } from "./features/terminal/useTerminalSessions";
+// Fork: manter ou apagar a worktree isolada ao encerrar o agente.
+import { DialogoDaWorktree, worktreeParaPerguntar } from "./features/terminal/DialogoDaWorktree";
 import { latestPerConversation, useAttention, type AttentionItem } from "./features/terminal/useAttention";
 import { useAttentionNotifier } from "./features/terminal/useAttentionNotifier";
 import { useJanelaEmFoco } from "./hooks/useJanelaEmFoco";
@@ -55,6 +57,9 @@ function AppComPaleta() {
   const [lateralOculta, setLateralOculta] = useState(false);
   useAcoesDaPaleta("app", [{ id: "alternar-lateral", titulo: "Alternar barra lateral", executar: () => setLateralOculta((atual) => !atual) }]);
   const [view, setView] = useState<View>("workspace");
+  // Fork: pasta do agente em worktree isolada que acabou de ser encerrado (`DialogoDaWorktree`).
+  const [worktreeAoFechar, setWorktreeAoFechar] = useState<string | null>(null);
+  const fecharDialogoDaWorktree = useCallback(() => setWorktreeAoFechar(null), []);
   const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>();
   // Para onde o "fechar" das Configurações volta: a tela de antes, com o workspace intacto no reducer.
   const [viewBeforeSettings, setViewBeforeSettings] = useState<Exclude<View, "settings">>("workspace");
@@ -326,6 +331,8 @@ function AppComPaleta() {
           setView("workspace");
         }}
         onCloseTerminal={(sessionId) => {
+          // Fork: agente em worktree isolada — pergunta se mantém ou apaga a worktree.
+          setWorktreeAoFechar(worktreeParaPerguntar(sessions, sessionId));
           void closeTerminal(sessionId).catch(() => undefined);
           // Fecha (ou reseta, se for a última tab) qualquer tab presa nessa sessão — senão ela
           // fica apontando pra um resourceId morto e o poll do TerminalPane vira "session not
@@ -417,6 +424,7 @@ function AppComPaleta() {
         </main>
       </div>
       </div>
+      {worktreeAoFechar && <DialogoDaWorktree caminho={worktreeAoFechar} onFechar={fecharDialogoDaWorktree} />}
     </div>
     </ProjetosDasAbasContext.Provider>
     </SessionProvidersContext.Provider>
