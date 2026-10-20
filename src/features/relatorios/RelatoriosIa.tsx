@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button, Card, SegmentedControl } from "../../components/ui";
 import { AgentIcon } from "../../components/ui/AgentIcon";
+import { haQuantoTempo } from "../../lib/tempo";
 import {
   ChartIcon, ChatIcon, ClockIcon, CpuIcon, DatabaseIcon, FlagIcon, FolderIcon, GitBranchIcon, ReloadIcon, RobotIcon, SparkleIcon,
 } from "../../components/ui/PixelIcon";
@@ -22,13 +23,8 @@ const diaCurto = (data: string) => `${data.slice(8, 10)}/${data.slice(5, 7)}`;
 const pasta = (caminho: string) => caminho.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || caminho;
 const pct = (parte: number, todo: number) => (todo ? Math.round((parte / todo) * 100) : 0);
 
-function haQuanto(ms: number, agora: number): string {
-  const min = Math.floor(Math.max(0, agora - ms) / 60_000);
-  if (min < 1) return "agora";
-  if (min < 60) return `há ${min} min`;
-  if (min < 24 * 60) return `há ${Math.floor(min / 60)} h`;
-  return `há ${Math.floor(min / (24 * 60))} d`;
-}
+// Fork: o "há quanto tempo" é um só (`lib/tempo.ts`).
+const haQuanto = (ms: number, agora: number): string => haQuantoTempo(ms, agora, "longo");
 
 /** Último relatório de cada período, para a tela abrir na hora enquanto o novo é lido. */
 const chaveGuardada = (dias: number) => `omni-relatorio-v1-${dias}`;

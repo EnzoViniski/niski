@@ -42,6 +42,8 @@ import { KanbanPanel } from "./KanbanPanel";
 import { SkillsList } from "./SkillsList";
 import { PastasDeProjetos } from "../features/projects/PastasDeProjetos";
 import type { DropZone } from "../features/workspace/tabPointerDrag";
+// Fork: "agora", "5 min", "3 h", "2 d" — o mesmo da web e do celular (`lib/tempo.ts`).
+import { haQuantoTempo } from "../lib/tempo";
 /* O mesmo arquivo que o Tauri usa como ícone do app (tauri.conf.json →
    bundle.icon). Importado em vez de copiado para src/assets: uma cópia
    dessincronizaria do ícone real na próxima troca de marca. */
@@ -503,15 +505,6 @@ function corDaSituacao(status: ReturnType<typeof statusDaConversa>, state: Termi
   if (status === "interrompido") return "text-danger";
   if (status === "finalizado") return "text-accent";
   return "";
-}
-
-/** "agora", "5 min", "3 h", "2 d" — curto, cabe na segunda linha da lateral. */
-function haQuantoTempo(ms: number, agora: number): string {
-  const minutos = Math.floor(Math.max(0, agora - ms) / 60_000);
-  if (minutos < 1) return "agora";
-  if (minutos < 60) return `${minutos} min`;
-  if (minutos < 24 * 60) return `${Math.floor(minutos / 60)} h`;
-  return `${Math.floor(minutos / (24 * 60))} d`;
 }
 
 function SidebarSection({
