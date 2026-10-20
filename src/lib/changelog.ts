@@ -16,6 +16,15 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.8.1",
+    date: "2026-10-20",
+    changes: [
+      `Atualização pelo próprio ${NOME_CURTO}: quando sair uma versão nova, aparece o botão Atualizar agora na barra do app. Um clique baixa, instala e reabre o app.`,
+      "Depois de atualizar, as conversas, as abas e os agentes abertos voltam como estavam. Antes de instalar, o app guarda uma cópia do estado das conversas.",
+      "A partir desta versão, não é preciso baixar e reinstalar o app para receber as novidades.",
+    ],
+  },
+  {
     version: "0.8.0",
     date: "2026-10-20",
     changes: [

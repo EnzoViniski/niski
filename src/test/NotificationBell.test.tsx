@@ -2,14 +2,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NotificationBell } from "../components/NotificationBell";
+import { redefinirAtualizacaoRemota } from "../lib/atualizacaoRemota";
 
 // O plugin do updater não existe fora do Tauri; sem isto o import dinâmico
 // rejeita e o teste não distinguiria "sem atualização" de "falhou".
 const check = vi.fn();
-vi.mock("../lib/identidade", () => ({ ATUALIZACAO_AUTOMATICA: true }));
+// Fork (atualização automática): updater ligado, como na distribuição com repositório de releases.
+vi.mock("../lib/identidade", async (original) => ({ ...(await original<typeof import("../lib/identidade")>()), ATUALIZACAO_AUTOMATICA: true }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: () => check() }));
 
 beforeEach(() => {
+  // O estado da checagem é compartilhado com a barra: cada teste começa do zero.
+  redefinirAtualizacaoRemota();
   check.mockResolvedValue(null);
 });
 

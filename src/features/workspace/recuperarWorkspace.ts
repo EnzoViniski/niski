@@ -184,3 +184,64 @@ export function restaurarColecao(colecao: WorkspaceCollection): WorkspaceCollect
     : (colecao.workspaces[0]?.id ?? null);
   return { ...colecao, activeWorkspaceId: ativo };
 }
+
+/*
+ * Fork (atualização automática): depois de `reiniciar_para_atualizar` com o engine trocado, os agentes
+ * voltam como sessões históricas (`retoma_ao_abrir`). As abas do projeto na tela já se religam sozinhas
+ * (o `TerminalPane` montado chama `restart_terminal` na primeira leitura); as abas visíveis dos outros
+ * workspaces (e painéis escondidos por um maximizado) só voltariam no clique. Aqui elas são religadas
+ * uma vez, só nesta abertura — a abertura normal não passa por aqui (`consumirReinicioDeAtualizacao`).
+ */
+
+function noPorId(no: LayoutNode, id: string): LayoutNode | null {
+  if (no.id === id) return no;
+  return no.type === "pane" ? null : (noPorId(no.first, id) ?? noPorId(no.second, id));
+}
+
+/** Sessão da aba que aparece em cada painel (a mesma regra do `PaneView`). */
+function sessoesDasAbasAtivas(no: LayoutNode): string[] {
+  if (no.type !== "pane") return [...sessoesDasAbasAtivas(no.first), ...sessoesDasAbasAtivas(no.second)];
+  const aba = no.tabs.find((item) => item.id === no.activeTabId) ?? no.tabs[0];
+  return aba?.kind === "agent" && aba.resourceId ? [aba.resourceId] : [];
+}
+
+/** Abas visíveis de cada workspace (projeto ativo de cada um), menos as montadas agora na tela. */
+export function abasVisiveisParaRetomar(colecao: WorkspaceCollection): string[] {
+  const ativo = colecao.workspaces.find((workspace) => workspace.id === colecao.activeWorkspaceId) ?? colecao.workspaces[0];
+  const naTela = ativo?.projects.find((projeto) => projeto.id === ativo.activeProjectId);
+  // Painel maximizado: só ele está montado.
+  const montado = naTela ? ((naTela.maximizedPaneId && noPorId(naTela.layout, naTela.maximizedPaneId)) || naTela.layout) : null;
+  const montadas = new Set(montado ? sessoesDasAbasAtivas(montado) : []);
+  const visiveis = colecao.workspaces.flatMap((workspace) => {
+    const projeto = workspace.projects.find((item) => item.id === workspace.activeProjectId);
+    return projeto ? sessoesDasAbasAtivas(projeto.layout) : [];
+  });
+  return [...new Set(visiveis)].filter((id) => !montadas.has(id));
+}
+
+export interface DependenciasDaRetomadaAposAtualizar {
+  listar: () => Promise<TerminalSession[]>;
+  reiniciar: (sessionId: string) => Promise<unknown>;
+  esperar?: (ms: number) => Promise<void>;
+  tentativas?: number;
+}
+
+/** Espera o engine novo responder e religa (`--resume`) as abas visíveis que ele marcou para retomar.
+ *  Só mexe em sessão `retoma_ao_abrir`: agente já vivo nunca é reiniciado. Devolve as religadas. */
+export async function retomarAbasVisiveisAposAtualizar(colecao: WorkspaceCollection, deps: DependenciasDaRetomadaAposAtualizar): Promise<string[]> {
+  const alvo = new Set(abasVisiveisParaRetomar(colecao));
+  if (alvo.size === 0) return [];
+  const esperar = deps.esperar ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  let sessoes: TerminalSession[] | null = null;
+  for (let tentativa = 0; tentativa < (deps.tentativas ?? 20) && sessoes === null; tentativa += 1) {
+    if (tentativa > 0) await esperar(1_500);
+    sessoes = await deps.listar().catch(() => null);
+  }
+  const religadas: string[] = [];
+  for (const sessao of sessoes ?? []) {
+    if (!alvo.has(sessao.id) || !sessao.retoma_ao_abrir) continue;
+    // Uma por vez: cada uma sobe um shell e a CLI.
+    if (await deps.reiniciar(sessao.id).then(() => true, () => false)) religadas.push(sessao.id);
+  }
+  return religadas;
+}

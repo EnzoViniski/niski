@@ -1,5 +1,15 @@
 import { useEffect, useState } from "react";
 import { ReloadIcon } from "./ui/PixelIcon";
+// Fork (atualização automática): versão nova publicada → "Atualizar agora" (lógica em `lib/atualizacaoRemota`).
+import {
+  agentesTrabalhando,
+  atualizarAgora,
+  marcarReinicioDeAtualizacao,
+  reiniciarParaAtualizar,
+  textoDaConfirmacao,
+  useAtualizacaoRemota,
+  type EstadoRemoto,
+} from "../lib/atualizacaoRemota";
 
 /*
  * Fork: "Reiniciar para atualizar". Quando um build novo cai por cima do app aberto
@@ -11,6 +21,9 @@ import { ReloadIcon } from "./ui/PixelIcon";
  * engine será reiniciado (e quantos agentes param). Confirmado, o engine é encerrado de fato antes de
  * reabrir (`trocar_engine`) — antes, com algum agente trabalhando, o reinício só trocava a tela e a
  * interface nova seguia falando com o engine antigo. "Só a tela" continua possível.
+ *
+ * Fork (atualização automática): sem build no disco, a versão nova publicada (updater) aparece como
+ * "Atualizar agora · v<x>": confirmação curta → progresso aqui mesmo → reabre com o engine novo.
  */
 
 export interface VersaoNova {
@@ -46,7 +59,7 @@ export function textosDaAtualizacao(versao: VersaoNova) {
     : versao.engine_antigo_rodando
     ? "A tela já é a nova, mas o engine (que roda os agentes) ainda é o antigo: algumas funções podem não responder até atualizar."
     : "Versão nova instalada, inclusive do engine que roda os agentes.";
-  const confirmacao = `O engine também será reiniciado${ocupados > 0 ? `: ${agentes(ocupados)}` : ""}. As conversas abertas voltam com --resume (a mesma conversa, com o histórico) quando você abrir cada aba.`;
+  const confirmacao = `O engine também será reiniciado${ocupados > 0 ? `: ${agentes(ocupados)}` : ""}. As abas abertas voltam sozinhas com --resume (a mesma conversa, com o histórico); as que estiverem atrás de outra, quando você abrir.`;
   return { rotulo, dica, confirmacao, ocupados, engine };
 }
 
@@ -54,6 +67,7 @@ export function AvisoDeAtualizacao() {
   const [versao, setVersao] = useState<VersaoNova | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [reiniciando, setReiniciando] = useState(false);
+  const remoto = useAtualizacaoRemota({ automatica: true });
 
   useEffect(() => {
     if (!("__TAURI_INTERNALS__" in window)) return;
@@ -76,11 +90,13 @@ export function AvisoDeAtualizacao() {
     return () => { window.clearTimeout(id); window.removeEventListener("keydown", esc); };
   }, [confirmando]);
 
-  if (!versao?.disponivel) return null;
+  if (!versao?.disponivel) return <AtualizarAgora remoto={remoto} />;
   const { rotulo, dica, confirmacao, ocupados, engine } = textosDaAtualizacao(versao);
 
   function reiniciar(trocarEngine: boolean) {
     setReiniciando(true);
+    // Fork: a próxima abertura sabe que foi atualização e religa as abas visíveis.
+    if (trocarEngine) marcarReinicioDeAtualizacao();
     void chamar("reiniciar_para_atualizar", { trocarEngine }).catch(() => setReiniciando(false));
   }
 
@@ -114,6 +130,66 @@ export function AvisoDeAtualizacao() {
             <button type="button" className="bg-accent px-2 py-1 font-bold text-bg-primary hover:opacity-90" disabled={reiniciando}
               onClick={() => reiniciar(true)}>
               Reiniciar app e engine
+            </button>
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+/** Fork (atualização automática): botão da versão publicada. Some quando não há nada a fazer. */
+function AtualizarAgora({ remoto }: { remoto: EstadoRemoto }) {
+  const [confirmacao, setConfirmacao] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (confirmacao === null) return;
+    const id = window.setTimeout(() => setConfirmacao(null), 20_000);
+    const esc = (event: KeyboardEvent) => { if (event.key === "Escape") setConfirmacao(null); };
+    window.addEventListener("keydown", esc);
+    return () => { window.clearTimeout(id); window.removeEventListener("keydown", esc); };
+  }, [confirmacao]);
+
+  const { fase, versao, progresso, erro } = remoto;
+  const tentouEFalhou = fase === "erro" && versao !== null;
+  if (fase !== "disponivel" && fase !== "baixando" && fase !== "instalada" && fase !== "reiniciando" && !tentouEFalhou) return null;
+
+  async function abrir() {
+    if (confirmacao !== null) { setConfirmacao(null); return; }
+    setConfirmacao(textoDaConfirmacao(versao, await agentesTrabalhando()));
+  }
+
+  const rotulo = fase === "baixando" ? `Baixando v${versao} · ${progresso}%`
+    : fase === "reiniciando" ? "Reiniciando…"
+    : fase === "instalada" ? "Reabrir agora"
+    : tentouEFalhou ? `Tentar de novo · v${versao}`
+    : `Atualizar agora · v${versao}`;
+  const dica = erro ? `A atualização falhou: ${erro}` : fase === "instalada" ? "Versão nova instalada. Reabra para usar." : `Versão ${versao} disponível.`;
+  const parado = fase === "baixando" || fase === "reiniciando";
+
+  return (
+    <span className="relative flex self-stretch">
+      <button type="button" className={`titlebar-acao titlebar-atualizar relative${confirmacao !== null ? " is-aberto" : ""}`} title={dica}
+        aria-expanded={fase === "instalada" ? undefined : confirmacao !== null} disabled={parado}
+        onClick={() => { if (fase === "instalada") void reiniciarParaAtualizar(); else void abrir(); }}>
+        <ReloadIcon aria-hidden className="h-3.5 w-3.5" />
+        {rotulo}
+        {fase === "baixando" && (
+          <span className="absolute inset-x-0 bottom-0 h-0.5 bg-accent transition-all duration-300" style={{ width: `${progresso}%` }}
+            role="progressbar" aria-label="Progresso da atualização" aria-valuenow={progresso} aria-valuemin={0} aria-valuemax={100} />
+        )}
+      </button>
+      {confirmacao !== null && (
+        <div role="dialog" aria-label="Confirmar atualização"
+          className="absolute right-0 top-full z-[70] mt-1 w-80 border-2 border-border-subtle bg-bg-elevated p-3 text-xs text-text-secondary shadow-lg">
+          <p>{confirmacao}</p>
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <button type="button" className="px-2 py-1 text-text-muted hover:text-text-primary" onClick={() => setConfirmacao(null)}>
+              Cancelar
+            </button>
+            <button type="button" className="bg-accent px-2 py-1 font-bold text-bg-primary hover:opacity-90"
+              onClick={() => { setConfirmacao(null); void atualizarAgora(); }}>
+              Atualizar e reabrir
             </button>
           </div>
         </div>

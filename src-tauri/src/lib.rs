@@ -18,6 +18,8 @@ mod agentes;
 mod fluxos;
 mod voz;
 mod atualizacao;
+// Fork: cópia do estado antes de instalar versão nova pelo updater.
+mod backup_antes_de_atualizar;
 // Fork: abrir no app padrão o arquivo que o agente gerou (cartão na Conversa).
 mod abrir_entregavel;
 // Fork: caminho citado na Conversa vira link (abre pasta/arquivo sem executar nada).
@@ -87,6 +89,9 @@ pub fn run() {
             voz::voz_cancelar,
             atualizacao::versao_nova_no_disco,
             atualizacao::reiniciar_para_atualizar,
+            // Fork: "Atualizar agora" (updater) na barra.
+            atualizacao::agentes_trabalhando,
+            backup_antes_de_atualizar::backup_antes_de_atualizar,
             engine_client::registrar_evento_da_ui,
             account_usage::account_usage,
             extensoes::listar_extensoes,

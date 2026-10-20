@@ -1,5 +1,13 @@
 name: Instaladores Medza
 
+# Este workflow compila e ASSINA (updater do Tauri) os artefatos por plataforma e deixa um rascunho de
+# release neste repositório privado. Ele NÃO publica a atualização: o GITHUB_TOKEN só escreve neste
+# repo, e o updater baixa do repositório público `repositorioDeReleases` (identidade.json). Para
+# publicar, na máquina de quem lança a versão (com o `gh` logado):
+#   node scripts/publicar-atualizacao.mjs --de-ci <run-id>             (confere o que subiria)
+#   node scripts/publicar-atualizacao.mjs --de-ci <run-id> --publicar
+# Detalhes em docs/fork/atualizacao-automatica.md.
+
 on:
   workflow_dispatch:
   push:
@@ -19,10 +27,10 @@ jobs:
             bundles: nsis
           - os: macos-14
             target: aarch64-apple-darwin
-            bundles: dmg
+            bundles: app,dmg
           - os: macos-15-intel
             target: x86_64-apple-darwin
-            bundles: dmg
+            bundles: app,dmg
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             bundles: deb,appimage
@@ -50,7 +58,12 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: test "v$(cat VERSION | tr -d '[:space:]')" = "${GITHUB_REF_NAME}"
       - run: npm run version:check
-      - run: npm run build -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      # `app` no macOS: é dele que sai o .app.tar.gz (+ .sig) que o updater consome.
+      - name: Compilar e assinar
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: npm run build -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
       - uses: actions/upload-artifact@v4
         with:
           name: Medza-Agents-${{ matrix.target }}

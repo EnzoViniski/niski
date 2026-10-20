@@ -13,7 +13,10 @@ import { AvisoDeAtualizacao, textosDaAtualizacao } from "../components/AvisoDeAt
 import { statusDaConversa } from "../components/ConversaStatus";
 import { HistoryView } from "../features/history/HistoryView";
 import type { HistoryEntry } from "../features/history/historyService";
-import type { WorkspaceState } from "../types/workspace";
+import type { WorkspaceCollection, WorkspaceState } from "../types/workspace";
+import type { TerminalSession } from "../features/terminal/terminalService";
+import { abasVisiveisParaRetomar, retomarAbasVisiveisAposAtualizar } from "../features/workspace/recuperarWorkspace";
+import { CHAVE_DO_REINICIO } from "../lib/atualizacaoRemota";
 
 /*
  * Fork (retomar-sempre): retomar sempre tem saída. CLI e engine falsos: `invoke` responde por rota.
@@ -215,6 +218,9 @@ describe("Reiniciar para atualizar", () => {
       expect(screen.getByRole("dialog")).toHaveTextContent("1 agente trabalhando agora será interrompido");
       fireEvent.click(screen.getByRole("button", { name: "Reiniciar app e engine" }));
       await waitFor(() => expect(invoke).toHaveBeenCalledWith("reiniciar_para_atualizar", { trocarEngine: true }));
+      // Fork (atualização automática): a próxima abertura religa as abas visíveis.
+      expect(localStorage.getItem(CHAVE_DO_REINICIO)).not.toBeNull();
+      localStorage.removeItem(CHAVE_DO_REINICIO);
       unmount();
 
       vi.mocked(invoke).mockClear();
@@ -222,8 +228,64 @@ describe("Reiniciar para atualizar", () => {
       fireEvent.click(await screen.findByRole("button", { name: /Engine desatualizado/ }));
       fireEvent.click(screen.getByRole("button", { name: "Só a tela agora" }));
       await waitFor(() => expect(invoke).toHaveBeenCalledWith("reiniciar_para_atualizar", { trocarEngine: false }));
+      expect(localStorage.getItem(CHAVE_DO_REINICIO)).toBeNull();
     } finally {
       Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
     }
+  });
+});
+
+describe("Abas visíveis depois do reinício de atualização", () => {
+  // Dois workspaces: w1 na tela (projeto "proj" com a aba a1 ativa, a2 atrás) e w2 com dois painéis.
+  function colecao(): WorkspaceCollection {
+    const naTela = workspace(["a1", "a2"]);
+    const pane = naTela.projects[0].layout as Extract<WorkspaceState["projects"][number]["layout"], { type: "pane" }>;
+    pane.activeTabId = "tab-a1";
+    const outro: WorkspaceState = {
+      ...naTela, id: "w2", activeProjectId: "p2",
+      projects: [{
+        ...naTela.projects[0], id: "p2", activePaneId: "x",
+        layout: {
+          type: "split", id: "s", direction: "horizontal", ratio: 0.5,
+          first: { type: "pane", id: "x", activeTabId: "tab-b2", tabs: [
+            { id: "tab-b1", kind: "agent", title: "b1", resourceId: "b1" },
+            { id: "tab-b2", kind: "agent", title: "b2", resourceId: "b2" },
+          ] },
+          second: { type: "pane", id: "y", activeTabId: "tab-t", tabs: [{ id: "tab-t", kind: "terminal", title: "t", resourceId: "t1" }] },
+        },
+      }, { ...naTela.projects[0], id: "p3", layout: { type: "pane", id: "z", activeTabId: "tab-c", tabs: [{ id: "tab-c", kind: "agent", title: "c", resourceId: "c1" }] } }],
+    } as WorkspaceState;
+    return { version: 1, activeWorkspaceId: "w1", workspaces: [naTela, outro] } as unknown as WorkspaceCollection;
+  }
+
+  function sessao(id: string, retoma: boolean): TerminalSession {
+    return { id, state: retoma ? "stopped" : "working", retoma_ao_abrir: retoma } as TerminalSession;
+  }
+
+  it("só a aba visível de cada workspace, menos as já montadas na tela", () => {
+    // a1 está montada (o TerminalPane religa); a2 está atrás; b2 é a visível de w2; terminal e p3 não.
+    expect(abasVisiveisParaRetomar(colecao())).toEqual(["b2"]);
+  });
+
+  it("painel escondido por um maximizado também volta", () => {
+    const c = colecao();
+    c.activeWorkspaceId = "w2";
+    c.workspaces[1].projects[0].maximizedPaneId = "y";
+    expect(abasVisiveisParaRetomar(c)).toEqual(["a1", "b2"]);
+  });
+
+  it("espera o engine, religa só o que ele marcou para retomar e nunca um agente vivo", async () => {
+    const c = colecao();
+    c.activeWorkspaceId = "w2";
+    c.workspaces[1].projects[0].maximizedPaneId = "y";
+    const listar = vi.fn()
+      .mockRejectedValueOnce(new Error("engine subindo"))
+      .mockResolvedValue([sessao("a1", false), sessao("b2", true), sessao("b1", true)]);
+    const reiniciar = vi.fn().mockResolvedValue(undefined);
+    const religadas = await retomarAbasVisiveisAposAtualizar(c, { listar, reiniciar, esperar: async () => undefined });
+    expect(listar).toHaveBeenCalledTimes(2);
+    expect(reiniciar).toHaveBeenCalledTimes(1);
+    expect(reiniciar).toHaveBeenCalledWith("b2");
+    expect(religadas).toEqual(["b2"]);
   });
 });
