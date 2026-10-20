@@ -20,6 +20,9 @@ import { Ocultas } from "./listas/Ocultas";
 import { NovaSessao } from "./listas/NovaSessao";
 import { ConversationDetail } from "./conversa/ConversationDetail";
 import { CabecalhoDaConversa } from "./conversa/CabecalhoDaConversa";
+// Fork: Atividade usa eventos e vistos do engine, iguais aos do desktop.
+import { Atividade } from "./telas/Atividade";
+import { atualizarAtividade, useAtividadeVista } from "../features/atividade/atividadeService";
 
 export { haQuanto, filterConversations, Secao, ProjectList, ConversationList, ConversasPorEstado, Ocultas, NovaSessao, ConversationDetail };
 export { juntarPaginas, agruparMensagens } from "./conversa/useTimeline";
@@ -70,6 +73,7 @@ export function MobileApp() {
   const naoVistas = useMemo(() => new Set(attention.map((item) => item.id)), [attention]);
   const [onlyAttention, setOnlyAttention] = useState(() => lerSessao(CHAVE_FILTRO) === "atencao");
   const [query, setQuery] = useState("");
+  useAtividadeVista(rota.tela === "conversa" ? [rota.conversa] : [], !semAcesso);
 
   useEffect(() => { gravarSessao(CHAVE_FILTRO, onlyAttention ? "atencao" : null); }, [onlyAttention]);
 
@@ -91,7 +95,10 @@ export function MobileApp() {
   let subtitulo: ReactNode = null;
   let conteudo: ReactNode;
 
-  if (rota.tela === "conversa") {
+  if (rota.tela === "atividade") {
+    titulo = "Atividade";
+    conteudo = <Atividade abrirConversa={abrirConversa} />;
+  } else if (rota.tela === "conversa") {
     if (conversa) {
       titulo = conversa.title;
       subtitulo = <CabecalhoDaConversa conversa={conversa} projeto={projeto} />;
@@ -135,6 +142,7 @@ export function MobileApp() {
     const trabalhandoAgora = visiveis.filter(c => c.state === "working").length;
     const projetos = catalog?.projects ?? [];
     conteudo = <>
+      <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "atividade" })}>Atividade</button>
       {aviso && <p className="m-aviso">{aviso}</p>}
       {/* Painel do início: o que está acontecendo agora, em três números. "Precisa de você" filtra. */}
       <div className="m-resumo">
@@ -177,7 +185,7 @@ export function MobileApp() {
   }
 
   return <div className="m-shell">
-    <TopBar titulo={titulo} subtitulo={subtitulo} onAtualizar={atualizar}
+    <TopBar titulo={titulo} subtitulo={subtitulo} onAtualizar={rota.tela === "atividade" ? async () => { await atualizarAtividade(true).catch(() => undefined); } : atualizar}
       onVoltar={rota.tela === "inicio" ? undefined : () => voltar(pai)} />
     <main className="m-conteudo">
       {error && <p role="alert" className="m-alerta">Não foi possível conectar: {error}</p>}

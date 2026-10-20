@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 
 export type Rota =
   | { tela: "inicio" }
+  | { tela: "atividade" }
   | { tela: "projeto"; projeto: string }
   | { tela: "conversa"; conversa: string };
 
 /** `#/p/<projeto>` ou `#/c/<conversa>`. Qualquer outra coisa (inclusive o `#t=` do QR) é o início. */
 export function lerRota(hash = location.hash): Rota {
+  if (hash === "#/atividade") return { tela: "atividade" }; // Fork: caixa compartilhada com o PC.
   const [, tipo, id] = hash.match(/^#\/([pc])\/([^/?#]+)$/) ?? [];
   if (!id) return { tela: "inicio" };
   let valor: string;
@@ -16,6 +18,7 @@ export function lerRota(hash = location.hash): Rota {
 
 export function urlDaRota(rota: Rota): string {
   const base = location.pathname + location.search;
+  if (rota.tela === "atividade") return `${base}#/atividade`;
   if (rota.tela === "projeto") return `${base}#/p/${encodeURIComponent(rota.projeto)}`;
   if (rota.tela === "conversa") return `${base}#/c/${encodeURIComponent(rota.conversa)}`;
   return base;

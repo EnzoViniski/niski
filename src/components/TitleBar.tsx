@@ -8,6 +8,7 @@ import { NOME_DO_PRODUTO } from "../lib/identidade";
 import { NO_MAC } from "../lib/plataforma";
 import { GavetaDeUso } from "../features/terminal/GavetaDeUso";
 import { AvisoDeAtualizacao } from "./AvisoDeAtualizacao";
+import { CaixaDeAtividade } from "../features/atividade/CaixaDeAtividade";
 
 /*
  * Barra superior própria (a janela nasce sem a moldura do Windows: `decorations: false`).
@@ -120,6 +121,7 @@ export function TitleBar({
       <AvisoDeAtualizacao />
 
       <GavetaDeUso />
+      <CaixaDeAtividade /> {/* Fork: contador e gaveta de atividade de todos os projetos. */}
 
       <span className="titlebar-sino">
         <NotificationBell onOpenSettings={onOpenSettings} />

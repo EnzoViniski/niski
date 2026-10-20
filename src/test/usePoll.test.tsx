@@ -21,6 +21,15 @@ beforeEach(() => { vi.useFakeTimers(); setHidden(false); });
 afterEach(() => { vi.useRealTimers(); });
 
 describe("usePoll", () => {
+  it("Fork: notificador do desktop continua consultando com a janela minimizada", async () => {
+    setHidden(true);
+    const run = vi.fn().mockResolvedValue(undefined);
+    function Notificador() { usePoll(run, () => undefined, [], 2_000, true); return null; }
+    render(<Notificador />);
+    await settle();
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(run).toHaveBeenCalledTimes(2);
+  });
   it("com a aba oculta não busca nada, e busca assim que ela volta", async () => {
     // É o caso normal do celular: a aba volta de background. Antes, a primeira carga era pulada
     // e a tela ficava vazia sem erro até o próximo tick — com backoff, até 60s.

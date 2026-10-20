@@ -1,5 +1,6 @@
 import { PALETA_PADRAO } from "../lib/palettes";
 import type { ShortcutOverrides } from "../lib/shortcuts";
+import { AVISOS_PADRAO, type PreferenciasDeAvisos } from "../features/atividade/tipos";
 
 export type Theme = "escuro" | "claro" | "sistema";
 /**
@@ -44,6 +45,8 @@ export interface AppSettings {
 
   /** Toast do Windows + piscar na barra quando um agente pede atenção com o app fora de foco. */
   notifyAttention: boolean;
+  /** Fork: cada tipo tem sua regra de foco e seu som. */
+  avisos: PreferenciasDeAvisos;
 
   /** Como a aba de um agente aparece. Shells sem IA continuam sempre terminal. */
   agentView: AgentView;
@@ -75,6 +78,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   fileSaveMode: "auto",
 
   notifyAttention: true,
+  avisos: AVISOS_PADRAO,
 
   agentView: "terminal",
   conversationBackground: "web",

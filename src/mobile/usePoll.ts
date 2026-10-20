@@ -14,7 +14,7 @@ const MAX_DELAY_MS = 60_000;
  * uma chamada está em voo invalida a cadeia antiga, que morre ao tentar se reagendar.
  */
 /** `intervalMs` é o ritmo base: o chat usa curto enquanto o agente trabalha, para parecer ao vivo. */
-export function usePoll(run: () => Promise<void>, onError: (reason: unknown) => void, deps: DependencyList, intervalMs = BASE_DELAY_MS) {
+export function usePoll(run: () => Promise<void>, onError: (reason: unknown) => void, deps: DependencyList, intervalMs = BASE_DELAY_MS, emSegundoPlano = false) {
   useEffect(() => {
     let cancelled = false;
     let timer: number | undefined;
@@ -23,7 +23,8 @@ export function usePoll(run: () => Promise<void>, onError: (reason: unknown) => 
 
     async function poll(token: number) {
       if (cancelled || token !== generation) return;
-      if (!document.hidden) {
+      // Fork: o notificador do desktop acompanha atividade também com a janela minimizada.
+      if (!document.hidden || emSegundoPlano) {
         try {
           await run();
           delay = intervalMs;
@@ -53,5 +54,5 @@ export function usePoll(run: () => Promise<void>, onError: (reason: unknown) => 
       document.removeEventListener("visibilitychange", wake);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, intervalMs]);
+  }, [...deps, intervalMs, emSegundoPlano]);
 }
