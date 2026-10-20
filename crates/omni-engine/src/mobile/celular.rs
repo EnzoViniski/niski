@@ -9,6 +9,10 @@ pub(super) fn tailscale(args: &[&str], segundos: u64) -> Option<(bool,String)> {
     let path = if cfg!(windows) { PathBuf::from("C:/Program Files/Tailscale/tailscale.exe") }
         else if cfg!(target_os = "macos") && app.is_file() { app } else { PathBuf::from("tailscale") };
     let mut command = std::process::Command::new(path);
+    // O binário do app do Tailscale no Mac só age como CLI se vê TERM (ou SHLVL); sem nenhum, como no
+    // engine aberto pelo Finder, tenta abrir a GUI e falha com "CLIError error 3" — e a tela dizia
+    // "Tailscale não detectado" com ele conectado.
+    if std::env::var_os("TERM").is_none() { command.env("TERM","dumb"); }
     command.args(args).stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
     #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
