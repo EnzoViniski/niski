@@ -1,6 +1,9 @@
 import { useEffect, useReducer, useRef } from "react";
 import { loadWorkspaces, saveWorkspaces } from "../../services/workspaceService";
-import { publishWorkspace, type PublishedTheme } from "../terminal/terminalService";
+import { listTerminalSessions, publishWorkspace, restartTerminal, type PublishedTheme } from "../terminal/terminalService";
+// Fork (atualização automática): religar as abas visíveis depois do reinício de atualização.
+import { consumirReinicioDeAtualizacao } from "../../lib/atualizacaoRemota";
+import { retomarAbasVisiveisAposAtualizar } from "./recuperarWorkspace";
 import { workspacesReducer } from "./workspacesReducer";
 
 /** `tema` é publicado junto com os projetos para o celular sair com a mesma cara do PC. */
@@ -11,6 +14,14 @@ export function useWorkspace(tema: PublishedTheme | null = null) {
   useEffect(() => {
     saveWorkspaces(collection);
   }, [collection]);
+
+  // Fork (atualização automática): só na abertura que veio de "Atualizar agora"/"Reiniciar app e
+  // engine"; o sinalizador é consumido aqui, uma vez. Abertura normal não muda.
+  const inicial = useRef(collection);
+  useEffect(() => {
+    if (!consumirReinicioDeAtualizacao()) return;
+    void retomarAbasVisiveisAposAtualizar(inicial.current, { listar: listTerminalSessions, reiniciar: restartTerminal });
+  }, []);
 
   // Publica os projetos no engine para o celular enxergar. A projeção serializada **é** o debounce:
   // arrastar aba, mexer em split ou trocar de tab produz a mesma string e não gera IPC nenhum. Só

@@ -38,7 +38,7 @@
       { "url": "https://code.claude.com/*" },
       { "url": "https://learn.chatgpt.com/*" },
       { "url": "https://cursor.com/*" },
-      { "url": "https://github.com/Medza-Primos-Organizacao/medza-agentes/releases" },
+      { "url": "https://github.com/Medza-Primos-Organizacao/medza-agentes-releases/releases" },
       { "url": "https://*.ts.net/*" },
       { "url": "http://100.*/*" }
     ] }

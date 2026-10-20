@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui";
 import { ATUALIZACAO_AUTOMATICA, PAGINA_DE_DOWNLOADS } from "../lib/identidade";
-
-type Fase = "ocioso" | "checando" | "disponivel" | "baixando" | "pronto" | "atual" | "erro";
-
-interface Novidade {
-  version: string;
-  notes?: string;
-}
+// Fork (atualização automática): mesma lógica da barra; termina em `reiniciar_para_atualizar`
+// (engine novo), não no `relaunch()` do plugin-process.
+import {
+  agentesTrabalhando,
+  atualizarAgora,
+  procurarAtualizacao,
+  reiniciarParaAtualizar,
+  textoDaConfirmacao,
+  useAtualizacaoRemota,
+} from "../lib/atualizacaoRemota";
 
 /**
  * Atualização pelo app (plugin updater do Tauri).
@@ -17,78 +20,19 @@ interface Novidade {
  * chave privada correspondente à `pubkey` do tauri.conf.json, um pacote
  * adulterado é recusado.
  *
- * Imports do plugin são dinâmicos: fora do Tauri (`npm run dev:vite`, testes)
- * o módulo nem existe, e um import estático quebraria a tela inteira.
+ * Imports do plugin são dinâmicos (em `lib/atualizacaoRemota`): fora do Tauri
+ * (`npm run dev:vite`, testes) o módulo nem existe, e um import estático
+ * quebraria a tela inteira.
  */
 export function UpdateCard() {
-  const [fase, setFase] = useState<Fase>("ocioso");
-  const [novidade, setNovidade] = useState<Novidade | null>(null);
-  const [progresso, setProgresso] = useState(0);
-  const [erro, setErro] = useState<string | null>(null);
-
-  const checar = useCallback(async (silencioso = false) => {
-    if (!ATUALIZACAO_AUTOMATICA) return;
-    if (!silencioso) setFase("checando");
-    setErro(null);
-    try {
-      const { check } = await import("@tauri-apps/plugin-updater");
-      const upd = await check();
-      if (upd) {
-        setNovidade({ version: upd.version, notes: upd.body });
-        setFase("disponivel");
-      } else if (!silencioso) {
-        setFase("atual");
-      }
-    } catch (e) {
-      if (silencioso) return; // sem internet no boot não é assunto do usuário
-      setErro(String(e));
-      setFase("erro");
-    }
-  }, []);
+  const { fase, versao, notas, progresso, erro } = useAtualizacaoRemota();
+  const [confirmacao, setConfirmacao] = useState<string | null>(null);
 
   // Checagem silenciosa ao abrir a tela: quem entra em Configurações quer
   // saber, e falhar calado é melhor que um erro de rede no rosto.
   useEffect(() => {
-    void checar(true);
-  }, [checar]);
-
-  async function instalar() {
-    if (!ATUALIZACAO_AUTOMATICA) return;
-    setFase("baixando");
-    setProgresso(0);
-    setErro(null);
-    try {
-      const { check } = await import("@tauri-apps/plugin-updater");
-      const upd = await check();
-      if (!upd) {
-        setFase("atual");
-        return;
-      }
-
-      let total = 0;
-      let baixado = 0;
-      await upd.downloadAndInstall((e) => {
-        if (e.event === "Started") {
-          total = e.data.contentLength ?? 0;
-        } else if (e.event === "Progress") {
-          baixado += e.data.chunkLength;
-          if (total > 0) setProgresso(Math.round((baixado / total) * 100));
-        } else if (e.event === "Finished") {
-          setProgresso(100);
-        }
-      });
-
-      setFase("pronto");
-    } catch (e) {
-      setErro(String(e));
-      setFase("erro");
-    }
-  }
-
-  async function reiniciar() {
-    const { relaunch } = await import("@tauri-apps/plugin-process");
-    await relaunch();
-  }
+    void procurarAtualizacao({ silencioso: true });
+  }, []);
 
   if (!ATUALIZACAO_AUTOMATICA) return (
     <Card>
@@ -101,19 +45,31 @@ export function UpdateCard() {
 
   return (
     <Card>
-      {fase === "disponivel" && novidade && (
+      {fase === "disponivel" && versao && (
         <>
           <p className="text-text-primary text-sm font-medium">
-            Versão {novidade.version} disponível
+            Versão {versao} disponível
           </p>
-          {novidade.notes && (
+          {notas && (
             <p className="text-text-muted text-[11px] leading-relaxed whitespace-pre-line">
-              {novidade.notes}
+              {notas}
             </p>
           )}
-          <Button variant="primary" onClick={instalar}>
-            Baixar e instalar
-          </Button>
+          {confirmacao === null ? (
+            <Button variant="primary" onClick={async () => setConfirmacao(textoDaConfirmacao(versao, await agentesTrabalhando()))}>
+              Atualizar agora
+            </Button>
+          ) : (
+            <>
+              <p className="text-text-secondary text-xs">{confirmacao}</p>
+              <div className="flex gap-2">
+                <Button onClick={() => setConfirmacao(null)}>Cancelar</Button>
+                <Button variant="primary" onClick={() => { setConfirmacao(null); void atualizarAgora(); }}>
+                  Atualizar e reabrir
+                </Button>
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -132,14 +88,19 @@ export function UpdateCard() {
         </>
       )}
 
-      {fase === "pronto" && (
+      {(fase === "instalada" || fase === "reiniciando") && (
         <>
           <p className="text-success text-sm font-medium">Atualização instalada</p>
           <p className="text-text-muted text-[11px]">
-            Reinicie o app para usar a versão nova.
+            {fase === "reiniciando" ? "Reabrindo o app…" : "Reabra o app para usar a versão nova."}
           </p>
-          <Button variant="primary" onClick={reiniciar}>
-            Reiniciar agora
+          {erro && (
+            <p role="alert" className="text-danger text-xs">
+              {erro}
+            </p>
+          )}
+          <Button variant="primary" onClick={() => void reiniciarParaAtualizar()} loading={fase === "reiniciando"}>
+            Reabrir agora
           </Button>
         </>
       )}
@@ -160,7 +121,7 @@ export function UpdateCard() {
               {erro}
             </p>
           )}
-          <Button onClick={() => checar()} loading={fase === "checando"}>
+          <Button onClick={() => void procurarAtualizacao()} loading={fase === "checando"}>
             {fase === "checando" ? "Procurando…" : "Procurar atualizações"}
           </Button>
         </>

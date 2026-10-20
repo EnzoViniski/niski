@@ -62,7 +62,34 @@ if (process.platform === "darwin" && existsSync(app)) {
   }
 }
 
-if (encontrados.length === 0 && !zipDoApp) {
+// O updater do macOS consome `<Produto>.app.tar.gz` + `.sig`, que o `tauri build` deixa em `bundle/macos/`
+// sem versão nem arquitetura no nome (e por isso o filtro acima não os pega). Copia com o nome que o
+// make-latest-json espera, com a arquitetura para arm64 e x64 não colidirem. `target/` não é limpo
+// entre builds: só vale o par de ESTE build (.app na versão certa e tar.gz não mais velho que ele).
+const tarGzDoUpdater = [];
+const tarGz = join(BUNDLE, "macos", `${PRODUTO}.app.tar.gz`);
+if (process.platform === "darwin" && existsSync(tarGz) && existsSync(`${tarGz}.sig`)) {
+  const plist = join(app, "Contents/Info.plist");
+  const versaoDoTarGz = existsSync(plist)
+    ? execFileSync("plutil", ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", plist], { encoding: "utf8" }).trim()
+    : null;
+  // O bundler cria o tar.gz depois do .app: um mais velho que o .app é sobra de outro build.
+  const maisNovoQueOApp = existsSync(plist) && statSync(tarGz).mtimeMs >= statSync(plist).mtimeMs - 60_000;
+  if (versaoDoTarGz === VERSAO && maisNovoQueOApp) {
+    const origemDaArquitetura = alvo ?? process.arch;
+    const arquitetura = origemDaArquitetura.startsWith("aarch64") || origemDaArquitetura === "arm64" ? "aarch64" : "x64";
+    const nome = `${PRODUTO.replaceAll(" ", ".")}_${VERSAO}_${arquitetura}.app.tar.gz`;
+    mkdirSync(DESTINO, { recursive: true });
+    copyFileSync(tarGz, join(DESTINO, nome));
+    copyFileSync(`${tarGz}.sig`, join(DESTINO, `${nome}.sig`));
+    tarGzDoUpdater.push(nome, `${nome}.sig`);
+    console.log(`[installers] ${join(DESTINO, nome)} (+ .sig)`);
+  } else {
+    console.warn(`[installers] ${tarGz} ignorado: .app na versão ${versaoDoTarGz ?? "?"} (VERSION ${VERSAO}) ou tar.gz de outro build.`);
+  }
+}
+
+if (encontrados.length === 0 && !zipDoApp && tarGzDoUpdater.length === 0) {
   // Não é erro: `npm run build:vite` sozinho não gera bundle. Falhar aqui
   // quebraria o script de build por um passo que nem devia ter rodado.
   console.warn(`[installers] Nada de "${PRODUTO}" em ${BUNDLE} — rode "npm run build" antes.`);

@@ -396,7 +396,7 @@ mod tests {
     fn subpasta_e_worktree_a_partir_de_outra_worktree() {
         let (dir, raiz) = repo();
         let wt = criar(&raiz.join("src"), "a").unwrap();
-        assert!(wt.pasta_de_trabalho.ends_with(".medza-worktrees/app/a/src"), "{}", wt.pasta_de_trabalho);
+        assert!(Path::new(&wt.pasta_de_trabalho).ends_with(".medza-worktrees/app/a/src"), "{}", wt.pasta_de_trabalho);
         // Orquestrador numa worktree isolada abre subagente isolado: mesma base, não aninhada.
         let filha = criar(Path::new(&wt.caminho), "b").unwrap();
         assert_eq!(PathBuf::from(&filha.caminho), dunce::canonicalize(dir.path()).unwrap().join(".medza-worktrees/app/b"));

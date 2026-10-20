@@ -8,8 +8,9 @@
   "portaDeDev": 47441,
   "pastaDePerfis": "OMNI-AGENTS",
   "repositorio": "Medza-Primos-Organizacao/medza-agentes",
+  "repositorioDeReleases": "Medza-Primos-Organizacao/medza-agentes-releases",
   "updater": {
-    "endpoint": "https://github.com/Medza-Primos-Organizacao/medza-agentes/releases/latest/download/latest.json",
-    "pubkey": ""
+    "endpoint": "https://github.com/Medza-Primos-Organizacao/medza-agentes-releases/releases/latest/download/latest.json",
+    "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJCMERFQ0Q4RDJGNDNBQzYKUldUR092VFMyT3dOSy83dC9PSW9ZUlJsQjhvaDg4alBMZUlrTnFVY3VBaUE4dDVjZXVsRTA3OUMK"
   }
 }

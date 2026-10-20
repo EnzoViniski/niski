@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
 import { ATUALIZACAO_AUTOMATICA } from "../lib/identidade";
+// Fork (atualização automática): a mesma checagem da barra (ao abrir e a cada 30 min), sem consulta própria.
+import { useAtualizacaoRemota } from "../lib/atualizacaoRemota";
 
 export type SettingsSection = "sobre";
 
@@ -13,43 +14,19 @@ export interface Notificacao {
 
 /**
  * Pendências que o usuário precisa ver: por enquanto, só versão nova do app.
- * O sino apenas avisa e leva até Configurações — instalar é o `UpdateCard`.
+ * O sino apenas avisa e leva até Configurações — instalar é o `UpdateCard`
+ * (ou o "Atualizar agora" da barra).
+ *
+ * Falha de rede não vira notificação — o usuário não pode fazer nada a
+ * respeito e um alerta permanente só irrita (a checagem automática é calada).
  */
-export function useNotifications() {
-  const [itens, setItens] = useState<Notificacao[]>([]);
-
-  useEffect(() => {
-    if (!ATUALIZACAO_AUTOMATICA) return;
-    let cancelado = false;
-
-    async function apurar() {
-      const achados: Notificacao[] = [];
-
-      // Falha de rede aqui não vira notificação — o usuário não pode fazer
-      // nada a respeito e um alerta permanente só irrita.
-      try {
-        const { check } = await import("@tauri-apps/plugin-updater");
-        const upd = await check();
-        if (upd) {
-          achados.push({
-            id: `update:${upd.version}`,
-            titulo: `Versão ${upd.version} disponível`,
-            detalhe: "Atualize sem reinstalar o aplicativo.",
-            secao: "sobre",
-          });
-        }
-      } catch {
-        /* sem internet ou fora do Tauri */
-      }
-
-      if (!cancelado) setItens(achados);
-    }
-
-    void apurar();
-    return () => {
-      cancelado = true;
-    };
-  }, []);
-
-  return itens;
+export function useNotifications(): Notificacao[] {
+  const { fase, versao } = useAtualizacaoRemota({ automatica: ATUALIZACAO_AUTOMATICA });
+  if (!ATUALIZACAO_AUTOMATICA || fase !== "disponivel" || !versao) return [];
+  return [{
+    id: `update:${versao}`,
+    titulo: `Versão ${versao} disponível`,
+    detalhe: "Atualize sem reinstalar o aplicativo.",
+    secao: "sobre",
+  }];
 }

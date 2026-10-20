@@ -71,3 +71,8 @@ pub fn reiniciar_para_atualizar(app: tauri::AppHandle, trocar_engine: Option<boo
     crate::voz::liberar();
     app.restart();
 }
+
+/// Fork (atualização automática): agentes que a troca do engine interromperia, para a confirmação
+/// do "Atualizar agora" (versão nova baixada pelo updater, não build no disco).
+#[tauri::command(async)]
+pub fn agentes_trabalhando() -> usize { crate::engine_client::agentes_ocupados() }
