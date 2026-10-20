@@ -57,7 +57,9 @@ pub fn url_da_permissao(porta: u16) -> String { format!("http://127.0.0.1:{porta
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Ajustes {
     /// Desligado: nenhuma sessão nova ganha ganchos; tudo segue pela tela.
-    #[serde(default = "sim")]
+    /// Fork: desligado por padrão até a rodada com a CLI real confirmar o diálogo de permissão com
+    /// o gancho pendente (desenho-ondas-2-3.md, seção 6). Ligar em Configurações → Agentes.
+    #[serde(default)]
     pub ligado: bool,
     #[serde(default = "espera_padrao")]
     pub espera_s: u64,
@@ -65,10 +67,9 @@ pub struct Ajustes {
     #[serde(default)]
     pub statusline: Vec<String>,
 }
-fn sim() -> bool { true }
 fn espera_padrao() -> u64 { ESPERA_PADRAO_S }
 impl Default for Ajustes {
-    fn default() -> Self { Self { ligado: true, espera_s: ESPERA_PADRAO_S, statusline: Vec::new() } }
+    fn default() -> Self { Self { ligado: false, espera_s: ESPERA_PADRAO_S, statusline: Vec::new() } }
 }
 impl Ajustes {
     /// Prazo válido (um dos três da tela); qualquer outro vira o padrão.

@@ -111,14 +111,14 @@ fn configuracoes_do_usuario_leem_so_as_chaves_que_importam() {
 fn ajustes_tem_padrao_ligado_e_prazo_valido() {
     let dir = tempfile::tempdir().unwrap();
     let padrao = ler_ajustes(dir.path());
-    assert!(padrao.ligado && padrao.statusline.is_empty());
+    assert!(!padrao.ligado && padrao.statusline.is_empty());
     assert_eq!(padrao.espera(), 300);
     gravar_ajustes(dir.path(), &Ajustes { ligado: false, espera_s: 600, statusline: vec!["claude-p".into()] }).unwrap();
     let lido = ler_ajustes(dir.path());
     assert!(!lido.ligado && lido.espera() == 600 && lido.statusline == ["claude-p"]);
     assert_eq!(Ajustes { espera_s: 7, ..Ajustes::default() }.espera(), 300);
     std::fs::write(dir.path().join(ARQUIVO_DE_AJUSTES), r#"{"espera_s":120}"#).unwrap();
-    assert!(ler_ajustes(dir.path()).ligado, "campo ausente = ligado");
+    assert!(!ler_ajustes(dir.path()).ligado, "campo ausente = desligado");
 }
 
 #[test]

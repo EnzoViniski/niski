@@ -583,6 +583,8 @@ mod testes_dos_ganchos {
             id_sequence: AtomicU64::new(1) });
         let porta = 47_997;
         crate::ganchos::definir_porta(&state, porta);
+        // Fork: ganchos vêm desligados por padrão; os testes ligam explicitamente.
+        omni_core::ganchos::gravar_ajustes(dir.path(), &omni_core::ganchos::Ajustes { ligado: true, ..Default::default() }).unwrap();
         let (projeto, conta, bin) = (dir.path().join("projeto"), dir.path().join("conta"), dir.path().join("bin"));
         for pasta in [&projeto, &conta, &bin] { std::fs::create_dir_all(pasta).unwrap(); }
         let script = bin.join("claude");

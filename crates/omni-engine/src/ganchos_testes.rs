@@ -17,6 +17,8 @@ fn cena(porta: u16) -> Cena {
         token: "engine-token-de-teste".into(), state_file: dir.path().join("sessions.json"), sessions: Mutex::new(HashMap::new()),
         id_sequence: AtomicU64::new(1) });
     definir_porta(&state, porta);
+    // Fork: ganchos vêm desligados por padrão; os testes ligam explicitamente.
+    omni_core::ganchos::gravar_ajustes(dir.path(), &omni_core::ganchos::Ajustes { ligado: true, ..Default::default() }).unwrap();
     let projeto = dir.path().join("projeto");
     let conta = dir.path().join("conta-claude");
     fs::create_dir_all(&projeto).unwrap();
