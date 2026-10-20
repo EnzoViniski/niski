@@ -10,6 +10,8 @@ export interface Conversation {
     enfileirar?: boolean;
     /** Menu da CLI ou pergunta do agente travando o campo: responde-se pelo número. */
     escolha?: Escolha | null;
+    /** Fork (Onda 2): pedido segurado pelo gancho do Claude. Responder com o `id` (`/aprovar` com `pedido`). */
+    pedido?: PedidoDoGancho | null;
   } | null;
   /** Há uma sessão aberta no PC ligada a esta conversa (dá para ver o terminal e mandar teclas). */
   live?: boolean;
@@ -26,6 +28,35 @@ export interface Conversation {
   tokens?: string | null;
   /** Por que a sessão parou sem terminar (`usage_limit`, `api_error`). Engine antigo não manda. */
   notice?: string | null;
+  /** Fork (Onda 2): ganchos do Claude nesta sessão (estado, ferramenta atual, contexto da statusline). */
+  ganchos?: GanchosDaConversa | null;
+}
+
+/** Fork (Onda 2): pedido de permissão que o engine segura até alguém decidir (`expira_em_ms`: depois
+ *  disso a CLI pergunta no terminal). */
+export interface PedidoDoGancho {
+  id: string;
+  origem: "gancho";
+  ferramenta: string;
+  /** "Bash · npm test": o que a ferramenta vai fazer. */
+  resumo: string;
+  servidor_mcp?: string;
+  /** Pedido que só o usuário aprova (o orquestrador não). */
+  arriscado?: string;
+  expira_em_ms: number;
+}
+
+/** Fork (Onda 2): `tela` = sem eventos ainda (vale a leitura do terminal); `ativos` = eventos chegando;
+ *  `sem_eventos` = a CLI não mandou nada (versão antiga, pasta sem confiança); `desligados` = Configurações
+ *  ou `disableAllHooks` do usuário. */
+export interface GanchosDaConversa {
+  estado: "tela" | "ativos" | "sem_eventos" | "desligados";
+  motivo?: string | null;
+  ferramenta?: string | null;
+  subagentes?: number;
+  modo?: string | null;
+  statusline?: boolean;
+  contexto?: { pct: number | null; custo_usd: number | null; modelo: string | null } | null;
 }
 
 /** `text` é fala; `tool` é uma ação do agente (ler, rodar, editar); `command` é um `/comando`

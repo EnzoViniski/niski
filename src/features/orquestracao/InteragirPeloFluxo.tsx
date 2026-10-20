@@ -3,6 +3,8 @@ import { ApiError, actionKey, request, type Timeline } from "../../mobile/api";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { SendIcon, StopIcon } from "../../components/ui/PixelIcon";
 import { pararAgente, type FluxoAoVivo, type NoAoVivo } from "./orquestracaoService";
+// Fork (Onda 2, item 2): pedido segurado pelo gancho do Claude — responde direto, com o id do pedido.
+import { formatarRestante, responderPedido, soltarPedido, useSegundosRestantes } from "../../mobile/conversa/pedidoDoGancho";
 
 /**
  * Fork: interagir pelo fluxo do orquestrador — mandar prompt para qualquer nó ("Para: …"), aprovar ou
@@ -17,6 +19,8 @@ export interface AcoesDoFluxo {
   erro: string | null;
   ocupado: string | null;
   aprovar: (no: NoAoVivo, permitir: boolean) => Promise<void>;
+  /** "Responder no terminal" (só pedido do gancho): a CLI mostra o diálogo dela. */
+  soltar: (no: NoAoVivo) => Promise<void>;
   parar: (orquestrador: string, no: NoAoVivo) => Promise<void>;
   enviar: (no: NoAoVivo, texto: string) => Promise<boolean>;
 }
@@ -26,6 +30,7 @@ const conversa = (id: string) => `/conversas/${encodeURIComponent(id)}`;
 
 function mensagem(motivo: unknown) {
   if (motivo instanceof ApiError && motivo.status === 412) return "A tela do agente mudou; confira o pedido de novo.";
+  if (motivo instanceof ApiError && motivo.status === 409) return "Este pedido já foi respondido.";
   return motivo instanceof Error ? motivo.message : String(motivo);
 }
 
@@ -50,11 +55,17 @@ export function useAcoesDoFluxo(recarregar: () => Promise<void>): AcoesDoFluxo {
   return useMemo(() => ({
     erro, ocupado,
     aprovar: async (no, permitir) => {
+      const pedido = no.capabilities?.pedido;
+      if (pedido) { await executar(no.id, () => responderPedido(no.id, pedido, permitir)); return; }
       const revisao = no.capabilities?.revision;
       if (!revisao) return;
       await executar(no.id, () => request(`${conversa(no.id)}/aprovar`, {
         method: "POST", headers: { ...json, "Idempotency-Key": actionKey(), "If-Match": revisao }, body: JSON.stringify({ permitir }),
       }));
+    },
+    soltar: async (no) => {
+      const pedido = no.capabilities?.pedido;
+      if (pedido) await executar(no.id, () => soltarPedido(no.id, pedido));
     },
     parar: async (orquestrador, no) => { await executar(no.id, () => pararAgente(orquestrador, no.id)); },
     enviar: (no, texto) => executar(no.id, async () => {
@@ -81,6 +92,8 @@ export function AcoesDoNo({ no, orquestrador, centro }: { no: NoAoVivo; orquestr
     const t = window.setTimeout(() => setConfirmar(false), 4_000);
     return () => window.clearTimeout(t);
   }, [confirmar]);
+  const doGancho = no.capabilities?.approve ? no.capabilities.pedido ?? null : null;
+  const restantes = useSegundosRestantes(doGancho?.expira_em_ms);
   if (!acoes) return null;
   const ocupado = acoes.ocupado === no.id;
   const pedido = no.capabilities?.approve ? no.capabilities.approval_text : null;
@@ -91,9 +104,13 @@ export function AcoesDoNo({ no, orquestrador, centro }: { no: NoAoVivo; orquestr
         <div className="orq-pedido nodrag">
           {no.arriscado && <div className="orq-pedido-alerta">Só você aprova: {no.arriscado}</div>}
           <div className="orq-pedido-texto" title={pedido ?? undefined}>{pedido ?? "Pedido de permissão"}</div>
+          {restantes !== null && <div className="orq-pedido-dica">
+            {restantes > 0 ? `Vai para o terminal em ${formatarRestante(restantes)}` : "Indo para o terminal…"}</div>}
           <div className="orq-pedido-botoes">
             <button type="button" className="orq-botao is-sim" disabled={ocupado} onClick={() => void acoes.aprovar(no, true)}>Permitir</button>
             <button type="button" className="orq-botao is-nao" disabled={ocupado} onClick={() => void acoes.aprovar(no, false)}>Negar</button>
+            {doGancho && <button type="button" className="orq-botao is-discreto" disabled={ocupado} title="A CLI mostra o diálogo dela no terminal"
+              onClick={() => void acoes.soltar(no)}>No terminal</button>}
           </div>
         </div>
       )}

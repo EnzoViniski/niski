@@ -388,7 +388,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
       })}
       {enviado && <MessageBubble lado="user" pendente texto={enviado.texto}
         anexosLocais={enviado.anexos.length ? enviado.anexos : undefined} />}
-      {capability?.approve && <CartaoDePermissao texto={capability.approval_text} busy={busy} onResponder={(permitir) => void aprovar(permitir)} />}
+      {capability?.approve && <CartaoDePermissao texto={capability.approval_text} busy={busy} onResponder={(permitir) => void aprovar(permitir)}
+        pedido={capability.pedido} conversaId={conversation.id} onRespondido={() => void Promise.all([ler(), refresh()])} /* Fork (Onda 2) */ />}
       {capability?.escolha && !planoPendente && <CartaoDePergunta escolha={capability.escolha} provider={conversation.provider} busy={busy}
         onEscolher={(opcao) => void escolher(opcao)} onAvancar={() => void escolher("avancar")} />}
       {ativo && !capability?.approve &&
