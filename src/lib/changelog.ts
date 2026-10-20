@@ -16,6 +16,16 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.8.2",
+    date: "2026-10-20",
+    changes: [
+      "Codex: dá para trocar o modelo e o esforço logo ao abrir uma conversa nova, antes de mandar a primeira mensagem.",
+      "Codex: conversas longas não travam mais o envio de mensagens, e o agente não é reaberto sozinho no meio da conversa.",
+      "O modelo mostrado na conversa do Codex é o da própria conversa, mesmo com outras abertas no mesmo projeto.",
+      "Depois de trocar modelo ou esforço, a escolha continua na tela enquanto o agente reabre.",
+    ],
+  },
+  {
     version: "0.8.1",
     date: "2026-10-20",
     changes: [
