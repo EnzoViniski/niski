@@ -157,7 +157,7 @@ mod testes {
     use super::*;
     #[cfg(unix)]
     #[test]
-    #[ignore = "Integração requer listen Unix, bloqueado pelo sandbox; parser e quadros têm testes sem socket"]
+    // Fork: dentro do sandbox do Codex o `bind` Unix é negado; fora dele (verificação integrada) roda.
     fn handshake_unix_sintetico_confere_desafio_e_recebe_texto() {
         use base64::{engine::general_purpose::STANDARD, Engine};
         use sha1::{Digest, Sha1};
@@ -165,6 +165,9 @@ mod testes {
         let dir = tempfile::tempdir_in("/tmp").unwrap();
         let socket = dir.path().join("s");
         let listener = UnixListener::bind(&socket).unwrap();
+        // O servidor só fecha depois que o cliente leu: no macOS, `setsockopt` num socket cujo outro
+        // lado já fechou devolve EINVAL (o app-server de verdade fica aberto).
+        let (lido, esperar_leitura) = std::sync::mpsc::channel::<()>();
         let servidor = std::thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
             let mut reader = std::io::BufReader::new(stream.try_clone().unwrap());
@@ -185,10 +188,12 @@ mod testes {
             write!(stream,"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {esperado}\r\n\r\n").unwrap();
             stream.write_all(b"\x81\x02{}").unwrap();
             stream.flush().unwrap();
+            let _ = esperar_leitura.recv();
         });
         let (mut reader, writer) = conectar(&socket).unwrap();
         let writer = Mutex::new(writer);
         assert_eq!(receber(&mut *reader, &writer).unwrap(), b"{}");
+        lido.send(()).unwrap();
         servidor.join().unwrap();
     }
     #[test]
