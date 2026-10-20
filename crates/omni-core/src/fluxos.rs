@@ -17,6 +17,10 @@ pub enum TipoDeNo {
     Entrada,
     /// Um modelo de agente trabalhando sem tela.
     Agente,
+    /// Fork: /goal oficial do Claude, com teto de turnos.
+    Objetivo,
+    /// Fork: controlador do ramo que volta a este nó, com limite e intervalo.
+    Repetir,
     /// Desvio pelo veredito do nó anterior: saídas `sim` / `nao` / `esgotado` (passou do limite de voltas).
     Condicao,
     /// Espera você aprovar (PC, web ou celular): saídas `sim` / `nao`.
@@ -81,6 +85,10 @@ pub struct FluxoSalvo {
     pub caminho: String,
 }
 
+// Fork: regras dos blocos novos isoladas do domínio existente.
+#[path = "fluxos_blocos.rs"]
+pub mod blocos;
+
 pub const FLUXOS_PRONTOS: [(&str, &str); 2] = [
     ("tarefa-pr", include_str!("../fluxos-prontos/tarefa-pr.json")),
     ("time-de-agentes", include_str!("../fluxos-prontos/time-de-agentes.json")),
@@ -100,6 +108,7 @@ pub fn saidas(tipo: &TipoDeNo) -> &'static [&'static str] {
     match tipo {
         TipoDeNo::Condicao => &["sim", "nao", "esgotado"],
         TipoDeNo::Aprovacao => &["sim", "nao"],
+        TipoDeNo::Repetir => &["corpo", "fim"],
         TipoDeNo::Fim => &[],
         _ => &[""],
     }
@@ -112,7 +121,9 @@ pub fn validar(f: &Fluxo) -> Result<(), String> {
     if ids.len() != f.nos.len() { return Err("Dois nós com o mesmo id".into()); }
     if f.nos.iter().filter(|n| n.tipo == TipoDeNo::Entrada).count() != 1 { return Err("O fluxo precisa de exatamente uma Entrada".into()); }
     for n in &f.nos {
-        if n.tipo == TipoDeNo::Agente && n.agente.trim().is_empty() { return Err(format!("O nó “{}” precisa de um modelo de agente", rotulo(n))); }
+        if n.tipo == TipoDeNo::Objetivo { blocos::validar_objetivo(n)?; }
+        if n.tipo == TipoDeNo::Repetir { blocos::validar_repetir(n, f)?; }
+        if matches!(n.tipo, TipoDeNo::Agente | TipoDeNo::Objetivo) && n.agente.trim().is_empty() { return Err(format!("O nó “{}” precisa de um modelo de agente", rotulo(n))); }
         if n.tipo == TipoDeNo::Sala && participantes(n).len() < 2 { return Err(format!("A sala “{}” precisa de pelo menos dois participantes", rotulo(n))); }
     }
     for c in &f.conexoes {
@@ -245,7 +256,7 @@ pub fn fluxo_da_resposta(texto: &str, existentes: &[String]) -> Result<FluxoGera
         crate::agentes::validar(a).map_err(|e| format!("Agente novo “{}”: {e}", a.name))?;
         if !nomes.insert(a.name.clone()) { return Err(format!("O agente novo “{}” já existe", a.name)); }
     }
-    for n in gerado.fluxo.nos.iter().filter(|n| n.tipo == TipoDeNo::Agente) {
+    for n in gerado.fluxo.nos.iter().filter(|n| matches!(n.tipo, TipoDeNo::Agente | TipoDeNo::Objetivo)) {
         if !nomes.contains(&n.agente) { return Err(format!("O nó “{}” usa o agente “{}”, que não existe", rotulo(n), n.agente)); }
     }
     for n in gerado.fluxo.nos.iter().filter(|n| n.tipo == TipoDeNo::Sala) {

@@ -16,6 +16,9 @@
 //! Filho de `mobile` (mora em `mobile/`) para usar esses pedaços sem torná-los públicos.
 
 use super::*;
+// Fork: revisão separada compartilha registro e entrega inicial, sem tocar nas ferramentas.
+#[path = "../revisao_por_agente.rs"]
+pub(super) mod revisao_por_agente;
 use omni_core::orquestracao as regra;
 use std::sync::atomic::AtomicU16;
 

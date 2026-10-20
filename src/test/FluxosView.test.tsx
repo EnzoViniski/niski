@@ -146,3 +146,21 @@ it("apresenta erro de JSON inválido dentro do diálogo", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Conferir" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("O JSON não tem nos e conexoes");
 });
+
+it.each([["Objetivo /goal", "Condição de conclusão"], ["Repetir", "Máximo de repetições"]])("edita e salva o bloco %s", async (tipo, campo) => {
+  montar();
+  await userEvent.click(screen.getByRole("button", { name: "+ Novo" }));
+  await userEvent.click(within(screen.getByRole("toolbar", { name: "Adicionar etapa" })).getByRole("button", { name: tipo, exact:true }));
+  expect(screen.getByLabelText(campo)).toBeInTheDocument();
+  if (tipo === "Repetir") {
+    fireEvent.change(screen.getByLabelText(campo), { target:{ value:"5" } });
+    fireEvent.change(screen.getByLabelText("Intervalo em minutos"), { target:{ value:"2" } });
+    await userEvent.click(screen.getByLabelText("Parar quando o ramo devolver aprovado"));
+  } else {
+    await userEvent.clear(screen.getByLabelText(campo));
+    await userEvent.type(screen.getByLabelText(campo),"Todos os testes passam");
+    expect(screen.getByText(/Codex: \/goal em exec ainda não documentado/)).toBeInTheDocument();
+  }
+  await userEvent.click(screen.getByRole("button", { name:"Salvar" }));
+  expect(invoke).toHaveBeenCalledWith("fluxos_salvar",expect.objectContaining({ fluxo:expect.objectContaining({ nos:expect.arrayContaining([expect.objectContaining({ tipo:tipo === "Repetir" ? "repetir" : "objetivo",config:expect.objectContaining(tipo === "Repetir" ? {vezes:5,intervalo_minutos:2,parar_quando_aprovado:true} : {objetivo:"Todos os testes passam",max_turnos:10}) })]) }) }));
+});

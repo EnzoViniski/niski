@@ -18,9 +18,10 @@ export type DadosDoNo = {
 };
 export type NoOmni = Node<DadosDoNo, "omni">;
 
-const ICONE = { entrada: PlayIcon, agente: RobotIcon, condicao: ShieldIcon, aprovacao: CheckIcon, sala: ChatIcon, pr: GitBranchIcon, fim: FlagIcon } as const;
-const NOME = { entrada: "Entrada", agente: "Agente", condicao: "Condição", aprovacao: "Aprovação", sala: "Time", pr: "Pull request", fim: "Fim" } as const;
-const ROTULO_SAIDA: Record<string, string> = { sim: "sim", nao: "não", esgotado: "esgotou" };
+// Fork: blocos Objetivo e Repetir.
+const ICONE = { objetivo: FlagIcon, repetir: PlayIcon, entrada: PlayIcon, agente: RobotIcon, condicao: ShieldIcon, aprovacao: CheckIcon, sala: ChatIcon, pr: GitBranchIcon, fim: FlagIcon } as const;
+const NOME = { objetivo: "Objetivo /goal", repetir: "Repetir", entrada: "Entrada", agente: "Agente", condicao: "Condição", aprovacao: "Aprovação", sala: "Time", pr: "Pull request", fim: "Fim" } as const;
+const ROTULO_SAIDA: Record<string, string> = { corpo: "corpo", fim: "fim", sim: "sim", nao: "não", esgotado: "esgotou" };
 const STATUS: Record<string, string> = { pendente: "", rodando: "rodando", concluido: "feito", falhou: "falhou", pausado: "pausado", aguardando: "sua vez" };
 
 /** Uma etapa do fluxo no canvas. No editor ganha a barrinha de duplicar/apagar; na execução, a cor
@@ -29,7 +30,9 @@ export const NoDoFluxoView = memo(function NoDoFluxoView({ data, selected }: Nod
   const { no, estado, cli, modelo, esforco } = data;
   const Icone = ICONE[no.tipo];
   const saidas = SAIDAS[no.tipo];
-  const subtitulo = no.tipo === "agente" ? [no.agente || "escolha um agente", modelo, esforco && (ROTULO_ESFORCO[esforco] ?? esforco).toLowerCase()].filter(Boolean).join(" · ")
+  const subtitulo = no.tipo === "objetivo" ? `${no.agente || "escolha um agente Claude"} · até ${String(no.config.max_turnos ?? 10)} turnos`
+    : no.tipo === "repetir" ? `até ${String(no.config.vezes ?? 3)} vezes · ${Number(no.config.intervalo_minutos ?? 0) ? `a cada ${String(no.config.intervalo_minutos)} min` : "sem intervalo"}`
+    : no.tipo === "agente" ? [no.agente || "escolha um agente", modelo, esforco && (ROTULO_ESFORCO[esforco] ?? esforco).toLowerCase()].filter(Boolean).join(" · ")
     : no.tipo === "sala" ? (Array.isArray(no.config.participantes) ? (no.config.participantes as string[]).join(", ") : "")
     : no.tipo === "condicao" ? `lê o veredito · até ${String(no.config.max_voltas ?? 3)} voltas`
     : no.tipo === "aprovacao" ? "espera você aprovar"

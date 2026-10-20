@@ -247,7 +247,7 @@ export function PaneView({
           <GitDiffPane projectPath={projectPath} tab={tab} />
         // Fork: revisão usa a pasta da sessão, inclusive worktrees.
         ) : tab?.kind === "revisao" ? (
-          <RevisaoPane projectPath={projetoDaAba.path} sessionId={tab.resourceId} />
+          <RevisaoPane projectPath={projetoDaAba.path} sessionId={tab.resourceId} onAbrirSessao={(sessionId, title) => dispatch({ type: "ATTACH_TERMINAL", sessionId, title })} />
         ) : tab?.kind === "git-graph" ? (
           <GitGraphPane projectPath={projectPath} />
         ) : tab?.kind === "kanban" ? (

@@ -42,6 +42,9 @@ pub struct EstadoDoNo {
     /// O que o agente está fazendo agora (última ação ou fala), para a tela mostrar ao vivo.
     #[serde(default)]
     pub atividade: String,
+    /// Fork: prazo da próxima iteração, persistido para pausa/retomada.
+    #[serde(default)]
+    pub proxima_ms: u64,
     /// Modelo e esforço com que rodou.
     #[serde(default)]
     pub modelo: Option<String>,
@@ -73,11 +76,18 @@ pub struct Execucao {
     pub atualizado_ms: u64,
     pub nos: HashMap<String, EstadoDoNo>,
     pub fila: Vec<Passo>,
+    /// Fork: passo removido da fila, recuperável se o engine parar durante a execução.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub passo_ativo: Option<Passo>,
     #[serde(default)]
     pub pr_url: Option<String>,
     #[serde(default)]
     pub custo_usd: f64,
 }
+
+// Fork: blocos e testes novos fora do executor original.
+#[path = "fluxos_blocos.rs"]
+mod blocos;
 
 type Viva = Arc<Mutex<Execucao>>;
 fn execucoes() -> &'static Mutex<HashMap<String, Viva>> { static M: OnceLock<Mutex<HashMap<String, Viva>>> = OnceLock::new(); M.get_or_init(Default::default) }
@@ -103,6 +113,9 @@ pub fn carregar(state: &EngineState) {
         let Ok(mut e) = serde_json::from_slice::<Execucao>(&fs::read(&caminho).unwrap_or_default()) else { continue };
         if e.status == "rodando" {
             e.status = "pausado".into();
+            if let Some(passo) = e.passo_ativo.take() {
+                if !e.fila.iter().any(|p| p.no == passo.no) { e.fila.insert(0, passo); }
+            }
             for no in e.nos.values_mut().filter(|n| n.status == "rodando") { no.status = "pausado".into(); }
         }
         mapa.insert(e.id.clone(), Arc::new(Mutex::new(e)));
@@ -158,7 +171,7 @@ pub fn iniciar(state: &Arc<EngineState>, fluxo: Fluxo, projeto: String, projeto_
     let inicio = fluxos::entrada(&fluxo).ok_or_else(|| anyhow!("sem entrada"))?.id.clone();
     let nos = fluxo.nos.iter().map(|n| (n.id.clone(), EstadoDoNo { status: "pendente".into(), ..Default::default() })).collect();
     let e = Execucao { id: id.clone(), fluxo, projeto, projeto_id, entrada, pasta, branch, base, status: "rodando".into(), erro: None,
-        criado_ms: agora, atualizado_ms: agora, nos, fila: vec![Passo { no: inicio, de: None }], pr_url: None, custo_usd: 0.0 };
+        criado_ms: agora, atualizado_ms: agora, nos, fila: vec![Passo { no: inicio, de: None }], passo_ativo: None, pr_url: None, custo_usd: 0.0 };
     gravar(state, &e);
     execucoes().lock().map_err(|_| anyhow!("execucoes"))?.insert(id.clone(), Arc::new(Mutex::new(e.clone())));
     soltar(state.clone(), id);
@@ -177,12 +190,16 @@ fn mexer<T>(state: &EngineState, v: &Viva, f: impl FnOnce(&mut Execucao) -> T) -
 }
 
 fn executar(state: &Arc<EngineState>, id: &str) {
+    let trava = blocos::trava_do_executor(id); // Fork: retomar espera o worker anterior sair.
+    let _worker = trava.lock().expect("worker");
     let Ok(v) = viva(id) else { return };
     loop {
         let passo = mexer(state, &v, |e| {
             if e.status != "rodando" { return None; }
             if e.fila.is_empty() { e.status = "concluido".into(); return None; }
-            Some(e.fila.remove(0))
+            let passo = e.fila.remove(0);
+            e.passo_ativo = Some(passo.clone());
+            Some(passo)
         });
         let Some(passo) = passo else { break };
         if let Err(erro) = processar(state, &v, &passo) {
@@ -193,7 +210,8 @@ fn executar(state: &Arc<EngineState>, id: &str) {
                     if !pausado { n.erro = Some(erro.to_string()); }
                     n.fim_ms = now_ms();
                 }
-                if pausado {
+                e.passo_ativo = None;
+                if pausado && e.status != "cancelado" {
                     // Volta para o começo da fila: retomar continua este nó.
                     e.fila.insert(0, passo.clone());
                 } else if e.status == "rodando" {
@@ -203,6 +221,7 @@ fn executar(state: &Arc<EngineState>, id: &str) {
             });
             break;
         }
+        mexer(state, &v, |e| e.passo_ativo = None); // Fork: só esquece o passo depois de seguir.
     }
 }
 
@@ -226,11 +245,21 @@ fn processar(state: &Arc<EngineState>, v: &Viva, passo: &Passo) -> Result<()> {
         TipoDeNo::Agente => {
             let retomar = v.lock().ok().and_then(|e| e.nos.get(&no.id).filter(|n| n.status == "rodando" && n.session_id.is_some() && n.saida.is_empty()).and_then(|n| n.session_id.clone()));
             let prompt = fluxos::montar_prompt(&no, &ctx);
-            let ajuste = Ajuste { modelo: texto_de(&no.config, "modelo"), esforco: texto_de(&no.config, "esforco") };
+            let ajuste = Ajuste { modelo: texto_de(&no.config, "modelo"), esforco: texto_de(&no.config, "esforco"), ..Default::default() };
             let r = rodar_agente(state, v, &no.id, &no.agente, &prompt, retomar.as_deref(), &pasta, &projeto, &ajuste)?;
             definir_saida(state, v, &no.id, r);
             String::new()
         }
+        // Fork: goal oficial e repetição limitada no próprio executor.
+        TipoDeNo::Objetivo => {
+            let prompt = fluxos::blocos::prompt_objetivo(&no, &ctx).map_err(|e| anyhow!(e))?;
+            let ajuste = Ajuste { modelo: texto_de(&no.config, "modelo"), esforco: texto_de(&no.config, "esforco"), max_turnos: no.config["max_turnos"].as_u64() };
+            let retomar = v.lock().ok().and_then(|e| e.nos.get(&no.id).and_then(|n| n.session_id.clone()));
+            let r = rodar_agente(state, v, &no.id, &no.agente, &prompt, retomar.as_deref(), &pasta, &projeto, &ajuste)?;
+            definir_saida(state, v, &no.id, r);
+            String::new()
+        }
+        TipoDeNo::Repetir => blocos::processar_repetir(state, v, &no, &ctx)?,
         TipoDeNo::Condicao => {
             let max = no.config["max_voltas"].as_u64().unwrap_or(3) as u32;
             let ok = fluxos::veredito(&ctx.anterior).unwrap_or(false);
@@ -261,6 +290,7 @@ fn seguir(state: &EngineState, v: &Viva, no: &str, saida: &str) {
     mexer(state, v, |e| {
         if let Some(n) = e.nos.get_mut(no) { if !saida.is_empty() { n.caminho = Some(saida.to_owned()); } }
         let proximos: Vec<String> = fluxos::proximos(&e.fluxo, no, saida).into_iter().map(|n| n.id.clone()).collect();
+        e.passo_ativo = None; // Fork: a transição e a fila seguinte são gravadas juntas.
         for p in proximos {
             // Voltar a um nó (loop QA → dev): ele roda de novo do zero, sem retomar a sessão anterior.
             if let Some(n) = e.nos.get_mut(&p) { n.status = "pendente".into(); n.session_id = None; n.saida.clear(); }
@@ -271,7 +301,7 @@ fn seguir(state: &EngineState, v: &Viva, no: &str, saida: &str) {
 
 /// Modelo/esforço escolhidos no nó, por cima dos do modelo de agente.
 #[derive(Default)]
-struct Ajuste { modelo: Option<String>, esforco: Option<String> }
+struct Ajuste { modelo: Option<String>, esforco: Option<String>, max_turnos: Option<u64> }
 
 fn texto_de(config: &Value, chave: &str) -> Option<String> {
     config[chave].as_str().map(str::trim).filter(|s| !s.is_empty()).map(str::to_owned)
@@ -343,7 +373,14 @@ fn comando_da_cli(exe: &Path) -> Command {
 /// (e aqui vira `PAUSADO`). Devolve o texto final.
 #[allow(clippy::too_many_arguments)]
 fn rodar_agente(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &str, retomar: Option<&str>, pasta: &str, projeto: &str, ajuste: &Ajuste) -> Result<String> {
-    let mut modelo = modelo_do_agente(agente, projeto)?;
+    let modelo = modelo_do_agente(agente, projeto)?;
+    let exe = executavel(&modelo.cli).ok_or_else(|| anyhow!("CLI “{}” não encontrada neste PC", modelo.cli))?;
+    rodar_modelo(state, v, no, modelo, &exe, prompt, retomar, pasta, ajuste)
+}
+
+// Fork: recebe o executável resolvido; testes usam um script falso sem trocar o PATH global.
+#[allow(clippy::too_many_arguments)]
+fn rodar_modelo(state: &EngineState, v: &Viva, no: &str, mut modelo: omni_core::agentes::ModeloDeAgente, exe: &Path, prompt: &str, retomar: Option<&str>, pasta: &str, ajuste: &Ajuste) -> Result<String> {
     if let Some(m) = &ajuste.modelo { modelo.modelo = m.clone(); }
     if let Some(e) = &ajuste.esforco { modelo.esforco = e.clone(); }
     if !modelo.modelo.is_empty() && !argumento_seguro(&modelo.modelo) { return Err(anyhow!("Modelo inválido: {}", modelo.modelo)); }
@@ -355,11 +392,12 @@ fn rodar_agente(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &
         .or_else(|| perfis.iter().find(|p| p.provider == modelo.cli && p.builtin))
         .or_else(|| perfis.iter().find(|p| p.provider == modelo.cli))
         .cloned();
-    let exe = executavel(&modelo.cli).ok_or_else(|| anyhow!("CLI “{}” não encontrada neste PC", modelo.cli))?;
-    let mut c = comando_da_cli(&exe);
+    if ajuste.max_turnos.is_some() { blocos::conferir_goal(&modelo.cli, perfil.as_ref(), pasta)?; } // Fork
+    let mut c = comando_da_cli(exe);
     match modelo.cli.as_str() {
         "claude" => {
             c.args(["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"]);
+            if let Some(max) = ajuste.max_turnos { c.arg("--max-turns").arg(max.to_string()); } // Fork
             c.arg("--append-system-prompt").arg(&modelo.instrucoes);
             if !modelo.ferramentas.is_empty() { c.arg("--allowedTools").arg(modelo.ferramentas.join(",")); }
             if !modelo.modelo.is_empty() { c.arg("--model").arg(&modelo.modelo); }
@@ -379,9 +417,12 @@ fn rodar_agente(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &
     ambiente_da_cli_sem_tela(&mut c, &env_do_perfil, herdou_sessao_do_claude(|nome| env::var_os(nome).is_some()));
     c.current_dir(pasta).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     sem_janela(&mut c);
+    #[cfg(unix)] { use std::os::unix::process::CommandExt; c.process_group(0); } // Fork: parar também os descendentes.
+    if !v.lock().is_ok_and(|e| e.status == "rodando") { return Err(anyhow!(PAUSADO)); } // Fork
     let mut filho = c.spawn().with_context(|| format!("não consegui abrir {}", modelo.cli))?;
     let run_id = v.lock().map_err(|_| anyhow!("execucao"))?.id.clone();
     processos().lock().expect("processos").insert(run_id.clone(), filho.id());
+    if !v.lock().is_ok_and(|e| e.status == "rodando") { matar_processo(&run_id); } // Fork: pausa durante spawn.
     mexer(state, v, |e| if let Some(n) = e.nos.get_mut(no) {
         n.cli = Some(modelo.cli.clone()); n.conta = perfil.as_ref().map(|p| p.id.clone());
         n.modelo = (!modelo.modelo.is_empty()).then(|| modelo.modelo.clone()); n.esforco = (!modelo.esforco.is_empty()).then(|| modelo.esforco.clone());
@@ -389,7 +430,8 @@ fn rodar_agente(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &
     });
     {
         let mut stdin = filho.stdin.take().ok_or_else(|| anyhow!("sem stdin"))?;
-        let texto = if retomar.is_some() { "Continue de onde parou.".to_owned() }
+        let texto = if ajuste.max_turnos.is_some() { prompt.to_owned() } // Fork: retomar reativa /goal nativo.
+            else if retomar.is_some() { "Continue de onde parou.".to_owned() }
             else if modelo.cli == "codex" { format!("{}\n\n---\n\n{prompt}", modelo.instrucoes) } else { prompt.to_owned() };
         stdin.write_all(texto.as_bytes())?;
     }
@@ -399,6 +441,7 @@ fn rodar_agente(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &
     let mut arquivo = fs::OpenOptions::new().create(true).append(true).open(log.join(format!("{no}.log")))?;
     let mut final_texto = String::new();
     let mut erro_cli: Option<String> = None;
+    let mut teve_resultado = false; // Fork: /goal não pode terminar silenciosamente sem resultado.
     let stdout = filho.stdout.take().ok_or_else(|| anyhow!("sem stdout"))?;
     let stderr = filho.stderr.take().map(esvaziar_em_segundo_plano);
     for linha in std::io::BufReader::new(stdout).lines().map_while(std::result::Result::ok) {
@@ -409,10 +452,13 @@ fn rodar_agente(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &
         if let Some(a) = atividade_do_evento(&ev) { mexer(state, v, |e| if let Some(n) = e.nos.get_mut(no) { n.atividade = a; }); }
         match ev["type"].as_str() {
             Some("result") => {
+                teve_resultado = true;
                 final_texto = ev["result"].as_str().unwrap_or_default().to_owned();
                 let custo = ev["total_cost_usd"].as_f64().unwrap_or(0.0);
                 mexer(state, v, |e| { e.custo_usd += custo; if let Some(n) = e.nos.get_mut(no) { n.custo_usd += custo; } });
-                if ev["is_error"] == true { erro_cli = Some(final_texto.clone()); }
+                if ev["is_error"] == true || ev["subtype"].as_str().is_some_and(|s| s.starts_with("error")) {
+                    erro_cli = Some(if final_texto.is_empty() { "A CLI interrompeu o objetivo ou atingiu o teto de turnos".into() } else { final_texto.clone() });
+                }
             }
             Some("item.completed") if ev["item"]["type"] == "agent_message" => final_texto = ev["item"]["text"].as_str().unwrap_or_default().to_owned(),
             Some("error") => erro_cli = ev["message"].as_str().map(str::to_owned),
@@ -423,10 +469,11 @@ fn rodar_agente(state: &EngineState, v: &Viva, no: &str, agente: &str, prompt: &
     processos().lock().expect("processos").remove(&run_id);
     if v.lock().map(|e| e.status != "rodando").unwrap_or(true) { return Err(anyhow!(PAUSADO)); }
     if let Some(erro) = erro_cli { return Err(anyhow!(erro)); }
-    if !status.success() && final_texto.is_empty() {
+    if !status.success() { // Fork: texto parcial não transforma falha em sucesso.
         let erro = stderr.and_then(|t| t.join().ok()).unwrap_or_default();
         return Err(anyhow!("{} saiu com erro: {}", modelo.cli, erro.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("sem detalhe")));
     }
+    if ajuste.max_turnos.is_some() && !teve_resultado { return Err(anyhow!("/goal não retornou resultado; confira o suporte na CLI e os ganchos")); }
     Ok(final_texto)
 }
 
@@ -480,7 +527,7 @@ fn abrir_pr(v: &Viva, no: &fluxos::No) -> Result<String> {
 fn matar_processo(id: &str) {
     let Some(pid) = processos().lock().ok().and_then(|p| p.get(id).copied()) else { return };
     let mut c = if cfg!(windows) { let mut c = Command::new("taskkill"); c.args(["/F", "/T", "/PID", &pid.to_string()]); c }
-        else { let mut c = Command::new("kill"); c.arg(pid.to_string()); c };
+        else { let mut c = Command::new("kill"); c.arg("-TERM").arg(format!("-{pid}")); c };
     sem_janela(&mut c);
     let _ = c.stdout(Stdio::null()).stderr(Stdio::null()).status();
 }
@@ -494,6 +541,11 @@ pub fn pausar(state: &EngineState, id: &str) -> Result<()> {
 }
 
 pub fn retomar(state: &Arc<EngineState>, id: &str) -> Result<()> {
+    if !viva(id)?.lock().is_ok_and(|e| matches!(e.status.as_str(), "pausado" | "falhou")) {
+        return Err(anyhow!("Só dá para retomar uma execução pausada ou que falhou"));
+    }
+    let trava = blocos::trava_do_executor(id); // Fork: não sobrepor workers durante pausa/retomada.
+    let _worker = trava.lock().map_err(|_| anyhow!("worker"))?;
     let v = viva(id)?;
     mexer(state, &v, |e| {
         if e.status != "pausado" && e.status != "falhou" { return Err(anyhow!("Só dá para retomar uma execução pausada ou que falhou")); }

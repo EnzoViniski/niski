@@ -22,12 +22,15 @@ import {
   type Execucao, type Fluxo, type FluxoGerado, type FluxoSalvo, type ItemDoHistorico, type NoDoFluxo, type ResumoDaExecucao, type TipoDeNo,
 } from "./fluxosService";
 
+// Fork: formulários novos isolados do editor original.
+import { BlocosExtras } from "./BlocosExtras";
+
 const tiposDeNo = { omni: NoDoFluxoView };
 const tiposDeAresta = { omni: ArestaDoFluxo };
 const erroDe = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const STATUS_EXEC: Record<string, string> = { rodando: "Rodando", pausado: "Pausado", aguardando: "Esperando você", concluido: "Concluído", falhou: "Falhou", cancelado: "Cancelado" };
-const COR_SAIDA: Record<string, string> = { sim: "#22c55e", nao: "#ef4444", esgotado: "#eab308" };
-const NOME_TIPO: Record<TipoDeNo, string> = { entrada: "Entrada", agente: "Agente", condicao: "Condição", aprovacao: "Aprovação", sala: "Time", pr: "Pull request", fim: "Fim" };
+const COR_SAIDA: Record<string, string> = { corpo: "#f97316", fim: "#22c55e", sim: "#22c55e", nao: "#ef4444", esgotado: "#eab308" };
+const NOME_TIPO: Record<TipoDeNo, string> = { objetivo: "Objetivo /goal", repetir: "Repetir", entrada: "Entrada", agente: "Agente", condicao: "Condição", aprovacao: "Aprovação", sala: "Time", pr: "Pull request", fim: "Fim" };
 const duracao = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}min ${s % 60}s` : `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}min`; };
 
 interface Props {
@@ -205,8 +208,8 @@ function Fluxos({ projectId, projectPath, onAbrirSessao, onClose }: Props) {
     const nomes = [...new Set(agentes.map((a) => a.name))];
     const novo: NoDoFluxo = {
       id: `${tipo}-${n}`, tipo, titulo: NOME_TIPO[tipo], x: Math.round(centro.x - 110), y: Math.round(centro.y - 40),
-      agente: tipo === "agente" ? nomes[0] ?? "" : undefined,
-      config: tipo === "condicao" ? { max_voltas: 3 } : tipo === "sala" ? { participantes: nomes.slice(0, 3), rodadas: 3, objetivo: "{{entrada}}" } : tipo === "aprovacao" ? { pergunta: "Continuar?" } : {},
+      agente: tipo === "objetivo" ? agentes.find(a => a.cli === "claude")?.name ?? "" : tipo === "agente" ? nomes[0] ?? "" : undefined,
+      config: tipo === "objetivo" ? { objetivo: "{{entrada}}", max_turnos: 10 } : tipo === "repetir" ? { vezes: 3, intervalo_minutos: 0, parar_quando_aprovado: false } : tipo === "condicao" ? { max_voltas: 3 } : tipo === "sala" ? { participantes: nomes.slice(0, 3), rodadas: 3, objetivo: "{{entrada}}" } : tipo === "aprovacao" ? { pergunta: "Continuar?" } : {},
     };
     mudarRascunho((r) => ({ ...r, nos: [...r.nos, novo] }));
     setSelecionado(novo.id);
@@ -440,6 +443,7 @@ function PainelDoNo({ no, agentes, modelos, projectPath, onMudar, onAgenteCriado
     <div className="fx-painel-corpo">
       <p className="fx-rotulo">{NOME_TIPO[no.tipo]} · {no.id}</p>
       <Field label="Título" htmlFor="fx-titulo"><Input id="fx-titulo" size="sm" value={no.titulo} onChange={(e) => onMudar({ ...no, titulo: e.target.value })} /></Field>
+      <BlocosExtras no={no} agentes={agentes} onMudar={onMudar} />
       {no.tipo === "entrada" && <p className="fx-dica">A tarefa que você digita ao executar. Nos prompts das etapas, use <code>{"{{entrada}}"}</code>.</p>}
       {no.tipo === "agente" && (
         <>
@@ -645,7 +649,7 @@ function DialogoDeExecucao({ fluxo, agentes, projeto, iniciando, onCancelar, onI
   const [texto, setTexto] = useState("");
   const etapas = etapasDoFluxo(fluxo);
   const temPr = fluxo.nos.some((n) => n.tipo === "pr");
-  const loops = fluxo.nos.filter((n) => n.tipo === "condicao");
+  const loops = fluxo.nos.filter((n) => n.tipo === "condicao" || n.tipo === "repetir");
   return (
     <div className="fx-dialogo-fundo" onMouseDown={(e) => { if (e.target === e.currentTarget) onCancelar(); }}>
       <div className="fx-dialogo is-largo" role="dialog" aria-modal="true" aria-label={`Executar ${fluxo.nome}`}>
@@ -656,7 +660,7 @@ function DialogoDeExecucao({ fluxo, agentes, projeto, iniciando, onCancelar, onI
           <ol className="fx-etapas is-grande">
             {etapas.map((n, i) => {
               const a = agentes.find((x) => x.name === n.agente);
-              const detalhe = n.tipo === "agente" ? a?.description : n.tipo === "condicao" ? `Se reprovar, volta para corrigir (até ${String(n.config.max_voltas ?? 3)} vezes).`
+              const detalhe = n.tipo === "objetivo" ? `Objetivo nativo do Claude, até ${String(n.config.max_turnos ?? 10)} turnos.` : n.tipo === "repetir" ? `Ramo limitado a ${String(n.config.vezes ?? 3)} repetições; intervalo de ${String(n.config.intervalo_minutos ?? 0)} minuto(s).` : n.tipo === "agente" ? a?.description : n.tipo === "condicao" ? `Se reprovar, volta para corrigir (até ${String(n.config.max_voltas ?? 3)} vezes).`
                 : n.tipo === "aprovacao" ? "Para e espera você aprovar." : n.tipo === "sala" ? "Os agentes discutem em rodadas até o consenso." : n.tipo === "pr" ? "Commit, push e pull request no GitHub." : n.tipo === "entrada" ? "Você descreve a tarefa abaixo." : "";
               return <li key={n.id}><span className={`fx-etapa-num is-${n.tipo}`}>{i + 1}</span><span><b>{n.titulo || NOME_TIPO[n.tipo]}</b>{n.agente ? <em> · {n.agente}</em> : null}{detalhe && <small>{detalhe}</small>}</span></li>;
             })}

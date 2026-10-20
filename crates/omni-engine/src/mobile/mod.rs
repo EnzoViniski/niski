@@ -225,6 +225,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/parear",post(parear))
         // Fork: fluxo do orquestrador (`orquestracao.rs`).
         .merge(orquestracao::rotas())
+        .merge(orquestracao::revisao_por_agente::rotas()) // Fork: revisão em agente separado (3C).
         // Fork: modo com que o app abre o Antigravity (`antigravity_permissoes.rs`).
         .merge(crate::antigravity_permissoes::rotas())
 }

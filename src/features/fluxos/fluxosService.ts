@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { engineApi } from "../terminal/terminalService";
 
-export type TipoDeNo = "entrada" | "agente" | "condicao" | "aprovacao" | "sala" | "pr" | "fim";
+export type TipoDeNo = "objetivo" | "repetir" | "entrada" | "agente" | "condicao" | "aprovacao" | "sala" | "pr" | "fim";
 
 export interface NoDoFluxo {
   id: string;
@@ -37,11 +37,14 @@ export interface ItemDoHistorico { kind: "text" | "tool" | "command" | "notice";
 
 /** Saídas de cada tipo, na ordem em que aparecem no nó ("" = a saída normal). */
 export const SAIDAS: Record<TipoDeNo, string[]> = {
+  objetivo: [""], repetir: ["corpo", "fim"], // Fork: blocos nativos/limitados.
   entrada: [""], agente: [""], sala: [""], pr: [""], fim: [],
   condicao: ["sim", "nao", "esgotado"], aprovacao: ["sim", "nao"],
 };
 
 export const TIPOS: { tipo: TipoDeNo; nome: string; dica: string }[] = [
+  { tipo: "objetivo", nome: "Objetivo /goal", dica: "Claude continua até uma condição, com teto de turnos" },
+  { tipo: "repetir", nome: "Repetir", dica: "Executa um ramo N vezes ou com intervalo, com limite e parada" },
   { tipo: "agente", nome: "Agente", dica: "Um modelo de agente trabalhando sem tela" },
   { tipo: "condicao", nome: "Condição", dica: "Desvia pelo veredito da etapa anterior (aprovado/reprovado), com limite de voltas" },
   { tipo: "aprovacao", nome: "Aprovação", dica: "Para e espera você aprovar — no PC, na web ou no celular" },
@@ -96,7 +99,7 @@ export function etapasDoFluxo(f: Fluxo): NoDoFluxo[] {
   while (atual && !vistos.has(atual.id)) {
     vistos.add(atual.id);
     ordem.push(atual);
-    const saida = f.conexoes.find((c) => c.de === atual!.id && (!c.saida || c.saida === "sim"));
+    const saida = f.conexoes.find((c) => c.de === atual!.id && (!c.saida || c.saida === "sim" || c.saida === "corpo"));
     atual = saida ? f.nos.find((n) => n.id === saida.para) : undefined;
   }
   return ordem;

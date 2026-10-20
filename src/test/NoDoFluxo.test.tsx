@@ -42,3 +42,15 @@ it("avisa quando é a vez do usuário aprovar", () => {
   expect(screen.getByText("sim")).toBeInTheDocument();
   expect(screen.getByText("não")).toBeInTheDocument();
 });
+
+it("explica o objetivo nativo e mostra limite", () => {
+  montar("objetivo");
+  expect(screen.getByText("Objetivo /goal")).toBeInTheDocument();
+  expect(screen.getByText("escolha um agente Claude · até 10 turnos")).toBeInTheDocument();
+});
+it("mostra corpo e fim da repetição com limite e intervalo", () => {
+  montar("repetir", { no:{ id:"r",tipo:"repetir",titulo:"Rever",config:{vezes:4,intervalo_minutos:5},x:0,y:0 } });
+  expect(screen.getByText("até 4 vezes · a cada 5 min")).toBeInTheDocument();
+  expect(screen.getByText("corpo")).toBeInTheDocument();
+  expect(screen.getByText("fim")).toBeInTheDocument();
+});
