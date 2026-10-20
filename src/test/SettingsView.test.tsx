@@ -126,3 +126,12 @@ it("acompanha mudança de seção solicitada externamente", () => {
   expect(screen.getByText("Atualização do app")).toBeInTheDocument();
   expect(screen.queryByText("Atalhos do teclado")).not.toBeInTheDocument();
 });
+
+it("Aparência: escolhe o estilo da interface (Clássico por padrão)", () => {
+  const { onChange } = montar("aparencia");
+  expect(screen.getByRole("radio", { name: /Clássico/ })).toHaveAttribute("aria-checked", "true");
+  fireEvent.click(screen.getByRole("radio", { name: /Minimalista/ }));
+  expect(onChange).toHaveBeenCalledWith({ estilo: "minimalista" });
+  expect(screen.getByRole("radio", { name: /Minimalista/ })).toHaveAttribute("aria-checked", "true");
+  expect(screen.getByText(/No Minimalista o fundo fica liso/)).toBeInTheDocument();
+});

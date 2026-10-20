@@ -268,7 +268,7 @@
 :root[data-estilo="minimalista"] .conversa-botao { gap: .5rem; padding: .3125rem .5rem .3125rem .375rem; font-size: .78125rem; }
 :root[data-estilo="minimalista"] .conversa-linha.is-ativa .conversa-botao { font-weight: 600; }
 /* O agente de relance: o ícone dentro de um quadradinho tingido com a cor dele. */
-:root[data-estilo="minimalista"] :is(.conversa-linha, .aba-do-painel, .bubble-author, .aba-agente-topo) .icone-do-agente {
+:root[data-estilo="minimalista"] :is(.conversa-linha, .aba-do-painel, .bubble-author, .bubble-avatar, .aba-agente-topo) .icone-do-agente {
   box-sizing: content-box; padding: 3.5px; border-radius: 6px;
   background: color-mix(in srgb, var(--cor-agente, rgb(var(--c-accent))) 18%, transparent);
 }
@@ -309,9 +309,9 @@
 :root[data-estilo="minimalista"] .chat .bubble-continua { margin-top: 0; }
 :root[data-estilo="minimalista"] .chat .bubble-user {
   border: 0; border-radius: var(--m-r-balao); box-shadow: none; padding: .625rem 1rem;
-  background: rgb(var(--c-accent) / .14);
+  background: rgb(var(--c-accent) / .12);
 }
-:root[data-estilo="minimalista"][data-theme="claro"] .chat .bubble-user { background: rgb(var(--c-accent) / .1); }
+:root[data-estilo="minimalista"][data-theme="claro"] .chat .bubble-user { background: rgb(var(--c-accent) / .09); }
 :root[data-estilo="minimalista"] .chat .bubble-user .bubble-author { color: rgb(var(--c-text-secondary)); }
 :root[data-estilo="minimalista"] .chat :is(.bubble-author img, .bubble-author svg) { filter: none; opacity: 1; }
 :root[data-estilo="minimalista"] .bubble-markdown pre,
@@ -361,7 +361,8 @@
 :root[data-estilo="minimalista"] :is(.composer-enviar, .aba-conversa-tela .composer-enviar):hover:not(:disabled) { transform: none; box-shadow: none; filter: brightness(1.08); }
 :root[data-estilo="minimalista"] :is(.composer-enviar, .aba-conversa-tela .composer-enviar):active:not(:disabled) { transform: none; box-shadow: none; }
 :root[data-estilo="minimalista"] .aba-conversa-tela .composer-enviar::after { display: none; }
-:root[data-estilo="minimalista"] .aba-conversa-tela .composer-parar { box-shadow: none; border-radius: 50%; }
+:root[data-estilo="minimalista"] :is(.composer-parar, .aba-conversa-tela .composer-parar) { box-shadow: none; border: 0; border-radius: 999px; height: 2rem; }
+:root[data-estilo="minimalista"] .composer-parar-icone { border-radius: 50%; width: 1.375rem; height: 1.375rem; }
 :root[data-estilo="minimalista"] .composer-modos { border: 0; border-radius: 999px; background: rgb(var(--c-overlay) / .06); }
 :root[data-estilo="minimalista"] .composer-modo { border-radius: 999px; font-weight: 500; }
 :root[data-estilo="minimalista"] .composer-modo.is-ativo { color: rgb(var(--c-text-primary)); background: rgb(var(--c-bg-surface)); box-shadow: 0 1px 2px rgb(0 0 0 / .15); }
@@ -470,3 +471,52 @@
 :root[data-estilo="minimalista"] .aba-do-painel [role="tab"] > svg:first-child { color: rgb(var(--c-text-secondary)); }
 :root[data-estilo="minimalista"] .aba-do-painel > button[aria-label^="Fechar"] { width: 1.5rem; border-radius: 999px; margin-right: 2px; }
 :root[data-estilo="minimalista"] .aba-do-painel .icone-do-agente { padding: 2.5px; }
+
+/* ── Selos, workspace e topo da Conversa ───────────────────────────────────────────────────── */
+/* Selos de estado ("aprovar", "interrompido", "trabalhando"…): pílula leve. */
+:root[data-estilo="minimalista"] span.border.text-\[9px\] {
+  border-radius: 999px; padding: 0 .4375rem; font-size: .625rem; font-weight: 600; border-color: transparent;
+  background-color: color-mix(in srgb, currentColor 14%, transparent);
+}
+/* Cartão do workspace na lateral. */
+:root[data-estilo="minimalista"] .lateral-item {
+  border-left-width: 0; border-radius: var(--m-r-cartao); box-shadow: none; background-color: transparent; background-image: none;
+}
+:root[data-estilo="minimalista"] .lateral-item:hover { background-color: rgb(var(--c-overlay) / .045); }
+:root[data-estilo="minimalista"] .lateral-item-ativo { background-color: rgb(var(--c-overlay) / .07); }
+:root[data-estilo="minimalista"] .lateral-avatar { border: 0; border-radius: 9px; background: rgb(var(--c-accent) / .14); }
+:root[data-estilo="minimalista"] .lateral-item :is(span.border, .border) { border-radius: 6px; }
+
+/* Abas Conversa / Terminal / Revisão: segmentado em pílula. */
+:root[data-estilo="minimalista"] .aba-agente-topo { align-items: center; padding: .375rem .75rem; min-height: 2.75rem; }
+:root[data-estilo="minimalista"] .aba-agente-abas { gap: 2px; padding: 2px; border-radius: 999px; background: rgb(var(--c-overlay) / .06); }
+:root[data-estilo="minimalista"] .aba-agente-topo .w-aba {
+  margin: 0; padding: .25rem .75rem; border: 0; border-radius: 999px; font-weight: 500; box-shadow: none;
+}
+:root[data-estilo="minimalista"] .aba-agente-topo .w-aba-ativa { background: rgb(var(--c-bg-surface)); box-shadow: 0 1px 2px rgb(0 0 0 / .18); }
+:root[data-estilo="minimalista"][data-theme="escuro"] .aba-agente-topo .w-aba-ativa,
+:root[data-estilo="minimalista"]:not([data-theme="claro"]) .aba-agente-topo .w-aba-ativa { background: rgb(var(--c-overlay) / .12); }
+:root[data-estilo="minimalista"] :is(.aba-agente-chips, .aba-agente-resumo) { padding-bottom: 0; }
+:root[data-estilo="minimalista"] .aba-agente-titulo { font-weight: 600; }
+:root[data-estilo="minimalista"] .orq-botao { border: 0; border-radius: 999px; padding: .1875rem .625rem; font-weight: 500; }
+:root[data-estilo="minimalista"] .selo-modo { border: 0; border-radius: 999px; padding: .1875rem .5rem; font-weight: 500; background: rgb(var(--c-overlay) / .06); }
+
+/* Bloco de código da Conversa. */
+:root[data-estilo="minimalista"] .chat .codigo { border: 1px solid rgb(var(--c-border-subtle)); border-radius: var(--m-r-ctl); overflow: hidden; }
+:root[data-estilo="minimalista"] .chat .codigo-topo { border-bottom: 1px solid rgb(var(--c-border-subtle)); background: transparent; }
+:root[data-estilo="minimalista"] .chat .codigo-linguagem { letter-spacing: normal; }
+:root[data-estilo="minimalista"] .chat .bubble-markdown .codigo pre { border: 0; border-radius: 0; }
+:root[data-estilo="minimalista"] .chat-dia::before,
+:root[data-estilo="minimalista"] .chat-dia::after { background: rgb(var(--c-border-subtle)); }
+
+:root[data-estilo="minimalista"] .chat .bubble-avatar { border: 0; border-radius: 9px; background: transparent; box-shadow: none; }
+:root[data-estilo="minimalista"] .chat .bubble-avatar .icone-do-agente { padding: 6px; border-radius: 9px; }
+/* Contadores (sino, Atenção, workspace): pílula. */
+:root[data-estilo="minimalista"] .badge-pulse { border-radius: 999px; }
+/* Modo de aprovação ao lado do Parar. */
+:root[data-estilo="minimalista"] .conversa-controle-modo select { border: 0; border-radius: 999px; padding: .3rem .625rem; background-color: rgb(var(--c-overlay) / .06); }
+:root[data-estilo="minimalista"] .conversa-controles-menu { border-color: rgb(var(--c-border-subtle)); border-radius: var(--m-r-menu); box-shadow: var(--m-sombra-menu); }
+:root[data-estilo="minimalista"] .conversa-controles-menu button { border-radius: 8px; }
+:root[data-estilo="minimalista"] .conversa-controles-menu button:hover { background: rgb(var(--c-overlay) / .07); }
+:root[data-estilo="minimalista"] .conversa-terminal-painel { border-color: rgb(var(--c-border-subtle)); border-radius: var(--m-r-painel); box-shadow: var(--m-sombra-menu); }
+:root[data-estilo="minimalista"] .conversa-terminal-painel .w-terminal-tela { border-radius: var(--m-r-ctl); }
