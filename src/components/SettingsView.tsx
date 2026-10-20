@@ -18,13 +18,15 @@ import { MobileSettings } from "../features/mobile/MobileSettings";
 import { LimiteDeSessoes } from "../features/terminal/LimiteDeSessoes";
 import { testarAviso } from "../features/terminal/useAttentionNotifier";
 import { ConfiguracaoDeAvisos } from "../features/atividade/ConfiguracaoDeAvisos";
-import { BlocksIcon, BookIcon, BrushIcon, ChartIcon, CloseIcon, SparkleIcon, GearIcon, GlobeIcon, KeyboardIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
+import { BlocksIcon, BookIcon, BrushIcon, ChartIcon, CloseIcon, SparkleIcon, GearIcon, GlobeIcon, KeyboardIcon, ListIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
 import { RelatoriosIa } from "../features/relatorios/RelatoriosIa";
 import { ModelosDeAgentes } from "../features/agentes/ModelosDeAgentes";
+// Fork (3B): ordem das contas, modo fila/automático, orçamento e "por que esta conta".
+import { FilaDeContas } from "../features/roteamento/FilaDeContas";
 import { SHORTCUTS, shortcutLabel, comboFromEvent, setRecordingShortcut, shortcutFor, type ShortcutId } from "../lib/shortcuts";
 import { NOME_DO_PRODUTO } from "../lib/identidade";
 
-type SectionId = "geral" | "aparencia" | "agentes" | "modelos" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
+type SectionId = "geral" | "aparencia" | "agentes" | "fila" | "modelos" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
 
 type Icone = React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 
@@ -34,6 +36,7 @@ const SECTIONS: { id: SectionId; label: string; desc: string; icon: Icone }[] = 
   { id: "geral", label: "Geral", desc: "Conversa ou terminal, arquivos, avisos e sessões", icon: GearIcon },
   { id: "aparencia", label: "Aparência", desc: "Tema, cor, fundo e animações", icon: BrushIcon },
   { id: "agentes", label: "Agentes", desc: "CLIs instaladas e contas", icon: RobotIcon },
+  { id: "fila", label: "Fila de contas", desc: "Qual conta abre cada agente", icon: ListIcon },
   { id: "modelos", label: "Modelos de agentes", desc: "QA, revisor, orquestrador… criados com IA", icon: SparkleIcon },
   { id: "extensoes", label: "Extensões", desc: "MCPs, plugins e conectores por IA", icon: BlocksIcon },
   { id: "skills", label: "Skills", desc: "Skills do Claude e do projeto", icon: BookIcon },
@@ -150,6 +153,7 @@ export function SettingsView({ settings, onChange, onReset, initialSection, proj
           {section === "aparencia" && <AparenciaSection settings={settings} onChange={onChange} />}
           {/* Fork: o que o Antigravity aprova sozinho nas sessões do app. */}
           {section === "agentes" && <><AgentConnections /><GanchosDoClaude /><PermissoesDoAntigravity /></>}
+          {section === "fila" && <FilaDeContas />}
           {section === "modelos" && <ModelosDeAgentes projectPath={projectPath} />}
           {section === "extensoes" && <ExtensoesSettings projectPath={projectPath} />}
           {section === "skills" && <SkillsManager projectPath={projectPath} />}
