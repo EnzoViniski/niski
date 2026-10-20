@@ -13,6 +13,8 @@ import { Sidebar } from "./components/Sidebar";
 import { fileKind } from "./features/files/filesService";
 import { QuickOpen } from "./features/files/QuickOpen";
 import { useWorkspace } from "./features/workspace/useWorkspace";
+// Fork: recuperar workspace (backups, conversas recentes) e aviso de agentes fora do workspace.
+import { RecuperacaoDoWorkspace } from "./features/workspace/RecuperacaoDoWorkspace";
 import { collectResourceIds, findPane } from "./features/workspace/workspaceReducer";
 import { RodapeDoProjeto, WorkspaceView } from "./features/workspace/WorkspaceView";
 import { useKanban } from "./features/kanban/useKanban";
@@ -430,6 +432,7 @@ function AppComPaleta() {
       </div>
       </div>
       {worktreeAoFechar && <DialogoDaWorktree caminho={worktreeAoFechar} onFechar={fecharDialogoDaWorktree} />}
+      <RecuperacaoDoWorkspace workspaces={workspaces} sessions={sessions} dispatch={dispatch} mostrarAviso={view === "workspace"} />
     </div>
     </ProjetosDasAbasContext.Provider>
     </SessionProvidersContext.Provider>

@@ -8,6 +8,7 @@ import { CodexAppServer } from "../features/agentes/CodexAppServer"; // Fork: 3A
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AppSettings, Background, GlassLevel, MotionLevel, Theme } from "../types/settings";
 import { UpdateCard } from "./UpdateCard";
+import { abrirRecuperacaoDoWorkspace } from "../features/workspace/RecuperacaoDoWorkspace";
 import { BACKGROUND_EFFECTS, isBackgroundEffect } from "./backgrounds/registry";
 import { PALETAS } from "../lib/palettes";
 import { CHANGELOG } from "../lib/changelog";
@@ -389,6 +390,14 @@ function GeralSection({ settings, onChange }: SectionProps) {
 
       {/* Fork: teto de sessões ativas (agentes e terminais rodando comando). */}
       <LimiteDeSessoes />
+
+      {/* Fork: volta uma cópia guardada do workspace ou recria pelos projetos das conversas recentes. */}
+      <Card title="Workspace">
+        <p className="text-xs text-text-secondary">
+          Projetos, painéis ou abas sumiram depois de reiniciar? Volte uma cópia guardada ou recrie pelos projetos das conversas recentes.
+        </p>
+        <Button size="sm" variant="glass" onClick={abrirRecuperacaoDoWorkspace}>Recuperar workspace anterior</Button>
+      </Card>
     </div>
   );
 }
