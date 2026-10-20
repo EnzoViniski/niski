@@ -118,6 +118,8 @@ export function useKanbanDispatcher(
         await new Promise((resolve) => setTimeout(resolve, AGENT_STARTUP_DELAY_MS));
       }
 
+      // Fork: o cleanup pode ocorrer durante a inicialização; não envie a tarefa após desmontar.
+      if (cancelled) return;
       await writeTerminal(sessionId, `${task.title}\n\n${task.description}\r`);
       dispatch({ type: "TASK_STARTED", id: taskId });
     }
