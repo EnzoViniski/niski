@@ -375,7 +375,7 @@ fn comecou_turno(state: &EngineState, conversa: &str) -> bool {
         let Ok((_, Some(sessao))) = current(state, conversa) else { return false };
         // Só sinal de turno de verdade: campo com texto pode ser a colagem parada, sem o Enter.
         let cap = interaction::capabilities(&sessao);
-        if turnos(&sessao) > antes || cap.approve || cap.escolha.is_some() { return true; }
+        if turnos(&sessao) > antes || cap.approve || cap.escolha.is_some() || cap.espera.is_some() { return true; }
     }
     false
 }
@@ -526,6 +526,17 @@ fn pedido_de(cap: &interaction::Capabilities) -> Option<Value> {
             "arriscado": cap.pedido.as_ref().map_or_else(|| briefing::pedido_arriscado(&texto), |p| p.arriscado),
             "como_responder": "responder_pedido(agente, permitir: true|false)"}));
     }
+    // Fork (pergunta-da-cli): diálogo da própria CLI (confiar na pasta, limite, modelo, atualização…)
+    // não é decisão do agente: o orquestrador vê, mas quem responde é o usuário.
+    const SO_O_USUARIO: &str = "Diálogo da própria CLI: só o usuário responde (avise-o; ele responde na Conversa do agente ou no terminal).";
+    if let Some(menu) = cap.escolha.as_ref().filter(|m| m.da_cli) {
+        return Some(json!({"tipo": "pergunta_da_cli", "pergunta": menu.pergunta, "detalhe": menu.detalhe,
+            "opcoes": menu.opcoes.iter().map(|o| json!({"numero": o.numero, "rotulo": o.rotulo})).collect::<Vec<_>>(),
+            "como_responder": SO_O_USUARIO}));
+    }
+    if let Some(espera) = cap.espera.as_ref().filter(|_| cap.escolha.is_none()) {
+        return Some(json!({"tipo": "esperando_no_terminal", "texto": regra::resumir(&espera.texto, 2_000), "como_responder": SO_O_USUARIO}));
+    }
     cap.escolha.as_ref().map(|menu| json!({"tipo": "pergunta", "pergunta": menu.pergunta, "detalhe": menu.detalhe,
         "opcoes": menu.opcoes.iter().map(|o| json!({"numero": o.numero, "rotulo": o.rotulo, "descricao": o.descricao})).collect::<Vec<_>>(),
         "como_responder": "responder_pedido(agente, opcao: <número>)"}))
@@ -558,6 +569,11 @@ fn responder(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Resu
         let resumo = if permitir { "permitido" } else { "negado" };
         registro::info("orquestracao_pedido_respondido", &[("orquestrador", orquestrador), ("agente", agente), ("resposta", resumo)]);
         return Ok(format!("Pedido {resumo}. Use esperar(agente) para acompanhar."));
+    }
+    // Fork (pergunta-da-cli): menu da própria CLI ou espera no terminal ficam com o usuário.
+    if !cap.approve && (cap.escolha.as_ref().is_some_and(|m| m.da_cli) || (cap.escolha.is_none() && cap.espera.is_some())) {
+        registro::info("orquestracao_pedido_para_o_usuario", &[("orquestrador", orquestrador), ("agente", agente)]);
+        return Err("Este é um diálogo da própria CLI, não do agente: só o usuário responde. Avise-o (ele responde na Conversa do agente ou no terminal).".into());
     }
     let (kind, resumo) = match (args.get("permitir").and_then(Value::as_bool), args.get("opcao").and_then(Value::as_u64)) {
         (Some(permitir), _) if cap.approve => {
@@ -683,5 +699,25 @@ mod testes_dos_ganchos {
         assert_eq!(resposta["result"]["decision"], "accept");
         crate::codex_app_server::esquecer(&terminal);
         let _ = close_session(&state, &terminal);
+    }
+}
+
+/// Fork (pergunta-da-cli): o orquestrador vê o diálogo da própria CLI, mas não responde por ele.
+#[cfg(test)]
+mod testes_da_pergunta_da_cli {
+    use super::*;
+    fn cap(da_cli: bool, espera: bool) -> interaction::Capabilities {
+        interaction::Capabilities { prompt: false, approve: false, revision: "r".into(), approval_text: None, reason: None, enfileirar: false,
+            escolha: (!espera).then(|| interaction::Escolha { pergunta: "Enable full access?".into(), detalhe: None,
+                opcoes: vec![interaction::Opcao { numero: 1, rotulo: "Yes, continue anyway".into(), descricao: None, marcada: None }],
+                multipla: false, etapas: Vec::new(), previa: false, da_cli, teclas: None }),
+            pedido: None,
+            espera: espera.then(|| crate::pergunta_da_cli::Espera { texto: "Press enter to confirm or esc to cancel".into(), dica: None }) }
+    }
+    #[test] fn pedido_da_cli_fica_com_o_usuario() {
+        assert_eq!(pedido_de(&cap(true, false)).unwrap()["tipo"], "pergunta_da_cli");
+        assert_eq!(pedido_de(&cap(false, true)).unwrap()["tipo"], "esperando_no_terminal");
+        assert!(pedido_de(&cap(false, true)).unwrap()["como_responder"].as_str().unwrap().contains("só o usuário"));
+        assert_eq!(pedido_de(&cap(false, false)).unwrap()["tipo"], "pergunta", "pergunta do agente segue respondível");
     }
 }

@@ -72,6 +72,8 @@ pub(super) fn destravar(state: &Arc<EngineState>, id: &str) -> Result<Json<Value
     let cap = interaction::capabilities(&sessao);
     if cap.prompt { return Ok(Json(json!({"estado":"pronta","revision":cap.revision}))); }
     if cap.approve || cap.escolha.is_some() { return Err(error(StatusCode::CONFLICT,"Responda a pergunta do agente primeiro")); }
+    // Fork (pergunta-da-cli): o Ctrl+C do destravar cancelaria (ou fecharia) o diálogo da CLI às cegas.
+    if cap.espera.is_some() { return Err(error(StatusCode::CONFLICT,"A CLI está esperando algo no terminal; responda por lá")); }
     if sessao.reserved.load(Ordering::SeqCst) { return Err(error(StatusCode::CONFLICT,"Consulta de uso em andamento; tente de novo em alguns segundos")); }
     let (sessao_id, pid, provider) = sessao.meta.lock().map(|m| (m.id.clone(), m.pid, m.provider.clone().unwrap_or_default()))
         .map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Sessão indisponível"))?;
@@ -241,8 +243,21 @@ pub(super) fn execute_checked(state:&Arc<EngineState>, action:&Action, is_runnin
         ActionKind::Approval(allow) => { let dialog = interaction::approval(&context.parser.screen().contents(),provider).ok_or_else(||anyhow!("Aprovação não reconhecida"))?; (if *allow { dialog.0 } else { dialog.1 }, false) },
         // O número sozinho escolhe (confirmado num Claude Code 2.1.302 real); Esc fecha o menu.
         ActionKind::Escolha(opcao) => {
-            let menu = interaction::escolha(&interaction::linha_a_linha(context.parser.screen())).ok_or_else(||anyhow!("Menu não reconhecido"))?;
+            // Fork (pergunta-da-cli): o mesmo menu que a conversa mostrou, inclusive o genérico da CLI.
+            let menu = interaction::menu_na_tela(context.parser.screen(),provider).ok_or_else(||anyhow!("Menu não reconhecido"))?;
             match opcao {
+                // Fork (pergunta-da-cli): menu genérico com teclas próprias (setas + Enter, "y"…). As
+                // setas vão num write e o Enter em outro, como na prévia: uma rajada só pode virar colagem.
+                Resposta::Opcao(n) if crate::pergunta_da_cli::teclas_da_opcao(&menu,*n).is_some() => {
+                    let (setas, fim) = crate::pergunta_da_cli::teclas_da_opcao(&menu,*n).unwrap_or_default();
+                    if let Some(setas) = setas {
+                        let mut writer = session.writer.lock().map_err(|_|anyhow!("writer poisoned"))?;
+                        writer.write_all(setas.as_bytes())?; writer.flush()?;
+                        drop(writer);
+                        std::thread::sleep(std::time::Duration::from_millis(150));
+                    }
+                    (fim, false)
+                }
                 // Antigravity: menu de setas ("↑/↓ Navigate · enter Select"). Anda da opção marcada com
                 // `>` até a pedida e confirma.
                 Resposta::Opcao(n) if provider == "antigravity" && menu.opcoes.iter().any(|o| o.numero == *n) => {

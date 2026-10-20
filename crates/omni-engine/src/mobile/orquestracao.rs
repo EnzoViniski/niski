@@ -233,7 +233,7 @@ fn estado_de(state: &EngineState, conversa: &str) -> (regra::Estado, Option<Arc<
     let estado = serde_json::to_value(&meta.state).ok().and_then(|v| v.as_str().map(str::to_owned));
     let rodando = interaction::provider_running_recente(meta.pid, meta.provider.as_deref().unwrap_or(""));
     let sinais = regra::Sinais { viva: true, estado: estado.as_deref(), aviso: meta.notice.as_deref(), pode_mandar: cap.prompt,
-        pode_aprovar: cap.approve, tem_escolha: cap.escolha.is_some(), cli_rodando: rodando };
+        pode_aprovar: cap.approve, tem_escolha: cap.escolha.is_some() || cap.espera.is_some() /* Fork (pergunta-da-cli) */, cli_rodando: rodando };
     (regra::estado(&sinais), Some(sessao), Some(cap))
 }
 

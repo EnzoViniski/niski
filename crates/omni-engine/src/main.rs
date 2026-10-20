@@ -12,6 +12,8 @@ mod fluxos;
 mod ganchos;
 mod preparo_da_sessao;
 mod interaction;
+// Fork (pergunta-da-cli): menu genérico da CLI e "esperando algo no terminal".
+mod pergunta_da_cli;
 mod mobile;
 // Fork: reinício do Codex retoma a mesma conversa (`codex resume <id>`).
 mod retomar_codex;

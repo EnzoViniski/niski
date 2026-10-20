@@ -95,6 +95,15 @@ fn classificar(meta: &TerminalSession, aprovar: bool, escolha: bool, subagente: 
     None // shell ocioso, CLI recém-aberta e sessão órfã não significam fim de turno.
 }
 
+/// Fork (pergunta-da-cli): o "precisa de você" diz quando é a própria CLI perguntando no terminal.
+fn resumo(tipo: Tipo, cap: Option<&interaction::Capabilities>) -> &'static str {
+    match cap {
+        Some(c) if tipo == Tipo::PrecisaDeVoce && !c.approve && c.escolha.as_ref().is_some_and(|m| m.da_cli) => "A CLI está perguntando no terminal",
+        Some(c) if tipo == Tipo::PrecisaDeVoce && !c.approve && c.escolha.is_none() && c.espera.is_some() => "Esperando algo no terminal",
+        _ => tipo.resumo(),
+    }
+}
+
 fn coletar(state: &EngineState) -> Vec<Item> {
     let dir = state.state_file.parent().unwrap();
     let indice = omni_core::conversations::read_index(dir);
@@ -118,8 +127,10 @@ fn coletar(state: &EngineState) -> Vec<Item> {
         let cap = viva.as_ref().map(interaction::capabilities);
         let orquestrador = registro.orquestradores.iter()
             .find(|o| o.agentes.iter().any(|a| a.conversation_key == conversa.id)).map(|o| o.orquestrador.clone());
+        // Fork (pergunta-da-cli): menu da CLI ou espera no terminal também é "precisa de você".
         let Some(tipo) = classificar(&meta, cap.as_ref().is_some_and(|c| c.approve),
-            cap.as_ref().is_some_and(|c| c.escolha.is_some()), orquestrador.is_some()) else { continue };
+            cap.as_ref().is_some_and(|c| c.escolha.is_some() || c.espera.is_some()), orquestrador.is_some()) else { continue };
+        let resumo = resumo(tipo, cap.as_ref());
         let tipo_id = serde_json::to_value(tipo).unwrap();
         let conta = perfis.iter().find(|p| Some(&p.id) == meta.profile_id.as_ref()).map(|p| p.name.clone())
             .unwrap_or_else(|| if meta.profile_id.is_none() { "Padrão".into() } else { "Conta indisponível".into() });
@@ -130,7 +141,7 @@ fn coletar(state: &EngineState) -> Vec<Item> {
             titulo: omni_core::conversations::display_title(&conversa), conversa: conversa.id, sessao: meta.id,
             projeto_id: conversa.project_id, projeto, plataforma: segmento.provider.clone(),
             conta_id: meta.profile_id, conta, tipo, desde_ms: meta.last_activity_at_ms.max(meta.created_at_ms),
-            visto: false, resumo: tipo.resumo().into(), orquestrador,
+            visto: false, resumo: resumo.into(), orquestrador,
         });
     }
     itens.extend(super::agendamentos::atividade(state).into_iter().filter_map(|i| serde_json::from_value(i).ok())); // Fork: tipo agendamento (3D).

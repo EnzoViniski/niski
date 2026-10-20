@@ -137,3 +137,21 @@ async fn recusa_lote_invalido_e_sessao_ligada_a_outra_conta() {
     state.sessions.lock().unwrap().insert("s".into(), SessionEntry::Historical(outra));
     assert!(coletar(&state).is_empty());
 }
+
+/// Fork (pergunta-da-cli): menu da própria CLI e espera no terminal viram "precisa de você" com o
+/// resumo dizendo que é a CLI; pergunta do agente e aprovação mantêm o resumo de sempre.
+#[test]
+fn pergunta_da_cli_e_espera_dizem_que_e_no_terminal() {
+    let cap = |escolha: Option<interaction::Escolha>, espera: bool| interaction::Capabilities {
+        prompt: false, approve: false, revision: String::new(), approval_text: None, reason: None, enfileirar: false, escolha, pedido: None,
+        espera: espera.then(|| crate::pergunta_da_cli::Espera { texto: "Continuing automatically at 3:45pm · esc to cancel".into(), dica: None }),
+    };
+    let menu = |da_cli| interaction::Escolha { pergunta: "Enable full access?".into(), detalhe: None, opcoes: Vec::new(), multipla: false,
+        etapas: Vec::new(), previa: false, da_cli, teclas: None };
+    // A espera conta como sinal de "precisa de você" (o `coletar` passa `escolha || espera`).
+    assert_eq!(classificar(&meta("answered", 1, None), false, true, false), Some(Tipo::PrecisaDeVoce));
+    assert_eq!(resumo(Tipo::PrecisaDeVoce, Some(&cap(Some(menu(true)), false))), "A CLI está perguntando no terminal");
+    assert_eq!(resumo(Tipo::PrecisaDeVoce, Some(&cap(None, true))), "Esperando algo no terminal");
+    assert_eq!(resumo(Tipo::PrecisaDeVoce, Some(&cap(Some(menu(false)), false))), "Precisa de você");
+    assert_eq!(resumo(Tipo::Terminou, Some(&cap(None, true))), "Terminou o turno");
+}
