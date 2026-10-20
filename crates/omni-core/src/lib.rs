@@ -20,6 +20,9 @@ pub mod modelos_claude;
 pub mod entregaveis;
 // Fork: registro e regra pura do orquestrador de agentes (o servidor MCP mora no engine).
 pub mod orquestracao;
+// Fork: conversa rica — lista de tarefas, plano do plan mode, modo de permissão e diffs do agente.
+pub mod plano_do_agente;
+pub mod diff_do_agente;
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};
