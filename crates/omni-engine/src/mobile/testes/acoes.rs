@@ -207,15 +207,15 @@ fn fake_session(state:&Arc<EngineState>,text:&str) -> (Arc<LiveSession>,Arc<Mute
 /// sua sintaxe.
 #[test] fn comando_de_retomada_por_cli() {
     let ajustes = |model: Option<&str>, effort: Option<&str>| Ajustes { profile_id: None, model: model.map(String::from), effort: effort.map(String::from) };
-    assert_eq!(comando_de_retomada("claude","claude","abc",&ajustes(Some("opus"),Some("high"))).unwrap(),
+    assert_eq!(comando_de_retomada("claude","claude","abc",&ajustes(Some("opus"),Some("high")),None).unwrap(),
         "claude --resume abc --model opus --effort high");
-    assert_eq!(comando_de_retomada("codex","codex","xyz",&ajustes(Some("gpt-5.6-sol"),Some("xhigh"))).unwrap(),
+    assert_eq!(comando_de_retomada("codex","codex","xyz",&ajustes(Some("gpt-5.6-sol"),Some("xhigh")),None).unwrap(),
         "codex resume xyz -m gpt-5.6-sol -c model_reasoning_effort=xhigh");
-    assert_eq!(comando_de_retomada("claude","claude","abc",&ajustes(None,None)).unwrap(), "claude --resume abc");
-    assert!(comando_de_retomada("cursor-agent","cursor","abc",&ajustes(None,None)).is_err());
-    assert_eq!(comando_de_retomada("agy","antigravity","c1",&ajustes(Some("gemini-4-argon"),Some("high"))).unwrap(),
+    assert_eq!(comando_de_retomada("claude","claude","abc",&ajustes(None,None),None).unwrap(), "claude --resume abc");
+    assert!(comando_de_retomada("cursor-agent","cursor","abc",&ajustes(None,None),None).is_err());
+    assert_eq!(comando_de_retomada("agy","antigravity","c1",&ajustes(Some("gemini-4-argon"),Some("high")),None).unwrap(),
         "agy --model gemini-4-argon --effort high --conversation c1");
-    assert_eq!(comando_de_retomada("agy","antigravity","c1",&ajustes(None,None)).unwrap(), "agy --conversation c1");
+    assert_eq!(comando_de_retomada("agy","antigravity","c1",&ajustes(None,None),None).unwrap(), "agy --conversation c1");
 }
 
 /// O valor vira argumento de um comando digitado num shell: nada de `;`, espaço ou aspas.

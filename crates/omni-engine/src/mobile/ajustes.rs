@@ -33,7 +33,7 @@ pub(super) struct Ajustes { pub(super) profile_id: Option<String>, pub(super) mo
 
 /// Só letras, números e `._-[]`: o valor vira argumento de um comando digitado num shell.
 pub(super) fn valor_seguro(valor: &str) -> bool {
-    !valor.is_empty() && valor.len() <= 64 && valor.chars().all(|c| c.is_ascii_alphanumeric() || "._-[]".contains(c))
+    omni_core::comandos_oficiais::valor_seguro(valor)
 }
 
 /// Modelos do Codex que a conta enxerga (`models_cache.json` do CODEX_HOME), com os esforços de cada um.
@@ -123,6 +123,7 @@ pub(super) fn opcoes_da_conversa(state: &EngineState, id: &str) -> Result<Value,
         "provider": segmento.provider,
         "profile_id": segmento.profile_id,
         "model": runtime.as_ref().and_then(|r| r.model.clone()).or(modelo_agy),
+        "fast_supported": segmento.provider == "claude" && runtime.as_ref().and_then(|r| r.model.as_deref()).is_some_and(omni_core::comandos_oficiais::suporta_fast),
         "effort": runtime.as_ref().and_then(|r| r.effort.clone()).or(esforco_agy),
         "profiles": perfis.iter().map(|p| json!({"id":p.id,"name":p.name})).collect::<Vec<_>>(),
         "models": modelos,
@@ -143,7 +144,7 @@ pub(super) async fn ajustar(State(state): State<Arc<EngineState>>, RoutePath(id)
 }
 
 /// Linha de comando que retoma a conversa com o modelo e o esforço pedidos.
-pub(super) fn comando_de_retomada(base: &str, provider: &str, sessao: &str, ajustes: &Ajustes) -> Result<String> {
+pub(super) fn comando_de_retomada(base: &str, provider: &str, sessao: &str, ajustes: &Ajustes, modo: Option<&str>) -> Result<String> {
     // Antigravity: família + esforço viram a variante (`--model gemini-4-argon --effort high`). As
     // opções vão **antes** do `--conversation`: o reinício troca só o que vem depois dele.
     if provider == "antigravity" {
@@ -164,6 +165,10 @@ pub(super) fn comando_de_retomada(base: &str, provider: &str, sessao: &str, ajus
         // Sem aspas de propósito: o `-c` do Codex lê o valor como TOML e, se não for TOML válido,
         // usa o texto cru — e aspas mudariam de sentido entre bash e PowerShell.
         comando += &if provider == "claude" { format!(" --effort {esforco}") } else { format!(" -c model_reasoning_effort={esforco}") };
+    }
+    // Fork: modo confirmado por conversa, preservado na retomada sem mudar o padrão global.
+    if provider == "claude" {
+        if let Some(modo) = modo { comando = comandos::com_modo(&comando,modo)?; }
     }
     Ok(comando)
 }
@@ -271,7 +276,7 @@ pub(super) fn retomar(state: &Arc<EngineState>, action: &Action, plano: &Retomad
     let base = state.mobile.workspace.lock().map_err(|_|anyhow!("workspace poisoned"))?.agents.iter()
         .find(|agente| agente.id == plano.provider).map(|agente| agente.command.clone())
         .unwrap_or_else(|| plano.provider.clone());
-    let comando = comando_de_retomada(&base,&plano.provider,&plano.session_id,&plano.ajustes)?;
+    let comando = comando_de_retomada(&base,&plano.provider,&plano.session_id,&plano.ajustes,comandos::modo_salvo(&dir,&plano.conversation_id).as_deref())?;
 
     let agora = now_ms();
     let sessao = spawn_terminal_inner(state, state.next_id(), plano.project_id.clone(), plano.title.clone(), plano.cwd.clone(),
@@ -341,9 +346,9 @@ pub(super) fn reabrir_com(state: &Arc<EngineState>, conversation_id: &str, ajust
         .find(|agente| agente.id == segmento.provider).map(|agente| agente.command.clone())
         .unwrap_or_else(|| segmento.provider.clone());
     let comando = if nova_sem_mensagem {
-        comando_de_retomada(&base,&segmento.provider,&sessao_externa,ajustes)?.replacen(" --resume "," --session-id ",1)
+        comando_de_retomada(&base,&segmento.provider,&sessao_externa,ajustes,comandos::modo_da_sessao(&sessao).map(str::to_owned).or_else(||comandos::modo_salvo(&dir,conversation_id)).as_deref())?.replacen(" --resume "," --session-id ",1)
     } else {
-        comando_de_retomada(&base,&segmento.provider,&sessao_externa,ajustes)?
+        comando_de_retomada(&base,&segmento.provider,&sessao_externa,ajustes,comandos::modo_da_sessao(&sessao).map(str::to_owned).or_else(||comandos::modo_salvo(&dir,conversation_id)).as_deref())?
     };
     let sessao_id = {
         let mut meta = sessao.meta.lock().map_err(|_|anyhow!("metadata poisoned"))?;

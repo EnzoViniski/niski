@@ -35,7 +35,7 @@ async function abrirConversa() {
   await act(async () => { await userEvent.click(conversa); });
 }
 
-it("pesquisa conversas de todos os projetos e mantém Plano/Auto junto ao composer", async () => {
+it("pesquisa conversas de todos os projetos e mantém os quatro modos junto ao composer", async () => {
   const catalogo = {
     ...PROJETOS,
     projects: [...PROJETOS.projects, { id: "p2", name: "Outro", path: "C:/outro" }],
@@ -58,8 +58,8 @@ it("pesquisa conversas de todos os projetos e mantém Plano/Auto junto ao compos
   await act(async () => { await userEvent.click(screen.getByRole("button", { name: /Abrir conversa Auditar pagamentos antigos/ })); });
   expect(await screen.findByText("Histórico carregado")).toBeInTheDocument();
   const composer = screen.getByLabelText("Sua resposta").closest(".composer-faixa");
-  expect(within(composer as HTMLElement).getByRole("button", { name: "Plano" })).toBeInTheDocument();
-  expect(within(composer as HTMLElement).getByRole("button", { name: "Auto" })).toHaveAttribute("aria-pressed", "true");
+  expect(within(composer as HTMLElement).getByRole("combobox", { name: "Modo do agente" })).toHaveValue("auto");
+  expect(within(composer as HTMLElement).getAllByRole("option")).toHaveLength(4);
 });
 
 it("conversa sem sessão mostra histórico mas não oferece aprovação nem envio", async () => {

@@ -46,6 +46,8 @@ mod sessoes;
 use sessoes::*;
 mod ajustes;
 use ajustes::*;
+// Fork: comandos oficiais e modo de permissão da Conversa (frente 2C).
+mod comandos;
 mod fila;
 use fila::*;
 pub(crate) use celular::{check, settings, totp};
@@ -193,7 +195,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/fluxos/execucoes/{id}/nos/{no}/aprovar",post(fluxos_aprovar))
         .route("/fluxos/execucoes/{id}/nos/{no}/conversa",post(fluxos_conversa))
         .route("/conversas/{id}/bifurcar",post(bifurcar_rota))
-        .route("/conversas/{id}/modo",post(modo))
+        .merge(comandos::rotas()) // Fork: /comando e os quatro modos oficiais (2C).
         .route("/conversas/{id}/opcoes",get(opcoes))
         .route("/conversas/{id}/ajustes",post(ajustar))
         .route("/conversas/{id}/retomar",post(retomar_rota))

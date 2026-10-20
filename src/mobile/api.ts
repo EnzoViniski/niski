@@ -4,6 +4,8 @@ export interface Conversation {
   id: string; title: string; project_id: string; provider: string | null; profile_id: string | null; state: string | null;
   /** Modo de permissão lido do rodapé do CLI: `plan`, `auto`, `acceptEdits` ou `null` (não visível). */
   mode?: string | null;
+  /** Fork: confirmação do fast no rodapé da CLI; null quando não está visível. */
+  fast?: boolean | null;
   capabilities: {
     prompt: boolean; approve: boolean; revision: string; approval_text: string | null; reason: string | null;
     /** Agente no meio do turno com o campo livre: mensagem mandada agora entra na fila da CLI. */

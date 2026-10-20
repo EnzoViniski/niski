@@ -83,14 +83,15 @@ pub(super) fn resumo(state: &EngineState, c: &omni_core::conversations::Conversa
     // sessão entra junto porque o contador recomeça do zero a cada sessão nova.
     let attention = meta.as_ref().map(|m| format!("{}:{}", m.id, m.attention_seq));
     // `mode` sai da tela viva (o rodapé responde na hora); sessão fechada não tem modo.
-    let mode = live.as_ref().and_then(interaction::modo_da_sessao);
+    let mode = live.as_ref().and_then(comandos::modo_da_sessao); // Fork: confirma também default pelo composer.
+    let fast = live.as_ref().and_then(comandos::fast_da_sessao);
     // Tokens do turno em andamento (o "↓ 113 tokens" da linha de status), para a conversa mostrar
     // junto do tempo, como o terminal. Só com o agente trabalhando — parado, o número é velho.
     let tokens = live.as_ref().filter(|_| status.as_ref().is_some_and(|s| matches!(s, omni_protocol::SessionState::Working)))
         .and_then(|s| s.interaction.lock().ok().and_then(|c| interaction::tokens_do_turno(&c.parser.screen().contents())));
     json!({"id":c.id,"title":omni_core::conversations::display_title(c),"project_id":c.project_id,"provider":c.segments.last().map(|s|&s.provider),
         "profile_id":c.segments.last().and_then(|s|s.profile_id.as_ref()),"state":status,"mode":mode,"capabilities":capabilities,
-        "attention":attention,"tokens":tokens,"notice":meta.as_ref().and_then(|m|m.notice.clone()),"live":live.is_some(),"updated_at_ms":atividade(c,live.as_ref())})
+        "attention":attention,"tokens":tokens,"fast":fast,"notice":meta.as_ref().and_then(|m|m.notice.clone()),"live":live.is_some(),"updated_at_ms":atividade(c,live.as_ref())})
 }
 
 /// Último sinal de vida da conversa: saída do terminal, escrita no transcript ou a criação. É o que

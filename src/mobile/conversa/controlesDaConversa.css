@@ -1,0 +1,14 @@
+/* Fork: controles compactos e terminal oficial sobre a Conversa. */
+.conversa-controles { display: flex; align-items: center; gap: .25rem; position: relative; flex-wrap: wrap; }
+.conversa-controle-modo select { max-width: 10rem; padding: .35rem; font: inherit; font-size: .75rem; color: rgb(var(--c-text-primary)); background: rgb(var(--c-bg-surface)); border: 1px solid rgb(var(--c-outline)); }
+.conversa-controles-menu { position: absolute; right: 0; bottom: calc(100% + .5rem); z-index: 40; min-width: 12rem; display: flex; flex-direction: column; padding: .25rem; background: rgb(var(--c-bg-elevated)); border: 1px solid rgb(var(--c-outline)); box-shadow: 0 4px 16px rgb(0 0 0 / .3); }
+.conversa-controles-menu button { padding: .6rem; text-align: left; font-size: .8rem; }
+.conversa-controles-menu button:hover { background: rgb(var(--c-accent) / .12); }
+.conversa-terminal-fundo { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 1rem; background: rgb(0 0 0 / .7); }
+.conversa-terminal-painel { width: min(72rem, 100%); height: min(85dvh, 52rem); display: flex; flex-direction: column; gap: .5rem; padding: 1rem; color: rgb(var(--c-text-primary)); background: rgb(var(--c-bg-surface)); border: 1px solid rgb(var(--c-outline)); }
+.conversa-terminal-topo { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.conversa-terminal-painel .w-terminal { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.conversa-terminal-painel .w-terminal-tela { flex: 1; min-height: 0; overflow: auto; background: #0e0e14; padding: .5rem; }
+.conversa-terminal-painel .w-terminal-barra { font-size: .75rem; padding: .4rem 0; }
+.conversa-terminal-painel .xterm { height: 100%; }
+@media (max-width: 600px) { .conversa-terminal-fundo { padding: .25rem; } .conversa-terminal-painel { height: 94dvh; padding: .5rem; } }
