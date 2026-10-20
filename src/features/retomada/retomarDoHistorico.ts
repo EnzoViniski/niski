@@ -2,6 +2,7 @@ import type { WorkspaceState, WorkspacesAction } from "../../types/workspace";
 import { collectResourceIds } from "../workspace/workspaceReducer";
 import { ensureAgentTrust, ensureEngine, listAgentClis, spawnTerminal } from "../terminal/terminalService";
 import { levarParaConta, resumeCommand, samePath, type HistoryEntry } from "../history/historyService";
+import { comandoCodexLocal } from "../terminal/modeloLocal";
 import {
   continuarEmConversaNova,
   erroDePastaSumida,
@@ -70,14 +71,9 @@ export async function retomarDoHistorico(
   }
   await ensureEngine();
 
-  let diagnostico: DiagnosticoDeRetomada | null = null;
-  try {
-    diagnostico = await prepararRetomada({
+  const diagnostico: DiagnosticoDeRetomada | null = await prepararRetomada({
       provider: entry.provider, sessionId: entry.session_id, profileId, cwd, preparar: !opcoes.continuarNova,
     });
-  } catch {
-    diagnostico = null; // falha ao diagnosticar não impede tentar do jeito de antes
-  }
 
   if (diagnostico?.viva) {
     const alvo = ondeFocar(deps.workspaces, diagnostico.viva.terminal_session_id, diagnostico.viva.project_id)
@@ -121,15 +117,19 @@ export async function retomarDoHistorico(
       "Não achei esta conversa em nenhuma conta (o arquivo dela foi apagado?).",
       [{ rotulo: "Abrir conversa nova nesta pasta", dica: cwd, opcoes: { cwd, continuarNova: true } }],
     );
+  } else if (!diagnostico.pronto) {
+    throw new RetomadaError("O histórico foi localizado, mas não pôde ser preparado nesta conta. Tente novamente antes de abrir a conversa.");
   }
   await ensureAgentTrust(cli.id, cwd, profileId);
+  const comando = resumeCommand(cli.command, entry);
   const session = await spawnTerminal({
     projectId,
     name: `${cli.label} · ${(entry.title ?? "retomada").slice(0, 40)}`,
     cwd,
     rows: 30,
     cols: 120,
-    initialCommand: resumeCommand(cli.command, entry),
+    initialCommand: entry.provider === "codex" && diagnostico?.modelo_local
+      ? comandoCodexLocal(comando, diagnostico.modelo_local.provedor, diagnostico.modelo_local.modelo) : comando,
     provider: cli.id,
     profileId,
     externalSessionId: entry.session_id,

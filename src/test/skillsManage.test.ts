@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   disabledSkillsDir,
   installSkill,
+  installSkillEverywhere,
   listSkills,
   removeSkill,
   setSkillEnabled,
@@ -50,9 +51,15 @@ describe("skillScopes", () => {
       [perfil({ id: "c1", name: "Pessoal" }), perfil({ id: "x1", provider: "codex", name: "Trabalho", config_dir: "C:\\codex" })],
       "D:\\dev\\omni"
     );
-    expect(scopes.map((s) => s.label)).toEqual(["Claude · Pessoal", "Codex · Trabalho", "Projeto · omni"]);
+    expect(scopes.map((s) => s.label)).toEqual(["Claude · Pessoal", "Codex · Trabalho", "Projeto · omni · Claude", "Projeto · omni · Codex"]);
     expect(scopes[1].root).toBe("C:\\codex");
     expect(scopes[2].root).toBe("D:\\dev\\omni\\.claude");
+    expect(scopes[3].root).toBe("D:\\dev\\omni\\.agents");
+  });
+
+  it("expõe skills compartilhadas do Codex no diretório .agents do usuário", () => {
+    const scopes = skillScopes([perfil({ provider: "codex", config_dir: "/Users/enzo/.codex" })], null);
+    expect(scopes.find((s) => s.id === "user:agents")?.root).toBe("/Users/enzo/.agents");
   });
 
   it("ignora provider sem pasta de skills e projeto fechado", () => {
@@ -92,6 +99,25 @@ describe("listSkills", () => {
     mockExists.mockResolvedValue(false);
     expect(await listSkills(escopo)).toEqual([]);
     expect(mockReadDir).not.toHaveBeenCalled();
+  });
+});
+
+describe("pacote de skills em várias contas", () => {
+  it("instala o pacote nas contas e preserva as versões existentes ou desativadas", async () => {
+    const contaCodex = { ...escopo, id: "codex", root: "/codex", provider: "codex" as const };
+    mockExists.mockImplementation(async (path) => {
+      const p = String(path).replace(/\\/g, "/");
+      if (p === "/pacote/SKILL.md") return false;
+      if (p.endsWith("/SKILL.md")) return true;
+      return p.endsWith("/skills/a") || p.endsWith("/skills-disabled/b");
+    });
+    mockReadDir.mockResolvedValue([
+      { name: "a", isDirectory: true, isFile: false, isSymlink: false },
+      { name: "b", isDirectory: true, isFile: false, isSymlink: false },
+    ]);
+    const resultado = await installSkillEverywhere([escopo, contaCodex, contaCodex], "/pacote");
+    expect(resultado).toEqual({ instaladas: 0, existentes: 4 });
+    expect(mockCopyFile).not.toHaveBeenCalled();
   });
 });
 

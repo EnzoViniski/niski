@@ -3,7 +3,7 @@ import { Button, Select } from "../../components/ui";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { ChatIcon, FolderIcon } from "../../components/ui/PixelIcon";
 import { HistoryView } from "../history/HistoryView";
-import { Mascote } from "../workspace/PainelVazio";
+import { comandoCodexLocal, type ExecucaoCodex } from "./modeloLocal";
 import { targetLabel } from "../../lib/paths";
 import { contaDoAgente, lembrarAgente, lembrarConta, ultimoAgente } from "../../lib/escolhasSalvas";
 import { levarParaConta, resumeCommand, type HistoryEntry, type HistoryProvider } from "../history/historyService";
@@ -44,6 +44,9 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
   const [selectedProfile, setSelectedProfile] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [execucaoCodex, setExecucaoCodex] = useState<ExecucaoCodex>("conta");
+  const [modeloLocal, setModeloLocal] = useState("");
+  const [erroModelo, setErroModelo] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   // Fork: branch em que o agente vai trabalhar. Outra que não a atual roda numa worktree própria.
   const [branches, setBranches] = useState<GitBranch[]>([]);
@@ -112,9 +115,10 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
   }, [accounts, selected]);
 
   // Fork (3B): "Automática" pergunta à fila; a conta escolhida vale para abrir e o porquê aparece abaixo.
-  const automatica = selectedProfile === CONTA_AUTOMATICA;
+  const usandoLocal = selected === "codex" && execucaoCodex !== "conta";
+  const automatica = !usandoLocal && selectedProfile === CONTA_AUTOMATICA;
   const contaAutomatica = useContaAutomatica(selected, projectPath, automatica);
-  const profile = automatica
+  const profile = usandoLocal ? accounts.find((item) => item.builtin) ?? accounts[0] ?? null : automatica
     ? profiles.find((item) => item.id === contaAutomatica.escolha?.perfil_id) ?? null
     : accounts.find((item) => item.id === selectedProfile) ?? null;
   const semContaAutomatica = automatica && !profile;
@@ -130,6 +134,10 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
 
   async function launch(command?: string) {
     if (!agent) return;
+    if (usandoLocal) {
+      try { command = comandoCodexLocal(command ?? agent.command, execucaoCodex, modeloLocal); setErroModelo(null); }
+      catch (motivo) { setErroModelo(motivo instanceof Error ? motivo.message : String(motivo)); return; }
+    }
     lembrarAgente(agent.id);
     if (profile) lembrarConta(agent.id, automatica ? CONTA_AUTOMATICA : profile.id);
     let cwd: string | undefined;
@@ -156,12 +164,15 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
     if (!agent) return;
     // Fork (retomar-sempre): o engine acha a conversa em qualquer conta/pasta de projeto e a copia
     // para onde a CLI desta conta, nesta pasta, procura; conversa viva em outra aba não abre de novo.
-    const diagnostico = await prepararRetomada({ provider: entry.provider, sessionId: entry.session_id, profileId, cwd: projectPath, preparar: true })
-      .catch(() => null);
+    const diagnostico = await prepararRetomada({ provider: entry.provider, sessionId: entry.session_id, profileId, cwd: projectPath, preparar: true });
     if (diagnostico?.viva) throw new RetomadaError("Esta conversa já está aberta em outra aba. Feche aquela aba ou use a lateral para ir até ela.");
+    if (diagnostico && !diagnostico.pronto) throw new RetomadaError("Não foi possível preparar o histórico desta conversa. Retome pelo Histórico para ver as opções de recuperação.");
     if (!diagnostico) await levarParaConta(entry, profileId);
+    const comando = resumeCommand(agent.command, entry);
+    const comandoAnterior = diagnostico?.modelo_local && entry.provider === "codex"
+      ? comandoCodexLocal(comando, diagnostico.modelo_local.provedor, diagnostico.modelo_local.modelo) : comando;
     onLaunch({
-      agent: { ...agent, command: resumeCommand(agent.command, entry) },
+      agent: { ...agent, command: usandoLocal ? comandoCodexLocal(comando, execucaoCodex, modeloLocal) : comandoAnterior },
       profile: profiles.find((item) => item.id === profileId) ?? profile,
     });
   }
@@ -195,34 +206,9 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
         ? { texto: "Conectada", tom: "ok" }
         : { texto: "Sem login", tom: "aviso" };
 
-  // O que a janelinha da cena "digita": o comando de verdade que vai abrir.
-  const comando = agent?.command ?? "agent";
-  const faiscas = [8, 19, 33, 47, 61, 74, 88];
-
   return (
     <div className="launcher">
       <section className="launcher-card lz-card" aria-labelledby="launcher-titulo">
-        {/* Cena: remonta a cada troca de agente (key) — varredura, comando digitado e o herói chegando. */}
-        <div key={agent?.id} className="lz-cena" aria-hidden>
-          <span className="lz-varredura" />
-          {faiscas.map((x, i) => (
-            <span key={x} className="lz-faisca" style={{ left: `${x}%`, animationDelay: `${(i * 0.53) % 2.6}s` }} />
-          ))}
-          <div className="lz-janela">
-            <div className="lz-janela-barra"><i /><i /><i /><span>{projectName}</span></div>
-            <div className="lz-janela-corpo" style={{ "--n": comando.length } as React.CSSProperties}>
-              <p className="lz-linha"><span className="lz-prompt">$</span> <span className="lz-digitando">{comando}</span><span className="lz-cursor" /></p>
-              <p className="lz-linha lz-saida lz-saida-1">✓ {agent?.label ?? "Agente"} pronto em {projectName}</p>
-              <p className="lz-linha lz-saida lz-saida-2">{profile ? `conta ${profile.name}` : "conta padrão"} · continua rodando em segundo plano</p>
-            </div>
-          </div>
-          <div className="lz-heroi">
-            {agent?.id === "claude" ? <Mascote /> : <AgentIcon provider={agent?.id} size={46} className="lz-heroi-icone" />}
-            <span className="lz-sombra" />
-          </div>
-          <div className="lz-chao" />
-        </div>
-
         <header className="launcher-topo">
           <span className="launcher-topo-icone" aria-hidden>
             <FolderIcon className="h-5 w-5" />
@@ -267,7 +253,23 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
           })}
         </div>
 
-        {profileOptions.length > 1 && (
+        {selected === "codex" && <div className="launcher-campo">
+          <label htmlFor="codex-execucao" className="launcher-rotulo">Usar modelo</label>
+          <Select id="codex-execucao" value={execucaoCodex} options={[
+            { value: "conta", label: "Da minha conta" },
+            { value: "ollama", label: "Local com Ollama" },
+            { value: "lmstudio", label: "Local com LM Studio" },
+          ]} onChange={(valor) => { setExecucaoCodex(valor as ExecucaoCodex); setErroModelo(null); }} />
+          {usandoLocal && <>
+            <label htmlFor="codex-modelo-local" className="launcher-rotulo mt-3">Nome do modelo instalado</label>
+            <input id="codex-modelo-local" className="launcher-branch-nova" value={modeloLocal} spellCheck={false}
+              placeholder="Nome exato exibido no servidor local" onChange={(event) => { setModeloLocal(event.target.value); setErroModelo(null); }} />
+            <p className="launcher-nota">Deixe o servidor local aberto. O modelo precisa ser compatível com as ferramentas do Codex.</p>
+          </>}
+          {erroModelo && <p role="alert" className="text-xs text-danger">{erroModelo}</p>}
+        </div>}
+
+        {!usandoLocal && profileOptions.length > 1 && (
           <div className="launcher-campo">
             <label htmlFor="agent-profile" className="launcher-rotulo">Conta</label>
             <Select
@@ -341,7 +343,7 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
             Os agentes desta pasta continuam em {branchAtual}, sem nada mudar debaixo deles.
           </p>
         )}
-        {profile && !profile.authenticated && (
+        {!usandoLocal && profile && !profile.authenticated && (
           <p className="launcher-alerta is-aviso">
             A conta “{profile.name}” ainda não tem login. O CLI vai pedir autenticação ao abrir.
           </p>
@@ -358,7 +360,7 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
         )}
 
         <div className="launcher-acoes">
-          <Button variant="primary" className="flex-1 lz-abrir" disabled={loading || preparando || !agent?.available || (branch === NOVA && !branchNova.trim()) || semContaAutomatica} onClick={() => void launch()}>
+          <Button variant="primary" className="flex-1 lz-abrir" disabled={loading || preparando || !agent?.available || (usandoLocal && !modeloLocal.trim()) || (branch === NOVA && !branchNova.trim()) || semContaAutomatica} onClick={() => void launch()}>
             {loading ? (
               "Detectando CLIs…"
             ) : preparando ? (
@@ -374,7 +376,7 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
             <Button
               variant="ghost"
               className="flex-1"
-              disabled={loading || !agent.available}
+              disabled={loading || !agent.available || (usandoLocal && !modeloLocal.trim())}
               title="Escolhe uma conversa anterior deste projeto, com prévia das mensagens"
               onClick={() => setPicking(true)}
             >

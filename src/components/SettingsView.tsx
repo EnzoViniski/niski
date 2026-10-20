@@ -15,6 +15,7 @@ import { CHANGELOG } from "../lib/changelog";
 import { Button, Card, Field, Input, SegmentedControl, Slider } from "./ui";
 import { AgentConnections } from "../features/terminal/AgentConnections";
 import { SkillsManager } from "../features/skills/SkillsManager";
+import { MemoriaCompartilhada } from "../features/memoria/MemoriaCompartilhada";
 import { ExtensoesSettings } from "../features/extensoes/ExtensoesSettings";
 import { MobileSettings } from "../features/mobile/MobileSettings";
 import { LimiteDeSessoes } from "../features/terminal/LimiteDeSessoes";
@@ -28,7 +29,7 @@ import { FilaDeContas } from "../features/roteamento/FilaDeContas";
 import { SHORTCUTS, shortcutLabel, comboFromEvent, setRecordingShortcut, shortcutFor, type ShortcutId } from "../lib/shortcuts";
 import { NOME_DO_PRODUTO } from "../lib/identidade";
 
-type SectionId = "geral" | "aparencia" | "agentes" | "fila" | "modelos" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
+type SectionId = "geral" | "aparencia" | "agentes" | "memoria" | "fila" | "modelos" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
 
 type Icone = React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 
@@ -38,10 +39,11 @@ const SECTIONS: { id: SectionId; label: string; desc: string; icon: Icone }[] = 
   { id: "geral", label: "Geral", desc: "Conversa ou terminal, arquivos, avisos e sessões", icon: GearIcon },
   { id: "aparencia", label: "Aparência", desc: "Tema, cor, fundo e animações", icon: BrushIcon },
   { id: "agentes", label: "Agentes", desc: "CLIs instaladas e contas", icon: RobotIcon },
+  { id: "memoria", label: "Memória", desc: "Seu contexto em todos os agentes", icon: BookIcon },
   { id: "fila", label: "Fila de contas", desc: "Qual conta abre cada agente", icon: ListIcon },
   { id: "modelos", label: "Modelos de agentes", desc: "QA, revisor, orquestrador… criados com IA", icon: SparkleIcon },
   { id: "extensoes", label: "Extensões", desc: "MCPs, plugins e conectores por IA", icon: BlocksIcon },
-  { id: "skills", label: "Skills", desc: "Skills do Claude e do projeto", icon: BookIcon },
+  { id: "skills", label: "Skills", desc: "Claude, Codex e projetos", icon: BookIcon },
   { id: "mobile", label: "Acesso remoto", desc: "Celular e outro computador", icon: GlobeIcon },
   { id: "relatorios", label: "Relatórios", desc: "Uso de IA por dia, contas e commits", icon: ChartIcon },
   { id: "atalhos", label: "Atalhos", desc: "Teclas do app", icon: KeyboardIcon },
@@ -109,7 +111,7 @@ export function SettingsView({ settings, onChange, onReset, initialSection, proj
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="pixel-text text-text-primary text-base">Configurações</h1>
-          <p className="text-text-secondary text-xs">Preferências do OMNI neste computador. Tudo salva na hora.</p>
+          <p className="text-text-secondary text-xs">Preferências do {NOME_DO_PRODUTO} neste computador.</p>
         </div>
         <Button
           size="sm"
@@ -159,6 +161,7 @@ export function SettingsView({ settings, onChange, onReset, initialSection, proj
           {section === "modelos" && <ModelosDeAgentes projectPath={projectPath} />}
           {section === "extensoes" && <ExtensoesSettings projectPath={projectPath} />}
           {section === "skills" && <SkillsManager projectPath={projectPath} />}
+          {section === "memoria" && <MemoriaCompartilhada />}
           {section === "mobile" && <MobileSettings accent={settings.accent} />}
           {section === "relatorios" && <RelatoriosIa projectPaths={projectPaths} />}
           {section === "atalhos" && <AtalhosSection settings={settings} onChange={onChange} />}

@@ -77,6 +77,25 @@ function deps(extra: Partial<DependenciasDaRetomada> = {}) {
 const ok = { viva: null, pasta_existe: true, pasta_principal: null, transcript: true, conta: "p1", pronto: true };
 
 describe("retomar do Histórico", () => {
+  it("mantém o servidor local do Codex ao retomar pelo Histórico", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce([{ id: "codex", label: "Codex", command: "codex", available: true, authenticated: false, path: "/fake/codex" }]);
+    rotas["/retomada/preparar"] = { status: 200, body: { ...ok, modelo_local: { provedor: "ollama", modelo: "empresa/modelo:local" } } };
+    await retomarDoHistorico({ ...entry, provider: "codex" }, "p1", {}, deps());
+    expect(invoke).toHaveBeenCalledWith("spawn_terminal", expect.objectContaining({
+      initialCommand: "codex resume sess-1 --oss --local-provider ollama --model empresa/modelo:local",
+    }));
+  });
+  it("não abre conversa quando a preparação falha e não disfarça erro como engine antigo", async () => {
+    rotas["/retomada/preparar"] = { status: 500, body: { error: "Falha de disco" } };
+    await expect(retomarDoHistorico(entry, "p1", {}, deps())).rejects.toThrow("Falha de disco");
+    expect(vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === "spawn_terminal")).toBe(false);
+  });
+
+  it("não abre uma conversa sem o histórico que foi encontrado mas não pôde ser copiado", async () => {
+    rotas["/retomada/preparar"] = { status: 200, body: { ...ok, pronto: false } };
+    await expect(retomarDoHistorico(entry, "p1", {}, deps())).rejects.toThrow("não pôde ser preparado");
+    expect(vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === "spawn_terminal")).toBe(false);
+  });
   it("conversa já viva numa aba: foca a aba e não abre um segundo --resume", async () => {
     rotas["/retomada/preparar"] = { status: 200, body: { ...ok, viva: { terminal_session_id: "viva-1", project_id: "proj" } } };
     const d = deps({ workspaces: [workspace(["viva-1"])] });

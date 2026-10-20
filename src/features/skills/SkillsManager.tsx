@@ -7,6 +7,7 @@ import { listProfiles, type Profile } from "../terminal/terminalService";
 import {
   disabledSkillsDir,
   installSkill,
+  installSkillEverywhere,
   listSkills,
   removeSkill,
   setSkillEnabled,
@@ -40,6 +41,7 @@ export function SkillsManager({ projectPath }: SkillsManagerProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState<string | null>(null);
+  const [resultado, setResultado] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +95,15 @@ export function SkillsManager({ projectPath }: SkillsManagerProps) {
     await run("install", () => installSkill(alvo, escolhida));
   }
 
+  async function instalarEmTodas() {
+    const escolhida = await open({ directory: true, multiple: false, title: "Pasta da skill ou pacote para todas as contas" });
+    if (typeof escolhida !== "string") return;
+    await run("install-all", async () => {
+      const resumo = await installSkillEverywhere(scopes.filter((item) => item.kind === "global"), escolhida);
+      setResultado(`Instalada em ${resumo.instaladas} pastas. ${resumo.existentes} já tinham uma versão e foram preservadas.`);
+    });
+  }
+
   const scopeOptions = scopes.map((item) => ({
     value: item.id,
     label: item.label,
@@ -107,9 +118,8 @@ export function SkillsManager({ projectPath }: SkillsManagerProps) {
       <div>
         <h2 className="pixel-text text-text-primary text-sm">Skills</h2>
         <p className="mt-1 text-[11px] text-text-muted">
-          Instruções que a CLI carrega sozinha quando a tarefa combina. Desativar move a pasta para
-          <code className="mx-1 text-text-secondary">skills-disabled/</code>
-          ao lado — nada é apagado e reativar traz de volta.
+          Instruções que os agentes usam nas tarefas certas. Instale por conta ou compartilhe com
+          todas as contas de Claude e Codex. Você pode desativar e reativar quando quiser.
         </p>
       </div>
 
@@ -132,6 +142,9 @@ export function SkillsManager({ projectPath }: SkillsManagerProps) {
             <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => void refresh(scope)}>
               Atualizar
             </Button>
+            {scopes.some((item) => item.kind === "global") && <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => void instalarEmTodas()}>
+              {busy === "install-all" ? "Instalando…" : "Instalar em todas as contas…"}
+            </Button>}
           </div>
 
           <p className="truncate text-[10px] text-text-muted" title={skillsDir(scope)}>
@@ -139,6 +152,7 @@ export function SkillsManager({ projectPath }: SkillsManagerProps) {
           </p>
 
           {error && <p role="alert" className="border-l-2 border-danger pl-3 text-xs text-danger">{error}</p>}
+          {resultado && <p role="status" className="text-xs text-text-secondary">{resultado}</p>}
 
           <div className="divide-y divide-border-subtle border-y border-border-subtle">
             {skills === null && <p className="py-4 text-xs text-text-muted">Lendo skills…</p>}
@@ -168,7 +182,7 @@ export function SkillsManager({ projectPath }: SkillsManagerProps) {
                   size="sm"
                   variant="ghost"
                   disabled={busy !== null}
-                  title="Abrir a pasta da skill no Explorer"
+                  title="Abrir a pasta da skill"
                   onClick={() => void revealItemInDir(skill.path).catch((reason) => setError(errorText(reason)))}
                 >
                   Abrir pasta

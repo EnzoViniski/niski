@@ -26,7 +26,7 @@ it("lista skills e alterna o escopo da conta para o projeto", async () => {
   expect(await screen.findByText("Revisão de telas")).toBeInTheDocument();
   expect(screen.getByText("1 ativa de 1.")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("combobox", { name: "Escopo" }));
-  await userEvent.click(screen.getByRole("option", { name: /Projeto · projeto/ }));
+  await userEvent.click(screen.getByRole("option", { name: /Projeto · projeto · Claude/ }));
   await waitFor(() => expect(listSkills).toHaveBeenLastCalledWith(expect.objectContaining({ id: "project", root: "/fake/projeto/.claude" })));
   expect(screen.getByText("/fake/projeto/.claude/skills")).toBeInTheDocument();
 });

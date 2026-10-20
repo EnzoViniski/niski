@@ -52,13 +52,22 @@ export function skillScopes(profiles: Profile[], projectPath: string | null): Sk
       kind: "global" as const,
       root: profile.config_dir,
     }));
+  const nativoCodex = profiles.find((p) => p.provider === "codex" && p.builtin && baseName(p.config_dir) === ".codex");
+  if (nativoCodex) {
+    const home = nativoCodex.config_dir.replace(/[\\/]\.codex[\\/]?$/, "");
+    scopes.push({ id: "user:agents", label: "Codex · Compartilhadas entre contas", provider: "codex", kind: "global", root: joinPath(home, ".agents") });
+  }
   if (projectPath) {
     scopes.push({
       id: "project",
-      label: `Projeto · ${baseName(projectPath)}`,
+      label: `Projeto · ${baseName(projectPath)} · Claude`,
       provider: "claude",
       kind: "project",
       root: joinPath(projectPath, ".claude"),
+    });
+    scopes.push({
+      id: "project:codex", label: `Projeto · ${baseName(projectPath)} · Codex`,
+      provider: "codex", kind: "project", root: joinPath(projectPath, ".agents"),
     });
   }
   return scopes;
@@ -125,7 +134,38 @@ export async function listSkills(scope: SkillScope): Promise<SkillInfo[]> {
 
 /** Skills ativas do projeto aberto (`.claude/skills/<nome>/SKILL.md`) — o que a barra lateral lista. */
 export async function listProjectSkills(projectRoot: string): Promise<SkillInfo[]> {
-  return (await readSkillDir(joinPath(projectRoot, ".claude", "skills"), true)).sort(byName);
+  const claude = await readSkillDir(joinPath(projectRoot, ".claude", "skills"), true);
+  const codex = await readSkillDir(joinPath(projectRoot, ".agents", "skills"), true);
+  // A lateral mostra uma entrada quando a mesma skill está disponível nas duas CLIs.
+  const unicas = new Map([...codex, ...claude].map((skill) => [skill.id, skill]));
+  return [...unicas.values()].sort(byName);
+}
+
+/** Copia para os escopos selecionados sem sobrescrever versões que o usuário já tenha. */
+export async function installSkillEverywhere(scopes: SkillScope[], sourceDir: string): Promise<{ instaladas: number; existentes: number }> {
+  let instaladas = 0, existentes = 0;
+  const fontes: string[] = [];
+  if (await exists(joinPath(sourceDir, "SKILL.md"))) fontes.push(sourceDir);
+  else {
+    for (const item of await readDir(sourceDir)) {
+      if (!item.isDirectory && !item.isSymlink) continue;
+      const pasta = joinPath(sourceDir, item.name);
+      if (await exists(joinPath(pasta, "SKILL.md"))) fontes.push(pasta);
+    }
+  }
+  if (fontes.length === 0) throw new Error("A pasta escolhida não contém nenhuma skill com SKILL.md.");
+  const raizes = new Set<string>();
+  for (const scope of scopes) {
+    if (raizes.has(scope.root)) continue;
+    raizes.add(scope.root);
+    for (const fonte of fontes) {
+      const nome = baseName(fonte);
+      if (await exists(joinPath(skillsDir(scope), nome)) || await exists(joinPath(disabledSkillsDir(scope), nome))) { existentes++; continue; }
+      await installSkill(scope, fonte);
+      instaladas++;
+    }
+  }
+  return { instaladas, existentes };
 }
 
 /** Liga/desliga movendo a pasta entre `skills/` e `skills-disabled/`. Move o link, não o destino. */

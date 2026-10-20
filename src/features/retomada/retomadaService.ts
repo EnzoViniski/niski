@@ -18,6 +18,8 @@ export interface DiagnosticoDeRetomada {
   conta: string | null;
   /** O transcript já está onde a CLI da conta escolhida procura. */
   pronto: boolean;
+  /** Conserva o servidor local da conversa ao retomar pelo Histórico. */
+  modelo_local?: { provedor: "ollama" | "lmstudio"; modelo: string } | null;
 }
 
 export interface PedidoDeRetomada {
