@@ -155,7 +155,8 @@ export function chaveDeAtencao(conversa: Conversation): string {
   return `${conversa.attention ?? ""}|${tipo}`;
 }
 export class ApiError extends Error {
-  constructor(message: string, public readonly status: number) { super(message); }
+  /** Fork (retomar-sempre): o corpo JSON do erro (ex.: `codigo: "pasta_sumiu"`, `pasta_principal`). */
+  constructor(message: string, public readonly status: number, public readonly detalhes: Record<string, unknown> = {}) { super(message); }
 }
 const TOKEN_KEY = "omni-token";
 
@@ -210,7 +211,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // Rota que não existe (engine mais antigo que a tela) responde sem JSON: sem o `catch`, virava
     // erro de parse e quem chamou não conseguia distinguir o 404.
     const result = await response.json().catch(() => ({}));
-    throw new ApiError(result.error ?? `Falha HTTP ${response.status}`, response.status);
+    throw new ApiError(result.error ?? `Falha HTTP ${response.status}`, response.status, result);
   }
   return (await response.json()) as T;
 }
@@ -235,7 +236,7 @@ export async function requestSeMudou<T>(path: string, init?: RequestInit): Promi
     if (response.status === 401) esquecerToken();
     // Rota que não existe num engine antigo cai na página de erro em texto, não em JSON.
     const result = await response.json().catch(() => ({}));
-    throw new ApiError(result.error ?? `Falha HTTP ${response.status}`, response.status);
+    throw new ApiError(result.error ?? `Falha HTTP ${response.status}`, response.status, result);
   }
   const result = await response.json();
   const etag = response.headers.get("etag");

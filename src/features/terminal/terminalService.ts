@@ -38,6 +38,9 @@ export interface TerminalSession {
   created_at_ms?: number;
   /** Última saída do terminal — o "há 5 min" da lateral. */
   last_activity_at_ms?: number;
+  /** Fork (retomar-sempre): agente que o engine anterior deixou aberto; volta (com `--resume`) ao
+   *  abrir a aba. */
+  retoma_ao_abrir?: boolean;
 }
 
 export type AgentCliId = "cursor" | "claude" | "codex" | "antigravity";

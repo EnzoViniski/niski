@@ -7,6 +7,7 @@ import { Mascote } from "../workspace/PainelVazio";
 import { targetLabel } from "../../lib/paths";
 import { contaDoAgente, lembrarAgente, lembrarConta, ultimoAgente } from "../../lib/escolhasSalvas";
 import { levarParaConta, resumeCommand, type HistoryEntry, type HistoryProvider } from "../history/historyService";
+import { prepararRetomada, RetomadaError } from "../retomada/retomadaService";
 import { gitBranches, gitWorktreeDaBranch, type GitBranch } from "../git/gitService";
 import { isRemoteProject } from "../projects/targetState";
 import { criarWorktreeIsolada, nomeDaWorktree, PASTA_DAS_WORKTREES, PREFIXO_DA_BRANCH } from "./worktreeIsolada";
@@ -153,7 +154,12 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
   // recebe uma cópia do transcript antes, senão o `--resume` não acha a conversa.
   async function resume(entry: HistoryEntry, profileId: string) {
     if (!agent) return;
-    await levarParaConta(entry, profileId);
+    // Fork (retomar-sempre): o engine acha a conversa em qualquer conta/pasta de projeto e a copia
+    // para onde a CLI desta conta, nesta pasta, procura; conversa viva em outra aba não abre de novo.
+    const diagnostico = await prepararRetomada({ provider: entry.provider, sessionId: entry.session_id, profileId, cwd: projectPath, preparar: true })
+      .catch(() => null);
+    if (diagnostico?.viva) throw new RetomadaError("Esta conversa já está aberta em outra aba. Feche aquela aba ou use a lateral para ir até ela.");
+    if (!diagnostico) await levarParaConta(entry, profileId);
     onLaunch({
       agent: { ...agent, command: resumeCommand(agent.command, entry) },
       profile: profiles.find((item) => item.id === profileId) ?? profile,

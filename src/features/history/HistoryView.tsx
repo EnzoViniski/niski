@@ -17,6 +17,8 @@ import {
   type HistoryProvider,
   type HistoryTranscript,
 } from "./historyService";
+// Fork (retomar-sempre): erro de retomada com saídas (outra pasta, conversa nova com o histórico).
+import { RetomadaError, type AcaoDeRetomada, type OpcoesDeRetomada } from "../retomada/retomadaService";
 
 const PROVIDERS = [
   { value: "claude" as const, label: "Claude", icon: <AgentIcon provider="claude" size={14} /> },
@@ -78,7 +80,7 @@ function useConversasPorSessao() {
 interface HistoryViewProps {
   /** Reabre a conversa no CLI dentro de um terminal do projeto dela, na conta escolhida (a da
    *  conversa por padrão; outra conta recebe uma cópia do transcript antes). */
-  onResume: (entry: HistoryEntry, profileId: string) => Promise<void> | void;
+  onResume: (entry: HistoryEntry, profileId: string, opcoes?: OpcoesDeRetomada) => Promise<void> | void;
   /** Trava o provider e a pasta — usado pelo "Retomar conversa" do Novo agente, que só pode
    *  reabrir conversas daquela CLI naquele projeto. */
   lock?: { provider: HistoryProvider; cwd: string };
@@ -316,6 +318,7 @@ function ConversationDetail({
   const [transcript, setTranscript] = useState<HistoryTranscript | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resuming, setResuming] = useState(false);
+  const [saidas, setSaidas] = useState<AcaoDeRetomada[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -331,13 +334,15 @@ function ConversationDetail({
     };
   }, [entry]);
 
-  async function resume() {
+  async function resume(opcoes?: OpcoesDeRetomada) {
     setResuming(true);
     setError(null);
+    setSaidas([]);
     try {
-      await onResume(entry, conta);
+      await onResume(entry, conta, opcoes);
     } catch (reason) {
       setError(errorText(reason));
+      setSaidas(reason instanceof RetomadaError ? reason.acoes : []);
     } finally {
       setResuming(false);
     }
@@ -379,7 +384,7 @@ function ConversationDetail({
           <label htmlFor="historico-conta" className="historico-retomar-rotulo">Abrir na conta</label>
           <div className="flex items-stretch gap-2">
             <Select id="historico-conta" size="sm" value={conta} options={opcoesDeConta} onChange={setConta} className="min-w-[11rem]" />
-            <Button size="sm" variant="primary" onClick={() => void resume()} loading={resuming} disabled={!entry.cwd}>
+            <Button size="sm" variant="primary" onClick={() => void resume()} loading={resuming}>
               <PlayIcon className="h-3.5 w-3.5" aria-hidden="true" />
               Retomar no terminal
             </Button>
@@ -390,9 +395,19 @@ function ConversationDetail({
         </div>
       </header>
       {error && (
-        <p role="alert" className="mx-4 mt-3 border-l-2 border-danger pl-3 text-xs text-danger">
-          {error}
-        </p>
+        <div role="alert" className="mx-4 mt-3 border-l-2 border-danger pl-3 text-xs text-danger">
+          <p>{error}</p>
+          {saidas.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {saidas.map((saida) => (
+                <Button key={saida.rotulo} size="sm" variant="glass" title={saida.dica} disabled={resuming}
+                  onClick={() => void resume(saida.opcoes)}>
+                  {saida.rotulo}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
       <div className="historico-mensagens">
         {transcript === null && !error && <p className="text-xs text-text-muted">Carregando mensagens…</p>}

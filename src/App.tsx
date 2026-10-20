@@ -32,16 +32,17 @@ import { useEconomiaDeEnergia } from "./hooks/useEconomiaDeEnergia";
 import {
   closeTerminal,
   duplicateTerminal,
-  ensureAgentTrust,
   ensureEngine,
-  listAgentClis,
   restartTerminal,
   spawnTerminal,
 } from "./features/terminal/terminalService";
 import { HistoryView } from "./features/history/HistoryView";
 // Fork: React Flow só ao abrir a tela de Fluxos.
 import { FluxosView } from "./features/fluxos/FluxosViewTardio";
-import { levarParaConta, resumeCommand, samePath, type HistoryEntry } from "./features/history/historyService";
+import type { HistoryEntry } from "./features/history/historyService";
+// Fork (retomar-sempre): retomar do Histórico sem beco sem saída.
+import { retomarDoHistorico } from "./features/retomada/retomarDoHistorico";
+import type { OpcoesDeRetomada } from "./features/retomada/retomadaService";
 import { rememberProject } from "./services/recentProjectsService";
 import { primeSshDrives } from "./features/projects/targetState";
 import type { SettingsSection } from "./hooks/useNotifications";
@@ -199,41 +200,17 @@ function AppComPaleta() {
   }
 
   /** Reabre uma conversa do Histórico num terminal do projeto dela — adicionando o projeto ao
-   *  workspace ativo se ele ainda não estiver aberto em nenhum. */
-  async function resumeHistory(entry: HistoryEntry, profileId: string = entry.profile_id) {
-    const cwd = entry.cwd;
-    if (!cwd) throw new Error("Essa conversa não registrou a pasta onde rodou.");
-    const cli = (await listAgentClis()).find((item) => item.id === entry.provider);
-    if (!cli?.available) throw new Error(`${cli?.label ?? entry.provider} não foi encontrado no PATH.`);
-    const found = workspaces
-      .flatMap((item) => item.projects.map((project) => ({ workspaceId: item.id, project })))
-      .find(({ project }) => samePath(project.path, cwd));
-    const workspaceId = found?.workspaceId ?? activeWorkspaceId;
-    if (!workspaceId) throw new Error("Crie um workspace antes de retomar a conversa.");
-    // Id escolhido aqui pra já nascer a sessão no projeto certo, antes do reducer rodar.
-    const projectId = found?.project.id ?? `project-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    if (!found) {
-      rememberProject(cwd);
-      dispatch({ type: "ADD_PROJECT", path: cwd, id: projectId });
-    }
-
-    await ensureEngine();
-    // Outra conta: o transcript vai para lá antes, senão o `--resume` não acha a conversa.
-    await levarParaConta(entry, profileId);
-    await ensureAgentTrust(cli.id, cwd, profileId);
-    const session = await spawnTerminal({
-      projectId,
-      name: `${cli.label} · ${(entry.title ?? "retomada").slice(0, 40)}`,
-      cwd,
-      rows: 30,
-      cols: 120,
-      initialCommand: resumeCommand(cli.command, entry),
-      provider: cli.id,
-      profileId,
-      externalSessionId: entry.session_id,
+   *  workspace ativo se ele ainda não estiver aberto em nenhum. Fork (retomar-sempre): a lógica
+   *  (sessão já viva, pasta apagada, conta, conversa nova com histórico) mora em `retomarDoHistorico`. */
+  async function resumeHistory(entry: HistoryEntry, profileId: string = entry.profile_id, opcoes: OpcoesDeRetomada = {}) {
+    await retomarDoHistorico(entry, profileId, opcoes, {
+      workspaces,
+      activeWorkspaceId,
+      projetoAtual: activeProject ? { id: activeProject.id, path: activeProject.path } : null,
+      dispatch,
+      lembrarProjeto: rememberProject,
+      aoAbrir: () => setView("workspace"),
     });
-    dispatch({ type: "FOCUS_SESSION", workspaceId, projectId, sessionId: session.id, title: session.name });
-    setView("workspace");
   }
 
   return (
