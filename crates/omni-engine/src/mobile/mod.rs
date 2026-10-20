@@ -10,8 +10,6 @@ use std::{
 };
 use tokio::sync::Notify;
 
-#[cfg(mobile_assets)]
-static ASSETS: include_dir::Dir<'_> = include_dir::include_dir!("$CARGO_MANIFEST_DIR/../../dist-mobile");
 
 // Fork: orquestrador de agentes (servidor MCP + rotas do fluxo). Filho deste módulo para chamar as
 // rotas e planos daqui (spawn, fila, timeline) sem torná-los públicos.
@@ -21,6 +19,11 @@ mod busca_historico;
 // Fork: teto de sessões ativas (agentes e terminais rodando comando), configurável. Sem ele, um toque
 // repetido no botão do celular enche o PC de PTYs.
 pub(crate) mod limite_de_sessoes;
+
+// Fork (Onda 2.0): o antigo `mobile.rs` dividido por assunto, só movido. Cada filho faz
+// `use super::*` e este módulo traz os itens de volta com `use filho::*`.
+mod assets;
+use assets::*;
 
 pub struct MobileRuntime {
     config: Mutex<MobileConfig>,
@@ -2224,35 +2227,6 @@ fn caminho_publico(path: &str) -> bool {
     matches!(path, "/" | "/pc" | "/pc/" | "/pc.html")
         || path.starts_with("/assets/")
         || ARQUIVOS_PUBLICOS.contains(&path)
-}
-
-/// `nosniff` está ligado em toda resposta, então o tipo tem de estar certo: ícone ou manifest
-/// servidos como `application/octet-stream` são ignorados pelo celular.
-fn tipo_do_arquivo(path: &str) -> &'static str {
-    match path.rsplit('.').next().unwrap_or("") {
-        "html" => "text/html; charset=utf-8",
-        "js" => "text/javascript; charset=utf-8",
-        "css" => "text/css; charset=utf-8",
-        "png" => "image/png",
-        "webmanifest" => "application/manifest+json",
-        _ => "application/octet-stream",
-    }
-}
-
-async fn asset(request: Request) -> Response {
-    let path = request.uri().path().trim_start_matches('/');
-    // `/` é a página do celular; `/pc` é a de computador — mesmas rotas de API, layout largo.
-    let path = match path {
-        "" => "index.html",
-        "pc" | "pc/" => "pc.html",
-        outro => outro,
-    };
-    #[cfg(mobile_assets)]
-    if let Some(file) = ASSETS.get_file(path) {
-        return ([("content-type",tipo_do_arquivo(path))],file.contents()).into_response();
-    }
-    let _ = path;
-    (StatusCode::NOT_FOUND,"Página não encontrada; em desenvolvimento, execute npm run build:mobile antes de compilar o engine").into_response()
 }
 
 #[cfg(test)]
