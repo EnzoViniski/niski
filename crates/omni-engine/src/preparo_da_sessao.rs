@@ -5,10 +5,11 @@
 //! digitar e o ambiente extra da PTY (tokens), que nunca vai para o `sessions.json`.
 use super::*;
 
-pub(crate) fn preparar(state: &EngineState, terminal: &str, origem: &SessionOrigin, cwd: &str, comando: Option<String>)
+pub(crate) fn preparar(state: &Arc<EngineState>, terminal: &str, origem: &SessionOrigin, cwd: &str, comando: Option<String>)
     -> (Option<String>, Vec<(String, String)>) {
     let (comando, mut ambiente) = mobile::orquestracao::preparar(state, origem.conversation_id.as_deref(), origem.provider.as_deref(), comando);
     let (comando, dos_ganchos) = ganchos::preparar(state, terminal, origem, cwd, comando);
     ambiente.extend(dos_ganchos);
+    let comando = codex_app_server::preparar(state, terminal, origem, cwd, comando, &ambiente); // Fork: 3A.
     (comando, ambiente)
 }

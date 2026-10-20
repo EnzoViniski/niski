@@ -2,6 +2,7 @@
 // Fork (Onda 2, item 2): pedido que veio pelo gancho do Claude mostra a ferramenta, o prazo, "Negar"
 // com o que fazer e "Responder no terminal"; responde direto ao engine com o id do pedido.
 import { useState } from "react";
+import { PedidoDoCodex } from "../../features/agentes/PedidoDoCodex"; // Fork: 3A.
 import { Button } from "../../components/ui/Button";
 import { WarningIcon } from "../../components/ui/PixelIcon";
 import { ApiError, type PedidoDoGancho } from "../api";
@@ -20,6 +21,7 @@ export function CartaoDePermissao({ texto, busy, onResponder, pedido, conversaId
   onRespondido?: () => void;
 }) {
   if (pedido && conversaId) {
+    if (pedido.origem === "codex_app_server") return <PedidoDoCodex pedido={pedido} conversaId={conversaId} busy={busy} onRespondido={onRespondido} />; // Fork: sem handoff de gancho.
     return <PedidoDoGanchoCartao pedido={pedido} conversaId={conversaId} busy={busy} onRespondido={onRespondido} />;
   }
   return <div className="bubble bubble-agent bubble-aprovacao glass">

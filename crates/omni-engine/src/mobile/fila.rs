@@ -107,6 +107,7 @@ pub(super) async fn prompt(State(state): State<Arc<EngineState>>, RoutePath(id):
     enqueue_async(state,id,headers,kind).await
 }
 pub(super) async fn approve(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<ApprovalBody>) -> Result<(StatusCode,Json<Value>),ApiError> {
+    if let Some(r) = codex_rotas::aprovar(&state,&id,body.permitir,body.pedido.as_deref()).await { return r; } // Fork: 3A, mesma rota.
     // Fork (Onda 2): pedido segurado pelo gancho responde direto, sem tecla nem fila.
     if let Some(resposta) = ganchos_rotas::responder_pelo_gancho(&state,&id,body.permitir,body.pedido.clone(),body.mensagem.clone()).await { return resposta; }
     enqueue_async(state,id,headers,ActionKind::Approval(body.permitir)).await
@@ -209,6 +210,7 @@ pub(super) fn execute_checked(state:&Arc<EngineState>, action:&Action, is_runnin
     if now_ms().saturating_sub(action.created_at_ms) >= 60_000 { return Err(anyhow!("Ação expirada")); }
     let (_,current_session) = current(state,&action.conversation_id).map_err(|_|anyhow!("Conversa removida"))?;
     let session = current_session.ok_or_else(||anyhow!("Sessão encerrada"))?;
+    if let Some(r) = codex_rotas::executar(state,action,&session) { return r; } // Fork: 3A, turn/start ou turn/steer.
     // Hold the sessions registry through validation/write so close cannot replace this session.
     let sessions = state.sessions.lock().map_err(|_|anyhow!("sessions poisoned"))?;
     if !matches!(sessions.get(&action.session_id),Some(SessionEntry::Live(s)) if Arc::ptr_eq(s,&session)) { return Err(anyhow!("Sessão trocada")); }

@@ -182,3 +182,5 @@ mod isolamento_de_conta {
         assert!(env_for(&perfil("cursor", false, "/dados/cursor/c")).is_empty());
     }
 }
+// Fork: subconjunto puro do protocolo oficial do Codex app-server.
+pub mod codex_protocolo;

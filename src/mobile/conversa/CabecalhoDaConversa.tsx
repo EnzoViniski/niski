@@ -17,5 +17,6 @@ export function CabecalhoDaConversa({ conversa, projeto }: { conversa: Conversat
         .filter(Boolean).join(" · ")}
     </span>
     <ChipDeContexto ganchos={conversa.ganchos} />
+    {conversa.codex_app_server?.contexto_pct != null && <span className="ml-2 shrink-0 text-[11px] text-text-muted">Contexto {Math.round(conversa.codex_app_server.contexto_pct)}%</span> /* Fork: 3A. */}
   </>;
 }

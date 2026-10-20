@@ -92,6 +92,7 @@ pub(super) fn resumo(state: &EngineState, c: &omni_core::conversations::Conversa
     json!({"id":c.id,"title":omni_core::conversations::display_title(c),"project_id":c.project_id,"provider":c.segments.last().map(|s|&s.provider),
         "profile_id":c.segments.last().and_then(|s|s.profile_id.as_ref()),"state":status,"mode":mode,"capabilities":capabilities,
         "attention":attention,"tokens":tokens,"fast":fast,"ganchos":meta.as_ref().map(|m| crate::ganchos::resumo(&m.id)), // Fork (Onda 2)
+        "codex_app_server":meta.as_ref().and_then(|m|crate::codex_app_server::resumo(&m.id)), // Fork: contexto do protocolo.
         "notice":meta.as_ref().and_then(|m|m.notice.clone()),"live":live.is_some(),"updated_at_ms":atividade(c,live.as_ref())})
 }
 
@@ -197,10 +198,11 @@ pub(super) async fn timeline(State(state): State<Arc<EngineState>>, RoutePath(id
         let dir = state.state_file.parent().unwrap();
         let profiles = omni_core::profiles(dir);
         if let Ok((conversation,_)) = current(&state,&id) {
-            let timeline = {
+            let mut timeline = {
                 let mut feeds = state.mobile.feeds.lock().expect("feeds poisoned");
                 omni_core::conversations::timeline_cached(&conversation,&profiles,page.cursor,TIMELINE_PAGINA,&mut feeds)
             };
+            if let Some(t)=conversation.segments.last().and_then(|s|s.terminal_session_id.as_deref()) { crate::codex_app_server::complementar(t,&mut timeline); } // Fork: plano vivo do RPC.
             let actions: Vec<_> = state.mobile.actions.lock().expect("actions poisoned").iter().filter(|a|a.conversation_id == id).cloned().collect();
             // O estado da conversa vem junto: o chat aberto não precisa recarregar a lista inteira a
             // cada 1,5 s só para saber se o agente terminou.

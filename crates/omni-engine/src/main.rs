@@ -10,6 +10,9 @@ mod interaction;
 mod mobile;
 // Fork: reinício do Codex retoma a mesma conversa (`codex resume <id>`).
 mod retomar_codex;
+// Fork: Codex app-server opcional e transporte Unix privado.
+mod codex_app_server;
+mod codex_transporte;
 use anyhow::{anyhow, Context, Result};
 use omni_core::{registro, targets};
 use omni_protocol::{
@@ -103,6 +106,7 @@ fn settle_state(state: &SessionState, idle_ms: u64, tracked: bool, screen_in_tur
 /// Aplica `settle_state` e grava no meta: o aviso de fim de turno só pode ser contado uma vez.
 /// Ordem de lock interaction → meta, a mesma de `append_output` e `capabilities`.
 fn settle(session: &LiveSession) -> TerminalSession {
+    if let Some(meta) = codex_app_server::metadata(session) { return meta; } // Fork: estado estruturado vence a tela.
     let mut interaction = session.interaction.lock().expect("screen poisoned");
     let mut meta = session.meta.lock().expect("session metadata poisoned");
     let tracked = screen_tracked(meta.provider.as_deref());
@@ -1232,6 +1236,7 @@ fn append_output(session: &LiveSession, bytes: &[u8], watched_pid: Option<u32>) 
         if let Ok(mut meta) = session.meta.lock() {
             meta.output_seq = output.next_seq;
             meta.last_activity_at_ms = now_ms();
+            if codex_app_server::ativo(&terminal) { return; } // Fork: redesenho da TUI não altera estado nem atenção do RPC.
             let next = if approval_requested {
                 SessionState::ApprovalRequired
             } else if em_turno || tracked_provider.is_none() || meta.state != SessionState::Answered {
@@ -1278,6 +1283,7 @@ fn cursor_report(data: &str, (row, col): (u16, u16)) -> Option<String> {
 }
 
 fn write_terminal(state: &EngineState, session_id: &str, data: &str) -> Result<EngineResponse> {
+    if matches!(data,"\x1b"|"\x03") { if let Some(r)=codex_app_server::interromper(session_id) { r?; return Ok(EngineResponse::Ok); } } // Fork: 3A.
     let sessions = state.sessions.lock().map_err(|_| anyhow!("sessions lock poisoned"))?;
     let SessionEntry::Live(session) = sessions.get(session_id).ok_or_else(|| anyhow!("session not found"))? else {
         return Err(anyhow!("session is not running"));
@@ -1314,6 +1320,7 @@ fn resize_terminal(state: &EngineState, session_id: &str, rows: u16, cols: u16) 
 }
 
 fn stop_session(state: &EngineState, session_id: &str) -> Result<EngineResponse> {
+    codex_app_server::esquecer(session_id); // Fork: parar não dispara fallback/reabertura.
     let sessions = state.sessions.lock().map_err(|_| anyhow!("sessions lock poisoned"))?;
     let SessionEntry::Live(session) = sessions.get(session_id).ok_or_else(|| anyhow!("session not found"))? else {
         return Ok(EngineResponse::Ok);
@@ -1336,6 +1343,7 @@ fn close_session(state: &EngineState, session_id: &str) -> Result<EngineResponse
         .remove(session_id);
     // Fork: token, pedidos e arquivo de ganchos da sessão somem junto.
     ganchos::esquecer(session_id);
+    codex_app_server::esquecer(session_id); // Fork: processos e socket da conversa.
     if let Some(SessionEntry::Live(session)) = entry {
         let _ = session
             .child
