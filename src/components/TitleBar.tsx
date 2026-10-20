@@ -8,6 +8,7 @@ import { NOME_DO_PRODUTO } from "../lib/identidade";
 import { NO_MAC } from "../lib/plataforma";
 import { GavetaDeUso } from "../features/terminal/GavetaDeUso";
 import { AvisoDeAtualizacao } from "./AvisoDeAtualizacao";
+import { CentralDeAgendamentos } from "../features/agendamentos/CentralDeAgendamentos"; // Fork: agenda e ação na paleta.
 import { CaixaDeAtividade } from "../features/atividade/CaixaDeAtividade";
 
 /*
@@ -121,7 +122,7 @@ export function TitleBar({
       <AvisoDeAtualizacao />
 
       <GavetaDeUso />
-      <CaixaDeAtividade /> {/* Fork: contador e gaveta de atividade de todos os projetos. */}
+      <CentralDeAgendamentos /><CaixaDeAtividade /> {/* Fork: contador e gaveta de atividade de todos os projetos. */}
 
       <span className="titlebar-sino">
         <NotificationBell onOpenSettings={onOpenSettings} />

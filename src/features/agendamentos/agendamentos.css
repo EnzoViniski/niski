@@ -1,0 +1,28 @@
+/* Fork: mesmo vocabulário visual do composer e das gavetas do produto. */
+.agenda-fundo { position: fixed; inset: 0; z-index: 12000; display: flex; justify-content: flex-end; background: rgb(0 0 0 / .5); color: rgb(var(--c-text-primary)); font-size: .85rem; }
+.agenda-painel { width: min(100%, 42rem); overflow: auto; padding: 1.5rem; background: rgb(var(--c-bg-surface)); border-left: 1px solid rgb(var(--c-outline)); box-shadow: -12px 0 48px rgb(0 0 0 / .2); }
+.agenda-painel header, .agenda-barra, .agenda-linha { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.agenda-painel h2 { font-size: 1.4rem; font-weight: 600; margin-top: .2rem; }
+.agenda-painel h3 { font-weight: 600; }
+.agenda-painel small, .agenda-painel p, .agenda-linha > span { color: rgb(var(--c-text-muted)); font-size: .75rem; }
+.agenda-painel header > button { font-size: 1.5rem; }
+.agenda-aviso { padding: 1rem; margin: 1.25rem 0; border: 1px solid rgb(var(--c-outline)); border-radius: .5rem; line-height: 1.6; }
+.agenda-lista { display: grid; gap: .75rem; margin-top: 1rem; }
+.agenda-lista > li { border: 1px solid rgb(var(--c-outline)); border-radius: .5rem; padding: 1rem; display: grid; gap: .65rem; }
+.agenda-painel button { border-radius: .35rem; padding: .45rem .65rem; }
+.agenda-painel button:hover { background: rgb(var(--c-accent) / .12); }
+.agenda-painel button:disabled { opacity: .4; cursor: default; }
+.agenda-painel button.agenda-primario { background: rgb(var(--c-accent) / .17); color: rgb(var(--c-accent)); }
+.agenda-acoes { display: flex; gap: .3rem; flex-wrap: wrap; align-items: center; }
+.agenda-painel details { border-top: 1px solid rgb(var(--c-outline)); padding-top: .65rem; font-size: .75rem; }
+.agenda-painel details li { margin-top: .5rem; }
+.agenda-vazio { padding: 3rem 1rem; text-align: center; display: grid; gap: .75rem; }
+.agenda-editor fieldset { display: grid; gap: 1rem; margin-top: 1rem; }
+.agenda-editor label { display: grid; gap: .4rem; }
+.agenda-editor input:not([type=checkbox]), .agenda-editor select, .agenda-editor textarea { width: 100%; min-width: 0; padding: .6rem; border: 1px solid rgb(var(--c-outline)); border-radius: .35rem; color: rgb(var(--c-text-primary)); background: rgb(var(--c-bg-elevated)); font: inherit; }
+.agenda-colunas { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.agenda-editor .agenda-check { display: flex; align-items: center; }
+.agenda-dias { display: flex; gap: .25rem; flex-wrap: wrap; }
+.agenda-dias button[aria-pressed=true] { background: rgb(var(--c-accent) / .17); color: rgb(var(--c-accent)); }
+.agenda-painel :focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px; }
+@media (max-width: 600px) { .agenda-painel { padding: 1rem; } }

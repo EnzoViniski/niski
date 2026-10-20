@@ -1,6 +1,7 @@
-export const TIPOS_DE_ATIVIDADE = ["precisa_de_voce", "terminou", "erro", "limite", "subagente_terminou"] as const;
+export const TIPOS_DE_ATIVIDADE = ["precisa_de_voce", "terminou", "erro", "limite", "subagente_terminou", "agendamento"] as const;
 export type TipoDeAtividade = typeof TIPOS_DE_ATIVIDADE[number];
 export const ROTULOS_DA_ATIVIDADE: Record<TipoDeAtividade, string> = {
+  agendamento: "Agendamento", // Fork: execução da agenda (3D).
   precisa_de_voce: "Precisa de você", terminou: "Terminou o turno", erro: "Erro",
   limite: "Limite de uso", subagente_terminou: "Subagente terminou",
 };
@@ -13,6 +14,7 @@ export type SomDoAviso = "Glass" | "Ping" | "Basso";
 export interface PreferenciaDeAviso { quando: "sempre" | "fora_de_foco" | "nunca"; som: SomDoAviso | null }
 export type PreferenciasDeAvisos = Record<TipoDeAtividade, PreferenciaDeAviso>;
 export const AVISOS_PADRAO: PreferenciasDeAvisos = {
+  agendamento: { quando: "fora_de_foco", som: "Ping" },
   precisa_de_voce: { quando: "fora_de_foco", som: "Glass" },
   terminou: { quando: "fora_de_foco", som: "Ping" },
   erro: { quando: "fora_de_foco", som: "Basso" },

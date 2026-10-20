@@ -4,6 +4,8 @@ import type { ItemDeAtividade } from "./tipos";
 
 const EVENTO = "medza-abrir-atividade";
 export function pedirAbrirConversaDaAtividade(item: ItemDeAtividade) {
+  // Fork: uma agenda adiada sem conversa abre o painel da agenda.
+  if (item.tipo === "agendamento" && item.conversa.startsWith("agendamento:")) { window.dispatchEvent(new Event("medza-abrir-agendamentos")); return; }
   window.dispatchEvent(new CustomEvent<ItemDeAtividade>(EVENTO, { detail: item }));
 }
 /** Usa o mesmo caminho da paleta: seleciona workspace/projeto e abre a conversa, inclusive sem PTY. */
