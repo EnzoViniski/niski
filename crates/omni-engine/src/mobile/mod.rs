@@ -28,6 +28,8 @@ mod seguranca;
 use seguranca::*;
 mod celular;
 use celular::*;
+mod fluxos_rotas;
+use fluxos_rotas::*;
 pub(crate) use celular::{check, settings, totp};
 
 pub struct MobileRuntime {
@@ -472,56 +474,6 @@ fn summaries(state: &EngineState) -> Vec<Value> {
         if summary["id"].as_str().is_some_and(|id| ocultas.contains(id)) { summary["hidden"] = json!(true); }
         summary
     }).collect()
-}
-
-/// Fluxos de agentes (o executor mora em `fluxos.rs`). Valem para o app do PC (pelo protocolo local),
-/// a web e o celular — aprovar uma etapa de longe é o mesmo POST.
-async fn fluxos_listar() -> Json<Value> { Json(json!(super::fluxos::listar())) }
-
-#[derive(Deserialize)] struct IniciarFluxo { fluxo: omni_core::fluxos::Fluxo, projeto_id: String, entrada: String }
-async fn fluxos_iniciar(State(state): State<Arc<EngineState>>, Json(body): Json<IniciarFluxo>) -> Result<(StatusCode,Json<Value>), ApiError> {
-    tokio::task::spawn_blocking(move || {
-        let projeto = known_projects(&state).into_iter().find(|p| p.id == body.projeto_id && !p.path.is_empty())
-            .ok_or_else(||error(StatusCode::NOT_FOUND,"Projeto não encontrado neste PC"))?;
-        let execucao = super::fluxos::iniciar(&state, body.fluxo, projeto.path, projeto.id, body.entrada)
-            .map_err(|e| error(StatusCode::BAD_REQUEST,&e.to_string()))?;
-        Ok((StatusCode::CREATED,Json(json!(execucao))))
-    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao iniciar o fluxo"))?
-}
-
-async fn fluxos_obter(RoutePath(id): RoutePath<String>, headers: HeaderMap) -> Response {
-    match super::fluxos::obter(&id) { Some(e) => com_etag(&headers,&json!(e)), None => error(StatusCode::NOT_FOUND,"Execução não encontrada").into_response() }
-}
-
-async fn fluxos_acao(State(state): State<Arc<EngineState>>, RoutePath((id, acao)): RoutePath<(String, String)>) -> Result<Json<Value>, ApiError> {
-    tokio::task::spawn_blocking(move || {
-        let r = match acao.as_str() {
-            "pausar" => super::fluxos::pausar(&state,&id),
-            "retomar" => super::fluxos::retomar(&state,&id),
-            "cancelar" => super::fluxos::cancelar(&state,&id),
-            _ => return Err(error(StatusCode::NOT_FOUND,"Ação desconhecida")),
-        };
-        r.map_err(|e| error(StatusCode::CONFLICT,&e.to_string()))?;
-        Ok(Json(json!({"ok":true})))
-    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha na ação"))?
-}
-
-async fn fluxos_historico(State(state): State<Arc<EngineState>>, RoutePath((id, no)): RoutePath<(String, String)>) -> Result<Json<Value>, ApiError> {
-    tokio::task::spawn_blocking(move || super::fluxos::historico(&state,&id,&no).map(|h| Json(json!(h))).map_err(|e| error(StatusCode::BAD_REQUEST,&e.to_string())))
-        .await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ler o histórico"))?
-}
-
-#[derive(Deserialize)] struct AprovarFluxo { sim: bool }
-async fn fluxos_aprovar(State(state): State<Arc<EngineState>>, RoutePath((id, no)): RoutePath<(String, String)>, Json(body): Json<AprovarFluxo>) -> Result<Json<Value>, ApiError> {
-    tokio::task::spawn_blocking(move || super::fluxos::aprovar(&state,&id,&no,body.sim).map(|_| Json(json!({"ok":true}))).map_err(|e| error(StatusCode::CONFLICT,&e.to_string())))
-        .await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao aprovar"))?
-}
-
-async fn fluxos_conversa(State(state): State<Arc<EngineState>>, RoutePath((id, no)): RoutePath<(String, String)>) -> Result<(StatusCode,Json<Value>), ApiError> {
-    tokio::task::spawn_blocking(move || {
-        let sessao = super::fluxos::abrir_conversa(&state,&id,&no).map_err(|e| error(StatusCode::CONFLICT,&e.to_string()))?;
-        Ok((StatusCode::CREATED,Json(json!({"session_id":sessao.id,"name":sessao.name}))))
-    }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao abrir a conversa"))?
 }
 
 /// Conversas que você tirou da lista na web ou no celular, só pelo id. Nada é apagado: o transcript
