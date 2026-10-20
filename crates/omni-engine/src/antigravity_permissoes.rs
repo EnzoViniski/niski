@@ -123,7 +123,8 @@ pub(crate) fn dica_de_modo(texto: &str) -> bool {
 pub(crate) const COMANDOS_COMUNS: &[&str] = &[
     "ls", "pwd", "cat", "head", "tail", "wc", "which", "file", "stat", "du", "df", "tree", "date", "whoami", "uname",
     "echo", "printf", "grep", "rg", "diff", "cmp", "sort", "uniq", "cut", "tr", "jq", "mkdir", "touch",
-    "git status", "git diff", "git log", "git show", "git branch", "git rev-parse", "git ls-files", "git blame", "git remote -v", "git stash list",
+    // Fork: git branch também aceita -D/--delete; um prefixo não restringe seus argumentos.
+    "git status", "git diff", "git log", "git show", "git rev-parse", "git ls-files", "git blame", "git remote -v", "git stash list",
     "node --version", "npm --version", "npm ls", "npm test", "npm run test", "npm run lint", "npm run typecheck", "npm run build",
     "npx tsc", "npx vitest", "npx eslint", "npx prettier --check",
     "cargo check", "cargo test", "cargo build", "cargo clippy", "cargo fmt --check",
@@ -334,6 +335,14 @@ esc to cancel                                        Gemini 4 Argon · medium\n"
         assert!(crate::interaction::ready(tela.parser.screen(), "antigravity"), "o agy ocioso em accept-edits aceita mensagem");
         tela.parser.process(b"\x1b[2;3Hoi\x1b[K");
         assert!(!crate::interaction::ready(tela.parser.screen(), "antigravity"), "texto digitado de verdade continua bloqueando");
+    }
+
+    #[test]
+    fn exclusao_de_branch_nao_e_liberada_por_prefixo() {
+        for comando in ["git branch -D tarefa", "git branch --delete tarefa", "git branch -m novo"] {
+            assert!(!COMANDOS_COMUNS.iter().any(|prefixo| comando.starts_with(prefixo)), "{comando}");
+        }
+        assert!(COMANDOS_COMUNS.contains(&"git status"));
     }
 
     #[test]

@@ -60,10 +60,18 @@ fn git_com_entrada(cwd: &Path, args: &[&str], entrada: Option<&[u8]>) -> Result<
         .stdin(if entrada.is_some() { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped()).stderr(Stdio::piped())
         .spawn().map_err(|e| format!("git não encontrado no PATH: {e}"))?;
-    if let (Some(bytes), Some(mut stdin)) = (entrada, filho.stdin.take()) {
-        stdin.write_all(bytes).map_err(|e| e.to_string())?;
-    }
-    let saida = filho.wait_with_output().map_err(|e| e.to_string())?;
+    // Fork: drena stdout/stderr enquanto escreve stdin; check-ignore pode encher ambos os pipes.
+    let saida = std::thread::scope(|escopo| {
+        let escrita = entrada.zip(filho.stdin.take()).map(|(bytes, mut stdin)| {
+            escopo.spawn(move || stdin.write_all(bytes))
+        });
+        let saida = filho.wait_with_output().map_err(|e| e.to_string());
+        if let Some(escrita) = escrita {
+            escrita.join().map_err(|_| "Falha na thread de entrada do git".to_owned())?
+                .map_err(|e| e.to_string())?;
+        }
+        saida
+    })?;
     if saida.status.success() { return Ok(String::from_utf8_lossy(&saida.stdout).into_owned()); }
     // `check-ignore` sai com 1 quando nada é ignorado: não é falha.
     if args.first() == Some(&"check-ignore") && saida.status.code() == Some(1) { return Ok(String::new()); }
@@ -201,11 +209,12 @@ fn raiz_isolada(caminho: &Path) -> Result<PathBuf, String> {
     let nao_e = || "Esta pasta não é uma worktree isolada do Medza".to_owned();
     if da_pasta(caminho).is_none() { return Err(nao_e()); }
     let raiz = PathBuf::from(git(caminho, &["rev-parse", "--show-toplevel"]).map_err(|_| nao_e())?);
-    let (repo, nome) = da_pasta(&raiz).ok_or_else(nao_e)?;
-    let esperado = Path::new(PASTA).join(&repo).join(&nome);
-    if !raiz.ends_with(&esperado) { return Err(nao_e()); }
+    let (_, nome) = da_pasta(&raiz).ok_or_else(nao_e)?;
     let principal = raiz_principal(&raiz)?;
-    if principal == raiz.canonicalize().unwrap_or_else(|_| raiz.clone()) { return Err(nao_e()); }
+    // Fork: o sufixo pode ser imitado em qualquer pasta; exige a base deste repositório.
+    let raiz = raiz.canonicalize().map_err(|_| nao_e())?;
+    let esperado = pasta_base(&principal).join(&nome).canonicalize().map_err(|_| nao_e())?;
+    if raiz == principal || raiz != esperado { return Err(nao_e()); }
     Ok(raiz)
 }
 
@@ -337,6 +346,50 @@ mod tests {
         // Nunca apaga o repositório principal nem pasta qualquer.
         assert!(remover(&raiz, true).is_err());
         assert!(estado(&raiz).is_err());
+    }
+
+    #[test]
+    fn recusa_remover_worktree_fora_da_base_do_repositorio() {
+        let (dir, raiz) = repo();
+        for relativo in ["fora/.medza-worktrees/app/tarefa", ".medza-worktrees/outro/tarefa"] {
+            let externa = dir.path().canonicalize().unwrap().join(relativo);
+            std::fs::create_dir_all(externa.parent().unwrap()).unwrap();
+            git(&raiz, &["worktree", "add", "--detach", externa.to_str().unwrap(), "HEAD"]).unwrap();
+            assert!(estado(&externa).is_err(), "aceitou estado de {}", externa.display());
+            assert!(remover(&externa, true).is_err(), "aceitou remover {}", externa.display());
+            assert!(externa.join("src/main.rs").is_file(), "worktree externa foi apagada");
+        }
+    }
+
+    #[test]
+    fn check_ignore_drena_saida_enquanto_escreve_entrada_grande() {
+        const VAR: &str = "MEDZA_TESTE_CHECK_IGNORE_RAIZ";
+        if let Some(raiz) = std::env::var_os(VAR) {
+            // Mais que a capacidade dos dois pipes, sem criar milhares de arquivos.
+            let entrada = ".env.sintetico\0".repeat(100_000);
+            let saida = git_com_entrada(Path::new(&raiz), &["check-ignore", "-z", "--stdin"], Some(entrada.as_bytes())).unwrap();
+            assert_eq!(saida, entrada);
+            return;
+        }
+        let (_dir, raiz) = repo();
+        // Processo separado: um deadlock vira falha com prazo, sem deixar o runner preso.
+        let mut filho = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "worktree_isolada::tests::check_ignore_drena_saida_enquanto_escreve_entrada_grande", "--nocapture"])
+            .env(VAR, &raiz).stdout(Stdio::null()).stderr(Stdio::piped()).spawn().unwrap();
+        let limite = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            if let Some(status) = filho.try_wait().unwrap() {
+                let saida = filho.wait_with_output().unwrap();
+                assert!(status.success(), "{}", String::from_utf8_lossy(&saida.stderr));
+                break;
+            }
+            if std::time::Instant::now() >= limite {
+                filho.kill().unwrap();
+                filho.wait().unwrap();
+                panic!("check-ignore travou com stdin/stdout maiores que os pipes");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
     }
 
     #[test]
