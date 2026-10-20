@@ -2932,7 +2932,7 @@ dependencies = [
 
 [[package]]
 name = "omni-agents"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "block2",
  "cpal",
