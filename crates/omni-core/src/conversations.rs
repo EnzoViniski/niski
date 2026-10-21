@@ -441,14 +441,15 @@ fn com_avisos_de_troca(conversation: &Conversation, itens: Vec<(String, crate::f
     resultado
 }
 
-/// "Conta trocada: Padrão → EmailUber" (ou "IA trocada: Claude → Codex"), com a hora da troca.
+/// "Conta trocada: Padrão → EmailUber" (ou "Continuou com o Codex · conta Trabalho"), com a hora da troca.
 fn aviso_de_troca(anterior: &Segment, novo: &Segment, profiles: &[crate::Profile]) -> crate::feed::Item {
     let nome = |segment: &Segment| segment.profile_id.as_deref()
         .and_then(|id| profiles.iter().find(|p| p.id == id).map(|p| p.name.clone()))
         .unwrap_or_else(|| "Padrão".into());
     let agente = |provider: &str| match provider { "claude" => "Claude", "codex" => "Codex", "cursor" => "Cursor", "antigravity" => "Antigravity", outro => outro }.to_string();
     let text = if anterior.provider != novo.provider {
-        format!("IA trocada: {} ({}) → {} ({})", agente(&anterior.provider), nome(anterior), agente(&novo.provider), nome(novo))
+        // Fork (trocar agente): a mesma conversa seguiu com outro agente (passagem de bastão).
+        format!("Continuou com o {} · conta {}", agente(&novo.provider), nome(novo))
     } else {
         format!("Conta trocada: {} → {}", nome(anterior), nome(novo))
     };

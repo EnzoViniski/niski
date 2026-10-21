@@ -377,6 +377,13 @@ export function LinhaDeComando({ texto }: { texto: string }) {
 export function LinhaDeAviso({ texto }: { texto: string }) {
   // Troca de conta/IA (o engine escreve "Conta trocada: A → B"): destaque próprio, é o tipo de
   // aviso que explica por que a conversa mudou de dono no meio.
+  // Fork (trocar agente): "Continuou com o Codex · conta X" é o separador discreto da troca de agente,
+  // com o ícone do agente novo.
+  const continuou = /^Continuou com o (\S+)/.exec(texto)?.[1];
+  if (continuou) {
+    const provider = { Claude: "claude", Codex: "codex", Cursor: "cursor", Antigravity: "antigravity" }[continuou] ?? null;
+    return <p className="aviso-cli aviso-continuou" role="note"><AgentIcon provider={provider} size={12} />{texto}</p>;
+  }
   if (/^(Conta|IA) trocada: /.test(texto)) {
     return <p className="aviso-cli aviso-troca" role="note"><ReloadIcon aria-hidden className="h-3 w-3" />{texto}</p>;
   }

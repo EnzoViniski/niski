@@ -22,12 +22,14 @@ pub fn comando(dir: &Path, meta: &TerminalSession, original: &str) -> Option<Str
     }
     let mut indice = read_index(dir);
     discover_codex_transcripts(&mut indice, &omni_core::profiles(dir));
-    let sessao = indice.iter()
+    // Fork (trocar agente): vale só o **último** trecho desta PTY. Depois de Codex → Claude → Codex na
+    // mesma aba, o Codex novo ainda sem rollout não pode retomar o rollout do primeiro trecho.
+    let ultimo = indice.iter()
         .filter(|c| meta.conversation_id.as_deref().is_none_or(|id| id == c.id))
         .flat_map(|c| c.segments.iter())
-        .filter(|s| s.provider == "codex" && s.terminal_session_id.as_deref() == Some(meta.id.as_str()))
-        .filter_map(|s| s.external_session_id.clone())
+        .filter(|s| s.terminal_session_id.as_deref() == Some(meta.id.as_str()))
         .next_back()?;
+    let sessao = (ultimo.provider == "codex").then(|| ultimo.external_session_id.clone()).flatten()?;
     com_resume(original, &sessao)
 }
 
@@ -88,5 +90,22 @@ mod tests {
         assert_eq!(comando(dir.path(), &sessao("outra", "codex"), "codex"), None, "trecho de outra sessão");
         assert_eq!(comando(dir.path(), &sessao("t", "claude"), "claude"), None);
         assert_eq!(comando(dir.path(), &sessao("t", "codex"), "codex \"faça x\""), None);
+    }
+
+    /// Fork (trocar agente): Codex → Claude → Codex na mesma PTY. O Codex novo ainda sem rollout abre
+    /// conversa nova (a passagem de bastão leva o contexto), não volta ao rollout do primeiro trecho.
+    #[test]
+    fn codex_depois_de_trocar_de_agente_nao_retoma_o_trecho_antigo() {
+        let dir = tempfile::tempdir().unwrap();
+        let trecho = |provider: &str, externo: Option<&str>| Segment { provider: provider.into(), profile_id: None,
+            external_session_id: externo.map(str::to_owned), transcript_path: None, terminal_session_id: Some("t".into()), started_at_ms: 0, ended_at_ms: None };
+        let conversa = Conversation { id: "c".into(), project_id: "p".into(), cwd: "/projeto".into(), title: "x".into(),
+            title_source: TitleSource::Auto, created_at_ms: 0, segments: vec![trecho("codex", Some("antigo")), trecho("claude", Some("cl")), trecho("codex", None)] };
+        write_index(dir.path(), &[conversa.clone()]).unwrap();
+        assert_eq!(comando(dir.path(), &sessao("t", "codex"), "codex"), None);
+        let mut com_rollout = conversa;
+        com_rollout.segments[2].external_session_id = Some("novo".into());
+        write_index(dir.path(), &[com_rollout]).unwrap();
+        assert_eq!(comando(dir.path(), &sessao("t", "codex"), "codex").as_deref(), Some("codex resume novo"));
     }
 }

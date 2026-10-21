@@ -111,7 +111,8 @@ pub fn itens(db: &Path) -> std::io::Result<Vec<Entry>> {
             kind, role: role.into(), text, tool, timestamp: hora(&payload), imagens: 0, midia: Vec::new(), arquivos: Vec::new(), extras: Default::default(),
         };
         let novo = match tipo {
-            PASSO_USUARIO => texto(&payload, &[19, 2]).filter(|t| !t.trim().is_empty())
+            // Fork (trocar agente): sem a marca da passagem de bastão.
+            PASSO_USUARIO => texto(&payload, &[19, 2]).map(|t| crate::passagem::sem_preambulo(&t)).filter(|t| !t.trim().is_empty())
                 .map(|t| if t.starts_with('/') { item(Kind::Command, "user", t, None) } else { item(Kind::Text, "user", t, None) }),
             PASSO_RESPOSTA => texto(&payload, &[20, 1]).filter(|t| !t.trim().is_empty())
                 .map(|t| item(Kind::Text, "assistant", t, None)),

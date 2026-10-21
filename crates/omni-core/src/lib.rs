@@ -41,6 +41,8 @@ pub mod ganchos;
 pub mod roteamento;
 // Fork (fix-orquestracao): ler-alterar-gravar o índice de conversas sob trava, com `.tmp` exclusivo.
 pub mod indice_de_conversas;
+// Fork (trocar agente): passagem de bastão entre agentes na mesma conversa.
+pub mod passagem;
 pub mod memoria_compartilhada;
 pub mod sobre_mim; // Fork (Sobre mim): o que o usuário conta de si, um markdown por área.
 pub mod arquivo_de_conversas;
