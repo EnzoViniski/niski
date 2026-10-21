@@ -40,6 +40,15 @@ pub const PERMITIDOS: &[&str] = &[
     "antigravity.json",
     "codex-app-server.json",
     "estado-da-interface.json",   // cópia do localStorage da interface (estado_da_interface.rs)
+    // Fork (Sobre mim): `omni_core::sobre_mim`, um markdown por área (o LEIA-ME.md é gerado).
+    "sobre-mim/quem-sou.md",
+    "sobre-mim/vida-pessoal.md",
+    "sobre-mim/trabalho.md",
+    "sobre-mim/estudos.md",
+    "sobre-mim/preferencias.md",
+    "sobre-mim/outros.md",
+    "sobre-mim/propostas.md",
+    "sobre-mim/ajustes.json",
 ];
 
 /// Chaves do localStorage da interface que valem guardar (workspace, abas, configurações).
@@ -108,6 +117,11 @@ pub fn fazer_backup(origem: &Path, versao: &str, interface: &BTreeMap<String, St
         // `symlink_metadata`: link não é seguido (poderia apontar para fora da pasta).
         let Ok(meta) = fs::symlink_metadata(&caminho) else { continue };
         if !meta.file_type().is_file() || meta.len() > TAMANHO_MAXIMO { continue; }
+        // Fork (Sobre mim): item numa subpasta; a subpasta também não pode ser link.
+        if let Some((sub, _)) = nome.split_once('/') {
+            if !fs::symlink_metadata(origem.join(sub)).map(|m| m.is_dir()).unwrap_or(false) { continue; }
+            fs::create_dir_all(destino.join(sub))?;
+        }
         fs::copy(&caminho, destino.join(nome))?;
         arquivos += 1;
     }
@@ -196,6 +210,19 @@ mod tests {
         let interface_salva = fs::read_to_string(destino.join("interface.json")).unwrap();
         assert!(interface_salva.contains("omni-agents-workspaces") && !interface_salva.contains("chave-qualquer"));
         assert_eq!(fs::read_to_string(destino.join("sessions.json")).unwrap(), "[]");
+    }
+
+    #[test]
+    fn backup_leva_o_sobre_mim_na_subpasta() {
+        let dir = pasta_com_estado();
+        fs::create_dir_all(dir.path().join("sobre-mim")).unwrap();
+        fs::write(dir.path().join("sobre-mim").join("trabalho.md"), "sintético").unwrap();
+        fs::write(dir.path().join("sobre-mim").join("LEIA-ME.md"), "gerado").unwrap();
+        let feito = fazer_backup(dir.path(), "0.9.1", &BTreeMap::new(), em(1_792_454_400)).unwrap();
+        let destino = PathBuf::from(&feito.pasta);
+        assert_eq!(fs::read_to_string(destino.join("sobre-mim").join("trabalho.md")).unwrap(), "sintético");
+        assert!(!destino.join("sobre-mim").join("LEIA-ME.md").exists());
+        assert_eq!(feito.arquivos, 4);
     }
 
     #[test]

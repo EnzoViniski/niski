@@ -4,9 +4,18 @@ use omni_core::memoria_compartilhada as memoria;
 
 pub(crate) fn texto(state: &EngineState) -> Option<String> {
     let dir = state.state_file.parent()?;
-    match memoria::ler(dir) {
+    let memoria = match memoria::ler(dir) {
         Ok(m) => memoria::contexto(&m),
         Err(_) => { registro::aviso_sem_repetir("memoria_ilegivel", "memoria_nao_carregada", &[]); None }
+    };
+    // Fork (Sobre mim): vai junto, pelo mesmo caminho (Claude, Codex, app-server e fluxos).
+    let sobre_mim = match omni_core::sobre_mim::contexto(dir) {
+        Ok(texto) => texto,
+        Err(_) => { registro::aviso_sem_repetir("sobre_mim_ilegivel", "sobre_mim_nao_carregado", &[]); None }
+    };
+    match (memoria, sobre_mim) {
+        (Some(memoria), Some(sobre_mim)) => Some(format!("{memoria}\n\n{sobre_mim}")),
+        (memoria, sobre_mim) => memoria.or(sobre_mim),
     }
 }
 
