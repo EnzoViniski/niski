@@ -2,7 +2,7 @@
   "name": "medza-agents",
   "license": "MIT",
   "private": true,
-  "version": "0.8.8",
+  "version": "0.8.9",
   "type": "module",
   "scripts": {
     "setup": "powershell -ExecutionPolicy Bypass -File scripts\\setup.ps1",

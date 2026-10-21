@@ -16,6 +16,16 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.8.9",
+    date: "2026-10-21",
+    changes: [
+      "Conversa mais limpa no estilo Minimalista: a resposta do agente aparece sem balão, como nos apps do Claude e do Codex, e só a sua mensagem fica no balão colorido.",
+      "Embaixo de cada mensagem, a sua e a do agente, aparecem o horário e o botão Copiar. Na sua, ele copia tudo o que você mandou.",
+      "O topo da conversa mostra quantos tokens a conversa já gastou no total. Passe o mouse para ver quanto foi de entrada, de cache e de saída.",
+      "Na lateral, clicar na pasta só abre e fecha a pasta, sem mudar o que está à direita. O + ao lado da pasta começa uma conversa nova nela.",
+    ],
+  },
+  {
     version: "0.8.8",
     date: "2026-10-21",
     changes: [
