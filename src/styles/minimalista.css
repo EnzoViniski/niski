@@ -611,3 +611,25 @@
 :root[data-estilo="minimalista"] .bubble-rodape .bubble-copiar { border: 0; border-radius: 999px; padding: .125rem .5rem; background: none; }
 :root[data-estilo="minimalista"] .bubble-rodape .bubble-copiar:hover { background: rgb(var(--c-overlay) / .07); }
 :root[data-estilo="minimalista"] .chip-tokens { border: 0; border-radius: 999px; padding: 0 .5rem; background: rgb(var(--c-overlay) / .07); }
+
+/* ── Campo de mensagem no espírito do Codex (Enzo, 21/10/2026): digitar não acende moldura nem anel
+   (só o cursor piscando); os controles de baixo (modo, conta, "Auto", modelo/esforço) ficam soltos no
+   campo e a pílula clara só aparece no hover. ─────────────────────────────────────────────────── */
+:root[data-estilo="minimalista"] :is(.composer, .aba-conversa-tela .composer) { border-color: transparent; box-shadow: none; }
+:root[data-estilo="minimalista"][data-theme="claro"] :is(.composer, .aba-conversa-tela .composer) { border-color: rgb(var(--c-border-subtle)); box-shadow: var(--m-sombra-leve); }
+:root[data-estilo="minimalista"] :is(.composer, .aba-conversa-tela .composer):focus-within { border-color: transparent; box-shadow: none; }
+:root[data-estilo="minimalista"][data-theme="claro"] :is(.composer, .aba-conversa-tela .composer):focus-within { border-color: rgb(var(--c-border-subtle)); box-shadow: var(--m-sombra-leve); }
+:root[data-estilo="minimalista"] .composer-campo, :root[data-estilo="minimalista"] .composer-campo:focus { outline: none; box-shadow: none; caret-color: rgb(var(--c-text-primary)); }
+
+:root[data-estilo="minimalista"] .composer :is(.selo-modo, .m-chip > .relative > .field, .conversa-controle-modo select, .composer-botao, .composer-modo) {
+  border: 0; background: transparent; box-shadow: none; border-radius: 999px;
+  transition: background-color .16s ease, color .16s ease;
+}
+:root[data-estilo="minimalista"] .composer :is(.selo-modo, .m-chip > .relative > .field, .conversa-controle-modo select, .composer-botao):hover:not(:disabled) {
+  background: rgb(var(--c-overlay) / .09); color: rgb(var(--c-text-primary));
+}
+:root[data-estilo="minimalista"] .composer .selo-modo { color: rgb(var(--c-text-secondary)); }
+:root[data-estilo="minimalista"] .composer .m-chip > .relative > .field { color: rgb(var(--c-text-secondary)); }
+:root[data-estilo="minimalista"] .composer .conversa-controle-modo select { color: rgb(var(--c-text-secondary)); padding: .3rem .625rem; }
+:root[data-estilo="minimalista"] .composer .conversa-controle-modo select:focus-visible,
+:root[data-estilo="minimalista"] .composer .m-chip > .relative > .field:focus-visible { outline: 2px solid rgb(var(--c-accent) / .6); outline-offset: 1px; }

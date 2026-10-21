@@ -1,7 +1,7 @@
 // Fork (chat-estavel): Codex recém-aberto troca modelo/esforço antes da primeira mensagem, e reler
 // as opções quando o agente volta a ficar pronto não desfaz o que acabou de ser aplicado.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AjustesDaConversa } from "../mobile/AjustesDaConversa";
 
@@ -19,8 +19,11 @@ beforeEach(() => { resposta = CODEX; fetchFalso.mockClear(); vi.stubGlobal("fetc
 const gatilho = () => document.querySelector<HTMLButtonElement>(".seletor-gatilho")!;
 async function escolherModelo(opcao: string) {
   await act(async () => { await userEvent.click(gatilho()); });
-  await act(async () => { await userEvent.click(document.querySelector<HTMLButtonElement>(".seletor-modelo-link")!); });
+  await act(async () => { await userEvent.click(document.querySelector<HTMLButtonElement>(".seletor-cabecalho")!); });
   await act(async () => { await userEvent.click(screen.getByRole("option", { name: opcao })); });
+  // Fechar o painel aplica (Esc); a saída é animada, então espera ele sumir.
+  await act(async () => { await userEvent.keyboard("{Escape}"); });
+  await waitFor(() => expect(document.querySelector(".seletor-pop")).toBeNull());
 }
 
 describe("AjustesDaConversa antes da primeira mensagem", () => {
@@ -30,7 +33,6 @@ describe("AjustesDaConversa antes da primeira mensagem", () => {
     expect(await screen.findByText("GPT X")).toBeInTheDocument();
     expect(gatilho()).not.toBeDisabled();
     await escolherModelo("GPT Y");
-    await act(async () => { await userEvent.click(screen.getByRole("button", { name: /Aplicar/ })); });
     expect(onAplicar).toHaveBeenCalledWith({ profile_id: "codex-padrao", model: "gpt-y", effort: "medium" });
   });
 
@@ -46,14 +48,12 @@ describe("AjustesDaConversa antes da primeira mensagem", () => {
     const { rerender } = render(<AjustesDaConversa conversaId="c" pronto onAplicar={onAplicar} />);
     await screen.findByText("GPT X");
     await escolherModelo("GPT Y");
-    await act(async () => { await userEvent.click(screen.getByRole("button", { name: /Aplicar/ })); });
     // Reabrindo: some o pronto e volta; o engine ainda lê o modelo antigo.
     rerender(<AjustesDaConversa conversaId="c" pronto={false} onAplicar={onAplicar} />);
     rerender(<AjustesDaConversa conversaId="c" pronto onAplicar={onAplicar} />);
     await act(async () => { await Promise.resolve(); });
     expect(fetchFalso.mock.calls.length).toBeGreaterThanOrEqual(3);
     expect(screen.getByText("GPT Y")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Aplicar/ })).not.toBeInTheDocument();
     // A leitura muda (a primeira resposta com o modelo novo): vale o engine.
     resposta = { ...CODEX, model: "gpt-y", effort: "high" };
     rerender(<AjustesDaConversa conversaId="c" pronto={false} onAplicar={onAplicar} />);

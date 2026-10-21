@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentIcon } from "../components/ui/AgentIcon";
-import { LoaderIcon, PlayIcon, ReloadIcon } from "../components/ui/PixelIcon";
+import { LoaderIcon, PlayIcon } from "../components/ui/PixelIcon";
 import { Select } from "../components/ui/Select";
 import { ApiError, request } from "./api";
 import { lembrarAjustes } from "../lib/escolhasSalvas";
@@ -63,6 +63,9 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
   // depois da próxima resposta; até lá, reler a mesma leitura antiga não desfaz a escolha na tela.
   const aplicado = useRef<{ antes: Pick<Opcoes, "model" | "effort">; depois: Ajustes } | null>(null);
   const lidoDoEngine = useRef<Pick<Opcoes, "model" | "effort"> | null>(null);
+  // Fork: valores mais novos para o aplicar automático (ver `aplicarSeMudou`).
+  const atual = useRef({ conta, modelo, esforco });
+  atual.current = { conta, modelo, esforco };
 
   const carregar = useCallback(async () => {
     try {
@@ -96,13 +99,23 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
 
   const esforcos = opcoes.models.find((m) => m.id === modelo)?.efforts
     ?? opcoes.models[0]?.efforts ?? [];
-  const mudou = conta !== (opcoes.profile_id ?? "") || modelo !== modeloDaLista(opcoes) || esforco !== (opcoes.effort ?? "");
   const podeTrocar = onRetomar ? opcoes.can_resume : opcoes.can_adjust ?? opcoes.can_resume;
   const bloqueado = onRetomar ? !podeTrocar || aplicando : !pronto || !podeTrocar || aplicando;
   const motivo = !podeTrocar ? "Mande a primeira mensagem antes de trocar."
     : !pronto ? "Espere o agente terminar para trocar." : undefined;
 
-  async function aplicar() {
+  // Fork (composer no estilo do Codex): aplica sozinho ao fechar o painel do seletor ou ao trocar a
+  // conta — sem o botão "Aplicar", que aparecia ao lado e empurrava o seletor. Lê pelo ref para pegar
+  // o valor mais novo (o fechar do painel vem de um ouvinte criado antes da última escolha).
+  function aplicarSeMudou(troca: Partial<{ conta: string; modelo: string; esforco: string }> = {}) {
+    if (onRetomar || !opcoes) return;
+    const v = { ...atual.current, ...troca };
+    const mudouAgora = v.conta !== (opcoes.profile_id ?? "") || v.modelo !== modeloDaLista(opcoes) || v.esforco !== (opcoes.effort ?? "");
+    if (mudouAgora && !bloqueado) void aplicar(v);
+  }
+
+  async function aplicar(v: { conta: string; modelo: string; esforco: string } = { conta, modelo, esforco }) {
+    const { conta, modelo, esforco } = v;
     setAplicando(true);
     try {
       // O erro já aparece no chat (quem chama mostra); aqui só não marca como aplicado.
@@ -124,13 +137,14 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
     <>
       {opcoes.profiles.length > 1 && (
         <span className="m-chip" title={motivo ?? "Conta usada nesta conversa"}>
-          <Select size="sm" value={conta} disabled={bloqueado} onChange={setConta} placeholder="Conta"
+          <Select size="sm" value={conta} disabled={bloqueado} onChange={(nova) => { setConta(nova); aplicarSeMudou({ conta: nova }); }} placeholder="Conta"
             options={opcoes.profiles.map((p) => ({ value: p.id, label: p.name, icon: iconeConta }))} />
         </span>
       )}
       {opcoes.models.length > 0 && (
         <SeletorDeModelo modelos={opcoes.models} modelo={modelo} esforco={esforco} esforcos={esforcos}
-          desativado={bloqueado} motivo={motivo} onModelo={setModelo} onEsforco={setEsforco} />
+          desativado={bloqueado} motivo={motivo} aplicando={aplicando} onModelo={setModelo} onEsforco={setEsforco}
+          onFechar={() => aplicarSeMudou()} />
       )}
       {onRetomar ? (
         <button type="button" className="m-chip-aplicar m-chip-retomar" disabled={bloqueado} onClick={() => void aplicar()}
@@ -138,13 +152,7 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
           {aplicando ? <LoaderIcon aria-hidden className="anexo-girando h-3.5 w-3.5" /> : <PlayIcon aria-hidden className="h-3.5 w-3.5" />}
           {aplicando ? "Retomando…" : "Retomar conversa"}
         </button>
-      ) : mudou && (
-        <button type="button" className="m-chip-aplicar" disabled={bloqueado} onClick={() => void aplicar()}
-          title="Reabre a conversa com estes ajustes — leva alguns segundos e nada se perde">
-          {aplicando ? <LoaderIcon aria-hidden className="anexo-girando h-3.5 w-3.5" /> : <ReloadIcon aria-hidden className="h-3.5 w-3.5" />}
-          {aplicando ? "Reabrindo…" : "Aplicar"}
-        </button>
-      )}
+      ) : null}
     </>
   );
 }

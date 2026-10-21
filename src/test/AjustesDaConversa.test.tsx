@@ -14,7 +14,7 @@ beforeEach(() => {
 });
 
 describe("AjustesDaConversa", () => {
-  it("mostra conta, modelo e esforço atuais e só oferece Aplicar quando algo muda", async () => {
+  it("mostra conta, modelo e esforço atuais e aplica sozinho ao trocar a conta (sem botão Aplicar)", async () => {
     const onAplicar = vi.fn().mockResolvedValue(undefined);
     render(<AjustesDaConversa conversaId="c" pronto onAplicar={onAplicar} />);
 
@@ -27,7 +27,7 @@ describe("AjustesDaConversa", () => {
     const [conta] = screen.getAllByRole("combobox");
     await act(async () => { await userEvent.click(conta); });
     await act(async () => { await userEvent.click(screen.getByRole("option", { name: "Padrão" })); });
-    await act(async () => { await userEvent.click(screen.getByRole("button", { name: /Aplicar/ })); });
+    expect(screen.queryByRole("button", { name: /Aplicar/ })).not.toBeInTheDocument();
 
     expect(onAplicar).toHaveBeenCalledWith({ profile_id: "claude-padrao", model: "opus", effort: "medium" });
   });

@@ -52,10 +52,13 @@ describe("seletor de modelo e esforço", () => {
     expect(gatilho).toHaveTextContent("Alto");
     await userEvent.click(gatilho);
     const barra = screen.getByRole("slider", { name: "Esforço do raciocínio" });
-    fireEvent.change(barra, { target: { value: "3" } });
+    fireEvent.keyDown(barra, { key: "End" });
     expect(onEsforco).toHaveBeenCalledWith("max");
+    fireEvent.keyDown(barra, { key: "ArrowLeft" });
+    expect(onEsforco).toHaveBeenLastCalledWith("medium");
     rerender(<SeletorDeModelo modelos={modelos} modelo="opus" esforco="max" esforcos={modelos[0].efforts} onModelo={vi.fn()} onEsforco={onEsforco} />);
-    expect(document.querySelector(".seletor-faixa")).toHaveClass("is-maximo");
+    expect(document.querySelector(".barra-esforco")).toHaveClass("is-maximo");
+    expect(document.querySelectorAll(".barra-estrela").length).toBeGreaterThan(5);
   });
 
   it("o nome do modelo abre a lista; escolher volta ao esforço; o ↺ volta ao padrão", async () => {
@@ -63,11 +66,12 @@ describe("seletor de modelo e esforço", () => {
     const onEsforco = vi.fn();
     render(<SeletorDeModelo modelos={modelos} modelo="opus" esforco="high" esforcos={modelos[0].efforts} onModelo={onModelo} onEsforco={onEsforco} />);
     await userEvent.click(screen.getByRole("button", { name: /Opus 4.8/ }));
-    await userEvent.click(document.querySelector<HTMLButtonElement>(".seletor-modelo-link")!);
+    // O bloco do esforço + modelo inteiro é clicável.
+    await userEvent.click(document.querySelector<HTMLButtonElement>(".seletor-cabecalho")!);
     expect(screen.getByRole("option", { name: /Opus 4.8/ })).toHaveAttribute("aria-selected", "true");
     await userEvent.click(screen.getByRole("option", { name: "Sonnet 5.5" }));
     expect(onModelo).toHaveBeenCalledWith("sonnet");
-    expect(screen.getByRole("slider")).toBeInTheDocument();
+    expect(await screen.findByRole("slider")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Voltar ao padrão" }));
     expect(onModelo).toHaveBeenLastCalledWith("");
     expect(onEsforco).toHaveBeenLastCalledWith("");
@@ -78,4 +82,14 @@ describe("seletor de modelo e esforço", () => {
     expect(screen.getByRole("button", { name: /Opus 4.8/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Opus 4.8/ })).toHaveTextContent("Padrão");
   });
+});
+
+it("fechar o painel avisa (é quando o ajuste é aplicado)", async () => {
+  const onFechar = vi.fn();
+  const modelos = [{ id: "opus", label: "Opus 4.8", efforts: ["low", "high"] }];
+  render(<SeletorDeModelo modelos={modelos} modelo="opus" esforco="low" esforcos={modelos[0].efforts} onModelo={vi.fn()} onEsforco={vi.fn()} onFechar={onFechar} />);
+  await userEvent.click(screen.getByRole("button", { name: /Opus 4.8/ }));
+  expect(onFechar).not.toHaveBeenCalled();
+  await userEvent.keyboard("{Escape}");
+  expect(onFechar).toHaveBeenCalledTimes(1);
 });

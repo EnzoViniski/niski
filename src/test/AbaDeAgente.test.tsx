@@ -123,7 +123,7 @@ describe("AbaDeAgente", () => {
     const [conta] = screen.getAllByRole("combobox");
     await act(async () => { await userEvent.click(conta); });
     await act(async () => { await userEvent.click(screen.getByRole("option", { name: "Padrão" })); });
-    await act(async () => { await userEvent.click(screen.getByRole("button", { name: /Aplicar/ })); });
+    // Fork (composer no estilo do Codex): trocar a conta já aplica.
 
     const pedido = engine.engineApi.mock.calls.find((chamada) => String(chamada[1]).endsWith("/ajustes"));
     expect(pedido?.[2]).toBe(JSON.stringify({ profile_id: "claude-padrao", model: "opus", effort: "medium" }));
