@@ -1,17 +1,16 @@
-import { useEffect, useMemo, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import { loadWorkspaces, saveWorkspaces } from "../../services/workspaceService";
 import { listTerminalSessions, publishWorkspace, restartTerminal, type PublishedTheme } from "../terminal/terminalService";
 // Fork (atualização automática): religar as abas visíveis depois do reinício de atualização.
 import { consumirReinicioDeAtualizacao } from "../../lib/atualizacaoRemota";
 import { retomarAbasVisiveisAposAtualizar } from "./recuperarWorkspace";
 import { workspacesReducer } from "./workspacesReducer";
-// Fork: snapshots nativos para animar entrar/sair/trocar conversas sem manter duas sessões.
-import { criarDespachoComTransicao } from "./transicoesDeConversa";
 
 /** `tema` é publicado junto com os projetos para o celular sair com a mesma cara do PC. */
 export function useWorkspace(tema: PublishedTheme | null = null) {
-  const [collection, aplicar] = useReducer(workspacesReducer, undefined, loadWorkspaces);
-  const dispatch = useMemo(() => criarDespachoComTransicao(aplicar), [aplicar]);
+  // Fork (0.9.3): sem View Transitions no despacho. Na 0.9.2 (transicoesDeConversa.ts) a janela
+  // parou de receber cliques no WKWebView; o despacho volta a ser o do reducer, como na 0.9.1.
+  const [collection, dispatch] = useReducer(workspacesReducer, undefined, loadWorkspaces);
   const publicado = useRef<string | null>(null);
 
   useEffect(() => {
