@@ -16,6 +16,16 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.9.0",
+    date: "2026-10-21",
+    changes: [
+      "Chegou o Jarvis, um copiloto por voz. Abra pelo botão na barra de cima ou com ⌃⌥J de qualquer app, fale normalmente e ele responde em voz alta.",
+      "A janela do Jarvis fica por cima das outras e pode encolher para uma bolinha no canto. Ela lembra onde você a deixou.",
+      "Dá para cortar a resposta no meio: é só começar a falar, dizer \"para\" ou apertar Esc. Se preferir, escreva em vez de falar.",
+      "Ele ouve e fala no próprio Mac e pensa com a sua conta do Claude, sem custo além da assinatura. As conversas com o Jarvis não entram no Histórico. Precisa do macOS 26 ou mais novo.",
+    ],
+  },
+  {
     version: "0.8.9",
     date: "2026-10-21",
     changes: [
