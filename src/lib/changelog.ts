@@ -16,6 +16,20 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.11.0",
+    date: "2026-10-21",
+    changes: [
+      "Estude uma etapa em tela cheia: o conteúdo fica de um lado e, do outro, a fonte aberta ali mesmo (artigo ou vídeo), o caderno e a IA. Clicar num link do roadmap não leva mais para a tela das conversas.",
+      "O roadmap ficou com cara de jogo: cada módulo é uma região com um baú no fim, as etapas viram medalhões com até 3 estrelas, e no topo aparecem seu nível, o XP, a meta do dia e a sequência de dias.",
+      "Caderno em cada roadmap: escreva com as suas palavras o que está aprendendo e peça para a IA revisar. Ela diz o que está certo, o que ajustar, o que faltou e os próximos passos.",
+      "Revisão geral: gere cards de tudo que você já concluiu ou está fazendo, faça um quiz com a IA ou escreva seus próprios cards.",
+      "Agora dá para ver qual IA e qual modelo o roadmap usa, e trocar a qualquer momento.",
+      "Modo foco: esconde a barra lateral e só avisa quando um agente realmente precisar de você (pedido de aprovação, pergunta, erro ou limite de uso).",
+      "Roadmaps no celular: pelo celular pareado dá para estudar as etapas, concluir, revisar os cards, escrever cards novos e usar o caderno. Tudo aparece no computador também.",
+      "Na Atenção da barra lateral, o botão Limpar tudo dispensa todos os avisos de uma vez.",
+    ],
+  },
+  {
     version: "0.10.0",
     date: "2026-10-21",
     changes: [
