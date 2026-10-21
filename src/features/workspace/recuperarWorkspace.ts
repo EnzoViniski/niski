@@ -10,6 +10,8 @@ import type {
   WorkspaceTab,
 } from "../../types/workspace";
 import { collectResourceIds, createProject } from "./workspaceReducer";
+// Fork: conversa do editor de vídeo não é projeto solto (ver features/video/ChatDoEditor.tsx).
+import { ehConversaDoVideo } from "../video/projetoDoVideo";
 
 /**
  * Fork: recuperar projetos que sumiram do workspace usando só o que a UI já recebe do engine
@@ -60,6 +62,7 @@ export function encontrarSessoesOrfas(sessions: TerminalSession[], workspaces: W
   const grupos = new Map<string, ProjetoParaAdotar>();
   for (const sessao of sessions) {
     if (!sessao.provider || !ESTADOS_VIVOS.has(sessao.state) || !sessao.cwd || abertos.has(sessao.id)) continue;
+    if (ehConversaDoVideo(sessao.project_id)) continue; // Fork: mora no editor de vídeo.
     const path = pastaDoProjeto(sessao.cwd);
     // Projeto (ou pasta) já aberto em algum workspace: não é órfã.
     if (projetoConhecido(workspaces, sessao.project_id, path)) continue;
@@ -99,7 +102,7 @@ export function projetosDasConversasRecentes(
   const abertos = recursosAbertos(workspaces);
   const recentes = conversas
     .map((conversa) => ({ conversa, em: ultimaAtividade(conversa) }))
-    .filter(({ conversa, em }) => conversa.cwd && em >= agora - janelaMs)
+    .filter(({ conversa, em }) => conversa.cwd && em >= agora - janelaMs && !ehConversaDoVideo(conversa.project_id)) // Fork: vídeo fica no editor.
     .sort((a, b) => b.em - a.em);
   const grupos = new Map<string, ProjetoRecente>();
   for (const { conversa, em } of recentes) {

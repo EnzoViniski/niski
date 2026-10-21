@@ -31,9 +31,15 @@ export interface Projeto {
   altura: number;
   fps: number;
   cor: string;
-  ia: IaDoVideo;
+  /** IA do chat antigo (até a 0.13). O chat agora é a conversa normal do app (`chat`). */
+  ia?: IaDoVideo;
   briefing: Briefing;
+  /** Pastas de referências ligadas a este vídeo (o agente lê; "Copiar" traz os arquivos para a biblioteca). */
   pastasDeReferencia: string[];
+  /** Pasta do computador do vídeo (ex.: a pasta da Medza com a identidade visual). O agente lê. */
+  pastaDoComputador?: string;
+  /** Conversa normal do app ligada ao vídeo (sessão do engine e CLI). */
+  chat?: { sessao: string; provider?: string };
   /** Sessões da CLI por conta (`claude:<perfil>` → id da sessão), para o chat continuar de onde parou. */
   sessoes?: Record<string, string>;
   /** Cópia local de uma sessão a dois (projeto de outra pessoa). */

@@ -56,7 +56,7 @@ pub struct Convite { pub v: u32, pub bases: Vec<String>, pub t: String, pub p: S
 pub fn montar_convite(c: &Convite) -> String { format!("medza-video:{}", base64url(serde_json::to_string(c).unwrap_or_default().as_bytes())) }
 
 pub fn ler_convite(texto: &str) -> Result<Convite, String> {
-    let corpo = texto.trim().strip_prefix("medza-video:").ok_or("Esse não é um convite de edição a dois do Medza.")?;
+    let corpo = texto.trim().strip_prefix("medza-video:").ok_or("Esse não é um convite de edição a dois do Niski.")?;
     let bytes = de_base64url(corpo).ok_or("Convite quebrado (copie inteiro).")?;
     let c: Convite = serde_json::from_slice(&bytes).map_err(|_| "Convite quebrado (copie inteiro).")?;
     if c.v != 1 || c.bases.is_empty() || c.t.len() < 16 || !super::arquivos::id_valido(&c.p) { return Err("Convite inválido.".into()); }

@@ -8,6 +8,23 @@ import { lerComposicao } from "../features/video/composicao";
 import { definirTokenParaTeste } from "../features/video/enderecos";
 import { indexInicial } from "../features/video/modelos";
 import { discoFalso } from "./videoDiscoFalso";
+import { SessionProvidersContext } from "../features/terminal/sessionProviders";
+import type { TerminalSession } from "../features/terminal/terminalService";
+
+// O chat do editor é a conversa normal do app (TerminalPane + AbaDeAgente, testados à parte). Aqui
+// entra um falso que mostra a sessão ligada e deixa "abrir" uma conversa nova.
+vi.mock("../features/video/ChatDoEditor", () => ({
+  ChatDoEditor: ({ chat, pasta, onChat, aviso }: { chat: { sessao: string } | null; pasta: string; onChat: (c: { sessao: string; provider: string } | null) => void; aviso?: string | null }) => (
+    <div aria-label="Conversa com o agente (falsa)">
+      <span>cwd {pasta}</span><span>{chat ? `sessão ${chat.sessao}` : "sem sessão"}</span>{aviso && <span>{aviso}</span>}
+      <button type="button" onClick={() => onChat({ sessao: "s-1", provider: "claude" })}>abrir conversa</button>
+    </div>
+  ),
+}));
+
+function sessaoFalsa(state: TerminalSession["state"]): Record<string, TerminalSession> {
+  return { "s-1": { id: "s-1", project_id: "video:v-teste-1", name: "Vídeo", cwd: "/dados/videos/projetos/v-teste-1", state, provider: "claude" } as TerminalSession };
+}
 
 vi.mock("@hyperframes/player", () => {
   class PlayerFalso extends HTMLElement {
@@ -94,38 +111,81 @@ describe("Edição de vídeo", () => {
     await waitFor(() => expect(lerComposicao(disco.arquivos.get(`${pid}/index.html`)!).clipes[0].duracao).toBe(4));
   });
 
-  it("chat: guarda versão antes, manda o contexto, recarrega o preview e continua a sessão", async () => {
+  it("chat normal: liga a sessão ao vídeo, guarda versão quando o agente começa e recarrega quando ele edita", async () => {
     const pid = await criarProjeto();
-    disco.definirAgente((_texto, id) => {
-      const html = disco.arquivos.get(`${id}/index.html`)!.replace('data-duration="15" data-track-index="0"', 'data-duration="12" data-track-index="0"');
-      disco.arquivos.set(`${id}/index.html`, html);
-      return { texto: "Cortei os 3 segundos finais.", arquivos: ["index.html"] };
-    });
     localStorage.setItem("medza.video.ultimo", pid);
-    render(<VideoView onClose={() => undefined} continuar />);
+    const { rerender } = render(<SessionProvidersContext.Provider value={{}}><VideoView onClose={() => undefined} continuar /></SessionProvidersContext.Provider>);
     await screen.findByLabelText("Timeline");
+    expect(await screen.findByText("cwd /dados/videos/projetos/v-teste-1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "abrir conversa" }));
+    await waitFor(() => expect(JSON.parse(disco.arquivos.get(`${pid}/projeto.json`)!).chat).toEqual({ sessao: "s-1", provider: "claude" }));
     const player = await waitFor(() => { const p = document.querySelector("hyperframes-player"); expect(p).toBeTruthy(); return p!; });
     const srcAntes = player.getAttribute("src");
-    expect(srcAntes).toMatch(/^medzavideo:\/\/localhost\/tok\/p\/v-teste-1\/index\.html\?v=\d+$/);
     expect(player.getAttribute("sandbox-origin")).toBe("opaque");
 
-    fireEvent.change(screen.getByLabelText("Pedido para o agente"), { target: { value: "corta o fim" } });
-    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
-    expect(await screen.findByText("Cortei os 3 segundos finais.")).toBeInTheDocument();
-    const ordem = disco.chamadas.map((c) => c.cmd);
-    expect(ordem.indexOf("videos_criar_versao")).toBeLessThan(ordem.indexOf("videos_agente"));
-    const pedido = disco.chamadas.find((c) => c.cmd === "videos_agente")!.args.pedido as { texto: string; cli: string; sessao: string | null };
-    expect(pedido).toMatchObject({ cli: "claude", sessao: null });
-    expect(pedido.texto).toMatch(/^corta o fim\n\n\[Contexto do editor: agulha em 00:00\.00/);
-    await waitFor(() => expect(player.getAttribute("src")).not.toBe(srcAntes));
-    await waitFor(() => expect(JSON.parse(disco.arquivos.get(`${pid}/projeto.json`)!).sessoes).toEqual({ "claude:": "sessao-falsa" }));
-    expect(disco.arquivos.get(`${pid}/conversa.jsonl`)!.trim().split("\n")).toHaveLength(2);
-    expect(screen.getByRole("button", { name: /IA do vídeo: Claude, modelo-falso/ })).toBeInTheDocument();
+    // O agente começa: versão antes, sem travar o editor.
+    disco.chamadas.length = 0;
+    rerender(<SessionProvidersContext.Provider value={sessaoFalsa("working")}><VideoView onClose={() => undefined} continuar /></SessionProvidersContext.Provider>);
+    await waitFor(() => expect(disco.chamadas.some((c) => c.cmd === "videos_criar_versao" && c.args.motivo === "Antes do pedido ao agente")).toBe(true));
+    expect(screen.getByRole("button", { name: /Texto Lançamento/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "＋ Texto" })).not.toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText("Pedido para o agente"), { target: { value: "de novo" } });
-    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
-    await waitFor(() => expect(disco.chamadas.filter((c) => c.cmd === "videos_agente")).toHaveLength(2));
-    expect((disco.chamadas.filter((c) => c.cmd === "videos_agente")[1].args.pedido as { sessao: string }).sessao).toBe("sessao-falsa");
+    // O agente edita o arquivo por fora: o editor percebe pela assinatura e recarrega.
+    disco.arquivos.set(`${pid}/index.html`, disco.arquivos.get(`${pid}/index.html`)!.replace('data-duration="15" data-track-index="0"', 'data-duration="12" data-track-index="0"'));
+    await waitFor(() => expect(player.getAttribute("src")).not.toBe(srcAntes), { timeout: 3000 });
+    rerender(<SessionProvidersContext.Provider value={sessaoFalsa("answered")}><VideoView onClose={() => undefined} continuar /></SessionProvidersContext.Provider>);
+  });
+
+  it("não grava por cima de uma edição do agente feita enquanto a pessoa editava", async () => {
+    const pid = await criarProjeto();
+    localStorage.setItem("medza.video.ultimo", pid);
+    render(<VideoView onClose={() => undefined} continuar />);
+    const clipe = await screen.findByRole("button", { name: /Texto Lançamento/ });
+    fireEvent.keyDown(clipe, { key: "Enter" });
+    const duracao = await screen.findByRole("textbox", { name: "Duração" });
+    const doAgente = disco.arquivos.get(`${pid}/index.html`)!.replace("Lançamento</h1>", "Lançamento do agente</h1>");
+    disco.arquivos.set(`${pid}/index.html`, doAgente);
+    fireEvent.change(duracao, { target: { value: "4" } });
+    fireEvent.blur(duracao);
+    expect(await screen.findByText(/O agente mudou o vídeo enquanto você editava/)).toBeInTheDocument();
+    expect(disco.arquivos.get(`${pid}/index.html`)).toBe(doAgente);
+  });
+
+  it("pasta do computador: escolhida no novo vídeo, ligada ao agente e trocada no editor", async () => {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    vi.mocked(open).mockResolvedValueOnce("/Users/x/Medza");
+    render(<VideoView onClose={() => undefined} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Criar o primeiro vídeo" }));
+    fireEvent.change(screen.getByPlaceholderText("Ex.: Lançamento do app"), { target: { value: "Reels" } });
+    fireEvent.click(screen.getByRole("button", { name: "Escolher pasta…" }));
+    expect(await screen.findByText("/Users/x/Medza")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Criar e abrir o editor" }));
+    expect(await screen.findByLabelText("Timeline")).toBeInTheDocument();
+    const pid = "v-teste-1";
+    expect(JSON.parse(disco.arquivos.get(`${pid}/projeto.json`)!).pastaDoComputador).toBe("/Users/x/Medza");
+    expect(disco.chamadas.find((c) => c.cmd === "videos_configurar_pastas")?.args).toMatchObject({ id: pid, pastaDoComputador: "/Users/x/Medza", referencias: [] });
+    expect(disco.arquivos.get(`${pid}/BRIEF.md`)).toContain("Pasta do computador deste vídeo: `/Users/x/Medza`");
+    expect(screen.getByRole("button", { name: "Medza" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tirar a pasta do computador deste vídeo" }));
+    await waitFor(() => expect(JSON.parse(disco.arquivos.get(`${pid}/projeto.json`)!).pastaDoComputador).toBeUndefined());
+    expect(disco.arquivos.get(`${pid}/BRIEF.md`)).not.toContain("/Users/x/Medza");
+  });
+
+  it("pastas de referências ligam e desligam por vídeo sem copiar", async () => {
+    const pid = await criarProjeto();
+    disco.comando("videos_ref_criar", { dados: { nome: "Reels da Medza" } });
+    localStorage.setItem("medza.video.ultimo", pid);
+    render(<VideoView onClose={() => undefined} continuar />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Referências" }));
+    const chave = await screen.findByRole("switch", { name: "desligada" });
+    fireEvent.click(chave);
+    await waitFor(() => expect(JSON.parse(disco.arquivos.get(`${pid}/projeto.json`)!).pastasDeReferencia).toEqual(["r-2"]));
+    expect(disco.chamadas.some((c) => c.cmd === "videos_ref_aplicar")).toBe(false);
+    expect(disco.chamadas.filter((c) => c.cmd === "videos_configurar_pastas").pop()?.args.referencias).toEqual(["r-2"]);
+    expect(disco.arquivos.get(`${pid}/BRIEF.md`)).toContain("Reels da Medza");
+    fireEvent.click(await screen.findByRole("switch", { name: "ligada" }));
+    await waitFor(() => expect(JSON.parse(disco.arquivos.get(`${pid}/projeto.json`)!).pastasDeReferencia).toEqual([]));
   });
 
   it("exporta local com o formato escolhido", async () => {
@@ -139,6 +199,9 @@ describe("Edição de vídeo", () => {
     expect(await within(dialogo).findByText(/Pronto: x\.mp4/)).toBeInTheDocument();
     const pedido = disco.chamadas.find((c) => c.cmd === "videos_exportar")!.args.pedido;
     expect(pedido).toMatchObject({ projeto: pid, formato: "webm", qualidade: "standard", fps: null });
+    // Fork: "Mostrar no Finder" pelo Rust (o opener recusava a pasta do projeto).
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Mostrar no Finder" }));
+    await waitFor(() => expect(disco.chamadas.find((c) => c.cmd === "videos_abrir_render")?.args).toMatchObject({ id: pid, mostrar: true }));
   });
 
   it("aberto e parado não liga timer nem poll", async () => {

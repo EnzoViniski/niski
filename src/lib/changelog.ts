@@ -16,11 +16,22 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
-    version: "0.14.0",
+    version: "0.15.0",
     date: "2026-10-21",
     changes: [
       "O app agora se chama Niski, com logo nova: ícone novo no Dock e no celular, e o símbolo na barra do topo (com brilho no tema escuro e preto no claro). Conversas, projetos, contas e configurações continuam todos aqui, do jeito que estavam.",
       "Os avisos do Telegram, o acesso pelo celular e o Jarvis também passam a falar Niski. O Jarvis para quando você diz \"Niski, para\" (\"Medza, para\" continua valendo).",
+    ],
+  },
+  {
+    version: "0.14.0",
+    date: "2026-10-21",
+    changes: [
+      "Edição de vídeo: o chat do agente agora é a mesma conversa das abas de agente, com todas as ferramentas, aprovações, troca de modelo e conta, e a conversa rolando do mesmo jeito. Arraste a borda para deixar o chat mais largo ou mais estreito ao lado do editor.",
+      "Edição de vídeo: enquanto o agente trabalha, o editor continua livre. Dá para ver o preview, mexer na timeline e nas propriedades; o preview atualiza sozinho quando o agente muda o vídeo, e o app guarda uma versão antes de cada pedido para você desfazer.",
+      "Edição de vídeo: escolha uma pasta do computador para o vídeo (por exemplo, a pasta da sua marca, com identidade visual, logos e informações). O agente usa esse material para criar. Na tela de vídeos, filtre por pasta e crie vídeos novos direto nela.",
+      "Edição de vídeo: cada vídeo liga e desliga as pastas de referências que quiser, sem copiar nada. Vídeos da mesma pasta podem seguir referências diferentes.",
+      "Edição de vídeo: \"Mostrar no Finder\" e \"Abrir\" do vídeo exportado voltaram a funcionar, e dá para salvar o exportado direto na pasta do computador do vídeo.",
     ],
   },
   {

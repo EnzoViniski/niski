@@ -120,16 +120,21 @@ function AbaDeReferencias({ projeto, acoes, bloqueado }: { projeto: string; acoe
         ))}
       </ul>
       <h4 className="video-subtitulo">Pastas de referências</h4>
-      <p className="video-dica">Uma pasta guarda vídeos, fotos, fontes e links de um tipo de vídeo. Trazer copia tudo para este projeto.</p>
+      <p className="video-dica">Ligue as pastas que valem para este vídeo: o agente lê os arquivos e links delas. “Copiar” traz os arquivos para a biblioteca, para arrastar na timeline.</p>
       {pastas.length === 0 && <p className="video-vazio">Nenhuma pasta ainda. Crie na tela de vídeos ou salve as mídias deste projeto como pasta.</p>}
       <ul className="video-pastas-mini">
         {pastas.map((p) => (
           <li key={p.id}>
             <span className="video-pasta-cor" style={{ background: p.cor }} aria-hidden="true" />
             <span className="video-bib-nome">{p.nome} <small>{p.itens.length} arquivo{p.itens.length === 1 ? "" : "s"}{p.links.length ? ` · ${p.links.length} link${p.links.length === 1 ? "" : "s"}` : ""}</small></span>
-            <Button size="sm" variant={escolhidas.includes(p.id) ? "ghost" : "glass"} disabled={bloqueado} onClick={() => void acoes.aplicarPasta(p)}>
-              {escolhidas.includes(p.id) ? "Trazer de novo" : "Trazer"}
-            </Button>
+            {/* Fork: ligar/desligar por vídeo (sem copiar); copiar ficou opcional. */}
+            <button type="button" role="switch" aria-checked={escolhidas.includes(p.id)} disabled={bloqueado}
+              className={`video-papel ${escolhidas.includes(p.id) ? "is-usar" : "is-referencia"}`}
+              title={escolhidas.includes(p.id) ? "Ligada: o agente usa esta pasta neste vídeo" : "Desligada neste vídeo"}
+              onClick={() => void acoes.configurarPastas({ pastasDeReferencia: escolhidas.includes(p.id) ? escolhidas.filter((x) => x !== p.id) : [...escolhidas, p.id] })}>
+              {escolhidas.includes(p.id) ? "ligada" : "desligada"}
+            </button>
+            {p.itens.length > 0 && <Button size="sm" variant="ghost" disabled={bloqueado} onClick={() => void acoes.aplicarPasta(p)} title="Copiar os arquivos desta pasta para a biblioteca do vídeo">Copiar</Button>}
           </li>
         ))}
       </ul>

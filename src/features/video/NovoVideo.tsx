@@ -5,11 +5,11 @@ import { Button, SegmentedControl } from "../../components/ui";
 import { TrashIcon } from "../../components/ui/PixelIcon";
 import * as disco from "./armazenamento";
 import { IconeDaMidia } from "./Biblioteca";
-import { EscolhaDaIa } from "./EscolhaDaIa";
+import { escolherPastaDoComputador, nomeDaPasta } from "./PastaDoComputador";
 import { normalizarMidias } from "./useProjeto";
 import { BRIEFING_VAZIO, FORMATOS, gerarBrief, indexInicial, instrucoesDoAgente, secaoDeReferencias, atualizarReferenciasNoBrief } from "./modelos";
 import { escolherArquivos, useSoltarArquivos } from "./soltarArquivos";
-import type { Briefing, Formato, IaDoVideo, LinkDeReferencia, Midias, Papel, PastaDeReferencia } from "./tipos";
+import type { Briefing, Formato, LinkDeReferencia, Midias, Papel, PastaDeReferencia } from "./tipos";
 
 interface ArquivoPendente { caminho: string; papel: Papel }
 
@@ -23,10 +23,11 @@ function tipoDoCaminho(c: string) {
   return "outro";
 }
 
-export function NovoVideo({ onCriado, onCancelar, pastaInicial }: { onCriado: (id: string, aviso?: string) => void; onCancelar: () => void; pastaInicial?: string }) {
+export function NovoVideo({ onCriado, onCancelar, pastaInicial, computadorInicial }: { onCriado: (id: string, aviso?: string) => void; onCancelar: () => void; pastaInicial?: string; computadorInicial?: string }) {
   const [nome, setNome] = useState("");
   const [b, setB] = useState<Briefing>(BRIEFING_VAZIO);
-  const [ia, setIa] = useState<IaDoVideo>({ cli: "claude" });
+  // Fork: a IA se escolhe no chat do editor (conversa normal do app). Aqui, a pasta do computador.
+  const [computador, setComputador] = useState<string | null>(computadorInicial ?? null);
   const [arquivos, setArquivos] = useState<ArquivoPendente[]>([]);
   const [papel, setPapel] = useState<Papel>("referencia");
   const [links, setLinks] = useState<LinkDeReferencia[]>([]);
@@ -59,8 +60,8 @@ export function NovoVideo({ onCriado, onCancelar, pastaInicial }: { onCriado: (i
     const daPasta = pastas.filter((p) => escolhidas.includes(p.id));
     try {
       const id = await disco.criarProjeto({
-        projeto: { nome: nome.trim(), formato: b.formato, largura, altura, fps: 30, cor: "#7c9cff", ia, briefing: b, pastasDeReferencia: escolhidas, sessoes: {} },
-        brief: gerarBrief(nome, b, [], links, daPasta),
+        projeto: { nome: nome.trim(), formato: b.formato, largura, altura, fps: 30, cor: "#7c9cff", briefing: b, pastasDeReferencia: escolhidas, ...(computador ? { pastaDoComputador: computador } : {}) },
+        brief: gerarBrief(nome, b, [], links, daPasta, computador ?? undefined),
         index: indexInicial({ nome, formato: b.formato, duracao: b.duracao }),
         instrucoes: instrucoesDoAgente(),
       });
@@ -69,16 +70,15 @@ export function NovoVideo({ onCriado, onCancelar, pastaInicial }: { onCriado: (i
         setCriando(`Copiando referências (${i + 1} de ${arquivos.length})…`);
         try { await disco.importarMidia(id, a.caminho, a.papel); } catch (e) { falhas.push(`${nomeDoCaminho(a.caminho)}: ${String(e)}`); }
       }
-      for (const p of daPasta) {
-        setCriando(`Trazendo a pasta “${p.nome}”…`);
-        try { await disco.aplicarPasta(p.id, id); } catch (e) { falhas.push(`${p.nome}: ${String(e)}`); }
-      }
+      // Fork: as pastas (do computador e de referências) ficam ligadas, sem copiar: o agente lê de lá.
+      setCriando("Ligando as pastas ao agente…");
+      try { await disco.configurarPastas(id, computador, escolhidas); } catch (e) { falhas.push(`pastas: ${String(e)}`); }
       // Links e a seção de referências do BRIEF.md com tudo o que entrou.
       const m: Midias = normalizarMidias(JSON.parse((await disco.lerArquivo(id, "midias.json")) ?? "{}"));
       const todos = [...m.links, ...links.filter((l) => !m.links.some((x) => x.url === l.url))];
       await disco.gravarArquivo(id, "midias.json", JSON.stringify({ ...m, links: todos }, null, 2));
       const brief = (await disco.lerArquivo(id, "BRIEF.md")) ?? "";
-      await disco.gravarArquivo(id, "BRIEF.md", atualizarReferenciasNoBrief(brief, secaoDeReferencias(m.itens, todos, daPasta)));
+      await disco.gravarArquivo(id, "BRIEF.md", atualizarReferenciasNoBrief(brief, secaoDeReferencias(m.itens, todos, daPasta, computador ?? undefined)));
       onCriado(id, falhas.length ? `Criei o vídeo, mas não copiei: ${falhas.join(" · ")}` : undefined);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -132,7 +132,16 @@ export function NovoVideo({ onCriado, onCancelar, pastaInicial }: { onCriado: (i
           <label className="video-campo"><span>Observações</span>
             <textarea className="field px-3 py-2 text-sm" rows={2} value={b.observacoes} placeholder="Ex.: sem narração; logo no fim por 2 s" onChange={(e) => mudar({ observacoes: e.target.value })} />
           </label>
-          <div className="video-campo"><EscolhaDaIa valor={ia} onChange={setIa} /></div>
+          <div className="video-campo"><span>Pasta do computador</span>
+            <p className="video-dica">Ex.: a pasta da sua marca, com identidade visual, logos, fontes e informações. O agente lê essa pasta para criar o vídeo; nada dela é apagado.</p>
+            <div className="video-link-novo is-linha">
+              <Button size="sm" variant="glass" onClick={() => void escolherPastaDoComputador().then((c) => { if (c) { setComputador(c); setErro(null); } }).catch((e) => setErro(String(e)))}>
+                {computador ? `Trocar (${nomeDaPasta(computador)})` : "Escolher pasta…"}
+              </Button>
+              {computador && <Button size="sm" variant="ghost" onClick={() => setComputador(null)}>Sem pasta</Button>}
+            </div>
+            {computador && <p className="video-dica" title={computador}>{computador}</p>}
+          </div>
         </section>
 
         <section className="video-novo-coluna">
@@ -168,6 +177,7 @@ export function NovoVideo({ onCriado, onCancelar, pastaInicial }: { onCriado: (i
             ))}</ul>
           </div>
           <div className="video-campo"><span>Pastas de referências</span>
+            <p className="video-dica">Escolha as que valem para este vídeo. Vídeos da mesma pasta do computador podem usar referências diferentes.</p>
             {pastas.length === 0 && <p className="video-vazio">Nenhuma pasta ainda. Crie uma na tela de vídeos para reaproveitar referências de um tipo de vídeo.</p>}
             <div className="video-pastas-escolha">
               {pastas.map((p) => (

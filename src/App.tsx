@@ -420,7 +420,7 @@ function AppComPaleta() {
           ) : view === "roadmaps" ? (
             <RoadmapsView key={aberturaDosRoadmaps.chave} continuar={aberturaDosRoadmaps.continuar} onClose={() => setView("workspace")} />
           ) : view === "video" ? (
-            <VideoView key={aberturaDoVideo.chave} continuar={aberturaDoVideo.continuar} onClose={() => setView("workspace")} />
+            <VideoView key={aberturaDoVideo.chave} continuar={aberturaDoVideo.continuar} agentView={settings.agentView} onClose={() => setView("workspace")} />
           ) : view === "fluxos" ? (
             <div className="h-full min-h-0 flex flex-col">
               <div className="flex-1 min-h-0">

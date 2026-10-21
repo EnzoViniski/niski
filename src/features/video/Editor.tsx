@@ -4,7 +4,11 @@ import { Button } from "../../components/ui";
 import { ArrowLeftIcon, ClockIcon, PlayIcon, StopIcon } from "../../components/ui/PixelIcon";
 import * as disco from "./armazenamento";
 import { Biblioteca } from "./Biblioteca";
-import { ChatDoVideo } from "./ChatDoVideo";
+import { ChatDoEditor } from "./ChatDoEditor";
+import { useAgenteNoProjeto } from "./conversaDoVideo";
+import { PastaDoComputador } from "./PastaDoComputador";
+import { Divisor, useTamanhoSalvo } from "../roadmaps/Divisor";
+import type { AgentView } from "../../types/settings";
 import {
   alternarOculto, apagar, aparar, definirDuracaoTotal, dividir, duplicar, duracaoVisivel, inserirMidia, inserirTexto, lerComposicao,
   moverClipe, mudarClipe, type Composicao,
@@ -50,7 +54,7 @@ export interface ColaboracaoNoEditor {
   soltarAgente?: () => void;
 }
 
-export function Editor({ id, onVoltar }: { id: string; onVoltar: () => void }) {
+export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; onVoltar: () => void; agentView?: AgentView }) {
   const acoes = useProjeto(id);
   const { estado } = acoes;
   const sessao = useSessaoADois(id, acoes);
@@ -60,7 +64,8 @@ export function Editor({ id, onVoltar }: { id: string; onVoltar: () => void }) {
   const preview = useRef<ControleDoPreview>(null);
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [duracoes, setDuracoes] = useState<Record<string, number>>({});
-  const [agenteRodando, setAgenteRodando] = useState(false);
+  // Fork: largura do chat (arrastável, lembrada).
+  const [larguraDoChat, setLarguraDoChat] = useTamanhoSalvo("video-chat", 440, 300, 960);
   const [aviso, setAviso] = useState<string | null>(null);
   const [erroDoPreview, setErroDoPreview] = useState<string | null>(null);
   const [exportando, setExportando] = useState(false);
@@ -74,7 +79,14 @@ export function Editor({ id, onVoltar }: { id: string; onVoltar: () => void }) {
     try { return lerComposicao(estado.html ?? ""); } catch { return { raiz: null, clipes: [] }; }
   }, [estado.html]);
   const clipe = comp.clipes.find((c) => c.chave === selecionado) ?? null;
-  const bloqueado = agenteRodando || !!estado.ocupado;
+  // Fork: o agente trabalhando não trava mais o editor (antes só o agente conseguia editar).
+  const bloqueado = !!estado.ocupado;
+  const agente = useAgenteNoProjeto(id, estado.projeto?.chat?.sessao, {
+    aoComecar: () => { void acoes.guardarVersao("Antes do pedido ao agente"); colaboracao?.pegarAgente?.(); },
+    aoMudar: () => void acoes.recarregar(),
+  });
+  const soltar = colaboracao?.soltarAgente;
+  useEffect(() => { if (!agente.ativo) soltar?.(); }, [agente.ativo, soltar]);
 
   // Duração das mídias sem `data-duration` (lida só dos metadados).
   useEffect(() => {
@@ -104,10 +116,10 @@ export function Editor({ id, onVoltar }: { id: string; onVoltar: () => void }) {
   const editar = useCallback((op: (html: string) => string, motivo: string) => {
     if (bloqueado || estado.html === null) return;
     try {
-      void acoes.editarHtml(op(estado.html), motivo);
+      void acoes.editarHtml(op(estado.html), motivo).then(agente.rebase);
       setAviso(null);
     } catch (e) { setAviso(e instanceof Error ? e.message : String(e)); }
-  }, [acoes, bloqueado, estado.html]);
+  }, [acoes, agente.rebase, bloqueado, estado.html]);
 
   const porNaTimeline = useCallback(async (m: Midia, inicio?: number, faixa?: number) => {
     const t = inicio ?? relogio.ler().tempo;
@@ -150,17 +162,6 @@ export function Editor({ id, onVoltar }: { id: string; onVoltar: () => void }) {
     return () => window.removeEventListener("keydown", aoTeclar);
   }, [acoes, apagarSelecionado, bloqueado, clipe, dividirNaAgulha, duracoes, editar, exportando, relogio]);
 
-  const contexto = useCallback(() => {
-    const t = formatarTempo(relogio.ler().tempo);
-    const sel = clipe ? `; clipe selecionado na timeline: id "${clipe.id ?? "(sem id)"}" (${clipe.tipo}, ${formatarTempo(clipe.inicio)} a ${formatarTempo(clipe.inicio + duracaoVisivel(clipe, duracoes))}, ${clipe.rotulo})` : "";
-    return `[Contexto do editor: agulha em ${t}${sel}. Arquivo principal: index.html]`;
-  }, [clipe, duracoes, relogio]);
-
-  const aoRodarAgente = useCallback((r: boolean) => {
-    setAgenteRodando(r);
-    if (r) colaboracao?.pegarAgente?.(); else colaboracao?.soltarAgente?.();
-  }, [colaboracao]);
-
   if (estado.erro && !estado.projeto) {
     return (
       <div className="p-6 space-y-3">
@@ -174,11 +175,13 @@ export function Editor({ id, onVoltar }: { id: string; onVoltar: () => void }) {
   const raiz = comp.raiz;
 
   return (
-    <div className="video-editor">
+    <div className="video-editor" style={{ "--video-chat-largura": `${larguraDoChat}px` } as React.CSSProperties}>
+     <div className="video-editor-area">
       <header className="video-editor-topo">
         <Button size="sm" variant="ghost" onClick={onVoltar} aria-label="Voltar para os vídeos"><ArrowLeftIcon size={14} /> Vídeos</Button>
         <NomeDoVideo nome={p.nome} onMudar={(nome) => void acoes.mudarProjeto({ nome })} />
         <span className="video-etiqueta">{p.formato} · {raiz ? `${raiz.largura}×${raiz.altura}` : "sem root"}</span>
+        {!p.aDois && <PastaDoComputador caminho={p.pastaDoComputador ?? null} desligado={bloqueado} onMudar={(c) => acoes.configurarPastas({ pastaDoComputador: c })} />}
         {estado.ocupado && <span className="video-etiqueta is-ocupado">{estado.ocupado}</span>}
         <span className="flex-1" />
         <Button size="sm" variant={sessao.papel ? "primary" : "ghost"} onClick={() => setDialogoADois(true)} aria-pressed={!!sessao.papel}
@@ -186,10 +189,11 @@ export function Editor({ id, onVoltar }: { id: string; onVoltar: () => void }) {
           {sessao.papel ? (sessao.conexao === "caiu" ? "A dois · reconectando" : `A dois${sessao.colegas.length ? ` · ${sessao.colegas.map((c) => c.nome).join(", ")}` : ""}`) : "A dois"}
           {sessao.pedidos.length > 0 && <span className="video-ponto" aria-label={`${sessao.pedidos.length} pedido(s) para entrar`} />}
         </Button>
-        <Button size="sm" variant="ghost" disabled={!estado.podeDesfazer || bloqueado} onClick={() => void acoes.desfazer()} title="Desfazer (⌘Z)">Desfazer</Button>
-        <Button size="sm" variant="ghost" disabled={!estado.podeRefazer || bloqueado} onClick={() => void acoes.refazer()} title="Refazer (⇧⌘Z)">Refazer</Button>
+        {/* Fork (0.14): só ícone, para o topo caber numa linha com a conversa ao lado. */}
+        <Button size="sm" variant="ghost" disabled={!estado.podeDesfazer || bloqueado} onClick={() => void acoes.desfazer()} title="Desfazer (⌘Z)" aria-label="Desfazer"><span aria-hidden="true" className="video-icone-texto">↶</span></Button>
+        <Button size="sm" variant="ghost" disabled={!estado.podeRefazer || bloqueado} onClick={() => void acoes.refazer()} title="Refazer (⇧⌘Z)" aria-label="Refazer"><span aria-hidden="true" className="video-icone-texto">↷</span></Button>
         <div className="video-historico">
-          <Button size="sm" variant="ghost" aria-expanded={versoes !== null} onClick={() => setVersoes(versoes ? null : [])} title="Versões guardadas"><ClockIcon size={14} /> Versões</Button>
+          <Button size="sm" variant="ghost" aria-expanded={versoes !== null} onClick={() => setVersoes(versoes ? null : [])} title="Versões guardadas" aria-label="Versões"><ClockIcon size={14} /></Button>
           {versoes !== null && <ListaDeVersoes projeto={id} onVoltarPara={(n) => { setVersoes(null); void acoes.voltarPara(n); }} onFechar={() => setVersoes(null)} />}
         </div>
         <Button size="sm" variant="primary" onClick={() => setExportando(true)}>Exportar</Button>
@@ -231,11 +235,6 @@ export function Editor({ id, onVoltar }: { id: string; onVoltar: () => void }) {
           onOcultar={() => clipe && editar((h) => alternarOculto(h, clipe.chave), clipe.oculto ? `Mostrei “${clipe.rotulo}”` : `Escondi “${clipe.rotulo}”`)} />
       </main>
 
-      <aside className="video-coluna is-direita">
-        <ChatDoVideo projeto={id} acoes={acoes} contexto={contexto} onRodando={aoRodarAgente}
-          autor={colaboracao?.meuNome} bloqueadoPor={colaboracao?.agenteCom ?? null} />
-      </aside>
-
       <section className="video-rodape">
         <Timeline comp={comp} duracoes={duracoes} relogio={relogio} selecionado={selecionado} onSelecionar={setSelecionado}
           onIrPara={(t) => preview.current?.irPara(t)} somenteLeitura={bloqueado} colegas={colaboracao?.colegas}
@@ -244,7 +243,18 @@ export function Editor({ id, onVoltar }: { id: string; onVoltar: () => void }) {
           onSoltarMidia={(midiaId, inicio, faixa) => { const m = estado.midias.itens.find((x) => x.id === midiaId); if (m) void porNaTimeline(m, inicio, faixa); }} />
       </section>
 
-      {exportando && <Exportar projeto={id} nome={p.nome} onFechar={() => setExportando(false)} />}
+     </div>
+
+      <Divisor valor={larguraDoChat} min={300} max={960} onChange={setLarguraDoChat} cresce="esquerda" rotulo="Largura da conversa" />
+      <aside className="video-coluna is-direita" aria-label="Conversa com o agente">
+        {estado.pasta
+          ? <ChatDoEditor projeto={id} pasta={estado.pasta} nome={p.nome} chat={p.chat ?? null} agentView={agentView}
+              onChat={(chat) => void acoes.mudarProjeto(chat ? { chat } : { chat: undefined })}
+              aviso={colaboracao?.agenteCom ? `${colaboracao.agenteCom} está com o agente agora. Espere terminar para pedir.` : null} />
+          : <p className="video-dica p-3">Abrindo a conversa…</p>}
+      </aside>
+
+      {exportando && <Exportar projeto={id} nome={p.nome} pastaDoComputador={p.pastaDoComputador ?? null} onFechar={() => setExportando(false)} />}
       {dialogoADois && <SessaoADoisDialogo sessao={sessao} onFechar={() => setDialogoADois(false)} />}
     </div>
   );

@@ -45,3 +45,11 @@ export async function escolherArquivos(): Promise<string[]> {
   if (!escolha) return [];
   return Array.isArray(escolha) ? escolha : [escolha];
 }
+
+/** Fork: uma pasta do computador (ex.: a pasta da Medza). Devolve o caminho real ou `null`. */
+export async function escolherPasta(titulo = "Escolha a pasta do computador para este vídeo"): Promise<string | null> {
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const escolha = await open({ multiple: false, directory: true, title: titulo });
+  const caminho = Array.isArray(escolha) ? escolha[0] : escolha;
+  return caminho ?? null;
+}

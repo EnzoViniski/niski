@@ -7,6 +7,7 @@
 
 pub mod agente;
 pub mod arquivos;
+pub mod chat_do_video;
 pub mod midias;
 pub mod processo;
 pub mod projetos;
@@ -185,6 +186,58 @@ pub fn videos_ref_de_projeto(projeto: String, dados: serde_json::Value) -> Resul
     midias::copiar_itens(&origem.join(projetos::MIDIAS), &origem.join("assets"), "assets/",
         &destino.join(referencias::PASTA_JSON), &destino.join(referencias::ARQUIVOS), referencias::PREFIXO, None, agora()).map_err(texto_do_erro)?;
     referencias::ler(&r, &id).map_err(texto_do_erro)
+}
+
+/// Fork (chat normal no editor): grava as pastas que o agente pode ler (pasta do computador e pastas
+/// de referências escolhidas) no CLAUDE.md/AGENTS.md e no `.claude/settings.json` do projeto.
+#[tauri::command(async)]
+pub fn videos_configurar_pastas(id: String, pasta_do_computador: Option<String>, referencias: Vec<String>) -> Result<Vec<String>, String> {
+    let pastas = chat_do_video::configurar(&raiz()?, &id, pasta_do_computador.as_deref(), &referencias).map_err(texto_do_erro)?;
+    Ok(pastas.into_iter().map(|p| p.caminho.to_string_lossy().into_owned()).collect())
+}
+
+/// Confere a pasta do computador escolhida e devolve o caminho real dela.
+#[tauri::command(async)]
+pub fn videos_conferir_pasta(caminho: String) -> Result<String, String> {
+    chat_do_video::pasta_do_computador(&caminho).map(|p| p.to_string_lossy().into_owned()).map_err(texto_do_erro)
+}
+
+/// Assinatura (data e tamanho) da composição, do briefing e das mídias: muda quando o agente edita.
+/// Vai como texto (u64 não cabe num número do JS).
+#[tauri::command(async)]
+pub fn videos_assinatura(id: String) -> Result<String, String> { Ok(chat_do_video::assinatura(&pasta(&id)?).to_string()) }
+
+/// Arquivo exportado deste projeto (só `renders/`, arquivo comum).
+fn render_do_projeto(id: &str, arquivo: &str) -> Result<PathBuf, String> {
+    let renders = pasta(id)?.join("renders");
+    let nome = Path::new(arquivo).file_name().ok_or("Arquivo inválido")?;
+    let caminho = renders.join(nome);
+    if arquivos::arquivo_comum(&caminho).is_none() { return Err("O arquivo não existe mais (foi movido ou apagado)".into()); }
+    Ok(caminho)
+}
+
+/// "Mostrar no Finder" / "Abrir" de um vídeo exportado. O opener do webview recusava o caminho
+/// (fica fora das pastas liberadas); aqui só passa o que está em `renders/` do projeto.
+#[tauri::command(async)]
+pub fn videos_abrir_render(id: String, arquivo: String, mostrar: bool) -> Result<(), String> {
+    let caminho = render_do_projeto(&id, &arquivo)?;
+    if mostrar { tauri_plugin_opener::reveal_item_in_dir(&caminho).map_err(|e| e.to_string()) }
+    else { tauri_plugin_opener::open_path(&caminho, None::<&str>).map_err(|e| e.to_string()) }
+}
+
+/// Copia um vídeo exportado para `<pasta do computador>/Vídeos/` (sem sobrescrever). Devolve o destino.
+#[tauri::command(async)]
+pub fn videos_copiar_render(id: String, arquivo: String, pasta_do_computador: String) -> Result<String, String> {
+    let origem = render_do_projeto(&id, &arquivo)?;
+    let destino_dir = chat_do_video::pasta_do_computador(&pasta_do_computador).map_err(texto_do_erro)?.join("Vídeos");
+    if !arquivos::pasta_comum(&destino_dir) { std::fs::create_dir_all(&destino_dir).map_err(|e| e.to_string())?; }
+    let nome = origem.file_name().ok_or("Arquivo inválido")?.to_string_lossy().into_owned();
+    let (base, ext) = nome.rsplit_once('.').map(|(b, e)| (b.to_owned(), format!(".{e}"))).unwrap_or((nome.clone(), String::new()));
+    let mut destino = destino_dir.join(&nome);
+    let mut n = 2;
+    while destino.exists() { destino = destino_dir.join(format!("{base} ({n}){ext}")); n += 1; }
+    arquivos::copiar_atomico(&origem, &destino).map_err(|e| e.to_string())?;
+    Ok(destino.to_string_lossy().into_owned())
 }
 
 #[cfg(test)]

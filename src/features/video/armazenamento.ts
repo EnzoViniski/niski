@@ -37,3 +37,11 @@ export const apagarPasta = (id: string) => invoke<void>("videos_ref_apagar", { i
 export const aplicarPasta = (refId: string, projeto: string) => invoke<Midia[]>("videos_ref_aplicar", { refId, projeto });
 export const pastaDoProjeto = (projeto: string, dados: Partial<PastaDeReferencia>) =>
   invoke<PastaDeReferencia>("videos_ref_de_projeto", { projeto, dados });
+
+// Fork (chat normal no editor): pastas que o agente lê, pasta do computador e vídeos exportados.
+export const configurarPastas = (id: string, pastaDoComputador: string | null, referencias: string[]) =>
+  invoke<string[]>("videos_configurar_pastas", { id, pastaDoComputador, referencias });
+export const conferirPasta = (caminho: string) => invoke<string>("videos_conferir_pasta", { caminho });
+export const abrirRender = (id: string, arquivo: string, mostrar: boolean) => invoke<void>("videos_abrir_render", { id, arquivo, mostrar });
+export const copiarRender = (id: string, arquivo: string, pastaDoComputador: string) =>
+  invoke<string>("videos_copiar_render", { id, arquivo, pastaDoComputador });
