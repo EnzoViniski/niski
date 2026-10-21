@@ -57,7 +57,8 @@ async fn browser_fixture() {
              PublishedAgent{id:"codex".into(),label:"Codex".into(),command:"codex".into(),resume:None}],
         Some(PublishedTheme{accent:std::env::var("OMNI_FIXTURE_ACCENT").unwrap_or_else(|_|"roxo".into()),
             theme:std::env::var("OMNI_FIXTURE_THEME").unwrap_or_else(|_|"escuro".into()),
-            background:"gradient-waves".into(),glass:"forte".into()}),
+            background:"gradient-waves".into(),glass:"forte".into(),
+            estilo:std::env::var("OMNI_FIXTURE_ESTILO").unwrap_or_default()}),
     ).unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:47329").await.unwrap();

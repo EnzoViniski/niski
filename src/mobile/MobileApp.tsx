@@ -22,6 +22,7 @@ import { ConversationDetail } from "./conversa/ConversationDetail";
 import { CabecalhoDaConversa } from "./conversa/CabecalhoDaConversa";
 // Fork: Atividade usa eventos e vistos do engine, iguais aos do desktop.
 import { Atividade } from "./telas/Atividade";
+import { Uso } from "./telas/Uso"; // Fork: uso das contas no celular.
 import { atualizarAtividade, useAtividadeVista } from "../features/atividade/atividadeService";
 
 export { haQuanto, filterConversations, Secao, ProjectList, ConversationList, ConversasPorEstado, Ocultas, NovaSessao, ConversationDetail };
@@ -98,6 +99,9 @@ export function MobileApp() {
   if (rota.tela === "atividade") {
     titulo = "Atividade";
     conteudo = <Atividade abrirConversa={abrirConversa} />;
+  } else if (rota.tela === "uso") {
+    titulo = "Uso das contas";
+    conteudo = <Uso />;
   } else if (rota.tela === "conversa") {
     if (conversa) {
       titulo = conversa.title;
@@ -142,7 +146,11 @@ export function MobileApp() {
     const trabalhandoAgora = visiveis.filter(c => c.state === "working").length;
     const projetos = catalog?.projects ?? [];
     conteudo = <>
-      <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "atividade" })}>Atividade</button>
+      {/* Fork: atalhos do início (Atividade e Uso das contas). */}
+      <div className="m-atalhos">
+        <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "atividade" })}>Atividade</button>
+        <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "uso" })}>Uso das contas</button>
+      </div>
       {aviso && <p className="m-aviso">{aviso}</p>}
       {/* Painel do início: o que está acontecendo agora, em três números. "Precisa de você" filtra. */}
       <div className="m-resumo">

@@ -6,6 +6,8 @@ export interface TemaPublicado {
   theme?: string;
   background?: string;
   glass?: string;
+  /** Fork: "minimalista" troca o visual (`src/styles/minimalista.css`); o resto é clássico. */
+  estilo?: string;
 }
 
 const CHAVE = "omni-tema";
@@ -40,6 +42,7 @@ export function aplicarTema(tema: TemaPublicado | null): () => void {
   const root = document.documentElement;
   root.dataset.bg = FUNDOS_CSS.has(tema?.background ?? "") ? tema!.background! : "pixel-grid";
   root.dataset.glass = RELEVOS.has(tema?.glass ?? "") ? tema!.glass! : "forte";
+  root.dataset.estilo = tema?.estilo === "minimalista" ? "minimalista" : "classico"; // Fork: segue o PC.
 
   const aplicar = (claro: boolean) => {
     aplicarPaleta(root, tema?.accent, claro);

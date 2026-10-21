@@ -75,8 +75,9 @@ function AppComPaleta() {
   const { settings, updateSettings, resetSettings } = useSettings();
   // Memo: o objeto novo a cada render faria o `useWorkspace` recalcular a projeção à toa.
   const temaPublicado = useMemo(
-    () => ({ accent: settings.accent, theme: settings.theme, background: settings.background, glass: settings.glass }),
-    [settings.accent, settings.theme, settings.background, settings.glass]
+    // Fork: o estilo (Clássico/Minimalista) vai junto, e o celular segue o PC.
+    () => ({ accent: settings.accent, theme: settings.theme, background: settings.background, glass: settings.glass, estilo: settings.estilo }),
+    [settings.accent, settings.theme, settings.background, settings.glass, settings.estilo]
   );
   const { workspace, activeProject, dispatch, workspaces, activeWorkspaceId } = useWorkspace(temaPublicado);
   const { sessions, online: engineOnline } = useTerminalSessions();

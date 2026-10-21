@@ -92,8 +92,15 @@ use super::*;
 
 #[test] fn tema_publicado_vai_para_o_celular_e_desktop_antigo_nao_apaga() {
     let (_dir,state) = fixture();
-    let tema = PublishedTheme{accent:"roxo".into(),theme:"claro".into(),background:"pixel-grid".into(),glass:"forte".into()};
+    let tema = PublishedTheme{accent:"roxo".into(),theme:"claro".into(),background:"pixel-grid".into(),glass:"forte".into(),estilo:"minimalista".into()};
     publish(&state,vec![],vec![],Some(tema.clone())).unwrap();
     publish(&state,vec![],vec![],None).unwrap();
     assert_eq!(state.mobile.workspace.lock().unwrap().theme.as_ref(),Some(&tema));
+}
+
+/// Fork: tema publicado por um PC antigo (sem `estilo`) continua valendo e vira Clássico (vazio).
+#[test] fn tema_sem_estilo_de_pc_antigo_ainda_le() {
+    let tema: PublishedTheme = serde_json::from_str(r#"{"accent":"roxo","theme":"claro","background":"pixel-grid","glass":"forte"}"#).unwrap();
+    assert_eq!(tema.estilo,"");
+    assert_eq!(tema.accent,"roxo");
 }

@@ -247,6 +247,8 @@ export interface PublishedTheme {
   theme: string;
   background: string;
   glass: string;
+  /** Fork: estilo da interface, para o celular seguir o PC. */
+  estilo: string;
 }
 
 /**

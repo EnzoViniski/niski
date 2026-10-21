@@ -520,3 +520,36 @@
 :root[data-estilo="minimalista"] .conversa-controles-menu button:hover { background: rgb(var(--c-overlay) / .07); }
 :root[data-estilo="minimalista"] .conversa-terminal-painel { border-color: rgb(var(--c-border-subtle)); border-radius: var(--m-r-painel); box-shadow: var(--m-sombra-menu); }
 :root[data-estilo="minimalista"] .conversa-terminal-painel .w-terminal-tela { border-radius: var(--m-r-ctl); }
+
+/* ── Celular (`src/mobile`, servido pelo engine; o PC publica o estilo junto com o tema) ───────── */
+:root[data-estilo="minimalista"] .m-topo { box-shadow: 0 1px 0 rgb(var(--c-border-subtle)); border: 0; border-radius: 0; background-color: rgb(var(--c-bg-primary)); }
+:root[data-estilo="minimalista"] .m-topo-titulo { font-weight: 600; }
+:root[data-estilo="minimalista"] .m-lista { gap: .5rem; padding: 0; }
+:root[data-estilo="minimalista"] .m-card { border-radius: var(--m-r-cartao); transition: background-color 140ms ease; }
+:root[data-estilo="minimalista"] .m-card:active { transform: none; box-shadow: none; background-color: rgb(var(--c-overlay) / .06); }
+:root[data-estilo="minimalista"] .m-card-icone { border: 0; border-radius: 10px; }
+:root[data-estilo="minimalista"] .m-card-titulo { font-weight: 600; }
+:root[data-estilo="minimalista"] .m-badge { border: 0; border-radius: 999px; padding: .0625rem .5rem; font-weight: 600; letter-spacing: normal; text-transform: none; }
+:root[data-estilo="minimalista"] .m-dot { border-radius: 50%; }
+:root[data-estilo="minimalista"] :is(.m-secao-titulo, .m-rotulo, .m-resumo-rotulo, .m-uso .w-rotulo) {
+  font-weight: 600; letter-spacing: normal; text-transform: none; font-size: .75rem;
+}
+:root[data-estilo="minimalista"] .m-resumo-item { border-radius: var(--m-r-cartao); }
+:root[data-estilo="minimalista"] .m-resumo-item[aria-pressed="true"] { outline: 0; box-shadow: inset 0 0 0 1.5px rgb(var(--m-tom)); }
+:root[data-estilo="minimalista"] .m-resumo-num { font-weight: 700; }
+:root[data-estilo="minimalista"] :is(.m-aviso, .m-alerta) { padding: .5rem .75rem; }
+:root[data-estilo="minimalista"] .m-aviso { background: rgb(var(--c-warning) / .1); }
+:root[data-estilo="minimalista"] .m-alerta { background: rgb(var(--c-danger) / .1); }
+:root[data-estilo="minimalista"] .m-busca { border-radius: 999px; padding-inline: 1rem; }
+:root[data-estilo="minimalista"] .m-barra-conversa { border-radius: var(--m-r-cartao); }
+:root[data-estilo="minimalista"] .m-uso .w-uso-conta { border: 1px solid rgb(var(--c-border-subtle)); border-radius: var(--m-r-cartao); box-shadow: none; }
+:root[data-estilo="minimalista"] .m-uso .w-uso-barra { border-radius: 999px; }
+:root[data-estilo="minimalista"] .m-uso .w-uso-preenchido { border-radius: 999px; }
+:root[data-estilo="minimalista"] .m-uso .w-uso-atualizar { border: 0; border-radius: 999px; font-weight: 500; }
+:root[data-estilo="minimalista"] .m-atalhos .btn { background-color: rgb(var(--c-overlay) / .06); color: rgb(var(--c-text-primary)); }
+:root[data-estilo="minimalista"] .lista-tarefas { border-color: rgb(var(--c-border-subtle)); border-radius: var(--m-r-cartao); overflow: hidden; }
+:root[data-estilo="minimalista"] .lista-tarefas-contagem { font-family: var(--m-mono); }
+:root[data-estilo="minimalista"] .lista-tarefas-barra { border-radius: 999px; overflow: hidden; }
+:root[data-estilo="minimalista"] .lista-tarefas-barra::-webkit-progress-bar,
+:root[data-estilo="minimalista"] .lista-tarefas-barra::-webkit-progress-value { border-radius: 999px; }
+:root[data-estilo="minimalista"] .tarefa-marca { border-radius: 5px; }

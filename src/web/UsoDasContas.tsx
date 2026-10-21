@@ -38,7 +38,7 @@ function Janela({ rotulo, janela }: { rotulo: string; janela: UsageWindow | null
  * Uso de cada conta, como o rodapé do app do PC: janela de 5 h e semanal, com as mesmas cores (verde
  * até 60%, amarelo até 85%, vermelho acima). A conta da conversa aberta vem destacada.
  */
-export function UsoDasContas({ contaAtiva }: { contaAtiva: string | null }) {
+export function UsoDasContas({ contaAtiva, vazio = null }: { contaAtiva: string | null; vazio?: React.ReactNode }) {
   const [contas, setContas] = useState<Conta[]>([]);
   const [atualizando, setAtualizando] = useState<Set<string>>(new Set());
   const [erros, setErros] = useState<Record<string, string>>({});
@@ -66,7 +66,8 @@ export function UsoDasContas({ contaAtiva }: { contaAtiva: string | null }) {
     setContas(Array.isArray(lista) ? lista : []);
   }, () => undefined, [], INTERVALO_MS);
 
-  if (contas.length === 0) return null;
+  // Fork: o celular mostra um aviso no lugar (`vazio`); a lateral da web segue sem nada.
+  if (contas.length === 0) return <>{vazio}</>;
   // Só Claude e Codex sabem reler o uso na hora; o Cursor não tem leitura.
   const atualizaveis = contas.filter((conta) => AGENTES_COM_USO.includes(conta.provider));
   const todasLendo = atualizaveis.length > 0 && atualizaveis.every((conta) => atualizando.has(conta.id));
