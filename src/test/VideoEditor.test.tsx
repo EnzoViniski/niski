@@ -30,6 +30,9 @@ vi.mock("@hyperframes/player", () => {
   class PlayerFalso extends HTMLElement {
     static get observedAttributes() { return ["src"]; }
     paused = true; ready = false; currentTime = 0; duration = 0; playbackRate = 1; muted = false;
+    // Fork (edição na mão): o iframe da composição, de onde vêm as mensagens da ponte.
+    iframeElement = document.createElement("iframe");
+    connectedCallback() { if (!this.iframeElement.isConnected) this.appendChild(this.iframeElement); }
     attributeChangedCallback() {
       this.ready = true; this.duration = 15;
       queueMicrotask(() => this.dispatchEvent(new CustomEvent("ready", { detail: { duration: 15 } })));
@@ -186,6 +189,41 @@ describe("Edição de vídeo", () => {
     expect(disco.arquivos.get(`${pid}/BRIEF.md`)).toContain("Reels da Medza");
     fireEvent.click(await screen.findByRole("switch", { name: "ligada" }));
     await waitFor(() => expect(JSON.parse(disco.arquivos.get(`${pid}/projeto.json`)!).pastasDeReferencia).toEqual([]));
+  });
+
+  it("edição na mão: escolher no vídeo abre as propriedades e mexer grava só o style do elemento", async () => {
+    const pid = await criarProjeto();
+    localStorage.setItem("medza.video.ultimo", pid);
+    render(<VideoView onClose={() => undefined} continuar />);
+    await screen.findByLabelText("Timeline");
+    const player = await waitFor(() => { const p = document.querySelector("hyperframes-player") as HTMLElement & { iframeElement: HTMLIFrameElement }; expect(p?.iframeElement?.contentWindow).toBeTruthy(); return p; });
+    const janela = player.iframeElement.contentWindow!;
+    const enviadas: unknown[] = [];
+    janela.postMessage = ((m: unknown) => { enviadas.push(m); }) as typeof janela.postMessage;
+    // O título é a tag de abertura nº 9 do modelo (html, head, meta, meta, title, script, style, body, div, h1).
+    const html = disco.arquivos.get(`${pid}/index.html`)!;
+    const ordem = [...html.matchAll(/<(?!\/|!)[a-z0-9]+/gi)].findIndex((m) => m[0] === "<h1");
+    const el = { ref: `index.html:${ordem}`, id: "titulo", tag: "h1", rect: { x: 10, y: 20, w: 300, h: 80 }, texto: "Lançamento", fonte: 92, peso: "700", cor: "rgb(255, 255, 255)", fundo: "rgba(0, 0, 0, 0)", translate: "", scale: "", rotate: "", visivel: true };
+    await act(async () => { window.dispatchEvent(new MessageEvent("message", { source: janela, data: { medza: "ponte", tipo: "selecionar", el } })); });
+    // Mensagem que não veio do iframe do player é ignorada.
+    await act(async () => { window.dispatchEvent(new MessageEvent("message", { source: window, data: { medza: "ponte", tipo: "selecionar", el: { ...el, texto: "falso" } } })); });
+
+    const x = await screen.findByRole("textbox", { name: "Posição X" });
+    expect(screen.getByRole("textbox", { name: "Texto" })).toHaveValue("Lançamento");
+    fireEvent.change(x, { target: { value: "120" } });
+    fireEvent.blur(x);
+    await waitFor(() => expect(disco.arquivos.get(`${pid}/index.html`)).toContain('style="translate: 120px 0px;"'));
+    expect(enviadas).toContainEqual({ tipo: "estilo", ref: el.ref, props: { translate: "120px 0px" }, medza: "editor" });
+    const gravou = disco.chamadas.find((c) => c.cmd === "videos_gravar" && c.args.arquivo === "index.html");
+    expect(gravou?.args.motivo).toMatch(/Movi/);
+
+    const texto = screen.getByRole("textbox", { name: "Texto" });
+    fireEvent.change(texto, { target: { value: "Promo <nova>" } });
+    fireEvent.blur(texto);
+    await waitFor(() => expect(disco.arquivos.get(`${pid}/index.html`)).toContain(">Promo &lt;nova&gt;</h1>"));
+    // O resto do arquivo não mudou (só o style e o texto do título).
+    const depois = disco.arquivos.get(`${pid}/index.html`)!;
+    expect(depois.replace(' style="translate: 120px 0px;"', "").replace("Promo &lt;nova&gt;", "Lançamento")).toBe(html);
   });
 
   it("exporta local com o formato escolhido", async () => {

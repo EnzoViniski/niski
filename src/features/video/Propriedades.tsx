@@ -53,7 +53,7 @@ export function Propriedades({ comp, clipe, duracoes, bloqueado, onMudar, onDura
             <p className="video-prop-info">{comp.raiz.largura}×{comp.raiz.altura} · {comp.raiz.fps} quadros por segundo · {comp.clipes.length} clipe{comp.clipes.length === 1 ? "" : "s"}</p>
           </>
         ) : <p className="video-prop-info">A composição não tem root. Peça ao agente para arrumar.</p>}
-        <p className="video-prop-dica">Clique num clipe da timeline para ver e mudar início, duração, corte e volume. Espaço toca e pausa; ← → andam um quadro; S divide na agulha; ⌫ apaga; ⌘Z desfaz.</p>
+        <p className="video-prop-dica">Clique num elemento do vídeo para mover, mudar tamanho, cor e texto, ou num clipe da timeline para mudar início, duração, corte e volume. Espaço toca e pausa; ← → andam um quadro; S divide na agulha; ⌫ apaga; ⌘Z desfaz.</p>
       </div>
     );
   }

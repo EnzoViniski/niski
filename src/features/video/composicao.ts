@@ -469,3 +469,79 @@ function pendurarNaRaiz(html: string, comp: Composicao, elemento: string, fim: n
   const trocas: Troca[] = [{ inicio: antes, fim: ponto, texto: `${recuo}  ${elemento}\n${recuo}` }, ...trocasDaDuracaoDaRaiz(html, comp, fim)];
   return aplicar(html, trocas);
 }
+
+// ——— Fork (edição na mão no preview): um elemento pela posição da tag no arquivo ———
+// O preview recebe cada elemento marcado com `data-medza-o="<arquivo>:<n>"` (ver
+// `src-tauri/src/videos/ponte_do_editor.rs`, mesma contagem de `lerTags`). Aqui o editor acha a tag
+// `n` no texto e muda só o `style` dela ou o texto de dentro.
+
+export interface RefDoElemento { arquivo: string; ordem: number }
+
+export function lerRef(ref: string | null | undefined): RefDoElemento | null {
+  const m = /^(index\.html|compositions\/[A-Za-z0-9_-]{1,64}\.html):(\d{1,6})$/.exec(ref ?? "");
+  return m ? { arquivo: m[1], ordem: Number(m[2]) } : null;
+}
+
+function tagsDeAbertura(html: string) { return lerTags(html).filter((t) => t.tipo === "abre"); }
+
+/** Posição (`n`) da tag de abertura que começa em `inicio`. */
+export function ordemDaTag(html: string, inicio: number) { return tagsDeAbertura(html).findIndex((t) => t.inicio === inicio); }
+
+export function refDoClipe(html: string, clipe: Clipe): string | null {
+  const n = ordemDaTag(html, clipe.posicao.inicio);
+  return n < 0 ? null : `index.html:${n}`;
+}
+
+/** `style="a: 1; b: 2"` → mapa (ordem preservada). */
+export function lerEstilo(texto: string): Map<string, string> {
+  const mapa = new Map<string, string>();
+  for (const parte of texto.split(";")) {
+    const i = parte.indexOf(":");
+    if (i <= 0) continue;
+    const nome = parte.slice(0, i).trim().toLowerCase();
+    const valor = parte.slice(i + 1).trim();
+    if (nome && valor) mapa.set(nome, valor);
+  }
+  return mapa;
+}
+
+const PROPRIEDADE_SEGURA = /^-?[a-z][a-z-]{0,40}$/;
+const VALOR_SEGURO = /^[^;{}<>"\\]{0,200}$/;
+
+/** Troca, põe ou tira (`null`/"") propriedades do `style` do elemento `ordem`. O resto da tag fica. */
+export function definirEstilo(html: string, ordem: number, props: Record<string, string | null>) {
+  const tag = tagsDeAbertura(html)[ordem];
+  if (!tag) throw new Error("O elemento mudou de lugar no arquivo. Recarregue a composição.");
+  const estilo = lerEstilo(tag.atributos.get("style")?.valor ?? "");
+  for (const [nome, valor] of Object.entries(props)) {
+    if (!PROPRIEDADE_SEGURA.test(nome)) throw new Error("Propriedade inválida.");
+    if (valor === null || valor.trim() === "") estilo.delete(nome);
+    else if (!VALOR_SEGURO.test(valor)) throw new Error("Valor inválido.");
+    else estilo.set(nome, valor.trim());
+  }
+  const texto = [...estilo].map(([n, v]) => `${n}: ${v}`).join("; ");
+  return aplicar(html, trocasDeAtributos(html, tag, { style: texto ? `${texto};` : null }));
+}
+
+/** Elemento sem outras tags dentro (só texto): dá para trocar o texto direto. */
+export function soTexto(html: string, ordem: number) {
+  const tags = lerTags(html);
+  const abre = tags.filter((t) => t.tipo === "abre")[ordem];
+  if (!abre || abre.autoFechada) return false;
+  const i = tags.indexOf(abre);
+  const fim = fimDoElemento(tags, i);
+  return !tags.some((t, k) => k > i && t.inicio < fim && t.tipo === "abre");
+}
+
+function escaparTexto(texto: string) { return texto.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+/** Troca o texto de dentro de um elemento que só tem texto. */
+export function definirTexto(html: string, ordem: number, texto: string) {
+  const tags = lerTags(html);
+  const abre = tags.filter((t) => t.tipo === "abre")[ordem];
+  if (!abre || !soTexto(html, ordem)) throw new Error("Este elemento tem outros elementos dentro; peça ao agente para mudar o texto.");
+  const fim = fimDoElemento(tags, tags.indexOf(abre));
+  const fecha = tags.find((t) => t.tipo === "fecha" && t.fim === fim);
+  if (!fecha) throw new Error("Não achei o fim do elemento.");
+  return aplicar(html, [{ inicio: abre.fim, fim: fecha.inicio, texto: escaparTexto(texto) }]);
+}

@@ -11,7 +11,8 @@ import { TIPO_DE_ARRASTE_DA_MIDIA } from "./Timeline";
 import type { AcoesDoProjeto } from "./useProjeto";
 import type { LinkDeReferencia, Midia, Papel, PastaDeReferencia } from "./tipos";
 
-type Aba = "midia" | "referencias" | "briefing";
+export type AbaDaBiblioteca = "propriedades" | "midia" | "referencias" | "briefing";
+type Aba = AbaDaBiblioteca;
 
 export function IconeDaMidia({ tipo, tamanho = 16 }: { tipo: string; tamanho?: number }) {
   const Icone = tipo === "video" ? VideoIcon : tipo === "imagem" ? ImageIcon : tipo === "audio" ? MusicIcon : tipo === "fonte" ? NoteIcon : FileIcon;
@@ -26,11 +27,15 @@ export function Miniatura({ midia, url }: { midia: Pick<Midia, "tipo" | "nome">;
   return <span className="video-mini is-icone"><IconeDaMidia tipo={midia.tipo} tamanho={20} /></span>;
 }
 
-export function Biblioteca({ projeto, acoes, bloqueado, onPorNaTimeline }: {
+export function Biblioteca({ projeto, acoes, bloqueado, onPorNaTimeline, aba: abaDeFora, onAba, propriedades }: {
   projeto: string; acoes: AcoesDoProjeto; bloqueado: boolean; onPorNaTimeline: (m: Midia) => void;
+  /** Fork (0.16): aba controlada pelo editor (escolher algo no vídeo abre "Propriedades"). */
+  aba?: Aba; onAba?: (a: Aba) => void; propriedades?: React.ReactNode;
 }) {
   const { estado } = acoes;
-  const [aba, setAba] = useState<Aba>("midia");
+  const [abaPropria, setAbaPropria] = useState<Aba>("midia");
+  const aba = abaDeFora ?? abaPropria;
+  const setAba = onAba ?? setAbaPropria;
   const [papel, setPapel] = useState<Papel>("usar");
   const area = useRef<HTMLDivElement>(null);
   const arrastando = useSoltarArquivos(area, (caminhos) => { if (!bloqueado) void acoes.importar(caminhos, papel); }, aba === "midia");
@@ -38,7 +43,7 @@ export function Biblioteca({ projeto, acoes, bloqueado, onPorNaTimeline }: {
   return (
     <div className="video-bib">
       <div className="video-abas" role="tablist" aria-label="Biblioteca">
-        {([["midia", "Mídia"], ["referencias", "Referências"], ["briefing", "Briefing"]] as const).map(([v, r]) => (
+        {([...(propriedades ? [["propriedades", "Propriedades"]] as const : []), ["midia", "Mídia"], ["referencias", "Referências"], ["briefing", "Briefing"]] as const).map(([v, r]) => (
           <button key={v} type="button" role="tab" aria-selected={aba === v} className={`video-aba${aba === v ? " is-ativa" : ""}`} onClick={() => setAba(v)}>{r}</button>
         ))}
       </div>
@@ -78,6 +83,7 @@ export function Biblioteca({ projeto, acoes, bloqueado, onPorNaTimeline }: {
           </ul>
         </div>
       )}
+      {aba === "propriedades" && propriedades && <div className="video-bib-corpo">{propriedades}</div>}
       {aba === "referencias" && <AbaDeReferencias projeto={projeto} acoes={acoes} bloqueado={bloqueado} />}
       {aba === "briefing" && <AbaDoBriefing acoes={acoes} bloqueado={bloqueado} />}
     </div>

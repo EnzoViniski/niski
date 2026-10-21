@@ -3,7 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/ui";
 import { ArrowLeftIcon, ClockIcon, PlayIcon, StopIcon } from "../../components/ui/PixelIcon";
 import * as disco from "./armazenamento";
-import { Biblioteca } from "./Biblioteca";
+import { Biblioteca, type AbaDaBiblioteca } from "./Biblioteca";
+import { EdicaoNoPreview, type Retangulo } from "./EdicaoNoPreview";
+import { PropriedadesDoElemento } from "./PropriedadesDoElemento";
 import { ChatDoEditor } from "./ChatDoEditor";
 import { useAgenteNoProjeto } from "./conversaDoVideo";
 import { PastaDoComputador } from "./PastaDoComputador";
@@ -12,11 +14,12 @@ import type { AgentView } from "../../types/settings";
 import {
   alternarOculto, apagar, aparar, definirDuracaoTotal, dividir, duplicar, duracaoVisivel, inserirMidia, inserirTexto, lerComposicao,
   moverClipe, mudarClipe, type Composicao,
+  definirEstilo, definirTexto, lerRef, refDoClipe,
 } from "./composicao";
 import { carregarEndereco, urlDoProjeto } from "./enderecos";
 import { Exportar } from "./Exportar";
 import { duracaoDaMidia } from "./midiaNoNavegador";
-import { Preview, type ControleDoPreview } from "./Preview";
+import { Preview, type ControleDoPreview, type ElementoNoPreview, type MensagemDaPonte } from "./Preview";
 import { Propriedades } from "./Propriedades";
 import { criarRelogio, formatarTempo, useRelogio, type RelogioDoPreview } from "./relogio";
 import { Timeline, type Colega } from "./Timeline";
@@ -72,6 +75,13 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
   const [versoes, setVersoes] = useState<VersaoDoHistorico[] | null>(null);
   const [textoNovo, setTextoNovo] = useState<string | null>(null);
   const [tokenPronto, setTokenPronto] = useState(false);
+  // Fork (0.16, edição na mão): elemento escolhido no vídeo, o que está sob o mouse e a aba da esquerda.
+  const [elemento, setElemento] = useState<ElementoNoPreview | null>(null);
+  const [passando, setPassando] = useState<Retangulo | null>(null);
+  const [editandoTexto, setEditandoTexto] = useState(false);
+  const [abaEsquerda, setAbaEsquerda] = useState<AbaDaBiblioteca>("propriedades");
+  const elementoRef = useRef<ElementoNoPreview | null>(null);
+  elementoRef.current = elemento;
 
   useEffect(() => { void carregarEndereco().then(() => setTokenPronto(true)).catch(() => undefined); }, []);
 
@@ -121,6 +131,66 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
     } catch (e) { setAviso(e instanceof Error ? e.message : String(e)); }
   }, [acoes, agente.rebase, bloqueado, estado.html]);
 
+  // ——— Fork (0.16): edição na mão no vídeo ———
+  const aoVivo = useCallback((ref: string, props: Record<string, string | null>) => {
+    preview.current?.paraPonte({ tipo: "estilo", ref, props });
+  }, []);
+  const gravarEstilo = useCallback((ref: string, props: Record<string, string | null>, motivo: string) => {
+    const r = lerRef(ref);
+    if (!r || bloqueado) return;
+    aoVivo(ref, props);
+    void acoes.editarArquivo(r.arquivo, (h) => definirEstilo(h, r.ordem, props), motivo, { recarregarPreview: false }).then(agente.rebase).catch((e) => setAviso(String(e)));
+  }, [acoes, agente.rebase, aoVivo, bloqueado]);
+  const gravarTexto = useCallback((ref: string, texto: string) => {
+    const r = lerRef(ref);
+    if (!r || bloqueado) return;
+    try {
+      // Confere antes (só texto dentro) para não mostrar no vídeo algo que não vai gravar.
+      if (r.arquivo === "index.html" && estado.html !== null) definirTexto(estado.html, r.ordem, texto);
+      preview.current?.paraPonte({ tipo: "texto", ref, texto });
+      void acoes.editarArquivo(r.arquivo, (h) => definirTexto(h, r.ordem, texto), `Texto: “${texto.slice(0, 30)}”`, { recarregarPreview: false }).then(agente.rebase);
+    } catch (e) { setAviso(e instanceof Error ? e.message : String(e)); }
+  }, [acoes, agente.rebase, bloqueado, estado.html]);
+  const refDoSelecionado = useCallback((chave: string | null) => {
+    const c = chave ? comp.clipes.find((x) => x.chave === chave) : null;
+    return c && estado.html ? refDoClipe(estado.html, c) : null;
+  }, [comp.clipes, estado.html]);
+  const aoPonte = useCallback((m: MensagemDaPonte) => {
+    if (m.tipo === "selecionar" || m.tipo === "editarTexto") {
+      const el = m.el ?? null;
+      setElemento(el);
+      setEditandoTexto(m.tipo === "editarTexto" && el?.texto !== null && !!el);
+      if (el) setAbaEsquerda("propriedades");
+      // O clipe da timeline que é este elemento fica selecionado junto.
+      const ref = el?.ref;
+      const c = ref && estado.html ? comp.clipes.find((x) => refDoClipe(estado.html!, x) === ref) : null;
+      setSelecionado(c ? c.chave : null);
+    } else if (m.tipo === "medida") {
+      if (m.el && (elementoRef.current?.ref === m.el.ref || m.ref === m.el.ref)) setElemento(m.el);
+    } else if (m.tipo === "passar") {
+      setPassando(m.el?.rect ?? null);
+    }
+  }, [comp.clipes, estado.html]);
+  // Clique na timeline escolhe o mesmo elemento no vídeo; a agulha andando atualiza a caixa.
+  const selecionarClipe = useCallback((chave: string | null) => {
+    setSelecionado(chave);
+    if (chave) setAbaEsquerda("propriedades");
+    const ref = refDoSelecionado(chave);
+    if (ref) preview.current?.paraPonte({ tipo: "medir", ref }); else setElemento(null);
+  }, [refDoSelecionado]);
+  useEffect(() => {
+    let ultimo = -1;
+    return relogio.assinar(() => {
+      const ref = elementoRef.current?.ref;
+      const t = relogio.ler().tempo;
+      if (!ref || Math.abs(t - ultimo) < 0.08) return;
+      ultimo = t;
+      preview.current?.paraPonte({ tipo: "medir", ref });
+    });
+  }, [relogio]);
+  // Preview recarregado (outra versão): a seleção some (o elemento pode nem existir mais).
+  useEffect(() => { setElemento(null); setPassando(null); setEditandoTexto(false); }, [estado.versaoDoPreview]);
+
   const porNaTimeline = useCallback(async (m: Midia, inicio?: number, faixa?: number) => {
     const t = inicio ?? relogio.ler().tempo;
     const url = urlDoProjeto(id, m.arquivo);
@@ -156,7 +226,7 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
       else if (e.key === "End") { e.preventDefault(); preview.current?.irPara(relogio.ler().duracao); }
       else if (e.key.toLowerCase() === "s" && clipe) { e.preventDefault(); dividirNaAgulha(); }
       else if ((e.key === "Backspace" || e.key === "Delete") && clipe) { e.preventDefault(); apagarSelecionado(); }
-      else if (e.key === "Escape") setSelecionado(null);
+      else if (e.key === "Escape") { setSelecionado(null); setElemento(null); }
     };
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
@@ -200,12 +270,32 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
       </header>
 
       <aside className="video-coluna is-esquerda">
-        <Biblioteca projeto={id} acoes={acoes} bloqueado={bloqueado} onPorNaTimeline={(m) => void porNaTimeline(m)} />
+        <Biblioteca projeto={id} acoes={acoes} bloqueado={bloqueado} onPorNaTimeline={(m) => void porNaTimeline(m)}
+          aba={abaEsquerda} onAba={setAbaEsquerda}
+          propriedades={<>
+            {elemento && (
+              <PropriedadesDoElemento elemento={elemento} bloqueado={bloqueado} onFechar={() => setElemento(null)}
+                onEstilo={(props, motivo) => gravarEstilo(elemento.ref, props, motivo)} onTexto={(t) => gravarTexto(elemento.ref, t)} />
+            )}
+            <Propriedades comp={comp} clipe={clipe} duracoes={duracoes} bloqueado={bloqueado}
+              onMudar={(chave, mudancas, motivo, novoFim) => editar((h) => mudarClipe(h, chave, mudancas, novoFim), motivo)}
+              onDuracaoTotal={(s) => editar((h) => definirDuracaoTotal(h, s), `Duração total: ${s} s`)}
+              onDividir={dividirNaAgulha}
+              onDuplicar={() => clipe && editar((h) => duplicar(h, clipe.chave, duracoes), `Dupliquei “${clipe.rotulo}”`)}
+              onApagar={apagarSelecionado}
+              onOcultar={() => clipe && editar((h) => alternarOculto(h, clipe.chave), clipe.oculto ? `Mostrei “${clipe.rotulo}”` : `Escondi “${clipe.rotulo}”`)} />
+          </>} />
       </aside>
 
       <main className="video-centro">
         {raiz ? (
-          <Preview ref={preview} projeto={id} versao={estado.versaoDoPreview} largura={raiz.largura} altura={raiz.altura} fps={raiz.fps} relogio={relogio} onErro={setErroDoPreview} />
+          <Preview ref={preview} projeto={id} versao={estado.versaoDoPreview} largura={raiz.largura} altura={raiz.altura} fps={raiz.fps} relogio={relogio} onErro={setErroDoPreview}
+            onPonte={aoPonte}
+            sobreposicao={(escala) => (
+              <EdicaoNoPreview escala={escala} elemento={elemento} passando={passando} editandoTexto={editandoTexto}
+                onAoVivo={aoVivo} onGravar={gravarEstilo} onTexto={gravarTexto}
+                onEditarTexto={() => setEditandoTexto(true)} onFecharTexto={() => setEditandoTexto(false)} />
+            )} />
         ) : <p className="video-erro">A composição não tem root (`data-composition-id`). Peça ao agente para arrumar o index.html.</p>}
         <Transporte relogio={relogio} controle={preview} fps={raiz?.fps ?? 30}
           onTexto={() => setTextoNovo("")} desligado={bloqueado} />
@@ -226,17 +316,10 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
             <button type="button" className="video-mini-botao" aria-label="Fechar aviso" onClick={() => { setAviso(null); acoes.limparErro(); setErroDoPreview(null); }}>×</button>
           </p>
         )}
-        <Propriedades comp={comp} clipe={clipe} duracoes={duracoes} bloqueado={bloqueado}
-          onMudar={(chave, mudancas, motivo, novoFim) => editar((h) => mudarClipe(h, chave, mudancas, novoFim), motivo)}
-          onDuracaoTotal={(s) => editar((h) => definirDuracaoTotal(h, s), `Duração total: ${s} s`)}
-          onDividir={dividirNaAgulha}
-          onDuplicar={() => clipe && editar((h) => duplicar(h, clipe.chave, duracoes), `Dupliquei “${clipe.rotulo}”`)}
-          onApagar={apagarSelecionado}
-          onOcultar={() => clipe && editar((h) => alternarOculto(h, clipe.chave), clipe.oculto ? `Mostrei “${clipe.rotulo}”` : `Escondi “${clipe.rotulo}”`)} />
       </main>
 
       <section className="video-rodape">
-        <Timeline comp={comp} duracoes={duracoes} relogio={relogio} selecionado={selecionado} onSelecionar={setSelecionado}
+        <Timeline comp={comp} duracoes={duracoes} relogio={relogio} selecionado={selecionado} onSelecionar={selecionarClipe}
           onIrPara={(t) => preview.current?.irPara(t)} somenteLeitura={bloqueado} colegas={colaboracao?.colegas}
           onMover={(chave, inicio, faixa) => editar((h) => moverClipe(h, chave, inicio, faixa, duracoes), `Movi “${comp.clipes.find((c) => c.chave === chave)?.rotulo ?? chave}” para ${formatarTempo(inicio)}`)}
           onAparar={(chave, lado, t) => editar((h) => aparar(h, chave, lado, t, duracoes), `Cortei ${lado === "inicio" ? "o começo" : "o fim"} de “${comp.clipes.find((c) => c.chave === chave)?.rotulo ?? chave}”`)}

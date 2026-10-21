@@ -90,8 +90,10 @@ export function useProjeto(id: string) {
   }, [id, recarregar, mudar]);
 
   /** Grava a composição com um motivo (vira versão para desfazer). */
-  const editarHtml = useCallback(async (novo: string, motivo: string) => {
+  const editarHtml = useCallback(async (novo: string, motivo: string, opcoes: { recarregarPreview?: boolean } = {}) => {
     if (novo === atual.current.html) return;
+    // Fork (edição na mão): mudança de estilo/texto já está no preview pela ponte; recarregar piscaria.
+    const versaoDoPreview = atual.current.versaoDoPreview + (opcoes.recarregarPreview === false ? 0 : 1);
     // Fork: o agente pode ter mudado o arquivo agora há pouco. Gravar por cima apagaria a edição dele.
     const noDisco = await disco.lerArquivo(id, "index.html").catch(() => null);
     if (noDisco !== null && htmlDoDisco.current !== null && noDisco !== htmlDoDisco.current) {
@@ -100,7 +102,7 @@ export function useProjeto(id: string) {
       return;
     }
     const anterior = atual.current.html;
-    mudar({ html: novo, versaoDoPreview: atual.current.versaoDoPreview + 1 });
+    mudar({ html: novo, versaoDoPreview });
     try {
       const n = await disco.gravarArquivo(id, "index.html", novo, motivo);
       htmlDoDisco.current = novo;
@@ -111,6 +113,24 @@ export function useProjeto(id: string) {
       mudar({ html: anterior, erro: `Não salvei a mudança: ${texto(e)}`, versaoDoPreview: atual.current.versaoDoPreview + 1 });
     }
   }, [id, mudar, recarregar]);
+
+  /** Fork (edição na mão): edita `index.html` ou uma sub-composição (`compositions/*.html`), com versão. */
+  const editarArquivo = useCallback(async (rel: string, op: (texto: string) => string, motivo: string, opcoes: { recarregarPreview?: boolean } = {}) => {
+    if (rel === "index.html") {
+      const html = atual.current.html;
+      if (html === null) return;
+      await editarHtml(op(html), motivo, opcoes);
+      return;
+    }
+    try {
+      const texto = await disco.lerArquivo(id, rel);
+      if (texto === null) throw new Error("Esse arquivo da composição não existe mais.");
+      const n = await disco.gravarArquivo(id, rel, op(texto), motivo);
+      if (n !== null) desfazer.current.push(n);
+      refazer.current = [];
+      mudar(opcoes.recarregarPreview === false ? {} : { versaoDoPreview: atual.current.versaoDoPreview + 1 });
+    } catch (e) { mudar({ erro: texto(e) }); }
+  }, [id, editarHtml, mudar]);
 
   const gravarBrief = useCallback(async (novo: string, motivo = "Briefing editado") => {
     if (novo === atual.current.brief) return;
@@ -247,7 +267,7 @@ export function useProjeto(id: string) {
   }, [id, recarregar, mudar]);
 
   return {
-    estado, recarregar, editarHtml, gravarBrief, mudarProjeto, importar, removerMidia, mudarMidia, mudarLinks, aplicarPasta, configurarPastas,
+    estado, recarregar, editarHtml, editarArquivo, gravarBrief, mudarProjeto, importar, removerMidia, mudarMidia, mudarLinks, aplicarPasta, configurarPastas,
     guardarVersao, desfazer: () => voltar("desfazer"), refazer: () => voltar("refazer"), voltarPara,
     limparErro: () => mudar({ erro: null }),
   };

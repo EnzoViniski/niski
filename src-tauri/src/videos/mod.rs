@@ -9,6 +9,7 @@ pub mod agente;
 pub mod arquivos;
 pub mod chat_do_video;
 pub mod midias;
+pub mod ponte_do_editor;
 pub mod processo;
 pub mod projetos;
 pub mod protocolo;

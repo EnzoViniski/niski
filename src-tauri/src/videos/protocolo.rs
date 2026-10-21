@@ -177,7 +177,8 @@ pub fn responder(raiz: &Path, token_esperado: &str, metodo: &str, caminho_da_url
     if do_projeto { cabecalhos.push(("Access-Control-Allow-Origin", "*".into())); }
     if do_projeto && tipo.starts_with("text/html") && tamanho <= super::projetos::TAMANHO_MAXIMO as u64 {
         let Ok(texto) = fs::read_to_string(&alvo) else { return erro(500, "Não consegui ler o arquivo") };
-        let corpo = com_runtime(&texto).into_bytes();
+        // Fork (edição na mão): marcas de posição e a ponte do editor, só na cópia servida.
+        let corpo = super::ponte_do_editor::para_o_preview(&texto, &rel).into_bytes();
         cabecalhos.retain(|(n, _)| *n != "Accept-Ranges");
         cabecalhos.push(("Content-Length", corpo.len().to_string()));
         return Resposta { status: 200, cabecalhos, corpo: if metodo == "HEAD" { Vec::new() } else { corpo } };
@@ -249,7 +250,8 @@ mod testes {
         let r = responder(dir.path(), "tok", "GET", &format!("/tok/p/{id}/"), None);
         assert_eq!(r.status, 200);
         let corpo = String::from_utf8(r.corpo).unwrap();
-        assert_eq!(corpo, format!("<script src=\"{RUNTIME}\"></script><div></div>"));
+        assert!(corpo.starts_with(&format!("<script src=\"{RUNTIME}\"></script><script>")), "runtime primeiro, depois a ponte");
+        assert!(corpo.ends_with("<div data-medza-o=\"index.html:0\"></div>"));
         assert!(r.cabecalhos.iter().any(|(n, v)| *n == "Content-Security-Policy" && v.contains("connect-src medzavideo:")));
         assert!(r.cabecalhos.iter().any(|(n, v)| *n == "Content-Length" && *v == corpo.len().to_string()));
     }
