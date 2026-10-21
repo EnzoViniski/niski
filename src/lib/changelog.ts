@@ -16,6 +16,15 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.16.0",
+    date: "2026-10-21",
+    changes: [
+      "Edição de vídeo: edite na mão direto no vídeo. Clique num texto, logo ou imagem para escolher, arraste para mover, puxe o canto para aumentar ou diminuir e dê dois cliques para trocar o texto. A mudança aparece na hora, sem recarregar.",
+      "Edição de vídeo: nova aba Propriedades à esquerda, com texto, tamanho da letra, cor, posição, tamanho e giro do que você escolheu, além do início, da duração e do volume do clipe. \"Pedir ao agente sobre isto\" escreve na conversa qual elemento você escolheu.",
+      "Edição de vídeo: o vídeo agora ocupa todo o meio da tela, no formato certo. Se ele não abrir, o editor avisa o motivo, tenta de outro jeito e mostra \"Tentar de novo\", em vez de ficar só preto.",
+    ],
+  },
+  {
     version: "0.15.1",
     date: "2026-10-21",
     changes: [
