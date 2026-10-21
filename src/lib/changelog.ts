@@ -16,6 +16,13 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.15.1",
+    date: "2026-10-21",
+    changes: [
+      "\"Na tela\", na barra lateral, ficou mais limpo nos estilos Minimalista e Vidro: um cartão por tela, sem caixas umas dentro das outras, os painéis separados por um fio com o número ao lado, e a tela que está à vista com um brilho suave. No Vidro, os cartões são de vidro.",
+    ],
+  },
+  {
     version: "0.15.0",
     date: "2026-10-21",
     changes: [
