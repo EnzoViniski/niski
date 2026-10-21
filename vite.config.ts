@@ -4,6 +4,8 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "tailwindcss";
 import autoprefixer from "autoprefixer";
 import identidade from "./identidade.json";
+// Fork (energia): reset de variáveis do Tailwind fora das linhas do terminal/editor.
+import { variaveisForaDoTerminal } from "./scripts/postcss/variaveisForaDoTerminal";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -19,7 +21,7 @@ export default defineConfig({
   },
   css: {
     postcss: {
-      plugins: [tailwindcss, autoprefixer],
+      plugins: [tailwindcss, autoprefixer, variaveisForaDoTerminal()],
     },
   },
   clearScreen: false,
