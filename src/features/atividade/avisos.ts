@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { NOME_DO_PRODUTO } from "../../lib/identidade";
 import { useAtividade } from "./atividadeService";
 import { preferenciasDeAvisos, type ItemDeAtividade, type PreferenciasDeAvisos, type SomDoAviso } from "./tipos";
+// Fork (Roadmaps): modo foco filtra para só os avisos urgentes.
+import { preferenciasNoFoco } from "../../lib/modoFoco";
 
 export const EVENTO_AVISO_INTERNO = "medza-aviso-atividade";
 
@@ -42,7 +44,7 @@ async function notificarSistema(enviar: (aviso: { title: string; body: string; s
 
 /** Um lote é resumido depois de aplicar as preferências: tipos desligados nunca entram na conta. */
 export async function enviarAvisos(itens: ItemDeAtividade[], configuracao?: Partial<PreferenciasDeAvisos>) {
-  const preferencias = preferenciasDeAvisos(configuracao);
+  const preferencias = preferenciasNoFoco(preferenciasDeAvisos(configuracao));
   const { getCurrentWindow, UserAttentionType } = await import("@tauri-apps/api/window");
   const janela = getCurrentWindow();
   const emFoco = await janela.isFocused();
@@ -85,7 +87,7 @@ export function useAvisosDeAtividade(enabled: boolean, configuracao?: Partial<Pr
     }
     const novos = itens.filter(item => !notificados.current!.has(item.id));
     notificados.current = new Set(itens.map(item => item.id));
-    const preferencias = preferenciasDeAvisos(configuracao);
+    const preferencias = preferenciasNoFoco(preferenciasDeAvisos(configuracao));
     const avisar: ItemDeAtividade[] = [];
     for (const item of novos) {
       if (!enabled || item.visto || preferencias[item.tipo].quando === "nunca" || pendentes.current.has(item.conversa)) continue;

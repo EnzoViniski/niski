@@ -1,66 +1,54 @@
-// Fork (Roadmaps): conversa com a IA ao lado da trilha (dúvida, aprofundar, exercícios, reajustar).
+// Fork (Roadmaps): conversa com a IA ao lado da trilha (dúvida, aprofundar, exercícios, quiz, reajustar).
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button, Textarea } from "../../components/ui";
 import { adicionarTarefas, aplicarPlano, chaves, lerConversaDoPainel, mensagemNoPainel } from "./acoes";
-import { PedidoEmAndamento, textoDoErro } from "./comuns";
+import { PedidoEmAndamento, linksNoRoadmap, textoDoErro } from "./comuns";
 import { foiCancelado } from "./ia";
-import { lembranca, lembrar, tarefaEmAndamento, useLoja } from "./loja";
+import { acrescentarNaConversa, lembranca, lembrar, tarefaEmAndamento, useLoja } from "./loja";
+import { PEDIDO_DO_QUIZ } from "./prompts";
 import { etapasComProgressoQueSomem, etapasEmOrdem } from "./progresso";
 import type { RoadmapAberto } from "./armazenamento";
 import type { MensagemDoPainel, Plano } from "./tipos";
 
 interface Propostas { plano?: Plano; tarefas?: { etapaId: string; textos: string[] } }
-/** Proposta ainda não aplicada e conversa já lida sobrevivem a fechar e abrir o painel (na mesma execução do app). */
-const propostasPendentes = {
-  get: (id: string) => lembranca<Propostas>(`propostas:${id}`),
-  set: (id: string, p: Propostas) => lembrar(`propostas:${id}`, p),
-};
-const conversas = {
-  has: (id: string) => lembranca(`conversa:${id}`) !== undefined,
-  get: (id: string) => lembranca<MensagemDoPainel[]>(`conversa:${id}`),
-  set: (id: string, m: MensagemDoPainel[]) => lembrar(`conversa:${id}`, m),
-};
 
 const SUGESTOES = ["Explique esta etapa com um exemplo", "Me dê mais exercícios", "Estou atrasado, reajuste o caminho", "Isso ficou fácil, acelere"];
 
-export function PainelDaIa({ r, etapaId }: { r: RoadmapAberto; etapaId?: string }) {
+/** Pedido para mandar assim que o painel abrir (ex.: o quiz da revisão geral). Consumido uma vez. */
+export function pedirAoPainel(id: string, texto: string) { lembrar(`pedido-do-painel:${id}`, texto); }
+
+export function PainelDaIa({ r, etapaId, onAbrirLink }: { r: RoadmapAberto; etapaId?: string; onAbrirLink: (url: string) => void }) {
   useLoja();
   const id = r.meta.id;
-  const [mensagens, setMensagens] = useState<MensagemDoPainel[] | null>(conversas.get(id) ?? null);
+  // Conversa já lida e proposta não aplicada ficam na memória da loja: sobrevivem a fechar o painel.
+  const mensagens = lembranca<MensagemDoPainel[]>(`conversa:${id}`) ?? null;
+  const propostas = lembranca<Propostas>(`propostas:${id}`) ?? {};
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState("");
-  const [propostas, setPropostas] = useState<Propostas>(propostasPendentes.get(id) ?? {});
   const fim = useRef<HTMLDivElement>(null);
   const ocupado = Boolean(tarefaEmAndamento(chaves.painel(id)));
   const etapa = etapaId && r.plano ? etapasEmOrdem(r.plano).find((e) => e.id === etapaId) : undefined;
 
   useEffect(() => {
-    if (conversas.has(id)) return;
-    let vivo = true;
-    void lerConversaDoPainel(id).then((m) => { conversas.set(id, m); if (vivo) setMensagens(m); }).catch((e) => { if (vivo) { setMensagens([]); setErro(textoDoErro(e)); } });
-    return () => { vivo = false; };
+    if (lembranca(`conversa:${id}`)) return;
+    void lerConversaDoPainel(id).then((m) => lembrar(`conversa:${id}`, m)).catch((e) => { lembrar(`conversa:${id}`, []); setErro(textoDoErro(e)); });
   }, [id]);
   useEffect(() => { fim.current?.scrollIntoView?.({ block: "end" }); }, [mensagens?.length, ocupado]);
 
-  const guardarPropostas = (p: Propostas) => { propostasPendentes.set(id, p); setPropostas(p); };
-  const acrescentar = (m: MensagemDoPainel) => {
-    const lista = [...(conversas.get(id) ?? []), m];
-    conversas.set(id, lista);
-    setMensagens(lista);
-  };
+  const guardarPropostas = (p: Propostas) => lembrar(`propostas:${id}`, p);
 
   const enviar = (conteudo: string) => {
     if (!conteudo.trim() || ocupado || r.somenteLeitura) return;
     setTexto(""); setErro("");
-    const historico = conversas.get(id) ?? [];
+    const historico = lembranca<MensagemDoPainel[]>(`conversa:${id}`) ?? [];
     // Aparece na hora; o arquivo recebe a mesma pergunta antes de a IA começar.
-    acrescentar({ de: "eu", texto: conteudo.trim(), em: new Date().toISOString(), ...(etapaId ? { etapaId } : {}) });
+    acrescentarNaConversa(id, { de: "eu", texto: conteudo.trim(), em: new Date().toISOString(), ...(etapaId ? { etapaId } : {}) });
     void mensagemNoPainel(id, conteudo, etapaId, historico).then((resposta) => {
-      acrescentar(resposta.mensagem);
-      const novas: Propostas = { ...propostasPendentes.get(id) };
+      acrescentarNaConversa(id, resposta.mensagem);
+      const novas: Propostas = { ...lembranca<Propostas>(`propostas:${id}`) };
       if (resposta.plano) novas.plano = resposta.plano;
       if (resposta.tarefas && etapaId) novas.tarefas = { etapaId, textos: resposta.tarefas };
       guardarPropostas(novas);
@@ -68,11 +56,20 @@ export function PainelDaIa({ r, etapaId }: { r: RoadmapAberto; etapaId?: string 
   };
   const submeter = (e: FormEvent) => { e.preventDefault(); enviar(texto); };
 
+  // Pedido deixado por outro botão (quiz): manda quando a conversa já foi lida.
+  useEffect(() => {
+    const pedido = lembranca<string>(`pedido-do-painel:${id}`);
+    if (!pedido || mensagens === null || ocupado) return;
+    lembrar(`pedido-do-painel:${id}`, undefined);
+    enviar(pedido);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, mensagens === null, ocupado]);
+
   const somem = propostas.plano && r.plano ? etapasComProgressoQueSomem(r.plano, propostas.plano, r.progresso) : [];
   const etapasNoNovo = propostas.plano ? etapasEmOrdem(propostas.plano).length : 0;
 
   return (
-    <div className="roadmap-ia">
+    <div className="roadmap-ia" data-links-proprios onClickCapture={linksNoRoadmap(onAbrirLink)}>
       <div className="roadmap-ia-mensagens" aria-live="polite">
         {mensagens === null ? <p className="text-xs text-text-muted">Abrindo a conversa…</p>
           : mensagens.length === 0 ? <p className="text-xs text-text-muted">Pergunte qualquer coisa sobre o caminho{etapa ? ` ou sobre “${etapa.titulo}”` : ""}.</p>
@@ -117,7 +114,7 @@ export function PainelDaIa({ r, etapaId }: { r: RoadmapAberto; etapaId?: string 
       {erro && <p role="alert" className="roadmap-erro">{erro}</p>}
       {!ocupado && mensagens?.length === 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {SUGESTOES.map((s) => <Button key={s} size="sm" variant="ghost" onClick={() => enviar(s)}>{s}</Button>)}
+          {[...SUGESTOES, "Quiz de revisão"].map((s) => <Button key={s} size="sm" variant="ghost" onClick={() => enviar(s === "Quiz de revisão" ? PEDIDO_DO_QUIZ : s)}>{s}</Button>)}
         </div>
       )}
       <form className="space-y-2" onSubmit={submeter}>

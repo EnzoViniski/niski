@@ -7,8 +7,10 @@ import { limparLoja } from "../features/roadmaps/loja";
 import { animarConclusao } from "../features/roadmaps/animacoes";
 import { setMotionLevel } from "../lib/motion";
 import { definirPausaDeEnergia } from "../lib/energia";
+import { estudoEmTelaCheia, modoFocoLigado, definirModoFoco } from "../lib/modoFoco";
 import {
   SISTEMA_DA_ENTREVISTA, SISTEMA_DA_ETAPA, SISTEMA_DAS_TAREFAS, SISTEMA_DO_PAINEL, SISTEMA_DO_PLANO, SISTEMA_DOS_CARDS,
+  SISTEMA_DA_REVISAO_DO_CADERNO, SISTEMA_DOS_CARDS_DE_TUDO,
 } from "../features/roadmaps/prompts";
 
 const mockedInvoke = vi.mocked(invoke);
@@ -78,6 +80,8 @@ function iaFalsa() {
       if (pedido.sistema === SISTEMA_DO_PLANO) return `Aqui está:\n${JSON.stringify(PLANO)}`;
       if (pedido.sistema === SISTEMA_DA_ETAPA) return JSON.stringify({ resumo: "## Rapport\n\nRapport é criar sintonia com o cliente antes de vender.", tarefa: "", fontes: [{ titulo: "Vídeo sobre rapport", url: "https://exemplo.com/video", tipo: "video", gratis: true }] });
       if (pedido.sistema === SISTEMA_DOS_CARDS) return JSON.stringify({ cards: [{ frente: "O que é rapport?", verso: "Sintonia com o cliente" }, { frente: "Para que serve?", verso: "Gerar confiança" }] });
+      if (pedido.sistema === SISTEMA_DOS_CARDS_DE_TUDO) return JSON.stringify({ cards: [{ etapa: "e-rapport", frente: "Rapport vem antes de quê?", verso: "Da proposta" }, { etapa: "inventada", frente: "Card solto", verso: "Sem etapa" }] });
+      if (pedido.sistema === SISTEMA_DA_REVISAO_DO_CADERNO) return "**Está no caminho certo**: você entendeu rapport.\n\n**Ajustes**: SPIN tem 4 letras.";
       if (pedido.sistema === SISTEMA_DAS_TAREFAS) return JSON.stringify({ tarefas: [{ texto: "Grave um pitch de 1 minuto" }] });
       if (pedido.sistema === SISTEMA_DO_PAINEL) {
         const novo = { ...PLANO, modulos: [...PLANO.modulos, { id: "m-extra", titulo: "Prática extra", etapas: [{ id: "e-role", titulo: "Role-play", minutos: 20 }] }] };
@@ -305,5 +309,100 @@ describe("Roadmaps de estudo", () => {
       setMotionLevel("completas");
       HTMLElement.prototype.animate = span;
     }
+  });
+
+  it("tela cheia: link do conteúdo abre dentro do roadmap, com caderno e IA ao lado; Esc volta à trilha", async () => {
+    await criarEAceitar();
+    fireEvent.click(screen.getByRole("button", { name: /Rapport: Disponível/ }));
+    const painel = await screen.findByRole("complementary", { name: "Etapa" });
+    fireEvent.click(within(painel).getByRole("button", { name: "Preparar etapa" }));
+    await within(painel).findByText(/criar sintonia/);
+    fireEvent.click(within(painel).getByRole("button", { name: /Tela cheia/ }));
+    expect(estudoEmTelaCheia()).toBe(true);
+    const lado = screen.getByRole("region", { name: "Fonte, caderno e IA" });
+    expect(within(lado).getByText(/Escolha uma fonte/)).toBeInTheDocument();
+    // Clicar no link da fonte não sai do roadmap: abre a página na aba Fonte.
+    fireEvent.click(screen.getByRole("link", { name: "Vídeo sobre rapport" }));
+    expect(await within(lado).findByLabelText("Página")).toBeInTheDocument();
+    expect(within(lado).getByRole("button", { name: /Vídeo sobre rapport/ })).toHaveClass("is-ativo");
+    fireEvent.click(within(lado).getByRole("tab", { name: "Caderno" }));
+    expect(await within(lado).findByLabelText("Texto do caderno")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(await screen.findByRole("button", { name: /Rapport: Em andamento/ })).toBeInTheDocument();
+    expect(estudoEmTelaCheia()).toBe(false);
+  });
+
+  it("chip da IA mostra o modelo e troca para o Codex", async () => {
+    await criarEAceitar();
+    fireEvent.click(screen.getByRole("button", { name: /IA do roadmap: Claude, modelo padrão/ }));
+    const dialogo = screen.getByRole("dialog", { name: "Trocar a IA do roadmap" });
+    fireEvent.click(within(dialogo).getByRole("button", { name: /Codex/ }));
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Usar esta IA" }));
+    expect(await screen.findByRole("button", { name: /IA do roadmap: Codex/ })).toBeInTheDocument();
+    await gravacoesPendentes();
+    const id = [...disco.arquivos.keys()][0].split("/")[0];
+    expect(JSON.parse(disco.arquivos.get(`${id}/meta.json`) as string).ia.cli).toBe("codex");
+  });
+
+  it("caderno grava sozinho, a IA revisa e a revisão fica na conversa", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await criarEAceitar();
+      fireEvent.click(screen.getByRole("button", { name: "Revisão geral ▾" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Revisar meu caderno" }));
+      const caderno = await screen.findByLabelText("Texto do caderno");
+      fireEvent.change(caderno, { target: { value: "## Rapport\n\nAprendi que rapport vem antes da proposta e que SPIN tem 3 letras." } });
+      await act(async () => { vi.advanceTimersByTime(900); });
+      await gravacoesPendentes();
+      const id = [...disco.arquivos.keys()][0].split("/")[0];
+      expect(disco.arquivos.get(`${id}/caderno.md`)).toContain("SPIN tem 3 letras");
+      fireEvent.click(screen.getByRole("button", { name: "Pedir revisão à IA" }));
+      expect(await screen.findByRole("region", { name: "Revisão do caderno" })).toHaveTextContent("SPIN tem 4 letras");
+      const pedido = ia.pedidos.find((p) => p.sistema === SISTEMA_DA_REVISAO_DO_CADERNO);
+      expect(pedido?.texto).toContain("SPIN tem 3 letras");
+      await gravacoesPendentes();
+      expect(disco.arquivos.get(`${id}/conversa.jsonl`)).toContain("SPIN tem 4 letras");
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("revisão geral: cards de tudo que já foi estudado e card escrito à mão", async () => {
+    await criarEAceitar();
+    fireEvent.click(screen.getByRole("button", { name: "Revisão geral ▾" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Gerar cards de tudo que estudei" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(/Comece ou conclua uma etapa/);
+    fireEvent.click(screen.getByRole("button", { name: /Rapport: Disponível/ }));
+    await screen.findByRole("button", { name: /Rapport: Em andamento/ });
+    fireEvent.click(screen.getByRole("button", { name: "Revisão geral ▾" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Gerar cards de tudo que estudei" }));
+    // O card sem etapa conhecida entra como card geral.
+    expect(await screen.findByText("2 cards novos entraram na revisão.")).toBeInTheDocument();
+    const painel = screen.getByRole("complementary", { name: "Etapa" });
+    fireEvent.click(within(painel).getByRole("button", { name: "Escrever um card" }));
+    fireEvent.change(within(painel).getByLabelText("Frente do card"), { target: { value: "O que é SPIN?" } });
+    fireEvent.change(within(painel).getByLabelText("Verso do card"), { target: { value: "Situação, Problema, Implicação, Necessidade" } });
+    fireEvent.click(within(painel).getByRole("button", { name: "Guardar card" }));
+    expect(await within(painel).findByText("Card entrou na revisão de hoje.")).toBeInTheDocument();
+    await gravacoesPendentes();
+    const id = [...disco.arquivos.keys()][0].split("/")[0];
+    const cards = JSON.parse(disco.arquivos.get(`${id}/cards.json`) as string).cards as { etapaId: string; frente: string }[];
+    expect(cards.map((c) => [c.etapaId, c.frente])).toEqual([["e-rapport", "Rapport vem antes de quê?"], ["", "Card solto"], ["e-rapport", "O que é SPIN?"]]);
+  });
+
+  it("placar: nível, XP e estrelas ao concluir; foco liga e desliga", async () => {
+    await criarEAceitar();
+    expect(screen.getByText("Nv 1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Rapport: Disponível/ }));
+    const painel = await screen.findByRole("complementary", { name: "Etapa" });
+    fireEvent.click(within(painel).getByRole("button", { name: "Concluir etapa" }));
+    await screen.findByRole("button", { name: /Rapport: Concluída/ });
+    // 20 min × 10 XP; sem tarefas nem cards: 3 estrelas.
+    expect(screen.getByText(/200\/300 XP/)).toBeInTheDocument();
+    expect(screen.getAllByLabelText("3 de 3 estrelas").length).toBeGreaterThan(0);
+    expect(screen.getByRole("img", { name: /Meta de hoje: 200 de 250 XP/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Foco/ }));
+    expect(modoFocoLigado()).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /Em foco/ }));
+    expect(modoFocoLigado()).toBe(false);
+    definirModoFoco(false);
   });
 });

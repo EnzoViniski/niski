@@ -3,12 +3,13 @@ import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "../../components/ui";
+import { Button, Input, Textarea } from "../../components/ui";
 import {
-  chaves, comecarEtapa, concluir, gerarCardsDaEtapa, gerarTarefasDaEtapa, lerResumoDaEtapa, marcarTarefa, prepararEtapa, reabrir,
+  chaves, comecarEtapa, concluir, criarCard, gerarCardsDaEtapa, gerarTarefasDaEtapa, lerResumoDaEtapa, marcarTarefa, prepararEtapa, reabrir,
 } from "./acoes";
 import { animarEntrada } from "./animacoes";
-import { PedidoEmAndamento, textoDoErro } from "./comuns";
+import { PedidoEmAndamento, linksNoRoadmap, textoDoErro } from "./comuns";
+import { estrelas, xpDaEtapa } from "./jogo";
 import { foiCancelado } from "./ia";
 import { tarefaEmAndamento, useLoja } from "./loja";
 import { etapasEmOrdem } from "./progresso";
@@ -22,8 +23,13 @@ export function fontesParaNotebookLm(fontes: Fonte[]): string {
   return fontes.map((f) => f.url).join("\n");
 }
 
-export function PainelDaEtapa({ r, etapaId, estado, onPerguntar, onAbrirEtapa }: {
+export function PainelDaEtapa({ r, etapaId, estado, onPerguntar, onAbrirEtapa, onAbrirLink, onTelaCheia, emTelaCheia = false }: {
   r: RoadmapAberto; etapaId: string; estado: EstadoDaEtapa; onPerguntar: () => void; onAbrirEtapa: (id: string) => void;
+  /** Link clicado (fonte ou no conteúdo): abre dentro do roadmap. */
+  onAbrirLink: (url: string) => void;
+  /** Abre a etapa em tela cheia (só na lateral da trilha). */
+  onTelaCheia?: () => void;
+  emTelaCheia?: boolean;
 }) {
   useLoja();
   const id = r.meta.id;
@@ -34,6 +40,7 @@ export function PainelDaEtapa({ r, etapaId, estado, onPerguntar, onAbrirEtapa }:
   const [resumo, setResumo] = useState<string | null | undefined>(undefined);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
+  const [novoCard, setNovoCard] = useState<{ frente: string; verso: string } | null>(null);
   const raiz = useRef<HTMLDivElement>(null);
   const preparando = Boolean(tarefaEmAndamento(chaves.etapa(id, etapaId)));
   const gerandoCards = Boolean(tarefaEmAndamento(chaves.cards(id, etapaId)));
@@ -62,11 +69,15 @@ export function PainelDaEtapa({ r, etapaId, estado, onPerguntar, onAbrirEtapa }:
   const proxima = etapas[i + 1];
 
   return (
-    <div ref={raiz} className="roadmap-etapa-painel">
-      <div>
-        <p className="text-xs text-text-muted">{modulo?.titulo} · etapa {i + 1} de {etapas.length} · {etapa.minutos} min</p>
-        <h2 className="text-base font-semibold text-text-primary">{etapa.titulo}</h2>
-        {etapa.objetivo && <p className="text-sm text-text-secondary">{etapa.objetivo}</p>}
+    <div ref={raiz} className={`roadmap-etapa-painel ${emTelaCheia ? "is-tela-cheia" : ""}`} data-links-proprios onClickCapture={linksNoRoadmap(onAbrirLink)}>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-text-muted">{modulo?.titulo} · etapa {i + 1} de {etapas.length} · {etapa.minutos} min · {xpDaEtapa(etapa)} XP</p>
+          <h2 className={`${emTelaCheia ? "text-xl" : "text-base"} font-semibold text-text-primary`}>{etapa.titulo}</h2>
+          {etapa.objetivo && <p className="text-sm text-text-secondary">{etapa.objetivo}</p>}
+          {estado === "concluida" && <p className="roadmap-estrelas" aria-label={`${estrelas(etapa, r.progresso, r.cards)} de 3 estrelas`}>{[1, 2, 3].map((n) => <span key={n} className={n <= estrelas(etapa, r.progresso, r.cards) ? "is-ganha" : ""}>★</span>)}</p>}
+        </div>
+        {onTelaCheia && <Button size="sm" variant="glass" onClick={onTelaCheia} title="Estudar esta etapa em tela cheia, com a fonte aberta ao lado">⤢ Tela cheia</Button>}
       </div>
 
       {estado === "bloqueada" && (
@@ -141,8 +152,23 @@ export function PainelDaEtapa({ r, etapaId, estado, onPerguntar, onAbrirEtapa }:
           Gerar cards de revisão{cardsDaEtapa ? ` (${cardsDaEtapa})` : ""}
         </Button>
         <Button size="sm" disabled={gerandoTarefas || r.somenteLeitura} onClick={() => rodar(() => gerarTarefasDaEtapa(id, etapaId))}>Gerar tarefas</Button>
+        <Button size="sm" variant="ghost" disabled={r.somenteLeitura} onClick={() => setNovoCard(novoCard ? null : { frente: "", verso: "" })}>Escrever um card</Button>
         <Button size="sm" variant="ghost" onClick={onPerguntar}>Perguntar à IA</Button>
       </div>
+      {novoCard && (
+        <form className="roadmap-proposta glass" aria-label="Novo card" onSubmit={(e) => {
+          e.preventDefault();
+          if (!novoCard.frente.trim() || !novoCard.verso.trim()) return;
+          rodar(() => criarCard(id, etapaId, novoCard.frente, novoCard.verso), (entrou) => { setNovoCard(null); setAviso(entrou ? "Card entrou na revisão de hoje." : "Esse card já existia."); });
+        }}>
+          <Input aria-label="Frente do card" placeholder="Pergunta (frente)" value={novoCard.frente} onChange={(e) => setNovoCard({ ...novoCard, frente: e.target.value })} maxLength={2000} autoFocus />
+          <Textarea aria-label="Verso do card" placeholder="Resposta (verso)" rows={2} value={novoCard.verso} onChange={(e) => setNovoCard({ ...novoCard, verso: e.target.value })} maxLength={4000} />
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setNovoCard(null)}>Cancelar</Button>
+            <Button size="sm" variant="primary" type="submit" disabled={!novoCard.frente.trim() || !novoCard.verso.trim()}>Guardar card</Button>
+          </div>
+        </form>
+      )}
 
       <div className="roadmap-concluir">
         {estado === "concluida" ? (

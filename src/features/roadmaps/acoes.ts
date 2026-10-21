@@ -2,12 +2,13 @@
  * Fork (Roadmaps): o que cada botão faz. Os pedidos de IA leem o roadmap da loja na hora de aplicar
  * a resposta (não no começo): o que a pessoa marcou enquanto a IA pensava não se perde.
  */
-import { anexarNaConversa, criarRoadmap, gravarResumoDaEtapa, lerConversaDoPainel, lerResumoDaEtapa } from "./armazenamento";
+import { anexarNaConversa, criarRoadmap, gravarCaderno, gravarResumoDaEtapa, lerCaderno, lerConversaDoPainel, lerResumoDaEtapa } from "./armazenamento";
 import { perguntar, perguntarJson } from "./ia";
-import { carregar, comTarefa, mudar, registrarNovo, roadmap } from "./loja";
+import { acrescentarNaConversa, carregar, comTarefa, mudar, registrarNovo, roadmap } from "./loja";
 import { normalizarCards, normalizarEntrevista, normalizarProgresso } from "./normalizar";
-import { concluirEtapa, diaLocal, etapasEmOrdem, iniciarEtapa, marcarDia, reabrirEtapa, resumir } from "./progresso";
+import { concluirEtapa, diaLocal, estadosDasEtapas, etapasEmOrdem, iniciarEtapa, marcarDia, reabrirEtapa, resumir } from "./progresso";
 import {
+  SISTEMA_DA_REVISAO_DO_CADERNO, SISTEMA_DOS_CARDS_DE_TUDO, lerCardsComEtapa, pedidoDaRevisaoDoCaderno, pedidoDeCardsDeTudo,
   SISTEMA_DA_ENTREVISTA, SISTEMA_DA_ETAPA, SISTEMA_DAS_TAREFAS, SISTEMA_DO_PAINEL, SISTEMA_DO_PLANO, SISTEMA_DOS_CARDS,
   lerCards, lerEtapaPreparada, lerPlano, lerRespostaDoPainel, lerTarefas, lerTurno,
   pedidoDaEntrevista, pedidoDaEtapa, pedidoDeCards, pedidoDeTarefas, pedidoDoPainel, pedidoDoPlano, perfilDaEntrevista,
@@ -18,6 +19,8 @@ import { normalizarTarefas } from "./normalizar";
 import type { Etapa, IaEscolhida, MensagemDoPainel, MetaDoRoadmap, Plano } from "./tipos";
 
 export const chaves = {
+  cardsDeTudo: (id: string) => `cardsdetudo:${id}`,
+  caderno: (id: string) => `caderno:${id}`,
   entrevista: (id: string) => `entrevista:${id}`,
   plano: (id: string) => `plano:${id}`,
   etapa: (id: string, etapaId: string) => `etapa:${id}:${etapaId}`,
@@ -185,4 +188,53 @@ export { lerConversaDoPainel, lerResumoDaEtapa };
 export function resumoDeAgora(id: string, agora = new Date()) {
   const r = roadmap(id);
   return r ? resumir(r.plano, r.progresso, r.cards, agora) : undefined;
+}
+
+/** Cards de tudo que já foi estudado (concluídas e em andamento), de uma vez. Devolve quantos entraram. */
+export async function gerarCardsDeTudo(id: string, agora = () => new Date()): Promise<number> {
+  const r = await carregar(id);
+  if (!r.plano) throw new Error("Este roadmap ainda não tem caminho");
+  const estados = estadosDasEtapas(r.plano, r.progresso);
+  const etapas = etapasEmOrdem(r.plano).filter((e) => estados[e.id] === "concluida" || estados[e.id] === "andamento");
+  if (etapas.length === 0) throw new Error("Comece ou conclua uma etapa antes: os cards saem do que você já estudou");
+  const estudadas = await Promise.all(etapas.map(async (etapa) => ({ etapa, resumo: await lerResumoDaEtapa(id, etapa.id).catch(() => null) })));
+  const novos = await comTarefa(chaves.cardsDeTudo(id), "Criando cards de tudo que você estudou…", () =>
+    perguntarJson({ chave: chaves.cardsDeTudo(id), ia: r.meta.ia, sistema: SISTEMA_DOS_CARDS_DE_TUDO, web: false, texto: pedidoDeCardsDeTudo(r.plano as Plano, estudadas, r.cards.cards) },
+      lerCardsComEtapa(new Set(etapas.map((e) => e.id)))));
+  let adicionados = 0;
+  await mudar(id, ["cards"], (x) => {
+    let cards = x.cards;
+    for (const etapa of [...new Set(novos.map((c) => c.etapa))]) {
+      const feito = adicionarCards(cards, etapa, novos.filter((c) => c.etapa === etapa), agora());
+      cards = feito.cards; adicionados += feito.adicionados;
+    }
+    return { ...x, cards };
+  });
+  return adicionados;
+}
+
+/** Card escrito à mão (no computador ou no celular). */
+export async function criarCard(id: string, etapaId: string, frente: string, verso: string, agora = new Date()): Promise<boolean> {
+  let entrou = false;
+  await mudar(id, ["cards"], (x) => { const feito = adicionarCards(x.cards, etapaId, [{ frente: frente.trim(), verso: verso.trim() }], agora); entrou = feito.adicionados > 0; return { ...x, cards: feito.cards }; }, agora);
+  return entrou;
+}
+
+export { lerCaderno, gravarCaderno };
+
+/** A IA lê o caderno e devolve os toques. A revisão fica gravada na conversa do painel. */
+export async function revisarCaderno(id: string, agora = () => new Date()): Promise<string> {
+  const r = await carregar(id);
+  const caderno = (await lerCaderno(id)) ?? "";
+  if (caderno.trim().length < 20) throw new Error("Escreva um pouco mais no caderno antes de pedir a revisão");
+  const resposta = await comTarefa(chaves.caderno(id), "Lendo o seu caderno…", () =>
+    perguntar({ chave: chaves.caderno(id), ia: r.meta.ia, sistema: SISTEMA_DA_REVISAO_DO_CADERNO, web: false,
+      texto: pedidoDaRevisaoDoCaderno(roadmap(id)?.plano ?? r.plano, roadmap(id)?.progresso ?? r.progresso, caderno, perfilDaEntrevista(r.entrevista)) }));
+  const texto = resposta.trim() || "(sem resposta)";
+  const pedido: MensagemDoPainel = { de: "eu", texto: "Revise o meu caderno.", em: agora().toISOString() };
+  const revisao: MensagemDoPainel = { de: "ia", texto, em: agora().toISOString() };
+  await anexarNaConversa(id, pedido);
+  await anexarNaConversa(id, revisao);
+  acrescentarNaConversa(id, pedido, revisao);
+  return texto;
 }

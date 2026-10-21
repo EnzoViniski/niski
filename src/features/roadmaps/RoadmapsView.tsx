@@ -4,7 +4,7 @@ import { Button } from "../../components/ui";
 import { lembrarUltimo, ultimoAberto } from "./armazenamento";
 import { Entrevista } from "./Entrevista";
 import { ListaDeRoadmaps } from "./ListaDeRoadmaps";
-import { carregar, carregarLista, erroDaListaAtual, erroDoRoadmap, lembranca, lembrar, listaAtual, roadmap, useLoja } from "./loja";
+import { carregar, carregarLista, erroDaListaAtual, erroDoRoadmap, lembranca, lembrar, listaAtual, recarregar, roadmap, useLoja } from "./loja";
 import { Trilha } from "./Trilha";
 import "./roadmaps.css";
 
@@ -22,6 +22,16 @@ export function RoadmapsView({ onClose, continuar = false }: { onClose: () => vo
     if (!aberto) return;
     lembrarUltimo(aberto);
     void carregar(aberto).catch(() => undefined);
+  }, [aberto]);
+  // Voltou para a janela: o celular pode ter mudado algo (cards, caderno, etapa concluída). Só evento, sem timer.
+  useEffect(() => {
+    const aoVoltar = () => {
+      if (document.hidden) return;
+      if (aberto) void recarregar(aberto); else void carregarLista();
+    };
+    window.addEventListener("focus", aoVoltar);
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => { window.removeEventListener("focus", aoVoltar); document.removeEventListener("visibilitychange", aoVoltar); };
   }, [aberto]);
   // "Continuar estudo" com um roadmap que não existe mais: cai na lista.
   useEffect(() => {

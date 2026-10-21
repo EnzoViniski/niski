@@ -1,6 +1,6 @@
 // Fork (Roadmaps): peças usadas por mais de uma tela (ícone do roadmap, escolha da IA, pedido em andamento).
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useState, type ComponentType, type SVGProps } from "react";
+import { useEffect, useState, type ComponentType, type MouseEvent, type SVGProps } from "react";
 import { Button, SegmentedControl, Select } from "../../components/ui";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import {
@@ -9,8 +9,9 @@ import {
 } from "../../components/ui/PixelIcon";
 import { listProfiles, type Profile } from "../terminal/terminalService";
 import { cancelar } from "./ia";
-import { tarefaEmAndamento, useLoja } from "./loja";
-import { CORES, ICONES, type CliDaIa, type IaEscolhida, type IconeDoRoadmap } from "./tipos";
+import { mudarMeta, tarefaEmAndamento, useLoja } from "./loja";
+import { definirModoFoco, focoDesde, useModoFoco } from "../../lib/modoFoco";
+import { CORES, ICONES, type CliDaIa, type IaEscolhida, type IconeDoRoadmap, type MetaDoRoadmap } from "./tipos";
 
 type Icone = ComponentType<SVGProps<SVGSVGElement> & { size?: number | string }>;
 
@@ -54,6 +55,13 @@ export function EscolhaDeCorEIcone({ cor, icone, onCor, onIcone }: { cor: string
 
 interface ModeloDaCli { id: string; label: string }
 
+/** Catálogo de modelos lido uma vez por execução (é o mesmo da criação de agentes). */
+let catalogo: Promise<Record<string, ModeloDaCli[]>> | null = null;
+function lerCatalogo() {
+  catalogo ??= invoke<Record<string, ModeloDaCli[]>>("agentes_modelos").then((m) => m ?? {}).catch(() => { catalogo = null; return {}; });
+  return catalogo;
+}
+
 /** CLI, conta e modelo da IA do roadmap. Só contas com login aparecem habilitadas. */
 export function EscolhaDaIa({ valor, onChange }: { valor: IaEscolhida; onChange: (ia: IaEscolhida) => void }) {
   const [contas, setContas] = useState<Profile[]>([]);
@@ -61,7 +69,7 @@ export function EscolhaDaIa({ valor, onChange }: { valor: IaEscolhida; onChange:
   useEffect(() => {
     let vivo = true;
     void listProfiles().then((p) => { if (vivo) setContas(p); }).catch(() => undefined);
-    void invoke<Record<string, ModeloDaCli[]>>("agentes_modelos").then((m) => { if (vivo && m) setModelos(m); }).catch(() => undefined);
+    void lerCatalogo().then((m) => { if (vivo) setModelos(m); });
     return () => { vivo = false; };
   }, []);
   const daCli = contas.filter((c) => c.provider === valor.cli);
@@ -98,4 +106,69 @@ export function PedidoEmAndamento({ chave }: { chave: string }) {
 
 export function textoDoErro(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro);
+}
+
+/**
+ * Clique num link dentro do roadmap: abre no próprio roadmap (o estudo da etapa tem navegador).
+ * Vai em `onClickCapture` de um elemento com `data-links-proprios` (o App não intercepta esses).
+ */
+export function linksNoRoadmap(abrir: (url: string) => void) {
+  return (evento: MouseEvent) => {
+    const link = (evento.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+    if (!link || !/^https?:\/\//i.test(link.href)) return;
+    evento.preventDefault();
+    evento.stopPropagation();
+    abrir(link.href);
+  };
+}
+
+/** "Claude · Sonnet": qual IA o roadmap usa, e clicar troca CLI, conta e modelo. */
+export function ChipDaIa({ meta, onAberto }: { meta: MetaDoRoadmap; onAberto?: (aberto: boolean) => void }) {
+  const [aberto, setAberto] = useState(false);
+  const [ia, setIa] = useState<IaEscolhida>(meta.ia);
+  const [contas, setContas] = useState<Profile[]>([]);
+  const [modelos, setModelos] = useState<Record<string, ModeloDaCli[]>>({});
+  const [erro, setErro] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    void lerCatalogo().then((m) => { if (vivo) setModelos(m); });
+    void listProfiles().then((p) => { if (vivo) setContas(p); }).catch(() => undefined);
+    return () => { vivo = false; };
+  }, []);
+  const abrir = (valor: boolean) => { setAberto(valor); onAberto?.(valor); if (valor) { setIa(meta.ia); setErro(""); } };
+  const nomeDoModelo = meta.ia.modelo ? (modelos[meta.ia.cli]?.find((m) => m.id === meta.ia.modelo)?.label ?? meta.ia.modelo) : "modelo padrão";
+  const conta = meta.ia.conta ? contas.find((c) => c.id === meta.ia.conta)?.name : undefined;
+  return (
+    <div className="roadmap-chip-ia">
+      <button type="button" className="roadmap-chip" aria-expanded={aberto} onClick={() => abrir(!aberto)}
+        aria-label={`IA do roadmap: ${meta.ia.cli === "codex" ? "Codex" : "Claude"}, ${nomeDoModelo}. Trocar`}
+        title={conta ? `Conta: ${conta}` : "Primeira conta com login"}>
+        <AgentIcon provider={meta.ia.cli} size={14} />
+        <span>{meta.ia.cli === "codex" ? "Codex" : "Claude"} · {nomeDoModelo}</span>
+        <span aria-hidden="true">▾</span>
+      </button>
+      {aberto && (
+        <div className="roadmap-chip-painel glass" role="dialog" aria-label="Trocar a IA do roadmap" onKeyDown={(e) => { if (e.key === "Escape") abrir(false); }}>
+          <EscolhaDaIa valor={ia} onChange={setIa} />
+          {erro && <p role="alert" className="text-xs text-danger">{erro}</p>}
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => abrir(false)}>Cancelar</Button>
+            <Button size="sm" variant="primary" onClick={() => void mudarMeta(meta.id, { ia }).then(() => abrir(false)).catch((e) => setErro(textoDoErro(e)))}>Usar esta IA</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Modo foco: esconde a lateral e só deixa passar aviso urgente dos outros agentes. */
+export function BotaoDeFoco() {
+  const ligado = useModoFoco();
+  const desde = focoDesde();
+  return (
+    <Button size="sm" variant={ligado ? "primary" : "glass"} aria-pressed={ligado} onClick={() => definirModoFoco(!ligado)}
+      title={ligado ? `Em foco desde ${new Date(desde ?? Date.now()).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}. Só avisos urgentes dos agentes.` : "Esconde a lateral e só avisa quando um agente precisar de você"}>
+      {ligado ? "◉ Em foco" : "◎ Foco"}
+    </Button>
+  );
 }

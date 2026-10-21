@@ -30,6 +30,8 @@ export function useLinksEmAba(workspaces: WorkspaceState[], dispatch: (action: W
       if (evento.defaultPrevented || evento.button > 1) return;
       const link = (evento.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
       if (!link) return;
+      // Fork (Roadmaps): área que abre os próprios links (o estudo da etapa tem navegador dentro).
+      if (link.closest("[data-links-proprios]")) return;
       const href = link.href;
       if (!/^https?:\/\//i.test(href)) return;
       // Endereço do próprio app (dev em localhost) navega normalmente.

@@ -41,8 +41,17 @@ export function AttentionPanel({
 
   return (
     <div className="space-y-0.5">
-      <div className="flex items-center justify-between px-3 pt-1">
+      <div className="flex items-center justify-between gap-2 px-3 pt-1">
         <p className="text-text-muted text-[10px] font-medium uppercase tracking-wider">Atenção</p>
+        {/* Fork: dispensar todos de uma vez (cada um volta sozinho no próximo evento, como no X). */}
+        <button
+          type="button"
+          onClick={() => { for (const item of items) onDismiss(item); }}
+          className="ml-auto text-[10px] text-text-muted hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          title="Dispensar todos os avisos"
+        >
+          Limpar tudo
+        </button>
         <span
           aria-label={`${items.length} ${items.length === 1 ? "agente esperando" : "agentes esperando"} no total`}
           className="badge-pulse grid h-4 min-w-4 place-items-center bg-danger px-1 text-[10px] font-bold leading-none text-bg-primary"

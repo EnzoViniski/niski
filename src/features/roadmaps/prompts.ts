@@ -208,3 +208,54 @@ export function lerRespostaDoPainel(resposta: string): RespostaDoPainel {
 export function perfilDaEntrevista(e: EntrevistaSalva): string {
   return `Pedido: ${e.pedido}\n${transcricao(e)}`.slice(0, 6000);
 }
+
+export const SISTEMA_DOS_CARDS_DE_TUDO = `${BASE}
+
+Crie cards de revisão espaçada cobrindo TODO o conteúdo que a pessoa já estudou (as etapas abaixo). Frente com pergunta curta e específica, verso com resposta objetiva, uma ideia por card. Priorize o que é mais importante e o que costuma ser esquecido; não repita cards que já existem. Entre 10 e 30 cards. Diga de qual etapa é cada card pelo id. Responda SÓ com um JSON:
+{"cards":[{"etapa":"id-da-etapa","frente":"...","verso":"..."}]}`;
+
+export const SISTEMA_DA_REVISAO_DO_CADERNO = `${BASE}
+
+A pessoa escreve um caderno com o que está aprendendo. Revise como um bom professor: diga o que ela entendeu bem, o que está errado ou impreciso (corrija com clareza), o que está faltando em relação às etapas que ela já estudou, e 2 ou 3 próximos passos concretos. Seja específico (cite trechos do caderno), gentil e direto. Responda em markdown curto, com as seções: **Está no caminho certo**, **Ajustes**, **Faltou**, **Próximos passos**.`;
+
+export const PEDIDO_DO_QUIZ = "Faça um quiz de revisão comigo sobre o que eu já estudei (etapas concluídas e em andamento): uma pergunta por vez, espere minha resposta, corrija, explique o que eu errei e só então faça a próxima.";
+
+export interface EtapaEstudada { etapa: Etapa; resumo: string | null }
+
+/** Etapas concluídas ou em andamento, com o resumo (cortado para caber). */
+export function pedidoDeCardsDeTudo(plano: Plano, estudadas: EtapaEstudada[], existentes: { frente: string }[]): string {
+  let espaco = 40_000;
+  const blocos = estudadas.map(({ etapa, resumo }) => {
+    const corpo = (resumo ?? etapa.objetivo).slice(0, Math.max(500, Math.min(4000, espaco)));
+    espaco -= corpo.length;
+    return `### ${etapa.id} — ${etapa.titulo}\n${etapa.objetivo ? `Objetivo: ${etapa.objetivo}\n` : ""}${corpo}`;
+  });
+  const ja = existentes.slice(-80).map((c) => `- ${c.frente.slice(0, 160)}`).join("\n");
+  return `Objetivo do caminho: ${plano.objetivo}\n\nEtapas estudadas:\n\n${blocos.join("\n\n")}${ja ? `\n\nCards que já existem (não repita):\n${ja}` : ""}\n\nCrie os cards.`;
+}
+
+export function lerCardsComEtapa(validos: Set<string>) {
+  return (v: unknown): { etapa: string; frente: string; verso: string }[] | string => {
+    const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+    const cards = (Array.isArray(o.cards) ? o.cards : []).map((c) => {
+      const co = (c && typeof c === "object" ? c : {}) as Record<string, unknown>;
+      const frente = typeof co.frente === "string" ? co.frente.trim().slice(0, 2000) : "";
+      const verso = typeof co.verso === "string" ? co.verso.trim().slice(0, 4000) : "";
+      const etapa = typeof co.etapa === "string" && validos.has(co.etapa) ? co.etapa : "";
+      return frente && verso ? { etapa, frente, verso } : null;
+    }).filter((c): c is { etapa: string; frente: string; verso: string } => c !== null).slice(0, 60);
+    return cards.length ? cards : "esperava {\"cards\":[{\"etapa\":\"...\",\"frente\":\"...\",\"verso\":\"...\"}]}";
+  };
+}
+
+export function pedidoDaRevisaoDoCaderno(plano: Plano | null, progresso: Progresso, caderno: string, perfil: string): string {
+  const estados = plano ? estadosDasEtapas(plano, progresso) : {};
+  const estudadas = plano ? etapasEmOrdem(plano).filter((e) => estados[e.id] === "concluida" || estados[e.id] === "andamento") : [];
+  return [
+    `Sobre a pessoa (da entrevista):\n${perfil}`,
+    plano ? `Objetivo do caminho: ${plano.objetivo}` : "",
+    estudadas.length ? `Etapas que ela já estudou:\n${estudadas.map((e) => `- ${e.titulo}${e.objetivo ? `: ${e.objetivo}` : ""} (${estados[e.id] === "concluida" ? "concluída" : "em andamento"})`).join("\n")}` : "Ainda não concluiu etapas.",
+    `Caderno da pessoa:\n"""\n${caderno.slice(0, 40_000)}\n"""`,
+    "Revise o caderno.",
+  ].filter(Boolean).join("\n\n");
+}

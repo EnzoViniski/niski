@@ -14,7 +14,34 @@ import {
   type Cards, type EntrevistaSalva, type IaEscolhida, type MensagemDoPainel, type MetaDoRoadmap, type Plano, type Progresso,
 } from "./tipos";
 
-type Arquivo = "meta.json" | "entrevista.json" | "plano.json" | "progresso.json" | "cards.json" | `etapas/${string}.md`;
+type Arquivo = "meta.json" | "entrevista.json" | "plano.json" | "progresso.json" | "cards.json" | "caderno.md" | `etapas/${string}.md`;
+
+/**
+ * Como os arquivos chegam ao disco: no computador, pelos comandos do app (Tauri); no celular, pelas
+ * rotas `/roadmaps` do engine (`src/mobile/telas/Roadmaps.tsx` troca no começo).
+ */
+export interface TransporteDosRoadmaps {
+  listar(): Promise<{ id: string; meta: unknown }[]>;
+  criar(meta: unknown): Promise<string>;
+  ler(id: string, arquivo: string): Promise<string | null>;
+  gravar(id: string, arquivo: string, conteudo: string): Promise<void>;
+  anexar(id: string, linha: string): Promise<void>;
+  ordenar(ordem: string[]): Promise<void>;
+  backupAntesDeMigrar(id: string, versaoAntiga: number): Promise<void>;
+}
+
+const peloApp: TransporteDosRoadmaps = {
+  listar: () => invoke("roadmaps_listar"),
+  criar: (meta) => invoke("roadmaps_criar", { meta }),
+  ler: async (id, arquivo) => (await invoke<string | null>("roadmaps_ler", { id, arquivo })) ?? null,
+  gravar: (id, arquivo, conteudo) => invoke("roadmaps_gravar", { id, arquivo, conteudo }),
+  anexar: (id, linha) => invoke("roadmaps_anexar_conversa", { id, linha }),
+  ordenar: (ordem) => invoke("roadmaps_ordenar", { ordem }),
+  backupAntesDeMigrar: (id, versaoAntiga) => invoke("roadmaps_backup_antes_de_migrar", { id, versaoAntiga }),
+};
+
+let transporte: TransporteDosRoadmaps = peloApp;
+export function usarTransporteDosRoadmaps(novo: TransporteDosRoadmaps) { transporte = novo; }
 
 export interface RoadmapAberto {
   meta: MetaDoRoadmap;
@@ -36,13 +63,18 @@ function naFila<T>(chave: string, tarefa: () => Promise<T>): Promise<T> {
   return proxima;
 }
 
+/** Há gravação na fila para este roadmap (não dá para trocar a memória pelo disco agora). */
+export function temGravacaoPendente(id: string): boolean {
+  return [...filas.keys()].some((chave) => chave.startsWith(`${id}/`));
+}
+
 /** Espera as gravações pendentes (antes de fechar a tela, nos testes). */
 export async function gravacoesPendentes(): Promise<void> {
   await Promise.allSettled([...filas.values()]);
 }
 
 async function ler(id: string, arquivo: Arquivo | "conversa.jsonl"): Promise<string | null> {
-  return (await invoke<string | null>("roadmaps_ler", { id, arquivo })) ?? null;
+  return (await transporte.ler(id, arquivo)) ?? null;
 }
 
 function lerJson(textoLido: string | null): unknown {
@@ -51,13 +83,13 @@ function lerJson(textoLido: string | null): unknown {
 }
 
 function gravar(id: string, arquivo: Arquivo, conteudo: string): Promise<void> {
-  return naFila(`${id}/${arquivo}`, () => invoke<void>("roadmaps_gravar", { id, arquivo, conteudo }));
+  return naFila(`${id}/${arquivo}`, () => transporte.gravar(id, arquivo, conteudo));
 }
 
 const json = (valor: unknown) => `${JSON.stringify(valor, null, 2)}\n`;
 
 export async function listarRoadmaps(): Promise<MetaDoRoadmap[]> {
-  const itens = await invoke<{ id: string; meta: unknown }[]>("roadmaps_listar");
+  const itens = await transporte.listar();
   return (Array.isArray(itens) ? itens : []).map((item) => normalizarMeta(item.id, item.meta));
 }
 
@@ -67,7 +99,7 @@ export async function criarRoadmap(dados: { nome: string; cor: string; icone: st
     arquivado: false, fase: "entrevista", criadoEm: agora.toISOString(), atualizadoEm: agora.toISOString(), ia: dados.ia,
     resumo: { etapas: 0, concluidas: 0, sequencia: 0, cardsParaHoje: 0 },
   };
-  const id = await invoke<string>("roadmaps_criar", { meta: base });
+  const id = await transporte.criar(base);
   return normalizarMeta(id, { ...base, id });
 }
 
@@ -77,7 +109,7 @@ async function conferirVersoes(id: string, lidos: unknown[]): Promise<boolean> {
     .filter((v): v is number => v !== null);
   if (versoes.some((v) => v > VERSAO_DOS_ARQUIVOS)) return true;
   const antiga = versoes.find((v) => v < VERSAO_DOS_ARQUIVOS);
-  if (antiga !== undefined) await invoke<string>("roadmaps_backup_antes_de_migrar", { id, versaoAntiga: antiga });
+  if (antiga !== undefined) await transporte.backupAntesDeMigrar(id, antiga);
   return false;
 }
 
@@ -103,17 +135,19 @@ export const gravarProgresso = (id: string, p: Progresso) => gravar(id, "progres
 export const gravarCards = (id: string, c: Cards) => gravar(id, "cards.json", json(c));
 export const gravarResumoDaEtapa = (id: string, etapaId: string, markdown: string) => gravar(id, `etapas/${etapaId}.md`, markdown.endsWith("\n") ? markdown : `${markdown}\n`);
 export const lerResumoDaEtapa = (id: string, etapaId: string) => ler(id, `etapas/${etapaId}.md`);
+export const lerCaderno = (id: string) => ler(id, "caderno.md");
+export const gravarCaderno = (id: string, texto: string) => gravar(id, "caderno.md", texto);
 
 export async function lerConversaDoPainel(id: string): Promise<MensagemDoPainel[]> {
   return lerConversa(await ler(id, "conversa.jsonl"));
 }
 
 export function anexarNaConversa(id: string, mensagem: MensagemDoPainel): Promise<void> {
-  return naFila(`${id}/conversa.jsonl`, () => invoke<void>("roadmaps_anexar_conversa", { id, linha: JSON.stringify(mensagem) }));
+  return naFila(`${id}/conversa.jsonl`, () => transporte.anexar(id, JSON.stringify(mensagem)));
 }
 
 export function ordenarRoadmaps(ordem: string[]): Promise<void> {
-  return naFila("indice", () => invoke<void>("roadmaps_ordenar", { ordem }));
+  return naFila("indice", () => transporte.ordenar(ordem));
 }
 
 /** Último roadmap aberto (só conveniência; nada importante mora no localStorage). */

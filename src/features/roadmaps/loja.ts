@@ -8,10 +8,10 @@
 import { useSyncExternalStore } from "react";
 import {
   abrirRoadmap, gravarCards, gravarEntrevista, gravarMeta, gravarPlano, gravarProgresso, listarRoadmaps, ordenarRoadmaps,
-  type RoadmapAberto,
+  temGravacaoPendente, type RoadmapAberto,
 } from "./armazenamento";
 import { resumir } from "./progresso";
-import type { MetaDoRoadmap } from "./tipos";
+import type { MensagemDoPainel, MetaDoRoadmap } from "./tipos";
 
 export type ArquivoDaLoja = "meta" | "entrevista" | "plano" | "progresso" | "cards";
 
@@ -67,6 +67,24 @@ export function carregar(id: string): Promise<RoadmapAberto> {
   }).finally(() => { carregando.delete(id); avisar(); });
   carregando.set(id, promessa);
   return promessa;
+}
+
+/**
+ * Troca a memória pelo disco (o celular pode ter mudado algo). Não mexe com gravação na fila nem com
+ * pedido de IA rodando para este roadmap: a memória é mais nova nesses casos.
+ */
+export async function recarregar(id: string): Promise<void> {
+  if (!abertos.has(id) || temGravacaoPendente(id) || [...tarefas.keys()].some((c) => c.includes(`:${id}`))) return;
+  try {
+    const novo = await abrirRoadmap(id);
+    if (temGravacaoPendente(id)) return;
+    abertos.set(id, novo);
+    if (lista) lista = lista.map((m) => (m.id === id ? novo.meta : m));
+    // Conversa e caderno lidos de novo do disco na próxima vez que aparecerem.
+    lembrancas.delete(`conversa:${id}`);
+    lembrancas.delete(`caderno:${id}`);
+    avisar();
+  } catch { /* fica com a memória */ }
 }
 
 /** Entra na lista (no começo) um roadmap recém-criado. */
@@ -131,7 +149,17 @@ export async function comTarefa<T>(chave: string, rotulo: string, fn: () => Prom
  */
 const lembrancas = new Map<string, unknown>();
 export function lembranca<T>(chave: string): T | undefined { return lembrancas.get(chave) as T | undefined; }
-export function lembrar(chave: string, valor: unknown) { if (valor === undefined) lembrancas.delete(chave); else lembrancas.set(chave, valor); }
+export function lembrar(chave: string, valor: unknown) {
+  if (lembrancas.get(chave) === valor) return;
+  if (valor === undefined) lembrancas.delete(chave); else lembrancas.set(chave, valor);
+  avisar();
+}
+
+/** Mensagens novas na conversa do painel já lida (a revisão do caderno também escreve nela). */
+export function acrescentarNaConversa(id: string, ...mensagens: MensagemDoPainel[]) {
+  const atual = lembranca<MensagemDoPainel[]>(`conversa:${id}`);
+  if (atual) lembrar(`conversa:${id}`, [...atual, ...mensagens]);
+}
 
 /** Só para testes (e o "reabrir o app" deles): começa do zero. */
 export function limparLoja() {

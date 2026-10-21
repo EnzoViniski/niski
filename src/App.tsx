@@ -47,6 +47,7 @@ import { HistoryView } from "./features/history/HistoryView";
 import { FluxosView } from "./features/fluxos/FluxosViewTardio";
 // Fork: Roadmaps de estudo, carregados só ao abrir a tela.
 import { RoadmapsView } from "./features/roadmaps/RoadmapsViewTardio";
+import { definirEstudoEmTelaCheia, definirModoFoco, useEstudoEmTelaCheia, useModoFoco } from "./lib/modoFoco";
 import type { HistoryEntry } from "./features/history/historyService";
 // Fork (retomar-sempre): retomar do Histórico sem beco sem saída.
 import { retomarDoHistorico } from "./features/retomada/retomarDoHistorico";
@@ -75,6 +76,10 @@ function AppComPaleta() {
     setAberturaDosRoadmaps((atual) => ({ chave: atual.chave + 1, continuar }));
     setView("roadmaps");
   }, []);
+  // Fork (Roadmaps): foco e estudo em tela cheia escondem a lateral e só valem dentro dos Roadmaps.
+  const modoFoco = useModoFoco();
+  const estudoEmTelaCheia = useEstudoEmTelaCheia();
+  useEffect(() => { if (view !== "roadmaps") { definirModoFoco(false); definirEstudoEmTelaCheia(false); } }, [view]);
   useAcoesDaPaleta("roadmaps", [
     { id: "roadmaps-continuar", titulo: "Continuar estudo (Roadmaps)", executar: () => abrirRoadmaps(true) },
     { id: "roadmaps-lista", titulo: "Roadmaps de estudo", executar: () => abrirRoadmaps(false) },
@@ -253,7 +258,7 @@ function AppComPaleta() {
         onProjeto={(workspaceId, projectId) => { dispatch({ type: "SELECT_WORKSPACE", workspaceId }); dispatch({ type: "SELECT_PROJECT", projectId }); setView("workspace"); }}
         onConversa={abrirConversaDaPaleta} onArquivo={(path) => openFile(path, fileKind(path))} />
       <QuickOpen projectPath={activeProject?.path ?? null} onOpenFile={(path) => openFile(path, fileKind(path))} />
-      <div className={lateralOculta ? "hidden" : "contents"}>
+      <div className={lateralOculta || (view === "roadmaps" && (modoFoco || estudoEmTelaCheia)) ? "hidden" : "contents"}>
       <Sidebar
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
