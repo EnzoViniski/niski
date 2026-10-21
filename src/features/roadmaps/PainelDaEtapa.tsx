@@ -23,13 +23,15 @@ export function fontesParaNotebookLm(fontes: Fonte[]): string {
   return fontes.map((f) => f.url).join("\n");
 }
 
-export function PainelDaEtapa({ r, etapaId, estado, onPerguntar, onAbrirEtapa, onAbrirLink, onTelaCheia, emTelaCheia = false }: {
+export function PainelDaEtapa({ r, etapaId, estado, onPerguntar, onAbrirEtapa, onAbrirLink, onTelaCheia, emTelaCheia = false, semIa = false }: {
   r: RoadmapAberto; etapaId: string; estado: EstadoDaEtapa; onPerguntar: () => void; onAbrirEtapa: (id: string) => void;
   /** Link clicado (fonte ou no conteúdo): abre dentro do roadmap. */
   onAbrirLink: (url: string) => void;
   /** Abre a etapa em tela cheia (só na lateral da trilha). */
   onTelaCheia?: () => void;
   emTelaCheia?: boolean;
+  /** Celular: a IA ainda roda só no computador (o resto funciona igual). */
+  semIa?: boolean;
 }) {
   useLoja();
   const id = r.meta.id;
@@ -102,8 +104,12 @@ export function PainelDaEtapa({ r, etapaId, estado, onPerguntar, onAbrirEtapa, o
           <p className="text-xs text-text-muted">Abrindo…</p>
         ) : (
           <div className="roadmap-aviso">
-            <span className="flex-1">A IA pesquisa e escreve o conteúdo desta etapa para você estudar aqui.</span>
-            <Button size="sm" variant="primary" disabled={preparando || r.somenteLeitura} onClick={() => { comecar(); rodar(() => prepararEtapa(id, etapaId)); }}>Preparar etapa</Button>
+            {semIa
+              ? <span className="flex-1">O conteúdo desta etapa ainda não foi preparado. No computador, abra a etapa e toque em "Preparar etapa".</span>
+              : <>
+                <span className="flex-1">A IA pesquisa e escreve o conteúdo desta etapa para você estudar aqui.</span>
+                <Button size="sm" variant="primary" disabled={preparando || r.somenteLeitura} onClick={() => { comecar(); rodar(() => prepararEtapa(id, etapaId)); }}>Preparar etapa</Button>
+              </>}
           </div>
         )}
       </section>
@@ -148,12 +154,12 @@ export function PainelDaEtapa({ r, etapaId, estado, onPerguntar, onAbrirEtapa, o
       </section>
 
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={gerandoCards || r.somenteLeitura} onClick={() => rodar(() => gerarCardsDaEtapa(id, etapaId), (n) => setAviso(n ? `${String(n)} cards entraram na revisão de hoje.` : "Nenhum card novo (já existiam)."))}>
+        {!semIa && <Button size="sm" disabled={gerandoCards || r.somenteLeitura} onClick={() => rodar(() => gerarCardsDaEtapa(id, etapaId), (n) => setAviso(n ? `${String(n)} cards entraram na revisão de hoje.` : "Nenhum card novo (já existiam)."))}>
           Gerar cards de revisão{cardsDaEtapa ? ` (${cardsDaEtapa})` : ""}
-        </Button>
-        <Button size="sm" disabled={gerandoTarefas || r.somenteLeitura} onClick={() => rodar(() => gerarTarefasDaEtapa(id, etapaId))}>Gerar tarefas</Button>
+        </Button>}
+        {!semIa && <Button size="sm" disabled={gerandoTarefas || r.somenteLeitura} onClick={() => rodar(() => gerarTarefasDaEtapa(id, etapaId))}>Gerar tarefas</Button>}
         <Button size="sm" variant="ghost" disabled={r.somenteLeitura} onClick={() => setNovoCard(novoCard ? null : { frente: "", verso: "" })}>Escrever um card</Button>
-        <Button size="sm" variant="ghost" onClick={onPerguntar}>Perguntar à IA</Button>
+        {!semIa && <Button size="sm" variant="ghost" onClick={onPerguntar}>Perguntar à IA</Button>}
       </div>
       {novoCard && (
         <form className="roadmap-proposta glass" aria-label="Novo card" onSubmit={(e) => {

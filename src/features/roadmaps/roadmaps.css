@@ -230,3 +230,30 @@
 .roadmap-revisao-caixa { display: flex; flex-direction: column; gap: .875rem; width: min(100%, 36rem); max-height: 90vh; overflow-y: auto; padding: 1.25rem; background: rgb(var(--c-bg-surface)); }
 .roadmap-card-frente { font-size: 1.0625rem; font-weight: 500; }
 .roadmap-card-verso { padding-top: .75rem; border-top: 1px dashed rgb(var(--c-border-subtle)); }
+
+/* Celular (`src/mobile/telas/Roadmaps.tsx`): mapa em lista, alvos de toque de 44 px. */
+.roadmaps-m-lista { display: flex; flex-direction: column; gap: .625rem; padding: .75rem; }
+.roadmaps-m-pasta { display: block; width: 100%; padding: .75rem; text-align: left; }
+.roadmaps-m { display: flex; flex-direction: column; gap: .75rem; padding: .75rem; }
+.roadmaps-m-placar { display: flex; align-items: center; gap: .75rem; padding: .75rem; }
+.roadmaps-m-acoes { display: flex; gap: .5rem; }
+.roadmaps-m-acoes .btn { flex: 1; min-height: 44px; }
+.roadmaps-m-regiao { width: 100%; padding: .75rem; align-items: stretch; gap: .5rem; margin-bottom: .5rem; }
+.roadmaps-m-regiao .roadmap-regiao-faixa { width: 100%; }
+.roadmaps-m-etapas { display: flex; flex-direction: column; gap: .375rem; }
+.roadmaps-m-etapa {
+  display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 52px; padding: .375rem .625rem;
+  background: rgb(var(--c-bg-surface) / .85); border: 1px solid rgb(var(--c-border-subtle)); border-radius: 12px;
+}
+.roadmaps-m-etapa.is-hoje { border-color: var(--roadmap-cor); box-shadow: 0 0 0 2px color-mix(in srgb, var(--roadmap-cor) 30%, transparent); }
+.roadmaps-m-etapa.is-bloqueada { opacity: .75; }
+.roadmaps-m-hex {
+  display: inline-flex; flex: none; align-items: center; justify-content: center; width: 38px; height: 34px; font-size: .875rem;
+  color: rgb(var(--c-text-muted)); background: rgb(var(--c-overlay) / .08);
+  clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%);
+}
+.roadmaps-m-etapa.is-disponivel .roadmaps-m-hex, .roadmaps-m-etapa.is-andamento .roadmaps-m-hex { color: var(--roadmap-cor); background: color-mix(in srgb, var(--roadmap-cor) 18%, transparent); }
+.roadmaps-m-etapa.is-concluida .roadmaps-m-hex { color: #fff; background: var(--roadmap-cor); }
+.m-shell .roadmaps-m :is(textarea, input) { font-size: 16px; }
+.m-shell .roadmaps-m button { min-height: 40px; }
+.m-shell .roadmap-revisao { padding: .75rem; }

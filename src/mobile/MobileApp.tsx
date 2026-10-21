@@ -25,6 +25,7 @@ import { Atividade } from "./telas/Atividade";
 import { Uso } from "./telas/Uso"; // Fork: uso das contas no celular.
 import { AtualizarPc } from "./telas/AtualizarPc"; // Fork: atualizar o app do PC daqui.
 import { SobreMim } from "./telas/SobreMim"; // Fork (Sobre mim).
+import { RoadmapsNoCelular } from "./telas/RoadmapsTardio"; // Fork (Roadmaps de estudo).
 import { useRecarregarComVersaoNova } from "./versaoNova"; // Fork: pega a página nova depois da atualização.
 import { atualizarAtividade, useAtividadeVista } from "../features/atividade/atividadeService";
 
@@ -93,7 +94,9 @@ export function MobileApp() {
   const perfis = catalog?.profiles ?? [];
   const aviso = catalog ? idadeDaLista(catalog.published_at_ms) : null;
 
-  const pai: Rota = rota.tela === "conversa" && conversa ? { tela: "projeto", projeto: conversa.project_id } : { tela: "inicio" };
+  const pai: Rota = rota.tela === "conversa" && conversa ? { tela: "projeto", projeto: conversa.project_id }
+    : rota.tela === "roadmaps" && rota.roadmap ? { tela: "roadmaps" } // Fork (Roadmaps): do roadmap volta para a lista.
+    : { tela: "inicio" };
   const abrirConversa = (id: string) => ir({ tela: "conversa", conversa: id });
 
   let titulo: ReactNode = <span className="pixel-text">{NOME_DO_PRODUTO}</span>;
@@ -106,6 +109,9 @@ export function MobileApp() {
   } else if (rota.tela === "uso") {
     titulo = "Uso das contas";
     conteudo = <Uso />;
+  } else if (rota.tela === "roadmaps") { // Fork (Roadmaps de estudo).
+    titulo = "Roadmaps";
+    conteudo = <RoadmapsNoCelular roadmap={rota.roadmap ?? null} abrir={(id) => ir(id ? { tela: "roadmaps", roadmap: id } : { tela: "roadmaps" })} />;
   } else if (rota.tela === "sobre-mim") { // Fork (Sobre mim).
     titulo = "Sobre mim";
     conteudo = <SobreMim />;
@@ -158,6 +164,7 @@ export function MobileApp() {
         <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "atividade" })}>Atividade</button>
         <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "uso" })}>Uso das contas</button>
         <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "sobre-mim" })}>Sobre mim</button>
+        <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "roadmaps" })}>Roadmaps</button>
       </div>
       {aviso && <p className="m-aviso">{aviso}</p>}
       {/* Painel do início: o que está acontecendo agora, em três números. "Precisa de você" filtra. */}

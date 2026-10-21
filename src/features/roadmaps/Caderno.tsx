@@ -14,7 +14,7 @@ import type { Etapa } from "./tipos";
 /** Espera depois da última tecla para gravar (e grava ao sair do campo ou fechar). */
 const ESPERA_PARA_GRAVAR_MS = 800;
 
-export function Caderno({ r, etapa, onAbrirLink, compacto = false }: { r: RoadmapAberto; etapa?: Etapa; onAbrirLink: (url: string) => void; compacto?: boolean }) {
+export function Caderno({ r, etapa, onAbrirLink, compacto = false, semIa = false }: { r: RoadmapAberto; etapa?: Etapa; onAbrirLink: (url: string) => void; compacto?: boolean; semIa?: boolean }) {
   useLoja();
   const id = r.meta.id;
   const [texto, setTexto] = useState<string | null>(lembranca<string>(`caderno:${id}`) ?? null);
@@ -90,9 +90,9 @@ export function Caderno({ r, etapa, onAbrirLink, compacto = false }: { r: Roadma
         )}
       <PedidoEmAndamento chave={chaves.caderno(id)} />
       {erro && <p role="alert" className="roadmap-erro">{erro}</p>}
-      <div className="flex justify-end">
+      {!semIa && <div className="flex justify-end">
         <Button size="sm" variant="primary" disabled={revisando || r.somenteLeitura || !texto?.trim()} onClick={pedirRevisao}>Pedir revisão à IA</Button>
-      </div>
+      </div>}
       {revisao && (
         <section className="roadmap-proposta glass" aria-label="Revisão do caderno">
           <div className="flex items-center">
