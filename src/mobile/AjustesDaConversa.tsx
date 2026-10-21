@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentIcon } from "../components/ui/AgentIcon";
-import { ChartIcon, LoaderIcon, PlayIcon, ReloadIcon, SparkleIcon } from "../components/ui/PixelIcon";
+import { LoaderIcon, PlayIcon, ReloadIcon } from "../components/ui/PixelIcon";
 import { Select } from "../components/ui/Select";
 import { ApiError, request } from "./api";
 import { lembrarAjustes } from "../lib/escolhasSalvas";
 import { NOME_CURTO } from "../lib/identidade";
+// Fork: modelo e esforço num botão só, com a barra de esforço (`conversa/SeletorDeModelo.tsx`).
+import { SeletorDeModelo } from "./conversa/SeletorDeModelo";
 
 /** `GET /conversas/{id}/opcoes`: o que dá para escolher nesta conversa e o que está valendo agora. */
 export interface Opcoes {
@@ -22,10 +24,6 @@ export interface Opcoes {
   can_adjust?: boolean;
 }
 export interface Ajustes { profile_id: string | null; model: string | null; effort: string | null }
-
-const ESFORCO: Record<string, string> = {
-  low: "Baixo", medium: "Médio", high: "Alto", xhigh: "Muito alto", max: "Máximo", ultra: "Ultra",
-};
 
 /**
  * O modelo do transcript na lista: igual (`claude-opus-4-8`) ou o mais específico que ele contém
@@ -121,8 +119,6 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
   }
 
   const iconeConta = <AgentIcon provider={opcoes.provider} size={12} className="shrink-0" />;
-  const iconeModelo = <SparkleIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-text-muted" />;
-  const iconeEsforco = <ChartIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-text-muted" />;
 
   return (
     <>
@@ -133,18 +129,8 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
         </span>
       )}
       {opcoes.models.length > 0 && (
-        <span className="m-chip" title={motivo ?? "Modelo"}>
-          <Select size="sm" value={modelo} disabled={bloqueado} onChange={setModelo}
-            options={[{ value: "", label: "Modelo padrão", icon: iconeModelo },
-              ...opcoes.models.map((m) => ({ value: m.id, label: m.label, icon: iconeModelo }))]} />
-        </span>
-      )}
-      {esforcos.length > 0 && (
-        <span className="m-chip" title={motivo ?? "Esforço do raciocínio"}>
-          <Select size="sm" value={esforco} disabled={bloqueado} onChange={setEsforco}
-            options={[{ value: "", label: "Esforço padrão", icon: iconeEsforco },
-              ...esforcos.map((e) => ({ value: e, label: ESFORCO[e] ?? e, icon: iconeEsforco }))]} />
-        </span>
+        <SeletorDeModelo modelos={opcoes.models} modelo={modelo} esforco={esforco} esforcos={esforcos}
+          desativado={bloqueado} motivo={motivo} onModelo={setModelo} onEsforco={setEsforco} />
       )}
       {onRetomar ? (
         <button type="button" className="m-chip-aplicar m-chip-retomar" disabled={bloqueado} onClick={() => void aplicar()}

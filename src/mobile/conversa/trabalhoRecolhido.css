@@ -1,0 +1,18 @@
+/* Fork: trabalho do pedido recolhido (`TrabalhoRecolhido.tsx`). Na Conversa o turno do agente começa
+   depois da coluna do avatar (`mobile.css`), então o cabeçalho também. */
+.trabalho { display: flex; flex-direction: column; gap: .5rem; align-self: stretch; }
+.chat .trabalho { margin-left: 2.5rem; max-width: min(calc(100% - 2.5rem), 46rem); }
+.trabalho-cabecalho {
+  display: inline-flex; align-items: center; gap: .375rem; align-self: stretch; padding: .375rem 0;
+  font: inherit; font-size: .8125rem; color: rgb(var(--c-text-muted)); text-align: left;
+  background: none; border: 0; border-bottom: 1px solid rgb(var(--c-border-subtle)); cursor: pointer;
+}
+.trabalho-cabecalho:hover { color: rgb(var(--c-text-secondary)); }
+.trabalho-cabecalho:focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px; }
+.trabalho-seta { transform: rotate(-90deg); transition: transform 160ms ease; }
+.trabalho.is-aberto .trabalho-seta { transform: none; }
+.trabalho-passos { display: flex; flex-direction: column; gap: .5rem; animation: conversa-entra 180ms ease-out; }
+/* Dentro do trabalho as falas e ações já estão na coluna do texto: sem recuo duplo. */
+.chat .trabalho-passos > .bubble-agent, .chat .trabalho-passos > .acoes, .chat .trabalho-passos > .trabalho { margin-left: 0; max-width: 100%; }
+.chat .trabalho-passos > .bubble-agent .bubble-avatar { display: none; }
+.chat .trabalho-passos > .bubble-rodape.is-agente { margin-left: 0; }

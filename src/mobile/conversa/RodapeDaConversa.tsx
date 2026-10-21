@@ -76,12 +76,6 @@ export function RodapeDaConversa({ conversation, timeline, falhaEnvio, error, an
           onSalvar={(nome) => { setEditandoNome(false); void onRenomear(nome); }} /> : null}
       </>}
       chips={<>
-        {(conversation.live || conversation.capabilities) ? (
-          <AjustesDaConversa conversaId={conversation.id} pronto={Boolean(conversation.capabilities?.prompt) && !busy}
-            onAplicar={onAjustar} />
-        ) : (
-          <AjustesDaConversa key="retomar" conversaId={conversation.id} pronto={!busy} onAplicar={onAjustar} onRetomar={onRetomar} />
-        )}
         <button type="button" className="composer-botao" title="Renomear conversa" aria-label="Renomear conversa"
           onClick={() => setEditandoNome(true)}>
           <EditIcon aria-hidden className="h-4 w-4" />
@@ -106,9 +100,18 @@ export function RodapeDaConversa({ conversation, timeline, falhaEnvio, error, an
         )}
       </>}
       // Fork: agendar também funciona com a conversa fechada ou durante turno.
-      direita={<ControlesDaConversa conversaId={conversation.id} provider={conversation.provider}
-        modo={modoVigente(conversation.mode, timeline?.modo_de_permissao)} fast={conversation.fast}
-        pronto={Boolean(conversation.capabilities?.prompt) && !busy} onModo={onModo} onComando={onComando} onAgendar={() => setAgendando(true)} />}
+      direita={<>
+        <ControlesDaConversa conversaId={conversation.id} provider={conversation.provider}
+          modo={modoVigente(conversation.mode, timeline?.modo_de_permissao)} fast={conversation.fast}
+          pronto={Boolean(conversation.capabilities?.prompt) && !busy} onModo={onModo} onComando={onComando} onAgendar={() => setAgendando(true)} />
+        {/* Fork: modelo e esforço no canto direito, ao lado do Parar/Enviar, como no Codex. */}
+        {(conversation.live || conversation.capabilities) ? (
+          <AjustesDaConversa conversaId={conversation.id} pronto={Boolean(conversation.capabilities?.prompt) && !busy}
+            onAplicar={onAjustar} />
+        ) : (
+          <AjustesDaConversa key="retomar" conversaId={conversation.id} pronto={!busy} onAplicar={onAjustar} onRetomar={onRetomar} />
+        )}
+      </>}
       onParar={onParar}
       parando={parando}
       buscarArquivos={buscarArquivos} />

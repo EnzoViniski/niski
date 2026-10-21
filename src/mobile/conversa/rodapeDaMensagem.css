@@ -19,3 +19,9 @@
   border: 1px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-overlay) / .04);
   cursor: help;
 }
+/* Fork (21/10/2026): na resposta do agente, horário e Copiar aparecem ao passar o mouse sobre ela, como
+   nos apps do Codex/Claude. Sem mouse (celular), ficam sempre, mais apagados. */
+.bubble-rodape.is-agente { opacity: 0; transition: opacity .15s ease; }
+.bubble-agent:hover + .bubble-rodape.is-agente, .bubble-rodape.is-agente:hover, .bubble-rodape.is-agente:focus-within { opacity: 1; }
+.bubble-rodape.is-agente .bubble-copiar { opacity: 1; }
+@media (hover: none) { .bubble-rodape.is-agente { opacity: .7; } }

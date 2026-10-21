@@ -84,6 +84,10 @@ it("mostra as ações resumidas, abre a lista ao clicar, e mostra comando e avis
   render(<WebApp />);
   await abrir();
 
+  // Fork (turno recolhido): conversa parada, o trabalho do pedido fica em "Trabalhou por …"; abrir mostra as ações.
+  const trabalho = await screen.findByRole("button", { name: /Trabalhou por|Trabalho do agente/ }, { timeout: 4000 });
+  expect(screen.queryByRole("button", { name: /3 ações/ })).not.toBeInTheDocument();
+  await act(async () => { await userEvent.click(trabalho); });
   const bloco = await screen.findByRole("button", { name: /3 ações/ }, { timeout: 4000 });
   // Fechado, mostra a última ação como resumo.
   expect(bloco).toHaveTextContent("Editou");

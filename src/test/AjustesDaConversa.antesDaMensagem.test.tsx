@@ -15,8 +15,11 @@ let resposta: Record<string, unknown> = CODEX;
 const fetchFalso = vi.fn(async () => new Response(JSON.stringify(resposta)));
 beforeEach(() => { resposta = CODEX; fetchFalso.mockClear(); vi.stubGlobal("fetch", fetchFalso); });
 
-async function escolher(indice: number, opcao: string) {
-  await act(async () => { await userEvent.click(screen.getAllByRole("combobox")[indice]); });
+// Fork (seletor no estilo do Codex): o botão abre o painel; o nome do modelo leva à lista.
+const gatilho = () => document.querySelector<HTMLButtonElement>(".seletor-gatilho")!;
+async function escolherModelo(opcao: string) {
+  await act(async () => { await userEvent.click(gatilho()); });
+  await act(async () => { await userEvent.click(document.querySelector<HTMLButtonElement>(".seletor-modelo-link")!); });
   await act(async () => { await userEvent.click(screen.getByRole("option", { name: opcao })); });
 }
 
@@ -25,8 +28,8 @@ describe("AjustesDaConversa antes da primeira mensagem", () => {
     const onAplicar = vi.fn().mockResolvedValue(undefined);
     render(<AjustesDaConversa conversaId="c" pronto onAplicar={onAplicar} />);
     expect(await screen.findByText("GPT X")).toBeInTheDocument();
-    for (const campo of screen.getAllByRole("combobox")) expect(campo).not.toBeDisabled();
-    await escolher(0, "GPT Y");
+    expect(gatilho()).not.toBeDisabled();
+    await escolherModelo("GPT Y");
     await act(async () => { await userEvent.click(screen.getByRole("button", { name: /Aplicar/ })); });
     expect(onAplicar).toHaveBeenCalledWith({ profile_id: "codex-padrao", model: "gpt-y", effort: "medium" });
   });
@@ -35,14 +38,14 @@ describe("AjustesDaConversa antes da primeira mensagem", () => {
     resposta = { ...CODEX, can_adjust: undefined };
     render(<AjustesDaConversa conversaId="c" pronto onAplicar={vi.fn()} />);
     await screen.findByText("GPT X");
-    for (const campo of screen.getAllByRole("combobox")) expect(campo).toBeDisabled();
+    expect(gatilho()).toBeDisabled();
   });
 
   it("relê ao ficar pronto e mantém o aplicado até o engine mostrar outra leitura", async () => {
     const onAplicar = vi.fn().mockResolvedValue(undefined);
     const { rerender } = render(<AjustesDaConversa conversaId="c" pronto onAplicar={onAplicar} />);
     await screen.findByText("GPT X");
-    await escolher(0, "GPT Y");
+    await escolherModelo("GPT Y");
     await act(async () => { await userEvent.click(screen.getByRole("button", { name: /Aplicar/ })); });
     // Reabrindo: some o pronto e volta; o engine ainda lê o modelo antigo.
     rerender(<AjustesDaConversa conversaId="c" pronto={false} onAplicar={onAplicar} />);

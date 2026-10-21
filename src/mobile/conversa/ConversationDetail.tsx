@@ -9,6 +9,9 @@ import { Button } from "../../components/ui/Button";
 import { AttachmentIcon } from "../../components/ui/PixelIcon";
 import { request, requestSeMudou, esquecerVersao, enviarTeclas, actionKey, ApiError, type Conversation, type Timeline } from "../api";
 import { AgentWorking, BlocoDeAcoes, LinhaDeAviso, LinhaDeComando, MessageBubble } from "../Chat";
+// Fork: trabalho de cada pedido recolhido em "Trabalhou por …" quando a resposta final chega.
+import { turnosRecolhidos } from "./turnos";
+import { TrabalhoRecolhido } from "./TrabalhoRecolhido";
 import { CartaoDePergunta } from "../CartaoDePergunta";
 // Fork: conversa rica — plano do plan mode.
 import { CartaoDoPlano } from "../CartaoDoPlano";
@@ -43,6 +46,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   // O rascunho sobrevive ao refresh da página: atualizar no meio da digitação não apaga nada.
   const [text, setText] = useState(() => lerSessao(chaveRascunho) ?? "");
   const [anexos, setAnexos] = useState<Anexo[]>([]);
+  // Fork: turnos com o "Trabalhou por …" aberto (pelo id da sua mensagem); some ao trocar de conversa.
+  const [trabalhoAberto, setTrabalhoAberto] = useState<Set<string>>(new Set());
   const [arrastando, setArrastando] = useState(false);
   const telaRef = useRef<HTMLElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -350,6 +355,9 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const ultimoBloco = blocos[blocos.length - 1];
   // Fork: menu da CLI logo depois do plano é a aprovação dele (aprovar / continuar planejando).
   const planoPendente = ultimoBloco?.tipo === "plano" && Boolean(capability?.escolha);
+  // Fork: turno em andamento (trabalhando, pedindo aprovação, perguntando) fica todo à vista.
+  const recolhidos = turnosRecolhidos(blocos, ativo || Boolean(capability?.approve || capability?.escolha || capability?.espera));
+  const finais = new Set(recolhidos.map((r) => r.final));
 
   function renderizarBloco(bloco: Bloco, indice: number) {
     if (bloco.tipo === "acoes") {
@@ -369,7 +377,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     }
     const message = bloco.mensagem;
     return <MessageBubble key={message.id} lado={message.role === "user" ? "user" : "agent"}
-      provider={message.provider} texto={message.text} horario={message.timestamp} continua={continuacoes.has(indice)}
+      provider={message.provider} texto={message.text} horario={message.timestamp} continua={continuacoes.has(indice) && !finais.has(indice)}
       imagens={message.imagens ? { conversa: conversation.id, n: indiceDaMensagem(message.id), total: message.imagens } : undefined}
       arquivos={message.arquivos?.length ? { conversa: conversation.id, n: indiceDaMensagem(message.id), caminhos: message.arquivos } : undefined} />;
   }
@@ -409,13 +417,34 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
       {!data && <Vazio>Carregando conversa…</Vazio>}
       {data && mensagens.length === 0 && !enviado && !ativo && !timeline?.unavailable_segments.length &&
         <Vazio>Nenhuma mensagem ainda. Mande o primeiro prompt abaixo.</Vazio>}
-      {blocos.map((bloco, indice) => {
-        const dia = separadores.get(indice);
-        const conteudo = renderizarBloco(bloco, indice);
-        // Chave pelo bloco, não pela posição: com as antigas entrando em cima, a posição muda.
-        const chave = bloco.tipo === "acoes" ? bloco.id : bloco.mensagem.id;
-        return dia ? <div key={`dia-${chave}`} className="chat-grupo"><p className="chat-dia"><span>{dia}</span></p>{conteudo}</div> : conteudo;
-      })}
+      {(() => {
+        const nos: React.ReactNode[] = [];
+        const desenhar = (bloco: Bloco, indice: number) => {
+          const dia = separadores.get(indice);
+          const conteudo = renderizarBloco(bloco, indice);
+          // Chave pelo bloco, não pela posição: com as antigas entrando em cima, a posição muda.
+          const chave = bloco.tipo === "acoes" ? bloco.id : bloco.mensagem.id;
+          return dia ? <div key={`dia-${chave}`} className="chat-grupo"><p className="chat-dia"><span>{dia}</span></p>{conteudo}</div> : conteudo;
+        };
+        const porInicio = new Map(recolhidos.map((r) => [r.inicio, r]));
+        for (let indice = 0; indice < blocos.length; indice++) {
+          const r = porInicio.get(indice);
+          if (!r) { nos.push(desenhar(blocos[indice], indice)); continue; }
+          const aberto = trabalhoAberto.has(r.chave);
+          nos.push(
+            <TrabalhoRecolhido key={`trabalho-${r.chave}`} duracaoMs={r.duracaoMs} aberto={aberto}
+              onAlternar={() => setTrabalhoAberto((atual) => {
+                const novo = new Set(atual);
+                if (novo.has(r.chave)) novo.delete(r.chave); else novo.add(r.chave);
+                return novo;
+              })}>
+              {aberto && blocos.slice(r.inicio, r.fim + 1).map((bloco, k) => desenhar(bloco, r.inicio + k))}
+            </TrabalhoRecolhido>,
+          );
+          indice = r.fim;
+        }
+        return nos;
+      })()}
       {enviado && <MessageBubble lado="user" pendente texto={enviado.texto}
         anexosLocais={enviado.anexos.length ? enviado.anexos : undefined} />}
       {capability?.approve && <CartaoDePermissao texto={capability.approval_text} busy={busy} onResponder={(permitir) => void aprovar(permitir)}
