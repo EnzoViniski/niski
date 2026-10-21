@@ -150,3 +150,7 @@ mod tests {
         assert_eq!(impressao(&sessao).len(), 16);
     }
 }
+
+#[cfg(test)]
+#[path = "espera_de_saida_testes.rs"]
+mod testes_com_sessao;
