@@ -80,7 +80,7 @@
 .roadmap-no.is-disponivel, .roadmap-no.is-andamento { border-color: var(--roadmap-cor, rgb(var(--c-accent))); color: var(--roadmap-cor, rgb(var(--c-accent))); }
 .roadmap-no.is-andamento { background: color-mix(in srgb, var(--roadmap-cor, rgb(var(--c-accent))) 14%, rgb(var(--c-bg-surface))); }
 .roadmap-no.is-concluida { border-color: var(--roadmap-cor, rgb(var(--c-accent))); background: var(--roadmap-cor, rgb(var(--c-accent))); color: rgb(var(--c-bg-primary)); }
-.roadmap-no.is-bloqueada { opacity: .7; }
+.roadmap-no.is-bloqueada { color: rgb(var(--c-text-muted) / .7); }
 .roadmap-no.is-aberta { outline: 3px solid rgb(var(--c-text-primary) / .5); outline-offset: 3px; }
 /* Halo da etapa de hoje: só opacity/transform num pseudo-elemento, sem pegar clique. */
 .roadmap-no.is-hoje::after {
