@@ -16,6 +16,20 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.12.0",
+    date: "2026-10-21",
+    changes: [
+      "Nova aba Edição de vídeo, no rodapé da barra lateral: crie um vídeo, escolha o formato (16:9, 9:16, 1:1 ou 4:5) e a duração, e escreva o que você quer, o estilo e o público.",
+      "Arraste vídeos, fotos, áudio, fontes, logos e links de referência para o vídeo. Cada arquivo entra como \"usar no vídeo\" ou \"só referência\" (a IA olha o estilo, mas não coloca no vídeo).",
+      "Pastas de referências: guarde as referências de um tipo de vídeo (por exemplo, \"Reels da Medza\") e, na hora de criar, é só escolher a pasta.",
+      "Editor com preview, linha do tempo e propriedades: arraste os clipes para mover, puxe as pontas para cortar, divida, duplique, esconda, mude o volume, ponha um texto na tela e solte mídia da biblioteca direto na linha do tempo. Espaço toca e pausa, as setas andam um quadro, ⌘Z desfaz.",
+      "Chat ao lado com o Claude ou o Codex na conta que você escolher: peça \"corta os 3 primeiros segundos\" ou \"legenda animada no estilo da referência\" e o preview atualiza sozinho. Dá para ver qual modelo está rodando e trocar.",
+      "Antes de cada mudança o app guarda uma versão: Desfazer, Refazer e a lista de Versões voltam para qualquer ponto.",
+      "Exportar em MP4, MOV, WebM ou GIF, renderizado aqui no computador, com progresso e botão de cancelar. Nada sobe para a nuvem.",
+      "Editar a dois: abra uma sessão pelo Tailscale e mande o convite. Cada um vê o que o outro seleciona e onde está na linha do tempo, usa o próprio agente na própria conta, e só um agente edita por vez.",
+    ],
+  },
+  {
     version: "0.11.1",
     date: "2026-10-21",
     changes: [

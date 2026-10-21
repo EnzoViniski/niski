@@ -12,6 +12,7 @@ import {
   CopyIcon,
   DockerIcon,
   FlagIcon,
+  ClapperboardIcon,
   FolderIcon,
   FolderPlusIcon as FolderPlus,
   GitBranchIcon,
@@ -119,6 +120,9 @@ interface SidebarProps {
   /** Fork: Roadmaps de estudo (abre onde parou). */
   showRoadmaps?: boolean;
   onOpenRoadmaps?: () => void;
+  /** Fork: Edição de vídeo (abre o último vídeo). */
+  showVideo?: boolean;
+  onOpenVideo?: () => void;
   onOpenHistory: () => void;
   /** Antigo clique no logo: o logo mudou para a barra superior (`TitleBar`). */
   onHome?: () => void;
@@ -175,6 +179,8 @@ export function Sidebar({
   onOpenFluxos,
   showRoadmaps = false,
   onOpenRoadmaps,
+  showVideo = false,
+  onOpenVideo,
   onOpenHistory,
   onHome,
   onAddProject,
@@ -422,6 +428,14 @@ export function Sidebar({
             onClick={onOpenRoadmaps}
             icon={<FlagIcon className="w-4 h-4" aria-hidden="true" />}
             label="Roadmaps"
+          />
+        )}
+        {onOpenVideo && (
+          <NavItem
+            active={showVideo}
+            onClick={onOpenVideo}
+            icon={<ClapperboardIcon className="w-4 h-4" aria-hidden="true" />}
+            label="Edição de vídeo"
           />
         )}
         {onOpenFluxos && (

@@ -47,6 +47,8 @@ import { HistoryView } from "./features/history/HistoryView";
 import { FluxosView } from "./features/fluxos/FluxosViewTardio";
 // Fork: Roadmaps de estudo, carregados só ao abrir a tela.
 import { RoadmapsView } from "./features/roadmaps/RoadmapsViewTardio";
+// Fork: Edição de vídeo (HyperFrames), carregada só ao abrir a tela.
+import { VideoView } from "./features/video/VideoViewTardio";
 import { definirEstudoEmTelaCheia, definirModoFoco, useEstudoEmTelaCheia, useModoFoco } from "./lib/modoFoco";
 import type { HistoryEntry } from "./features/history/historyService";
 // Fork (retomar-sempre): retomar do Histórico sem beco sem saída.
@@ -61,7 +63,7 @@ import { matchesShortcut } from "./lib/shortcuts";
 import { useAberturasDaAtividade } from "./features/atividade/navegacao";
 import { useAtividadeDoDesktop } from "./features/atividade/vistas";
 
-type View = "workspace" | "settings" | "history" | "fluxos" | "conversa" | "roadmaps";
+type View = "workspace" | "settings" | "history" | "fluxos" | "conversa" | "roadmaps" | "video";
 
 export function App() { return <AcoesDaPaleta><AppComPaleta /></AcoesDaPaleta>; }
 
@@ -83,6 +85,13 @@ function AppComPaleta() {
   useAcoesDaPaleta("roadmaps", [
     { id: "roadmaps-continuar", titulo: "Continuar estudo (Roadmaps)", executar: () => abrirRoadmaps(true) },
     { id: "roadmaps-lista", titulo: "Roadmaps de estudo", executar: () => abrirRoadmaps(false) },
+  ]);
+  // Fork (Edição de vídeo): cada abertura remonta a tela; `continuar` volta ao último vídeo aberto.
+  const [aberturaDoVideo, setAberturaDoVideo] = useState({ chave: 0, continuar: true });
+  const abrirVideo = useCallback((continuar: boolean) => { setAberturaDoVideo((a) => ({ chave: a.chave + 1, continuar })); setView("video"); }, []);
+  useAcoesDaPaleta("video", [
+    { id: "video-continuar", titulo: "Continuar edição de vídeo", executar: () => abrirVideo(true) },
+    { id: "video-lista", titulo: "Edição de vídeo", executar: () => abrirVideo(false) },
   ]);
   // Fork: pasta do agente em worktree isolada que acabou de ser encerrado (`DialogoDaWorktree`).
   const [worktreeAoFechar, setWorktreeAoFechar] = useState<string | null>(null);
@@ -242,6 +251,7 @@ function AppComPaleta() {
             : view === "history" ? ["Histórico"]
             : view === "fluxos" ? ["Fluxos de agentes"]
             : view === "roadmaps" ? ["Roadmaps"]
+            : view === "video" ? ["Edição de vídeo"]
             : [workspaces.find((item) => item.id === activeWorkspaceId)?.name, activeProject?.name].filter((parte): parte is string => Boolean(parte))
         }
         dica={view === "workspace" ? activeProject?.path : undefined}
@@ -313,6 +323,8 @@ function AppComPaleta() {
         showFluxos={view === "fluxos"}
         showRoadmaps={view === "roadmaps"}
         onOpenRoadmaps={() => abrirRoadmaps(true)}
+        showVideo={view === "video"}
+        onOpenVideo={() => abrirVideo(true)}
         onOpenFluxos={() => setView("fluxos")}
         onOpenHistory={openHistory}
         onHome={() => setView("workspace")}
@@ -406,6 +418,8 @@ function AppComPaleta() {
             <HistoryView onResume={resumeHistory} onClose={closeHistory} />
           ) : view === "roadmaps" ? (
             <RoadmapsView key={aberturaDosRoadmaps.chave} continuar={aberturaDosRoadmaps.continuar} onClose={() => setView("workspace")} />
+          ) : view === "video" ? (
+            <VideoView key={aberturaDoVideo.chave} continuar={aberturaDoVideo.continuar} onClose={() => setView("workspace")} />
           ) : view === "fluxos" ? (
             <div className="h-full min-h-0 flex flex-col">
               <div className="flex-1 min-h-0">

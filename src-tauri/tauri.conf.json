@@ -1,6 +1,6 @@
 {
   "productName": "Medza Agents",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "identifier": "ai.medza.agents",
   "build": {
     "frontendDist": "../dist",
@@ -26,7 +26,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost https://*.ytimg.com https://img.youtube.com https://*.ggpht.com; connect-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost ipc: http://ipc.localhost; media-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost; worker-src 'self' blob:",
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost https://*.ytimg.com https://img.youtube.com https://*.ggpht.com medzavideo: http://medzavideo.localhost; connect-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost ipc: http://ipc.localhost; media-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost medzavideo: http://medzavideo.localhost; worker-src 'self' blob:; frame-src 'self' medzavideo: http://medzavideo.localhost",
       "assetProtocol": {
         "enable": true,
         "scope": [
@@ -47,7 +47,8 @@
     ],
     "createUpdaterArtifacts": false,
     "resources": {
-      "../skills/basicas/": "skills/basicas/"
+      "../skills/basicas/": "skills/basicas/",
+      "../skills/video/": "skills/video/"
     },
     "externalBin": [
       "binaries/omni-engine",
