@@ -42,6 +42,8 @@ mod tela_cheia;
 mod pedido_de_atualizacao; // Fork: "Atualizar o PC" pedido pelo celular.
 // Fork: Jarvis, copiloto por voz (janela flutuante, voz da Apple, Claude Code pensando).
 mod jarvis;
+// Fork: Roadmaps de estudo (trilhas, cards de revisão e IA ao lado).
+mod roadmaps;
 
 pub fn run() {
     // Fork: contas com pasta mas fora do `profiles.json` desta variante voltam a ser reconhecidas.
@@ -122,6 +124,13 @@ pub fn run() {
             atualizacao::agentes_trabalhando,
             pedido_de_atualizacao::consumir_pedido_de_atualizacao,
             backup_antes_de_atualizar::backup_antes_de_atualizar,
+            roadmaps::roadmaps_listar, // Fork: Roadmaps de estudo.
+            roadmaps::roadmaps_criar,
+            roadmaps::roadmaps_ler,
+            roadmaps::roadmaps_gravar,
+            roadmaps::roadmaps_anexar_conversa,
+            roadmaps::roadmaps_ordenar,
+            roadmaps::roadmaps_backup_antes_de_migrar,
             estado_da_interface::ler_estado_da_interface,
             estado_da_interface::gravar_estado_da_interface,
             engine_client::registrar_evento_da_ui,

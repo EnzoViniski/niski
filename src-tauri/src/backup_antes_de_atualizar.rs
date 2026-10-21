@@ -74,7 +74,8 @@ fn versao_segura(versao: &str) -> String {
 }
 
 /// `AAAAMMDD-HHMMSS` em UTC, sem dependência de data (algoritmo de dias civis de Howard Hinnant).
-fn carimbo(agora: SystemTime) -> String {
+/// Fork (Roadmaps): também nomeia a cópia antes de migrar um roadmap.
+pub(crate) fn carimbo(agora: SystemTime) -> String {
     let segundos = agora.duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) as i64;
     let (dias, resto) = (segundos.div_euclid(86_400), segundos.rem_euclid(86_400));
     let z = dias + 719_468;
@@ -125,6 +126,9 @@ pub fn fazer_backup(origem: &Path, versao: &str, interface: &BTreeMap<String, St
         fs::copy(&caminho, destino.join(nome))?;
         arquivos += 1;
     }
+
+    // Fork (Roadmaps): a pasta inteira dos roadmaps, com a mesma regra (lista fechada, sem link).
+    arquivos += crate::roadmaps::armazenamento::copiar_tudo(&origem.join(crate::roadmaps::armazenamento::PASTA), &destino.join(crate::roadmaps::armazenamento::PASTA))?;
 
     let salvas: BTreeMap<&str, &str> = interface.iter()
         .filter(|(chave, _)| CHAVES_DA_INTERFACE.contains(&chave.as_str()))
@@ -223,6 +227,24 @@ mod tests {
         assert_eq!(fs::read_to_string(destino.join("sobre-mim").join("trabalho.md")).unwrap(), "sintético");
         assert!(!destino.join("sobre-mim").join("LEIA-ME.md").exists());
         assert_eq!(feito.arquivos, 4);
+    }
+
+    // Fork (Roadmaps): fecha, atualiza e continua tudo lá — a cópia leva cada roadmap inteiro.
+    #[test]
+    fn backup_leva_os_roadmaps() {
+        let dir = pasta_com_estado();
+        let raiz = dir.path().join(crate::roadmaps::armazenamento::PASTA);
+        let id = crate::roadmaps::armazenamento::criar(&raiz, &serde_json::json!({"versao":1,"nome":"Vendas"}), 1, 2).unwrap();
+        crate::roadmaps::armazenamento::gravar(&raiz, &id, "cards.json", r#"{"versao":1,"cards":[]}"#).unwrap();
+        crate::roadmaps::armazenamento::gravar(&raiz, &id, "etapas/e-1.md", "resumo").unwrap();
+        crate::roadmaps::armazenamento::anexar_na_conversa(&raiz, &id, r#"{"de":"eu","texto":"oi"}"#).unwrap();
+        let feito = fazer_backup(dir.path(), "0.10.0", &BTreeMap::new(), em(1_792_454_400)).unwrap();
+        let copia = PathBuf::from(&feito.pasta).join("roadmaps");
+        assert!(copia.join("indice.json").is_file());
+        for arquivo in ["meta.json", "cards.json", "conversa.jsonl", "etapas/e-1.md"] {
+            assert_eq!(fs::read(copia.join(&id).join(arquivo)).unwrap(), fs::read(raiz.join(&id).join(arquivo)).unwrap(), "{arquivo}");
+        }
+        assert_eq!(feito.arquivos, 3 + 5);
     }
 
     #[test]
