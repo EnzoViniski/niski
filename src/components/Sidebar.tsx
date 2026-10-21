@@ -101,6 +101,8 @@ interface SidebarProps {
   agentSessions?: TerminalSession[];
   /** Sessão da aba em foco: a linha dela fica marcada na lista. */
   activeSessionId?: string | null;
+  /** Fork: conversas visíveis no layout agora (aba em foco de cada painel). */
+  sessoesNaTela?: string[];
   showSettings: boolean;
   showHistory: boolean;
   /** Tela de fluxos de agentes (editor estilo n8n e execuções). */
@@ -150,6 +152,7 @@ export function Sidebar({
   terminalSessions,
   agentSessions = [],
   activeSessionId = null,
+  sessoesNaTela = [],
   showSettings,
   showHistory,
   showFluxos = false,
@@ -281,6 +284,7 @@ export function Sidebar({
             projects={projects}
             activeProjectId={activeProjectId}
             activeSessionId={activeSessionId ?? null}
+            sessoesNaTela={sessoesNaTela}
             agentSessions={agentSessions}
             naoVistas={naoVistas}
             onSelectProject={onSelectProject}

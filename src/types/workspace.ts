@@ -149,4 +149,7 @@ export type WorkspacesAction =
    *  roteadas só pro workspace ativo (`workspacesReducer`), que é exatamente o que impede
    *  alcançar um agente de outro workspace. */
   | { type: "FOCUS_SESSION"; workspaceId: string; projectId: string; sessionId: string; title: string }
+  /** Fork: clique na lateral — como FOCUS_SESSION, mas conversa que não está na tela ganha painel
+   *  próprio ao lado do ativo (`abrirEmPainelProprio.ts`). */
+  | { type: "OPEN_SESSION_OWN_PANE"; workspaceId: string; projectId: string; sessionId: string; title: string }
   | WorkspaceAction;

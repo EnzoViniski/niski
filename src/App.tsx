@@ -31,6 +31,7 @@ import { useAttentionNotifier } from "./features/terminal/useAttentionNotifier";
 import { useJanelaEmFoco } from "./hooks/useJanelaEmFoco";
 // Fork: pausa animações e fundos WebGL com a janela oculta, sem foco ou parada (energia).
 import { useEconomiaDeEnergia } from "./hooks/useEconomiaDeEnergia";
+import { sessoesNaTela } from "./features/workspace/abrirEmPainelProprio"; // Fork: lateral clareia o que está na tela.
 import { useAtenderPedidoDeAtualizacao } from "./lib/pedidoDeAtualizacao"; // Fork: "Atualizar o PC" pelo celular.
 import {
   closeTerminal,
@@ -284,6 +285,7 @@ function AppComPaleta() {
           sessions.filter((session) => session.project_id === workspace.activeProjectId),
         )}
         agentSessions={latestPerConversation(sessions.filter((session) => session.provider))}
+        sessoesNaTela={sessoesNaTela(activeProject?.layout)}
         showSettings={view === "settings"}
         showHistory={view === "history"}
         showFluxos={view === "fluxos"}
@@ -306,7 +308,8 @@ function AppComPaleta() {
         }}
         onAbrirConversa={(projectId, sessionId, title) => {
           if (!activeWorkspaceId) return;
-          dispatch({ type: "FOCUS_SESSION", workspaceId: activeWorkspaceId, projectId, sessionId, title });
+          // Fork: conversa que não está na tela abre num painel próprio ao lado (`abrirEmPainelProprio.ts`).
+          dispatch({ type: "OPEN_SESSION_OWN_PANE", workspaceId: activeWorkspaceId, projectId, sessionId, title });
           setView("workspace");
         }}
         // Fork (histórico na lateral): mesmo caminho do "Retomar" da tela Histórico.

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { ChevronDownIcon, CloseIcon, FolderIcon, GitBranchIcon, ReloadIcon } from "../../components/ui/PixelIcon";
+import { ChevronDownIcon, CloseIcon, GitBranchIcon, ReloadIcon } from "../../components/ui/PixelIcon";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { IconeDoStatus, rotuloDoStatus, statusDaConversa } from "../../components/ConversaStatus";
 import { conversationKey } from "../terminal/useAttention";
@@ -18,7 +18,7 @@ import { ConversasAnteriores } from "./ConversasAnteriores";
 import type { HistoryEntry } from "../history/historyService";
 // Fork (lateral fluida): linhas deslizam ao reordenar/abrir e a conversa diz agente, estado e quando.
 import { useAnimarLista } from "./animarLateral";
-import { haQuanto } from "../../lib/tempo";
+import { IconeDaPasta } from "./IconeDaPasta";
 
 /** A linha sendo arrastada: em qual lista (`projetos` ou o id do projeto), qual, e a posição prevista
  *  entre as outras (`null` = fora da lista, por exemplo sobre o layout). */
@@ -68,6 +68,8 @@ interface Props {
   projects: Project[];
   activeProjectId: string | null;
   activeSessionId: string | null;
+  /** Fork: conversas visíveis no layout agora — a linha fica mais clara. */
+  sessoesNaTela?: string[];
   /** Conversas de agente de todos os projetos (uma por conversa). */
   agentSessions: TerminalSession[];
   naoVistas: Set<string>;
@@ -91,7 +93,7 @@ interface Props {
  * Antigravity…); o ícone à direita, o estado (trabalhando, pedindo aprovação…).
  */
 export function PastasDeProjetos({
-  projects, activeProjectId, activeSessionId, agentSessions, naoVistas,
+  projects, activeProjectId, activeSessionId, sessoesNaTela = [], agentSessions, naoVistas,
   onSelectProject, onCloseProject, onAbrirConversa, onBifurcar, onReiniciar, onFechar, onSoltarNoLayout,
   onRetomarAnterior, onVerHistorico,
 }: Props) {
@@ -148,10 +150,11 @@ export function PastasDeProjetos({
     const posicao = conversas.indexOf(session);
     const status = statusDaConversa(session, naoVistas.has(conversationKey(session)));
     const emFoco = session.id === activeSessionId;
+    const naTela = !emFoco && sessoesNaTela.includes(session.id);
     const chave = conversationKey(session);
     return (
                     <li key={session.id} data-reordenar={sub ? undefined : ""} data-anima={`c:${chave}`}
-                      className={`conversa-linha group${emFoco ? " is-ativa" : ""}${sub ? ` is-subagente${extra.ultimo ? " is-ultimo" : ""}` : ""}${classeDeSoltura(soltura, project.id, chave)}`}
+                      className={`conversa-linha group${emFoco ? " is-ativa" : ""}${naTela ? " is-na-tela" : ""}${sub ? ` is-subagente${extra.ultimo ? " is-ultimo" : ""}` : ""}${classeDeSoltura(soltura, project.id, chave)}`}
                       style={{ "--cor-agente": corDoAgente(session.provider) } as React.CSSProperties}
                       onPointerDown={sub ? undefined : (evento) => iniciarArraste(evento, evento.currentTarget.closest("ul"), {
                         aoMudar: (posicao) => setSoltura({ lista: project.id, id: chave, posicao }),
@@ -180,10 +183,7 @@ export function PastasDeProjetos({
                         }}
                         className="conversa-botao">
                         <AgentIcon provider={session.provider} size={13} className="shrink-0" />
-                        <span className="conversa-textos">
-                          <span className="conversa-nome">{session.name}</span>
-                          <SubtituloDaConversa session={session} status={status} />
-                        </span>
+                        <span className="conversa-nome">{session.name}</span>
                         <IconeDoStatus status={status} className="h-3 w-3" />
                       </button>
                       <IconeDaOrquestradora conversa={chave} titulo={session.name} />
@@ -222,7 +222,8 @@ export function PastasDeProjetos({
         // Fork: conversa de qualquer projeto pode cair no layout que está na tela; a aba mostra de
         // qual projeto ela é (`workspace/projetosDasAbas.tsx`).
         const soltaNoLayout = onSoltarNoLayout;
-        const anteriores = onRetomarAnterior && aberta ? anterioresDaPasta(project.path, historico, agentSessions) : [];
+        // Fork: calculadas também com a pasta fechada — a gaveta fica montada para abrir/fechar deslizando.
+        const anteriores = onRetomarAnterior ? anterioresDaPasta(project.path, historico, agentSessions) : [];
         return (
           <li key={project.id} data-reordenar data-anima={`p:${project.id}`} className={classeDeSoltura(soltura, "projetos", project.id).trim() || undefined}>
             <div className={`pasta group${ativa ? " is-ativa" : ""}`}
@@ -240,16 +241,14 @@ export function PastasDeProjetos({
                   ordenarProjetos(mover(idsDosProjetos, project.id, passo < 0 ? indice - 1 : indice + 2));
                 }}
                 onClick={() => {
-                  // Clicar na pasta já ativa só abre/fecha; numa outra, seleciona e garante aberta.
-                  if (ativa) alternar(project.id);
-                  else {
-                    onSelectProject(project.id);
-                    setAbertas((atual) => new Set(atual).add(project.id));
-                  }
+                  // Fork: um clique abre/fecha a pasta (como nos apps do Claude/Codex); numa pasta de
+                  // outro projeto, também seleciona o projeto. Antes eram dois cliques.
+                  if (!ativa) onSelectProject(project.id);
+                  alternar(project.id);
                 }}
                 className="pasta-botao">
-                <ChevronDownIcon aria-hidden className={`h-3 w-3 shrink-0 transition-transform ${aberta ? "" : "-rotate-90"}`} />
-                <FolderIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-accent" />
+                <ChevronDownIcon aria-hidden className={`pasta-seta h-3 w-3 shrink-0 transition-transform ${aberta ? "" : "-rotate-90"}`} />
+                <IconeDaPasta aberta={aberta} />
                 <span className="min-w-0 flex-1 truncate">{project.name}</span>
                 {todas.length > 0 && <span className="pasta-contagem">{todas.length}</span>}
               </button>
@@ -259,7 +258,9 @@ export function PastasDeProjetos({
               </button>
             </div>
 
-            {aberta && (
+            {/* Fork: gaveta sempre montada; abre e fecha deslizando (`.pasta-gaveta`, grid 0fr → 1fr). */}
+            <div className={`pasta-gaveta${aberta ? " is-aberta" : ""}`} aria-hidden={!aberta || undefined}
+              {...(aberta ? {} : { inert: "" })}>
               <ul className="pasta-conversas" aria-label={`Conversas de ${project.name}`}>
                 {todas.length === 0 && anteriores.length === 0 && <li className="px-2 py-1 text-[11px] text-text-muted">Nenhuma conversa ainda.</li>}
                 {conversasNaTela.flatMap((session) => {
@@ -277,7 +278,7 @@ export function PastasDeProjetos({
                     }} />
                 )}
               </ul>
-            )}
+            </div>
           </li>
         );
       })}
@@ -285,15 +286,3 @@ export function PastasDeProjetos({
   );
 }
 
-/** Fork: segunda linha da conversa — qual agente, o que ele está fazendo e há quanto tempo mexeu. */
-function SubtituloDaConversa({ session, status }: { session: TerminalSession; status: ReturnType<typeof statusDaConversa> }) {
-  const quando = haQuanto(session.last_activity_at_ms ?? session.created_at_ms);
-  const rotulo = rotuloDoStatus(status);
-  return (
-    <span className="conversa-sub">
-      <span>{nomeDoAgente(session.provider)}</span>
-      {rotulo && <><span aria-hidden> · </span><span className={`conversa-estado is-${status}`}>{rotulo}</span></>}
-      {quando && <><span aria-hidden> · </span><span>{quando}</span></>}
-    </span>
-  );
-}

@@ -33,6 +33,24 @@ export function deslocamentos(antes: Map<string, Posicao>, depois: Map<string, P
 
 export function useAnimarLista(ref: RefObject<HTMLElement | null>) {
   const antes = useRef<Map<string, Posicao> | null>(null);
+  // Gaveta de pasta abrindo/fechando (transição de CSS): as linhas de baixo já estão deslizando; medir
+  // no meio dela e animar de novo daria um tranco. Enquanto houver uma correndo, só atualiza as medidas.
+  const gavetas = useRef(0);
+  useLayoutEffect(() => {
+    const raiz = ref.current;
+    if (!raiz) return;
+    const ehGaveta = (evento: Event) => (evento.target as HTMLElement | null)?.classList?.contains("pasta-gaveta");
+    const comecou = (evento: Event) => { if (ehGaveta(evento)) gavetas.current += 1; };
+    const acabou = (evento: Event) => { if (ehGaveta(evento)) gavetas.current = Math.max(0, gavetas.current - 1); };
+    raiz.addEventListener("transitionrun", comecou);
+    raiz.addEventListener("transitionend", acabou);
+    raiz.addEventListener("transitioncancel", acabou);
+    return () => {
+      raiz.removeEventListener("transitionrun", comecou);
+      raiz.removeEventListener("transitionend", acabou);
+      raiz.removeEventListener("transitioncancel", acabou);
+    };
+  }, [ref]);
   useLayoutEffect(() => {
     const raiz = ref.current;
     if (!raiz) return;
@@ -44,7 +62,7 @@ export function useAnimarLista(ref: RefObject<HTMLElement | null>) {
     const anterior = antes.current;
     antes.current = depois;
     // Primeira medida (a lateral acabou de montar) não anima: seria tudo "entrando" de uma vez.
-    if (!anterior || !motionOn() || typeof raiz.animate !== "function") return;
+    if (!anterior || gavetas.current > 0 || !motionOn() || typeof raiz.animate !== "function") return;
     const mudancas = deslocamentos(anterior, depois);
     for (const linha of linhas) {
       const chave = linha.dataset.anima!;

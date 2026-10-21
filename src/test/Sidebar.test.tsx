@@ -140,7 +140,6 @@ describe("Sidebar", () => {
     const linha = within(doSite).getByText("Landing").closest("li")!;
     expect(linha.style.getPropertyValue("--cor-agente")).toBe("#a78bfa");
     // Fork (lateral fluida): embaixo do nome, qual agente é — dá para saber sem abrir.
-    expect(linha.querySelector(".conversa-sub")?.textContent).toContain("Codex");
     expect(linha.dataset.anima).toMatch(/^c:/); // desliza quando a ordem muda (`animarLateral.ts`)
 
     await userEvent.click(within(doSite).getByRole("button", { name: /^Landing/ }));

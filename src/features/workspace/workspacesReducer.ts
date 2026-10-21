@@ -1,6 +1,7 @@
 import { emptyWorkspace } from "../../services/workspaceService";
 import type { WorkspaceCollection, WorkspacesAction } from "../../types/workspace";
 import { collectResourceIds, workspaceReducer } from "./workspaceReducer";
+import { abrirEmPainelProprio } from "./abrirEmPainelProprio"; // Fork: conversa da lateral em painel próprio.
 // Fork: restaurar backup e adotar projetos de sessões órfãs/conversas recentes.
 import { adotarProjetos, restaurarColecao } from "./recuperarWorkspace";
 
@@ -46,6 +47,12 @@ export function workspacesReducer(state: WorkspaceCollection, action: Workspaces
           workspace.id === action.workspaceId ? { ...workspace, name: name || workspace.name } : workspace
         ),
       };
+    }
+    case "OPEN_SESSION_OWN_PANE": {
+      const alvo = state.workspaces.find((workspace) => workspace.id === action.workspaceId);
+      if (!alvo?.projects.some((project) => project.id === action.projectId)) return state;
+      const aberto = abrirEmPainelProprio(alvo, action.projectId, action.sessionId, action.title);
+      return { ...state, activeWorkspaceId: action.workspaceId, workspaces: state.workspaces.map((workspace) => (workspace.id === action.workspaceId ? aberto : workspace)) };
     }
     case "FOCUS_SESSION": {
       const target = state.workspaces.find((workspace) => workspace.id === action.workspaceId);
