@@ -969,8 +969,26 @@
 :root[data-motion="desligadas"] .voz-gravando, :root[data-motion="desligadas"] .voz-ponto { animation: none; }
 @media (prefers-reduced-motion: reduce) { .voz-gravando, .voz-ponto { animation: none; } }
 /* Prévia ao vivo da fala: mais larga que o balão de aviso, texto rola para o fim. */
-.voz-previa { width: min(34rem, 86vw); max-height: 9rem; overflow-y: auto; font-size: .8125rem; color: rgb(var(--c-text-secondary)); border-color: rgb(var(--c-danger) / .5); }
-.voz-previa-espera { color: rgb(var(--c-text-muted)); font-style: italic; }
+/* Fork (0.8.6, pedido do Enzo): o microfone fica à direita da linha do texto, acima do enviar, com
+   as barrinhas da voz e o ⏎ ao lado; aceso em azul enquanto grava. O campo começa com uma linha e
+   cresce com o texto. A prévia do ditado entra no próprio campo, em cinza itálico, e vira texto
+   normal quando a transcrição final chega. */
+.composer-linha { display: flex; align-items: flex-start; gap: .375rem; }
+.composer-linha > .composer-campo { flex: 1 1 auto; min-width: 0; min-height: 2rem; }
+.composer-linha > .voz { flex-shrink: 0; }
+.composer-ditando { overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; cursor: default; }
+.composer-previa { color: rgb(var(--c-text-muted)); font-style: italic; }
+.composer-previa.is-corrigindo { animation: previa-corrigindo 1.4s ease-in-out infinite; }
+@keyframes previa-corrigindo { 50% { opacity: .5; } }
+.voz .voz-balao { left: auto; right: 0; }
+.composer-botao.voz-descartar { width: 1.5rem; height: 1.5rem; margin-top: .25rem; color: rgb(var(--c-text-muted)); }
+.voz-onda { display: inline-flex; align-items: center; gap: 3px; height: 1.25rem; padding-inline: .375rem; }
+.voz-onda > span { width: 3px; flex-shrink: 0; border-radius: 2px; }
+.voz-onda-ponto { height: 3px; background: rgb(var(--c-text-muted)); }
+.voz-onda-barra { background: rgb(var(--c-text-secondary)); }
+.composer-botao.voz-gravando, .composer-botao.voz-gravando:hover { color: rgb(125 172 255); background: rgb(29 63 140 / .45); border-color: rgb(59 130 246 / .35); animation: none; filter: none; }
+:root[data-motion="desligadas"] .composer-previa { animation: none; }
+@media (prefers-reduced-motion: reduce) { .composer-previa { animation: none; } }
 
 /* Fork: arquivos que o agente gerou (PDF, planilha…), como cartões que abrem/baixam. */
 .arquivos-gerados { display: flex; flex-direction: column; gap: .375rem; margin: .5rem 0 0; padding: 0; list-style: none; max-width: 28rem; }

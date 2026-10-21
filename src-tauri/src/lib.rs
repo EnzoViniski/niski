@@ -93,6 +93,7 @@ pub fn run() {
             voz::voz_gravar,
             voz::voz_transcrever,
             voz::voz_previa,
+            voz::voz_niveis,
             voz::voz_cancelar,
             atualizacao::versao_nova_no_disco,
             atualizacao::reiniciar_para_atualizar,

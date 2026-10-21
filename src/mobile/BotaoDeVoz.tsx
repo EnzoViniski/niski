@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CloseIcon, LoaderIcon, MicIcon, StopIcon } from "../components/ui/PixelIcon";
+import { CloseIcon, LoaderIcon, MicIcon } from "../components/ui/PixelIcon";
+import { VisualizadorDaVoz } from "./VisualizadorDaVoz";
 
 /*
  * Fork: voz no chat (só no app do desktop). Clique grava, clique de novo transcreve com o
  * whisper.cpp local (`src-tauri/src/voz.rs`) e o texto entra no campo, sem enviar — dá para
  * revisar antes. No navegador do celular não há Rust por trás, então o botão nem aparece.
+ * Desde a 0.8.6 a prévia aparece dentro do próprio campo, em cinza (o Composer desenha a partir de
+ * `onPrevia`), e o microfone fica à direita da linha do texto com as barrinhas da voz ao lado.
  */
+
+/** O que está sendo ditado, para o Composer mostrar no campo enquanto não vira texto final. */
+export interface PreviaDaVoz {
+  texto: string;
+  /** Parou de gravar e a transcrição final está relendo o áudio inteiro. */
+  corrigindo: boolean;
+}
 
 interface EstadoDaVoz {
   modelo_pronto: boolean;
@@ -24,11 +34,6 @@ async function chamar<T>(comando: string): Promise<T> {
   return invoke<T>(comando);
 }
 
-function relogio(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
-
 /** Junta o ditado ao que já está escrito, com um espaço entre os dois. */
 export function juntarDitado(atual: string, ditado: string): string {
   const limpo = ditado.trim();
@@ -37,14 +42,21 @@ export function juntarDitado(atual: string, ditado: string): string {
   return /\s$/.test(atual) ? atual + limpo : `${atual} ${limpo}`;
 }
 
-export function BotaoDeVoz({ onDitado, travado }: { onDitado: (texto: string) => void; travado: boolean }) {
+interface BotaoDeVozProps {
+  onDitado: (texto: string) => void;
+  travado: boolean;
+  /** Recebe a prévia enquanto grava/corrige e `null` quando não há ditado em andamento. */
+  onPrevia?: (previa: PreviaDaVoz | null) => void;
+}
+
+export function BotaoDeVoz({ onDitado, travado, onPrevia }: BotaoDeVozProps) {
   const [fase, setFase] = useState<Fase>("parado");
   const [erro, setErro] = useState<string | null>(null);
   const [progresso, setProgresso] = useState(0);
-  const [inicio, setInicio] = useState(0);
-  const [agora, setAgora] = useState(0);
   const [previa, setPrevia] = useState("");
   const montado = useRef(true);
+  const avisarPrevia = useRef(onPrevia);
+  avisarPrevia.current = onPrevia;
 
   useEffect(() => () => {
     montado.current = false;
@@ -52,11 +64,12 @@ export function BotaoDeVoz({ onDitado, travado }: { onDitado: (texto: string) =>
     void chamar("voz_cancelar").catch(() => undefined);
   }, []);
 
+  // A prévia vai para o campo do Composer; some (null) quando o texto final entra ou a gravação é descartada.
   useEffect(() => {
-    if (fase !== "gravando") return;
-    const id = window.setInterval(() => setAgora(Date.now()), 250);
-    return () => window.clearInterval(id);
-  }, [fase]);
+    const emAndamento = fase === "gravando" || fase === "transcrevendo";
+    avisarPrevia.current?.(emAndamento ? { texto: previa, corrigindo: fase === "transcrevendo" } : null);
+  }, [fase, previa]);
+  useEffect(() => () => avisarPrevia.current?.(null), []);
 
   // Prévia ao vivo: uma transcrição por vez dos últimos segundos, enquanto grava. A final, ao
   // parar, relê tudo e corrige o que a prévia errou.
@@ -94,8 +107,6 @@ export function BotaoDeVoz({ onDitado, travado }: { onDitado: (texto: string) =>
     setErro(null);
     try {
       await chamar("voz_gravar");
-      setInicio(Date.now());
-      setAgora(Date.now());
       setFase("gravando");
     } catch (e) {
       setErro(String(e));
@@ -170,37 +181,35 @@ export function BotaoDeVoz({ onDitado, travado }: { onDitado: (texto: string) =>
     return () => window.removeEventListener("keydown", tecla, true);
   }, [fase]);
 
-  const rotulo = fase === "gravando" ? "Parar e transcrever (Enter; Esc descarta)"
+  const gravando = fase === "gravando";
+  const rotulo = gravando ? "Parar e transcrever (Enter; Esc descarta)"
     : fase === "transcrevendo" ? "Transcrevendo…"
     : fase === "baixando" ? "Baixando o modelo de voz…"
     : "Falar (transcrição neste Mac)";
 
+  // Gravando: [descartar] [barrinhas da voz] [⏎ confirmar] [microfone aceso], como no exemplo do Enzo.
   return (
     <span className="voz">
-      {fase === "gravando" && (
+      {gravando && (
         <>
-          <span className="voz-tempo" aria-live="polite"><span className="voz-ponto" aria-hidden />{relogio(agora - inicio)}</span>
-          <button type="button" className="composer-botao" title="Descartar a gravação" aria-label="Descartar a gravação" onClick={cancelar}>
-            <CloseIcon aria-hidden className="h-4 w-4" />
+          <button type="button" className="composer-botao voz-descartar" title="Descartar a gravação (Esc)" aria-label="Descartar a gravação" onClick={cancelar}>
+            <CloseIcon aria-hidden className="h-3.5 w-3.5" />
+          </button>
+          <VisualizadorDaVoz ativo />
+          <button type="button" className="composer-botao voz-confirmar" title="Confirmar e transcrever (Enter)" aria-label="Confirmar a transcrição" onClick={() => void clicar()}>
+            <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 5v6a4 4 0 0 1-4 4H5" /><path d="m9 10-5 5 5 5" />
+            </svg>
           </button>
         </>
       )}
-      <button type="button" className={`composer-botao${fase === "gravando" ? " voz-gravando" : ""}`}
-        title={rotulo} aria-label={rotulo} aria-pressed={fase === "gravando"}
-        disabled={travado && fase !== "gravando" || fase === "transcrevendo" || fase === "baixando"}
+      <button type="button" className={`composer-botao voz-microfone${gravando ? " voz-gravando" : ""}`}
+        title={rotulo} aria-label={rotulo} aria-pressed={gravando}
+        disabled={travado && !gravando || fase === "transcrevendo" || fase === "baixando"}
         onClick={() => void clicar()}>
         {fase === "transcrevendo" || fase === "baixando" ? <LoaderIcon aria-hidden className="anexo-girando h-4 w-4" />
-          : fase === "gravando" ? <StopIcon aria-hidden className="h-4 w-4" />
           : <MicIcon aria-hidden className="h-4 w-4" />}
       </button>
-      {(fase === "gravando" || fase === "transcrevendo") && (
-        <span className="voz-balao voz-previa" aria-live="polite">
-          <span className={previa ? undefined : "voz-previa-espera"}>
-            {fase === "transcrevendo" ? (previa || "Transcrevendo…") : previa || "Pode falar…"}
-          </span>
-          {fase === "transcrevendo" && <span className="voz-previa-espera">Corrigindo a transcrição…</span>}
-        </span>
-      )}
       {fase === "baixando" && <span className="voz-tempo">{Math.round(progresso * 100)}%</span>}
       {fase === "perguntando" && (
         <span className="voz-balao" role="dialog" aria-label="Baixar modelo de voz">

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type 
 import { AttachmentIcon, CloseIcon, LoaderIcon, SendIcon, StopIcon, WarningIcon } from "../components/ui/PixelIcon";
 import { iconForPath } from "../features/files/fileIcons";
 import { tamanhoLegivel, type Anexo } from "./anexos";
-import { BotaoDeVoz, juntarDitado, VOZ_DISPONIVEL } from "./BotaoDeVoz";
+import { BotaoDeVoz, juntarDitado, VOZ_DISPONIVEL, type PreviaDaVoz } from "./BotaoDeVoz";
 
 interface ComposerProps {
   texto: string;
@@ -92,6 +92,12 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
   // Fork: o ditado chega depois da transcrição; junta ao texto de agora, não ao do clique.
   const textoAtual = useRef(texto);
   textoAtual.current = texto;
+  // Fork: enquanto dita, a prévia aparece no lugar do campo, em cinza; o texto final entra no campo.
+  const [previaDaVoz, setPreviaDaVoz] = useState<PreviaDaVoz | null>(null);
+  const ditando = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ditando.current) ditando.current.scrollTop = ditando.current.scrollHeight;
+  }, [previaDaVoz]);
 
   // Busca com um respiro curto: digitar "@src/comp" não dispara uma consulta por letra.
   useEffect(() => {
@@ -198,12 +204,28 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
           </ul>
         )}
         <label htmlFor="reply" className="sr-only">Sua resposta</label>
-        <textarea id="reply" ref={campo} rows={1} value={texto} maxLength={16000} placeholder={placeholder}
-          className="composer-campo" onPaste={colar} onKeyDown={tecla}
-          onChange={(event) => { onTexto(event.target.value); acompanharMencao(event.target.value, event.target.selectionStart ?? event.target.value.length); }}
-          onClick={(event) => acompanharMencao(event.currentTarget.value, event.currentTarget.selectionStart ?? 0)}
-          onBlur={() => window.setTimeout(() => setMencao(null), 150)}
-          aria-autocomplete="list" aria-expanded={Boolean(mencao && sugestoes.length)} aria-controls="mencoes" />
+        <div className="composer-linha">
+          {previaDaVoz && (
+            <div ref={ditando} className="composer-campo composer-ditando" aria-live="polite" aria-label="Prévia do ditado">
+              {texto.trim() && <span>{texto}{/\s$/.test(texto) ? "" : " "}</span>}
+              <span className={`composer-previa${previaDaVoz.corrigindo ? " is-corrigindo" : ""}`}>
+                {previaDaVoz.texto || (previaDaVoz.corrigindo ? "Transcrevendo…" : "Pode falar…")}
+              </span>
+            </div>
+          )}
+          <textarea id="reply" ref={campo} rows={1} value={texto} maxLength={16000} placeholder={placeholder}
+            hidden={Boolean(previaDaVoz)}
+            className="composer-campo" onPaste={colar} onKeyDown={tecla}
+            onChange={(event) => { onTexto(event.target.value); acompanharMencao(event.target.value, event.target.selectionStart ?? event.target.value.length); }}
+            onClick={(event) => acompanharMencao(event.currentTarget.value, event.currentTarget.selectionStart ?? 0)}
+            onBlur={() => window.setTimeout(() => setMencao(null), 150)}
+            aria-autocomplete="list" aria-expanded={Boolean(mencao && sugestoes.length)} aria-controls="mencoes" />
+          {VOZ_DISPONIVEL && <BotaoDeVoz travado={ocupado} onPrevia={setPreviaDaVoz} onDitado={(ditado) => {
+            setPreviaDaVoz(null);
+            onTexto(juntarDitado(textoAtual.current, ditado));
+            requestAnimationFrame(() => campo.current?.focus());
+          }} />}
+        </div>
         {mencao && sugestoes.length > 0 && (
           <ul id="mencoes" role="listbox" aria-label="Arquivos do projeto" className="composer-mencoes">
             {sugestoes.map((caminho, indice) => {
@@ -232,10 +254,6 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
                 event.target.value = "";
               }} />
           </label>
-          {VOZ_DISPONIVEL && <BotaoDeVoz travado={ocupado} onDitado={(ditado) => {
-            onTexto(juntarDitado(textoAtual.current, ditado));
-            requestAnimationFrame(() => campo.current?.focus());
-          }} />}
           <div className="composer-chips">{chips}</div>
           <div className="composer-direita">
             {direita}

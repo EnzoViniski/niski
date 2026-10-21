@@ -18,14 +18,23 @@ async function gravar() {
 }
 it("inicia a gravação e entrega a transcrição para revisão no campo", async () => {
   const onDitado = vi.fn();
-  render(<BotaoDeVoz onDitado={onDitado} travado={false} />);
+  const onPrevia = vi.fn();
+  render(<BotaoDeVoz onDitado={onDitado} onPrevia={onPrevia} travado={false} />);
   const parar = await gravar();
   expect(parar).toHaveAttribute("aria-pressed", "true");
-  expect(screen.getByText("Pode falar…")).toBeInTheDocument();
+  expect(onPrevia).toHaveBeenLastCalledWith({ texto: "", corrigindo: false });
   expect(onDitado).not.toHaveBeenCalled();
   await userEvent.click(parar);
   await waitFor(() => expect(onDitado).toHaveBeenCalledWith("Revise o contraste da tela"));
   expect(await screen.findByRole("button", { name: "Falar (transcrição neste Mac)" })).toBeEnabled();
+  expect(onPrevia).toHaveBeenLastCalledWith(null);
+});
+it("confirma pelo ⏎ ao lado do microfone", async () => {
+  const onDitado = vi.fn();
+  render(<BotaoDeVoz onDitado={onDitado} travado={false} />);
+  await gravar();
+  await userEvent.click(screen.getByRole("button", { name: "Confirmar a transcrição" }));
+  await waitFor(() => expect(onDitado).toHaveBeenCalledWith("Revise o contraste da tela"));
 });
 it.each(["botão", "Escape"])("descarta a gravação por %s", async (modo) => {
   const onDitado = vi.fn();
@@ -98,14 +107,23 @@ it("solta o microfone ao desmontar a conversa", async () => {
   unmount();
   await waitFor(() => expect(invoke).toHaveBeenCalledWith("voz_cancelar"));
 });
-it("mostra prévia ao vivo antes da transcrição final", async () => {
+it("passa a prévia ao vivo e as barrinhas da voz antes da transcrição final", async () => {
   vi.useFakeTimers();
+  vi.mocked(invoke).mockImplementation(async (cmd) => {
+    if (cmd === "voz_estado") return pronto;
+    if (cmd === "voz_previa") return "Revise o contraste";
+    if (cmd === "voz_niveis") return [0, 0.05, 0.8, 1];
+    return null;
+  });
   try {
-    render(<BotaoDeVoz onDitado={vi.fn()} travado={false} />);
+    const onPrevia = vi.fn();
+    const { container } = render(<BotaoDeVoz onDitado={vi.fn()} onPrevia={onPrevia} travado={false} />);
     fireEvent.click(screen.getByRole("button", { name: "Falar (transcrição neste Mac)" }));
     await act(async () => { await vi.advanceTimersByTimeAsync(0); });
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
-    expect(screen.getByText("Revise o contraste")).toBeInTheDocument();
-    expect(screen.getByText("0:01")).toBeInTheDocument();
+    expect(onPrevia).toHaveBeenLastCalledWith({ texto: "Revise o contraste", corrigindo: false });
+    expect(invoke).toHaveBeenCalledWith("voz_niveis", { barras: 18 });
+    expect(container.querySelectorAll(".voz-onda-barra")).toHaveLength(2);
+    expect(container.querySelectorAll(".voz-onda-ponto")).toHaveLength(2);
   } finally { vi.useRealTimers(); }
 });

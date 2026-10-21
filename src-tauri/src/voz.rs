@@ -217,6 +217,30 @@ pub async fn voz_previa() -> Result<String, String> {
     }).await.map_err(|e| e.to_string())?
 }
 
+/// Visualizador do chat: o volume dos últimos `barras` trechos de 50 ms, do mais antigo ao mais
+/// recente, de 0 a 1. Lê sob o mesmo lock do microfone, mas só ~1 s de áudio: não atrasa a gravação.
+#[tauri::command]
+pub fn voz_niveis(barras: usize) -> Vec<f32> {
+    let barras = barras.clamp(1, 64);
+    let Ok(atual) = GRAVACAO.lock() else { return vec![0.0; barras] };
+    let Some(gravacao) = atual.as_ref() else { return vec![0.0; barras] };
+    let Ok(amostras) = gravacao.amostras.lock() else { return vec![0.0; barras] };
+    niveis(&amostras, gravacao.taxa, barras)
+}
+
+/// RMS de cada trecho em escala de decibéis: -50 dB (silêncio de sala) vira 0 e -10 dB (fala
+/// perto do microfone) vira 1. Trecho que ainda não foi gravado fica em 0.
+fn niveis(amostras: &[f32], taxa: u32, barras: usize) -> Vec<f32> {
+    let passo = (taxa as usize / 20).max(1);
+    (0..barras).map(|i| {
+        let ate = amostras.len().saturating_sub((barras - 1 - i) * passo);
+        let trecho = &amostras[ate.saturating_sub(passo)..ate];
+        if trecho.is_empty() { return 0.0; }
+        let rms = (trecho.iter().map(|s| s * s).sum::<f32>() / trecho.len() as f32).sqrt();
+        ((20.0 * rms.max(1e-6).log10() + 50.0) / 40.0).clamp(0.0, 1.0)
+    }).collect()
+}
+
 /// Para de gravar e devolve o texto. Primeira vez carrega o modelo (alguns segundos); depois fica
 /// na memória enquanto o app estiver aberto.
 #[tauri::command]
@@ -300,7 +324,7 @@ fn reamostrar(amostras: &[f32], de: u32, para: u32) -> Vec<f32> {
 
 #[cfg(test)]
 mod testes {
-    use super::reamostrar;
+    use super::{niveis, reamostrar};
 
     #[test]
     fn reamostrar_48k_para_16k_mantem_a_duracao() {
@@ -313,5 +337,23 @@ mod testes {
     #[test]
     fn reamostrar_mesma_taxa_nao_muda() {
         assert_eq!(reamostrar(&[0.1, 0.2], 16_000, 16_000), vec![0.1, 0.2]);
+    }
+
+    #[test]
+    fn niveis_vao_do_mais_antigo_ao_mais_recente() {
+        // 100 ms de silêncio e depois 50 ms de fala alta, a 1 kHz (trechos de 50 amostras).
+        let mut audio = vec![0.0_f32; 100];
+        audio.extend(vec![0.3_f32; 50]);
+        let saida = niveis(&audio, 1_000, 4);
+        assert_eq!(saida.len(), 4);
+        assert_eq!(saida[0], 0.0, "trecho ainda não gravado");
+        assert_eq!(saida[1], 0.0);
+        assert_eq!(saida[2], 0.0);
+        assert!(saida[3] > 0.9, "fala alta perto do topo: {}", saida[3]);
+    }
+
+    #[test]
+    fn niveis_sem_audio_sao_zero() {
+        assert_eq!(niveis(&[], 48_000, 3), vec![0.0, 0.0, 0.0]);
     }
 }
