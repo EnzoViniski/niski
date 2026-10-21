@@ -14,6 +14,7 @@ fn criar_listar_e_reler_depois_de_reabrir() {
     assert_ne!(a, b);
     gravar(&raiz, &a, "plano.json", r#"{"versao":1,"modulos":[]}"#).unwrap();
     gravar(&raiz, &a, "etapas/e-1.md", "# Rapport\n\nTexto.").unwrap();
+    gravar(&raiz, &a, "caderno.md", "## O que aprendi\n\nRapport vem antes.").unwrap();
     anexar_na_conversa(&raiz, &a, r#"{"de":"eu","texto":"oi"}"#).unwrap();
     anexar_na_conversa(&raiz, &a, r#"{"de":"ia","texto":"olá"}"#).unwrap();
 
@@ -25,6 +26,7 @@ fn criar_listar_e_reler_depois_de_reabrir() {
     assert_eq!(ler(&raiz, &a, "etapas/e-1.md").unwrap().unwrap(), "# Rapport\n\nTexto.");
     assert_eq!(ler(&raiz, &a, "conversa.jsonl").unwrap().unwrap().lines().count(), 2);
     assert_eq!(ler(&raiz, &a, "cards.json").unwrap(), None, "arquivo que ainda não existe");
+    assert!(ler(&raiz, &a, "caderno.md").unwrap().unwrap().contains("Rapport vem antes"));
 }
 
 #[test]

@@ -61,6 +61,7 @@ mod ajustes_sem_mensagem;
 mod retomada_rotas;
 mod memoria_rotas;
 mod sobre_mim_rotas; // Fork (Sobre mim): áreas, ajustes e sugestões dos agentes.
+mod roadmaps_rotas; // Fork (Roadmaps de estudo): os mesmos arquivos do app, para o celular.
 // Fork: comandos oficiais e modo de permissão da Conversa (frente 2C).
 mod comandos;
 mod fila;
@@ -255,6 +256,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .merge(trocar_agente::rotas()) // Fork (trocar agente).
         .merge(memoria_rotas::rotas())
         .merge(sobre_mim_rotas::rotas()) // Fork (Sobre mim).
+        .merge(roadmaps_rotas::rotas()) // Fork (Roadmaps).
 }
 
 fn router(state: Arc<EngineState>) -> Router {

@@ -84,6 +84,7 @@ mod seguranca;
 mod sessoes;
 mod memoria;
 mod sobre_mim; // Fork (Sobre mim).
+mod roadmaps; // Fork (Roadmaps de estudo).
 mod terminais;
 // Fork (retomar-sempre): rotas /retomada/* e Retomar sem beco sem saída.
 #[cfg(unix)]

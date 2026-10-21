@@ -9,10 +9,12 @@
 //!   <id>/progresso.json       estado de cada etapa e dias estudados
 //!   <id>/cards.json           cards de revisão (estado FSRS) e o registro das revisões
 //!   <id>/conversa.jsonl       painel de IA, uma mensagem por linha (só cresce)
+//!   <id>/caderno.md           o que a pessoa escreve enquanto aprende (a IA revisa quando pedido)
 //!   <id>/etapas/<etapa>.md    resumo de cada etapa, legível fora do app
 //! ```
 //!
-//! O conteúdo é do front (`src/features/roadmaps/`); aqui só a garantia de nunca perder nada:
+//! Usado pelo app (`src-tauri/src/roadmaps/`) e pelo engine (rotas do celular). O conteúdo é do front
+//! (`src/features/roadmaps/`); aqui só a garantia de nunca perder nada:
 //! nomes por lista fechada, JSON válido, grava inteiro ou nada (`.tmp` exclusivo + `fsync` +
 //! rename), uma gravação por vez e cópia em `~/omni-backups/` antes de uma migração de formato.
 
@@ -24,7 +26,7 @@ use std::sync::Mutex;
 pub const PASTA: &str = "roadmaps";
 const INDICE: &str = "indice.json";
 /// Arquivos fixos de cada roadmap. Fora disso só `etapas/<id>.md`.
-pub const ARQUIVOS: &[&str] = &["meta.json", "entrevista.json", "plano.json", "progresso.json", "cards.json", "conversa.jsonl"];
+pub const ARQUIVOS: &[&str] = &["meta.json", "entrevista.json", "plano.json", "progresso.json", "cards.json", "conversa.jsonl", "caderno.md"];
 const CONVERSA: &str = "conversa.jsonl";
 /// Um arquivo só não passa disso (cards de anos de estudo cabem com folga).
 pub const TAMANHO_MAXIMO: usize = 16 * 1024 * 1024;
@@ -275,5 +277,5 @@ pub fn copiar_antes_de_migrar(raiz: &Path, id: &str, versao_antiga: u32, backups
 }
 
 #[cfg(test)]
-#[path = "armazenamento_testes.rs"]
+#[path = "roadmaps_testes.rs"]
 mod testes;

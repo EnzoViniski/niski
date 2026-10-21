@@ -2,7 +2,8 @@
 //! Arquivos em `armazenamento.rs`; a IA (Claude/Codex sem tela, na conta escolhida) em `ia.rs`.
 //! O domínio (plano, progresso, cards FSRS, prompts) mora no front, em `src/features/roadmaps/`.
 
-pub mod armazenamento;
+// A gravação mora no omni-core: o engine usa a mesma para o celular.
+pub use omni_core::roadmaps as armazenamento;
 pub mod ia;
 
 use std::path::PathBuf;

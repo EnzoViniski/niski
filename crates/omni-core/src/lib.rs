@@ -47,6 +47,7 @@ pub mod memoria_compartilhada;
 pub mod sobre_mim; // Fork (Sobre mim): o que o usuário conta de si, um markdown por área.
 pub mod arquivo_de_conversas;
 pub mod clonar_arquivo; // Fork (espaço em disco): clone APFS para o arquivo de conversas.
+pub mod roadmaps; // Fork (Roadmaps de estudo): arquivos de cada roadmap, usados pelo app e pelo celular.
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};
