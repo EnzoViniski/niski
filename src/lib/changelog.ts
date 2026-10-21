@@ -16,6 +16,20 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.10.0",
+    date: "2026-10-21",
+    changes: [
+      "Novo: Roadmaps de estudo. Pelo botão Roadmaps na barra lateral (ou ⌘K), crie trilhas para qualquer assunto: vendas, matéria da faculdade, inglês. Enquanto os agentes trabalham, o botão leva direto para onde você parou.",
+      "Ao criar um roadmap, a IA faz uma pergunta por vez (nível, objetivo, prazo, minutos por dia, como você aprende, orçamento) e monta um caminho completo, com fontes reais achadas na web. Você confere o plano e pode pedir ajustes antes de aceitar.",
+      "O caminho aparece como um mapa de fases: cada etapa fica bloqueada, disponível, em andamento ou concluída, com sequência de dias, progresso e uma animação curta ao concluir. Ao abrir, a tela já vai para a etapa de hoje.",
+      "Cada etapa tem o conteúdo para estudar ali mesmo, as melhores fontes (artigos, vídeos, cursos e livros, marcados como grátis ou pagos), uma tarefa prática e botões para gerar cards de revisão e exercícios extras. Dá para copiar os links das fontes e colar no NotebookLM.",
+      "Revisão espaçada: os cards entram numa fila diária e você responde com errei, difícil, bom ou fácil. O app calcula quando cada card volta.",
+      "IA ao lado da trilha para tirar dúvidas, aprofundar uma etapa, pedir mais exercícios ou reajustar o caminho (\"estou atrasado\", \"ficou fácil\"). Mudanças no caminho só valem depois que você confirma.",
+      "A IA usa o Claude ou o Codex na conta que você escolher, só com busca na web, e essas perguntas não aparecem no histórico de conversas.",
+      "Seus roadmaps, o progresso, os cards e as conversas ficam salvos em arquivos na pasta do app e entram na cópia de segurança feita antes de cada atualização.",
+    ],
+  },
+  {
     version: "0.9.4",
     date: "2026-10-21",
     changes: [

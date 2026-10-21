@@ -1,6 +1,6 @@
 {
   "productName": "Medza Agents",
-  "version": "0.9.4",
+  "version": "0.10.0",
   "identifier": "ai.medza.agents",
   "build": {
     "frontendDist": "../dist",
