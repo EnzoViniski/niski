@@ -19,6 +19,9 @@ export const CHANGELOG: EntradaChangelog[] = [
     version: "0.12.0",
     date: "2026-10-21",
     changes: [
+      "Avisos no Telegram quando um agente termina, é parado, encontra erro ou limite de uso, ou precisa de você. Conecte seu bot em Configurações → Geral → Telegram e escolha os tipos de aviso.",
+      "Abra a conversa direto do aviso no celular, com o Tailscale conectado, para responder no Medza. Nome do projeto e título da conversa só seguem para o Telegram se você habilitar.",
+      "Corrigida a troca de agente na mesma conversa: a sessão anterior libera a trava antes da nova abrir, e o Codex não retoma por engano outro histórico do projeto.",
       "Nova aba Edição de vídeo, no rodapé da barra lateral: crie um vídeo, escolha o formato (16:9, 9:16, 1:1 ou 4:5) e a duração, e escreva o que você quer, o estilo e o público.",
       "Arraste vídeos, fotos, áudio, fontes, logos e links de referência para o vídeo. Cada arquivo entra como \"usar no vídeo\" ou \"só referência\" (a IA olha o estilo, mas não coloca no vídeo).",
       "Pastas de referências: guarde as referências de um tipo de vídeo (por exemplo, \"Reels da Medza\") e, na hora de criar, é só escolher a pasta.",
