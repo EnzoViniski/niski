@@ -29,8 +29,8 @@ export interface WorkspaceTab {
   /** Fork: projeto da aba quando não é o dono do layout (agente novo aberto pelo "+" num painel que
    *  mostra conversa de outro projeto). Ausente = projeto do layout. */
   projectId?: string;
-  /** Fork: aba criada pelo "+" da pasta — o "Novo agente" já abre com o último agente e a última
-   *  conta usados, sem esperar a escolha. Depois que a sessão nasce, não vale mais (`resourceId`). */
+  /** Fork: marca antiga do "+" da pasta, preservada ao ler estado salvo. Desde 0.9.2 o lançador
+   *  sempre aguarda a escolha, inclusive quando esta marca estiver presente. */
   iniciarDireto?: boolean;
 }
 
@@ -141,6 +141,10 @@ export interface ProjetoParaAdotar {
 }
 
 export type WorkspacesAction =
+  /** Fork: navega para uma aba aberta de qualquer projeto/workspace, inclusive sem sessão. */
+  | { type: "FOCUS_OPEN_TAB"; destino: import("../features/projects/telasAbertas").DestinoDaTela }
+  /** Fork: marca/nome vivos persistidos em todas as abas, inclusive fora do workspace ativo. */
+  | { type: "SYNC_SESSION_IDENTITIES"; sessions: import("../features/workspace/identidadeDasAbas").IdentidadeDaSessao[] }
   | { type: "ADD_WORKSPACE"; name?: string }
   /** Fork: volta um backup inteiro do workspace (`features/workspace/RecuperacaoDoWorkspace.tsx`). */
   | { type: "RESTAURAR_COLECAO"; colecao: WorkspaceCollection }

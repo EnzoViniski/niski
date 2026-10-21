@@ -4,6 +4,10 @@ import { collectResourceIds, workspaceReducer } from "./workspaceReducer";
 import { abrirEmPainelProprio } from "./abrirEmPainelProprio"; // Fork: conversa da lateral em painel próprio.
 // Fork: restaurar backup e adotar projetos de sessões órfãs/conversas recentes.
 import { adotarProjetos, restaurarColecao } from "./recuperarWorkspace";
+// Fork: a troca de agente atualiza também a marca salva nas abas.
+import { sincronizarIdentidadeDasAbas } from "./identidadeDasAbas";
+// Fork: "Na tela" alcança uma aba de qualquer workspace/projeto numa transição só.
+import { focarTelaAberta } from "../projects/telasAbertas";
 
 let sequence = 0;
 
@@ -14,6 +18,10 @@ function nextWorkspaceId(): string {
 
 export function workspacesReducer(state: WorkspaceCollection, action: WorkspacesAction): WorkspaceCollection {
   switch (action.type) {
+    case "FOCUS_OPEN_TAB":
+      return focarTelaAberta(state, action.destino);
+    case "SYNC_SESSION_IDENTITIES":
+      return sincronizarIdentidadeDasAbas(state, action.sessions);
     case "ADD_WORKSPACE": {
       const workspace = {
         ...emptyWorkspace(),

@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { MarcaDaAba } from "../orquestracao/MarcaDaAba";
 import { EtiquetaDaWorktree } from "../terminal/EtiquetaDaWorktree";
 import { ChatIcon, KanbanIcon, ListIcon, TerminalIcon, GitBranchIcon, GlobeIcon, BlocksIcon } from "../../components/ui/PixelIcon";
-import { AGENT_ICON } from "../../components/ui/AgentIcon";
+import { AGENT_ICON, AgentIcon } from "../../components/ui/AgentIcon";
 import { useSession, useSessionProvider } from "../terminal/sessionProviders";
 import { EditableLabel } from "../../components/ui/EditableLabel";
 import { renameSession } from "../terminal/terminalService";
@@ -12,6 +12,9 @@ import { iconForPath } from "../files/fileIcons";
 import type { PaneKind, PaneNode, WorkspaceAction } from "../../types/workspace";
 import { startTabDrag } from "./tabPointerDrag";
 import { EtiquetaDoProjeto, useProjetoDeFora } from "./projetosDasAbas";
+// Fork: sessão viva precede o provider salvo antes de uma troca de agente.
+import { providerDaAba } from "./identidadeDasAbas";
+import { corDoAgente } from "../../lib/coresDosAgentes";
 
 interface WorkspaceTabBarProps {
   pane: PaneNode;
@@ -253,9 +256,10 @@ function TabIcon({ item, className }: { item: PaneNode["tabs"][number]; classNam
   // Aba de agente mostra a marca da CLI que está rodando nela — o ícone de conversa era igual
   // para Claude, Codex e Cursor e não dizia com quem a aba está falando.
   const daSessao = useSessionProvider(item.resourceId);
-  const provider = item.provider ?? daSessao;
+  const provider = providerDaAba(item, { provider: daSessao });
   const daMarca = provider ? AGENT_ICON[provider] : undefined;
-  const doKind = daMarca ?? ICONE_POR_KIND[item.kind];
+  if (daMarca) return <AgentIcon provider={provider} className={className} style={{ color: corDoAgente(provider) }} />;
+  const doKind = ICONE_POR_KIND[item.kind];
   // git-diff carrega `staged::<caminho>` no resourceId, e não um caminho puro — usar o ícone do
   // kind nesses casos evita inventar extensão a partir de um prefixo.
   const Icone = doKind ?? iconForPath(item.resourceId ?? item.title);

@@ -48,8 +48,8 @@ function mapearPaineis(node: LayoutNode, f: (pane: PaneNode) => PaneNode): Layou
 
 /**
  * Fork: o "+" da pasta — conversa nova do projeto num painel próprio (mesma regra do clique numa
- * conversa), sem trocar o layout da direita. A aba nasce com `iniciarDireto`: o "Novo agente" abre já
- * com o último agente e a última conta usados, sem esperar escolha (`AgentLauncher`).
+ * conversa), sem trocar o layout da direita. O seletor aguarda a escolha de agente, conta e modelo
+ * antes de abrir qualquer CLI (`AgentLauncher`).
  */
 export function novaConversaEmPainelProprio(state: WorkspaceState, projectId: string, reducer: Redutor): WorkspaceState {
   let atual = state.activeProjectId ? state : reducer(state, { type: "SELECT_PROJECT", projectId });
@@ -65,14 +65,16 @@ export function novaConversaEmPainelProprio(state: WorkspaceState, projectId: st
     alvo = atual.projects.find((project) => project.id === atual.activeProjectId)!.activePaneId;
   }
   const deFora = projectId !== projeto.id ? projectId : undefined;
-  atual = reducer(atual, { type: "CREATE_TAB", paneId: alvo, kind: "agent", title: "Novo agente", projectId: deFora, iniciarDireto: true });
+  atual = reducer(atual, { type: "CREATE_TAB", paneId: alvo, kind: "agent", title: "Novo agente", projectId: deFora });
+  const novaAbaId = paineis(atual.projects.find((project) => project.id === atual.activeProjectId)!.layout)
+    .find((pane) => pane.id === alvo)!.activeTabId;
   // O painel novo (ou vazio) não precisa da aba de boas-vindas/"Novo agente" parada que já tinha.
   return {
     ...atual,
     projects: atual.projects.map((project) => project.id !== atual.activeProjectId ? project : {
       ...project,
       layout: mapearPaineis(project.layout, (pane) => pane.id !== alvo ? pane : {
-        ...pane, tabs: pane.tabs.filter((tab) => tab.iniciarDireto || tab.resourceId || tab.kind !== "agent"),
+        ...pane, tabs: pane.tabs.filter((tab) => tab.id === novaAbaId || tab.resourceId || tab.kind !== "agent"),
       }),
     }),
   };

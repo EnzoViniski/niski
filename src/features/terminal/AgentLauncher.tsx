@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Select } from "../../components/ui";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { ChatIcon, FolderIcon } from "../../components/ui/PixelIcon";
 import { HistoryView } from "../history/HistoryView";
 import { comandoCodexLocal, type ExecucaoCodex } from "./modeloLocal";
 import { targetLabel } from "../../lib/paths";
-import { contaDoAgente, lembrarAgente, lembrarConta, ultimoAgente } from "../../lib/escolhasSalvas";
+import { contaDoAgente, lembrarAgente, lembrarAjustes, lembrarConta, ultimoAgente } from "../../lib/escolhasSalvas";
+// Fork: escolha explícita de modelo/esforço antes de iniciar; inclusive abas de versões antigas.
+import { useModeloDoNovoAgente } from "./ModeloDoNovoAgente";
 import { levarParaConta, resumeCommand, type HistoryEntry, type HistoryProvider } from "../history/historyService";
 import { prepararRetomada, RetomadaError } from "../retomada/retomadaService";
 import { gitBranches, gitWorktreeDaBranch, type GitBranch } from "../git/gitService";
@@ -29,7 +31,7 @@ interface AgentLauncherProps {
   projectName: string;
   projectPath: string;
   onLaunch: (launch: AgentLaunch) => void;
-  /** Fork: "+" da pasta — abre sozinho com o último agente e a última conta usados, assim que der. */
+  /** Fork: campo antigo aceito por compatibilidade; o seletor sempre aguarda confirmação. */
   iniciarDireto?: boolean;
 }
 
@@ -40,10 +42,11 @@ const FALLBACK_AGENTS: AgentCliStatus[] = [
   { id: "antigravity", label: "Antigravity", command: "agy", path: null, available: false, authenticated: false },
 ];
 
-export function AgentLauncher({ projectName, projectPath, onLaunch, iniciarDireto = false }: AgentLauncherProps) {
+export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLauncherProps) {
   const [agents, setAgents] = useState(FALLBACK_AGENTS);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selected, setSelected] = useState<AgentCliId>(FALLBACK_AGENTS[0].id);
+  const modelo = useModeloDoNovoAgente(selected);
   const [selectedProfile, setSelectedProfile] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -135,16 +138,6 @@ export function AgentLauncher({ projectName, projectPath, onLaunch, iniciarDiret
     })),
   ];
 
-  // Fork: "+" da pasta — depois de carregar os agentes e escolher a conta, abre uma vez sozinho. Sem
-  // agente instalado (ou conta automática ainda sem escolha), fica a tela de sempre.
-  const iniciou = useRef(false);
-  useEffect(() => {
-    if (!iniciarDireto || iniciou.current || loading || !agent?.available || semContaAutomatica) return;
-    if (accounts.length > 0 && !profile) return;
-    iniciou.current = true;
-    void launch();
-  });
-
   async function launch(command?: string) {
     if (!agent) return;
     if (usandoLocal) {
@@ -152,6 +145,7 @@ export function AgentLauncher({ projectName, projectPath, onLaunch, iniciarDiret
       catch (motivo) { setErroModelo(motivo instanceof Error ? motivo.message : String(motivo)); return; }
     }
     lembrarAgente(agent.id);
+    if (!usandoLocal) lembrarAjustes(agent.id, modelo.ajustes);
     if (profile) lembrarConta(agent.id, automatica ? CONTA_AUTOMATICA : profile.id);
     let cwd: string | undefined;
     const alvoBranch = branch === NOVA ? branchNova.trim() : branch;
@@ -168,7 +162,8 @@ export function AgentLauncher({ projectName, projectPath, onLaunch, iniciarDiret
       catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setPreparando(false); return; }
       setPreparando(false);
     }
-    onLaunch({ agent: command ? { ...agent, command } : agent, profile, cwd });
+    onLaunch({ agent: command ? { ...agent, command } : agent, profile, cwd,
+      ajustes: usandoLocal ? { model: null, effort: null } : modelo.ajustes });
   }
 
   // Reabre na conta escolhida no histórico (por padrão, a que gravou a conversa). Outra conta
@@ -281,6 +276,8 @@ export function AgentLauncher({ projectName, projectPath, onLaunch, iniciarDiret
           </>}
           {erroModelo && <p role="alert" className="text-xs text-danger">{erroModelo}</p>}
         </div>}
+
+        {!usandoLocal && modelo.campo}
 
         {!usandoLocal && profileOptions.length > 1 && (
           <div className="launcher-campo">

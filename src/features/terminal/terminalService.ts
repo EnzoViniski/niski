@@ -219,6 +219,8 @@ export function selectFailoverProfile(
 export interface AgentLaunch {
   agent: AgentCliStatus;
   profile: Profile | null;
+  /** Fork: escolha deste lançamento, sem depender do último modelo salvo por outra aba. */
+  ajustes?: import("../../lib/escolhasSalvas").AjustesSalvos;
   /** Já preenchido quando o lançamento veio de uma troca de conta/IA: a conversa existe, então
    *  não se abre outra. Ausente no primeiro lançamento. */
   conversationId?: string;

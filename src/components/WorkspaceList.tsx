@@ -3,6 +3,8 @@ import { BoxIcon, CloseIcon, EditIcon, FolderPlusIcon } from "./ui/PixelIcon";
 import { ResumoDeAgentes } from "./ConversaStatus";
 import type { TerminalSession } from "../features/terminal/terminalService";
 import type { WorkspaceState } from "../types/workspace";
+// Fork: confirmação antes de fechar abas e encerrar as sessões do workspace.
+import { ConfirmarFechamentoDoWorkspace } from "../features/workspace/ConfirmarFechamentoDoWorkspace";
 
 interface WorkspaceListProps {
   workspaces: WorkspaceState[];
@@ -38,6 +40,8 @@ export function WorkspaceList({
   onRename,
 }: WorkspaceListProps) {
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [fechandoId, setFechandoId] = useState<string | null>(null);
+  const fechando = workspaces.find((workspace) => workspace.id === fechandoId);
 
   function confirmarRename(workspaceId: string, valor: string) {
     setEditandoId(null);
@@ -144,7 +148,7 @@ export function WorkspaceList({
               type="button"
               aria-label={`Fechar workspace ${workspace.name}`}
               title="Fechar workspace"
-              onClick={() => onClose(workspace.id)}
+              onClick={() => setFechandoId(workspace.id)}
               className="grid w-7 shrink-0 place-items-center text-text-muted opacity-60 hover:text-danger hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             >
               <CloseIcon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -152,6 +156,11 @@ export function WorkspaceList({
           </div>
         );
       })}
+      {fechando && <ConfirmarFechamentoDoWorkspace nome={fechando.name}
+        onCancelar={() => setFechandoId(null)} onConfirmar={() => {
+          setFechandoId(null);
+          onClose(fechando.id);
+        }} />}
     </div>
   );
 }

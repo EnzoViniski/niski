@@ -10,7 +10,7 @@ import type { LayoutNode, PaneNode, WorkspaceState } from "../types/workspace";
 
 /*
  * Fork (21/10/2026): o "+" da pasta começa uma conversa nova num painel próprio, já com o último
- * agente/conta; e o "Na tela" agrupa na lateral as conversas que dividem o mesmo painel.
+ * agente/conta; Fork (0.9.2): agora aguarda a escolha. "Na tela" agrupa conversas no mesmo painel.
  */
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -21,13 +21,14 @@ function paineis(node: LayoutNode): PaneNode[] {
 const projeto = (state: WorkspaceState) => state.projects.find((p) => p.id === state.activeProjectId)!;
 
 describe("+ da pasta", () => {
-  it("painel vazio: a conversa nova entra nele, marcada para começar sozinha, sem a aba parada", () => {
+  it("painel vazio: a conversa nova entra nele com o seletor e sem a aba parada", () => {
     let state = workspaceReducer(emptyWorkspace(), { type: "ADD_PROJECT", path: "/dev/omni" });
     state = workspaceReducer(state, { type: "NEW_CONVERSATION_OWN_PANE", projectId: projeto(state).id });
     const [painel] = paineis(projeto(state).layout);
     expect(paineis(projeto(state).layout)).toHaveLength(1);
     expect(painel.tabs).toHaveLength(1);
-    expect(painel.tabs[0]).toMatchObject({ kind: "agent", iniciarDireto: true });
+    expect(painel.tabs[0]).toMatchObject({ kind: "agent" });
+    expect(painel.tabs[0].iniciarDireto).not.toBe(true);
   });
 
   it("com conversa na tela: abre num painel novo à direita; de outra pasta, a aba guarda o projeto", () => {
@@ -41,10 +42,11 @@ describe("+ da pasta", () => {
     const todos = paineis(projeto(state).layout);
     expect(todos).toHaveLength(2);
     const novo = todos.find((p) => p.id === projeto(state).activePaneId)!;
-    expect(novo.tabs).toEqual([expect.objectContaining({ iniciarDireto: true, projectId: site })]);
+    expect(novo.tabs).toEqual([expect.objectContaining({ kind: "agent", projectId: site })]);
+    expect(novo.tabs[0].iniciarDireto).not.toBe(true);
   });
 
-  it("o Novo agente marcado abre sozinho com o último agente usado", async () => {
+  it("até o Novo agente salvo com a marca antiga aguarda o clique para abrir", async () => {
     vi.mocked(invoke).mockImplementation(async (command: string) => {
       if (command === "agent_cli_statuses") return [{ id: "claude", label: "Claude", command: "claude", path: "x", available: true, authenticated: true }];
       if (command === "list_profiles") return [];
@@ -53,6 +55,10 @@ describe("+ da pasta", () => {
     });
     const onLaunch = vi.fn();
     render(<AgentLauncher projectName="p" projectPath="/p" onLaunch={onLaunch} iniciarDireto />);
+    const abrir = await screen.findByRole("button", { name: "Abrir Claude" });
+    expect(onLaunch).not.toHaveBeenCalled();
+    expect(screen.getByRole("radiogroup", { name: "CLI do agente" })).toBeInTheDocument();
+    fireEvent.click(abrir);
     await waitFor(() => expect(onLaunch).toHaveBeenCalledTimes(1));
     expect(onLaunch.mock.calls[0][0].agent.id).toBe("claude");
   });
@@ -91,7 +97,7 @@ describe("Na tela", () => {
     expect(onFocar).toHaveBeenCalledWith(grupos[0].paneId, grupos[0].abas[0].tabId);
   });
 
-  it("uma conversa só na tela: não precisa do bloco", () => {
-    expect(deveMostrarNaTela([{ paneId: "p", emFoco: true, abas: [{ tabId: "t", titulo: "A", sessionId: "s", ativa: true }] }])).toBe(false);
+  it("uma conversa só continua acessível na seção", () => {
+    expect(deveMostrarNaTela([{ paneId: "p", emFoco: true, abas: [{ tabId: "t", titulo: "A", sessionId: "s", ativa: true }] }])).toBe(true);
   });
 });

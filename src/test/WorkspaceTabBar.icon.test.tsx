@@ -39,6 +39,19 @@ describe("ícone da aba de agente", () => {
     expect(path).toBe(pathOf(GptIcon));
   });
 
+  it("a marca e a cor da sessão viva vencem o Claude antigo salvo na aba", () => {
+    const item: WorkspaceTab = { id: "t", kind: "agent", title: "Conversa", provider: "claude", resourceId: "s1" };
+    const pane: PaneNode = { type: "pane", id: "p", activeTabId: item.id, tabs: [item] };
+    const view = (provider: string) => <SessionProvidersContext.Provider value={{ s1: sessao("s1", provider) }}>
+      <WorkspaceTabBar pane={pane} dispatch={vi.fn()} onCloseTab={vi.fn()} />
+    </SessionProvidersContext.Provider>;
+    const { container, rerender } = render(view("claude"));
+    expect(container.querySelector('[role="tab"] svg path')?.getAttribute("d")).toBe(pathOf(ClaudeIcon));
+    rerender(view("codex"));
+    expect(container.querySelector('[role="tab"] svg path')?.getAttribute("d")).toBe(pathOf(GptIcon));
+    expect(container.querySelector('[role="tab"] svg')).toHaveStyle({ color: "#a78bfa" });
+  });
+
   it("aba de agente sem CLI conhecida mantém o ícone de conversa", () => {
     const semProvider = tabIconPath({ id: "t", kind: "agent", title: "Novo agente" });
     expect(semProvider).not.toBe("");

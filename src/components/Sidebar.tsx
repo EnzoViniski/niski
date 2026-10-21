@@ -1,5 +1,6 @@
 // Fork: navegação publicada na paleta, reaproveitando os callbacks da lateral.
 import { NaTela, type PainelNaTela } from "../features/projects/NaTela"; // Fork: conversas agrupadas por painel.
+import type { ContextoDaTela } from "../features/projects/telasAbertas"; // Fork: destino exato fora do projeto atual.
 import { useAcoesDaPaleta } from "../features/paleta/acoes";
 import {
   BookIcon,
@@ -104,9 +105,11 @@ interface SidebarProps {
   activeSessionId?: string | null;
   /** Fork: conversas visíveis no layout agora (aba em foco de cada painel). */
   sessoesNaTela?: string[];
-  /** Fork: painéis do layout com as conversas de cada um ("Na tela"). */
+  /** Fork: todos os layouts abertos, com suas abas ("Na tela"). */
   paineisNaTela?: PainelNaTela[];
-  onFocarAba?: (paneId: string, tabId: string) => void;
+  /** Fork: sessões de todos os layouts, incluindo terminais puros e tentativas ainda em abas. */
+  sessoesDasTelas?: TerminalSession[];
+  onFocarAba?: (paneId: string, tabId: string, contexto?: ContextoDaTela) => void;
   showSettings: boolean;
   showHistory: boolean;
   /** Tela de fluxos de agentes (editor estilo n8n e execuções). */
@@ -160,6 +163,7 @@ export function Sidebar({
   activeSessionId = null,
   sessoesNaTela = [],
   paineisNaTela = [],
+  sessoesDasTelas = agentSessions,
   onFocarAba,
   showSettings,
   showHistory,
@@ -277,8 +281,8 @@ export function Sidebar({
           onRename={onRenameWorkspace}
         />
 
-        {/* Fork: o que está no painel da direita, agrupado por painel (abas juntas uma em cima da outra). */}
-        {onFocarAba && <NaTela paineis={paineisNaTela} sessoes={agentSessions} naoVistas={naoVistas} onFocar={onFocarAba} />}
+        {/* Fork: todas as telas abertas, inclusive em outros workspaces/projetos. */}
+        {onFocarAba && <NaTela paineis={paineisNaTela} sessoes={sessoesDasTelas} naoVistas={naoVistas} onFocar={onFocarAba} />}
 
         <div className="space-y-1">
           <div className="flex items-center justify-between px-3 pt-1">

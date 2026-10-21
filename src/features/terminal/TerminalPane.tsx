@@ -311,8 +311,8 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
                 });
             conversationRef.current = plan?.conversation_id ?? launch?.conversationId ?? null;
             if (plan) {
-              // Fork: conversa nova já abre no último modelo/esforço aplicado neste agente.
-              command = plan.initial_command + opcoesDeModelo(agent.id, ajustesDoAgente(agent.id));
+              // Fork: a escolha do seletor acompanha esta aba; Codex local já traz seu modelo.
+              command = plan.initial_command + opcoesDeModelo(agent.id, launch?.ajustes ?? ajustesDoAgente(agent.id));
               externalSessionId = plan.external_session_id ?? undefined;
               planoTitulo = plan.title;
             }

@@ -32,7 +32,8 @@ import { useAttentionNotifier } from "./features/terminal/useAttentionNotifier";
 import { useJanelaEmFoco } from "./hooks/useJanelaEmFoco";
 // Fork: pausa animações e fundos WebGL com a janela oculta, sem foco ou parada (energia).
 import { useEconomiaDeEnergia } from "./hooks/useEconomiaDeEnergia";
-import { paineisNaTela, sessoesNaTela } from "./features/workspace/abrirEmPainelProprio"; // Fork: lateral clareia o que está na tela.
+import { sessoesNaTela } from "./features/workspace/abrirEmPainelProprio"; // Fork: lateral clareia o que está na tela.
+import { todasAsTelasAbertas } from "./features/projects/telasAbertas"; // Fork: navegação por todos os layouts abertos.
 import { useAtenderPedidoDeAtualizacao } from "./lib/pedidoDeAtualizacao"; // Fork: "Atualizar o PC" pelo celular.
 import {
   closeTerminal,
@@ -133,18 +134,10 @@ function AppComPaleta() {
   }
 
   // O engine devolve em `session.name` o nome da **conversa** (o primeiro prompt, ou o que o usuário
-  // renomeou). Espelhar aqui é o que faz a aba deixar de ser "Claude · agent" sem cada tela precisar
-  // saber o que é conversa. O reducer ignora quando o nome não mudou.
+  // renomeou). Fork: espelha também o provider; uma troca de agente não pode deixar a marca antiga
+  // salva nas abas. O reducer percorre todos os workspaces e ignora polls sem mudança.
   useEffect(() => {
-    for (const session of sessions) {
-      if (!session.name) continue;
-      dispatch({
-        type: "RENAME_TAB_RESOURCE",
-        fromResourceId: session.id,
-        toResourceId: session.id,
-        title: session.name,
-      });
-    }
+    dispatch({ type: "SYNC_SESSION_IDENTITIES", sessions });
   }, [sessions, activeProject?.id, dispatch]);
 
   // Qual unidade é qual máquina remota: lido uma vez, para os polls saberem que um projeto em
@@ -287,10 +280,14 @@ function AppComPaleta() {
         )}
         agentSessions={latestPerConversation(sessions.filter((session) => session.provider))}
         sessoesNaTela={sessoesNaTela(activeProject?.layout)}
-        paineisNaTela={paineisNaTela(activeProject, (id) => workspace.projects.find((item) => item.id === id)?.name)}
-        onFocarAba={(paneId, tabId) => {
-          dispatch({ type: "FOCUS_PANE", paneId });
-          dispatch({ type: "SELECT_TAB", paneId, tabId });
+        paineisNaTela={todasAsTelasAbertas(workspaces, activeWorkspaceId)}
+        sessoesDasTelas={sessions}
+        onFocarAba={(paneId, tabId, contexto) => {
+          if (contexto) dispatch({ type: "FOCUS_OPEN_TAB", destino: { ...contexto, paneId, tabId } });
+          else {
+            dispatch({ type: "FOCUS_PANE", paneId });
+            dispatch({ type: "SELECT_TAB", paneId, tabId });
+          }
           setView("workspace");
         }}
         showSettings={view === "settings"}
@@ -315,7 +312,7 @@ function AppComPaleta() {
         }}
         onNovaConversaNoProjeto={(projectId) => {
           // Fork: "+" da pasta — conversa nova do projeto num painel próprio, sem trocar o layout da direita
-          // e já começando com o último agente/conta usados (`abrirEmPainelProprio.ts`).
+          // e aguardando a escolha de agente/conta/modelo (`abrirEmPainelProprio.ts`).
           dispatch({ type: "NEW_CONVERSATION_OWN_PANE", projectId });
           setView("workspace");
         }}

@@ -6,6 +6,8 @@ import { useSession } from "../terminal/sessionProviders";
 import { workspaceReducer } from "./workspaceReducer";
 import { EtiquetaDoProjeto, useProjetoDeFora } from "./projetosDasAbas";
 import { TAB_DRAG_EVENT, type TabDragState } from "./tabPointerDrag";
+// Fork: a prévia usa a mesma identidade atual da aba real.
+import { providerDaAba } from "./identidadeDasAbas";
 
 /**
  * Fork: prévia do layout **final** enquanto se arrasta uma aba ou uma conversa da lateral.
@@ -98,7 +100,7 @@ function PainelDaPrevia({ pane, destaque }: { pane: PaneNode; destaque: (tab: Wo
 function CabecalhoDaPrevia({ tab }: { tab: WorkspaceTab }) {
   const session = useSession(tab.resourceId);
   const deFora = useProjetoDeFora(tab.resourceId);
-  const provider = tab.provider ?? session?.provider;
+  const provider = providerDaAba(tab, session);
   const Icone = (provider ? AGENT_ICON[provider] : undefined) ?? (tab.kind === "terminal" ? TerminalIcon : ChatIcon);
   return (
     <span className="previa-titulo">
