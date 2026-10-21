@@ -16,6 +16,23 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.9.2",
+    date: "2026-10-21",
+    changes: [
+      "O + da pasta abre a escolha de agente, conta, modelo, esforço e branch antes de iniciar a conversa.",
+      "Ao continuar a conversa com outro agente, o ícone e a cor da aba acompanham a troca e ficam salvos.",
+      "Fechar um workspace agora pede confirmação, com Cancelar e Fechar. As conversas continuam no Histórico.",
+      "Conversas e painéis abrem, trocam e fecham com uma animação suave inspirada nas janelas do macOS. A opção de reduzir movimento continua sendo respeitada.",
+      "Na tela agora reúne as abas abertas de todos os projetos e workspaces. Clique para ir direto à conversa ou tela certa, mesmo quando ela estava em outro layout ou atrás de um painel maximizado.",
+      "No Mac, a barra do topo acompanha a revelação da barra de menus sem pular. Os semáforos nativos ficam sempre visíveis, cinza fora do hover e coloridos quando você passa o mouse sobre eles.",
+      "O Jarvis agora consulta projetos e conversas e coordena uma equipe de agentes: distribui tarefas, acompanha respostas e respeita as permissões do app. O botão Ver agentes abre a equipe e as aprovações no fluxo visual.",
+      "Envie imagens, PDFs e documentos de texto ao Jarvis pelo clipe ou cole uma imagem. Se o envio falhar, sua mensagem e os anexos ficam no campo para tentar novamente.",
+      "Troque a conta, o modelo do Claude e a voz nas configurações do Jarvis. A troca preserva o contexto textual recente; anexos anteriores precisam ser reenviados.",
+      "A voz automática prefere uma voz masculina em português e de melhor qualidade instalada no Mac. Você pode escolher outra voz; quando não há uma masculina disponível, o Jarvis avisa como adicionar pelo macOS.",
+      "Interromper o Jarvis também interrompe o raciocínio em andamento. Agentes e ações já enviados continuam no fluxo, onde você pode acompanhar ou parar cada um.",
+    ],
+  },
+  {
     version: "0.9.1",
     date: "2026-10-21",
     changes: [
