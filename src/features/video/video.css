@@ -256,3 +256,10 @@
 .video-pasta-chip.is-ativa { color: rgb(var(--c-text-primary)); border-color: rgb(var(--c-accent)); background: rgb(var(--c-accent) / .12); }
 :root[data-estilo="minimalista"] .video-pasta-chip { border-radius: 999px; }
 .video-cor { width: 1.4rem; height: 1.4rem; border-radius: 999px; outline: 2px solid transparent; outline-offset: 2px; }
+
+/* Edição a dois */
+.video-convite { display: flex; align-items: flex-start; gap: .5rem; }
+.video-convite code { flex: 1; min-width: 0; font-size: .65rem; line-height: 1.4; padding: .4rem .5rem; overflow-wrap: anywhere; background: rgb(var(--c-overlay) / .06); border: 1px solid rgb(var(--c-border-subtle)); max-height: 6rem; overflow: auto; user-select: all; }
+.video-passos { list-style: decimal; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .3rem; font-size: .72rem; color: rgb(var(--c-text-secondary)); margin: .35rem 0; }
+.video-passos code, .video-dica code { font-size: .68rem; background: rgb(var(--c-overlay) / .08); padding: 0 .2rem; }
+.video-ponto { display: inline-block; width: .45rem; height: .45rem; margin-left: .35rem; border-radius: 999px; background: rgb(var(--c-warning)); }

@@ -4,6 +4,7 @@ import { Button } from "../../components/ui";
 import { ClapperboardIcon, FolderIcon, FolderPlusIcon, TrashIcon } from "../../components/ui/PixelIcon";
 import * as disco from "./armazenamento";
 import { CORES_DAS_PASTAS } from "./PastaDeReferencias";
+import { EntrarNaSessao } from "./aDois/EntrarNaSessao";
 import type { ItemDaLista, PastaDeReferencia } from "./tipos";
 
 function quando(ms: number) {
@@ -19,6 +20,7 @@ export function ListaDeVideos({ onAbrir, onNovo, onAbrirPasta, onFechar, extra }
   const [erro, setErro] = useState<string | null>(null);
   const [confirmar, setConfirmar] = useState<string | null>(null);
   const [nomeDaPasta, setNomeDaPasta] = useState("");
+  const [entrando, setEntrando] = useState(false);
 
   const carregar = () => {
     void disco.listarProjetos().then(setLista).catch((e) => setErro(String(e)));
@@ -43,9 +45,11 @@ export function ListaDeVideos({ onAbrir, onNovo, onAbrirPasta, onFechar, extra }
         <span className="flex-1" />
         {extra}
         <Button size="sm" variant="ghost" onClick={onFechar}>Fechar</Button>
+        <Button size="sm" variant="glass" onClick={() => setEntrando(true)}>Entrar numa sessão a dois</Button>
         <Button size="sm" variant="primary" onClick={onNovo}>Novo vídeo</Button>
       </header>
       {erro && <p className="video-erro mx-6" role="alert">{erro}</p>}
+      {entrando && <EntrarNaSessao onFechar={() => setEntrando(false)} onEntrou={(id) => { setEntrando(false); onAbrir(id); }} />}
       <section className="video-lista-secao">
         <h2 className="video-subtitulo">Vídeos</h2>
         {lista === null && !erro && <p className="video-dica">Carregando…</p>}
@@ -60,7 +64,7 @@ export function ListaDeVideos({ onAbrir, onNovo, onAbrirPasta, onFechar, extra }
             <div key={id} className="video-cartao glass">
               <button type="button" className="video-cartao-abrir" onClick={() => onAbrir(id)}>
                 <span className="video-cartao-formato" style={{ aspectRatio: `${projeto.largura || 16} / ${projeto.altura || 9}` }} aria-hidden="true" />
-                <span className="video-cartao-texto"><b>{projeto.nome}</b><small>{projeto.formato} · {quando(projeto.atualizadoEm)}</small></span>
+                <span className="video-cartao-texto"><b>{projeto.nome}</b><small>{projeto.aDois ? `a dois com ${projeto.aDois.host}` : projeto.formato} · {quando(projeto.atualizadoEm)}</small></span>
               </button>
               {confirmar === id ? (
                 <span className="video-cartao-acoes">

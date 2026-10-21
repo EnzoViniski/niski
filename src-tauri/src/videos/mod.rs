@@ -13,6 +13,8 @@ pub mod projetos;
 pub mod protocolo;
 pub mod referencias;
 pub mod render;
+pub mod sessao;
+pub mod sessao_http;
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};

@@ -36,6 +36,8 @@ export interface Projeto {
   pastasDeReferencia: string[];
   /** Sessões da CLI por conta (`claude:<perfil>` → id da sessão), para o chat continuar de onde parou. */
   sessoes?: Record<string, string>;
+  /** Cópia local de uma sessão a dois (projeto de outra pessoa). */
+  aDois?: { projetoRemoto: string; host: string };
   hyperframes: string;
   criadoEm: number;
   atualizadoEm: number;

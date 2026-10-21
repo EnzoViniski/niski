@@ -17,6 +17,8 @@ import { Propriedades } from "./Propriedades";
 import { criarRelogio, formatarTempo, useRelogio, type RelogioDoPreview } from "./relogio";
 import { Timeline, type Colega } from "./Timeline";
 import { useProjeto } from "./useProjeto";
+import { SessaoADoisDialogo } from "./aDois/SessaoADois";
+import { useSessaoADois } from "./aDois/useSessaoADois";
 import type { Midia, VersaoDoHistorico } from "./tipos";
 
 /** Primeira faixa sem nada entre `inicio` e `inicio + dur` (áudio e imagem não se misturam por acaso). */
@@ -48,9 +50,12 @@ export interface ColaboracaoNoEditor {
   soltarAgente?: () => void;
 }
 
-export function Editor({ id, onVoltar, colaboracao, extraNoTopo }: { id: string; onVoltar: () => void; colaboracao?: ColaboracaoNoEditor; extraNoTopo?: React.ReactNode }) {
+export function Editor({ id, onVoltar }: { id: string; onVoltar: () => void }) {
   const acoes = useProjeto(id);
   const { estado } = acoes;
+  const sessao = useSessaoADois(id, acoes);
+  const colaboracao: ColaboracaoNoEditor | undefined = sessao.colaboracao;
+  const [dialogoADois, setDialogoADois] = useState(false);
   const relogio = useMemo<RelogioDoPreview>(() => criarRelogio(), []);
   const preview = useRef<ControleDoPreview>(null);
   const [selecionado, setSelecionado] = useState<string | null>(null);
@@ -178,7 +183,11 @@ export function Editor({ id, onVoltar, colaboracao, extraNoTopo }: { id: string;
         <span className="video-etiqueta">{p.formato} · {raiz ? `${raiz.largura}×${raiz.altura}` : "sem root"}</span>
         {estado.ocupado && <span className="video-etiqueta is-ocupado">{estado.ocupado}</span>}
         <span className="flex-1" />
-        {extraNoTopo}
+        <Button size="sm" variant={sessao.papel ? "primary" : "ghost"} onClick={() => setDialogoADois(true)} aria-pressed={!!sessao.papel}
+          title={sessao.papel ? (sessao.conexao === "caiu" ? "Conexão caiu; tentando de novo" : "Sessão a dois aberta") : "Editar junto com outra pessoa pelo Tailscale"}>
+          {sessao.papel ? (sessao.conexao === "caiu" ? "A dois · reconectando" : `A dois${sessao.colegas.length ? ` · ${sessao.colegas.map((c) => c.nome).join(", ")}` : ""}`) : "A dois"}
+          {sessao.pedidos.length > 0 && <span className="video-ponto" aria-label={`${sessao.pedidos.length} pedido(s) para entrar`} />}
+        </Button>
         <Button size="sm" variant="ghost" disabled={!estado.podeDesfazer || bloqueado} onClick={() => void acoes.desfazer()} title="Desfazer (⌘Z)">Desfazer</Button>
         <Button size="sm" variant="ghost" disabled={!estado.podeRefazer || bloqueado} onClick={() => void acoes.refazer()} title="Refazer (⇧⌘Z)">Refazer</Button>
         <div className="video-historico">
@@ -238,6 +247,7 @@ export function Editor({ id, onVoltar, colaboracao, extraNoTopo }: { id: string;
       </section>
 
       {exportando && <Exportar projeto={id} nome={p.nome} onFechar={() => setExportando(false)} />}
+      {dialogoADois && <SessaoADoisDialogo sessao={sessao} onFechar={() => setDialogoADois(false)} />}
     </div>
   );
 }
