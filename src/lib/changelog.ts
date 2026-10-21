@@ -16,6 +16,14 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.9.3",
+    date: "2026-10-21",
+    changes: [
+      "Corrigido: na 0.9.2 a janela podia parar de responder aos cliques e à tela cheia. Os botões de fechar, minimizar e tela cheia voltaram a ser os do macOS, como na 0.9.1.",
+      "As animações ao abrir, trocar e fechar conversas foram desligadas por enquanto, até ficarem seguras. O resto da 0.9.2 (Jarvis, Na tela, o + da pasta, confirmação ao fechar) continua igual.",
+    ],
+  },
+  {
     version: "0.9.2",
     date: "2026-10-21",
     changes: [
