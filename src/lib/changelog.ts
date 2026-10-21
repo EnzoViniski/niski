@@ -16,6 +16,17 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.8.7",
+    date: "2026-10-21",
+    changes: [
+      "Codex: a pergunta \"Continue anyway?\" que aparecia ao abrir não aparece mais, e se alguma pergunta de sim ou não aparecer, o botão responde de verdade, sem precisar abrir o terminal.",
+      "O nome da conversa agora é o que o próprio agente dá depois de entender o pedido (no Claude e no Codex), em vez do começo da sua primeira mensagem. Se você renomear, o seu nome continua valendo.",
+      "Lateral mais clara: cada conversa mostra embaixo do nome qual agente é, o que ele está fazendo e há quanto tempo.",
+      "Lateral mais fluida: ao arrastar, reordenar ou abrir uma pasta, as conversas deslizam para o lugar em vez de pular.",
+      "Celular: o Tailscale do Mac volta a ser reconhecido com o app aberto pelo Finder.",
+    ],
+  },
+  {
     version: "0.8.6",
     date: "2026-10-20",
     changes: [
