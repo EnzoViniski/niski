@@ -16,6 +16,16 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.8.8",
+    date: "2026-10-21",
+    changes: [
+      "Clicar numa conversa da lateral abre ela num painel próprio, ao lado do que já está aberto. Se ela já estiver na tela, só ganha o foco.",
+      "As conversas que estão na tela ficam destacadas na lateral, e a que está em foco, mais ainda.",
+      "As pastas de projeto abrem e fecham com um clique só, e as conversas descem e sobem deslizando.",
+      "Lateral mais limpa: uma linha por conversa, com o ícone do agente sem o fundo, e a pasta aparece aberta ou fechada.",
+    ],
+  },
+  {
     version: "0.8.7",
     date: "2026-10-21",
     changes: [
