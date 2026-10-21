@@ -9,6 +9,7 @@ import { useSession, useSessionProvider } from "../terminal/sessionProviders";
 import { EditableLabel } from "../../components/ui/EditableLabel";
 import { renameSession } from "../terminal/terminalService";
 import { iconForPath } from "../files/fileIcons";
+import { tintaDoCaminho } from "../files/coresDosArquivos";
 import type { PaneKind, PaneNode, WorkspaceAction } from "../../types/workspace";
 import { startTabDrag } from "./tabPointerDrag";
 import { EtiquetaDoProjeto, useProjetoDeFora } from "./projetosDasAbas";
@@ -263,5 +264,10 @@ function TabIcon({ item, className }: { item: PaneNode["tabs"][number]; classNam
   // git-diff carrega `staged::<caminho>` no resourceId, e não um caminho puro — usar o ícone do
   // kind nesses casos evita inventar extensão a partir de um prefixo.
   const Icone = doKind ?? iconForPath(item.resourceId ?? item.title);
-  return <Icone className={className} aria-hidden />;
+  // Fork (0.9.4): aba de arquivo leva a cor do tipo, como na árvore.
+  const tinta = doKind ? { className: "" } : tintaDoCaminho(item.resourceId ?? item.title);
+  if (!tinta.className) return <Icone className={className} aria-hidden />;
+  // A cor do tipo substitui a do acento (que, no próprio svg, ganharia da cor herdada).
+  const semCor = className?.replace(/\btext-accent\b/, "");
+  return <span className={`contents ${tinta.className}`} style={tinta.style}><Icone className={semCor} aria-hidden /></span>;
 }

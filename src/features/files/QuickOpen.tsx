@@ -3,6 +3,7 @@ import { useAcoesDaPaleta } from "../paleta/acoes";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { matchesShortcut } from "../../lib/shortcuts";
 import { iconForEntry } from "./fileIcons";
+import { tintaDoArquivo } from "./coresDosArquivos";
 import { baseName, dirName, listAllFiles, resolveIgnoreList, type FileEntry } from "./filesService";
 
 const MAX_RESULTS = 50;
@@ -134,6 +135,7 @@ export function QuickOpen({ projectPath, onOpenFile }: QuickOpenProps) {
           <ul ref={listRef} role="listbox" className="mt-1 min-h-0 overflow-y-auto">
             {results.map(({ file, relative }, index) => {
               const Icon = iconForEntry(file.name, false);
+              const tinta = tintaDoArquivo(file.name); // Fork (0.9.4): cor por tipo.
               const folder = relative === file.name ? "" : dirName(relative);
               return (
                 <li
@@ -148,7 +150,7 @@ export function QuickOpen({ projectPath, onOpenFile }: QuickOpenProps) {
                   ].join(" ")}
                   title={file.path}
                 >
-                  <Icon className="h-3 w-3 shrink-0" aria-hidden />
+                  <span className={`contents ${tinta.className}`} style={tinta.style}><Icon className="h-3 w-3 shrink-0" aria-hidden /></span>
                   <span className="shrink-0">{file.name}</span>
                   <span className="truncate text-text-muted">{folder}</span>
                 </li>

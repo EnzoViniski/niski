@@ -1,0 +1,4 @@
+/* Fork (0.9.4): cor do ícone por tipo de arquivo (ver coresDosArquivos.ts). O ícone pixel usa
+   currentColor; aqui só a tinta do contêiner. No claro, a mesma cor mais escura para ter contraste. */
+.icone-colorido { color: var(--cor-arquivo); }
+:root[data-theme="claro"] .icone-colorido { color: color-mix(in srgb, var(--cor-arquivo) 68%, black); }

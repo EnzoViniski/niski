@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { iconForPath } from "../features/files/fileIcons";
+import { tintaDoCaminho } from "../features/files/coresDosArquivos";
 import { isRemoteProject } from "../features/projects/targetState";
 import {
   gitCommit,
@@ -233,5 +234,11 @@ function GitFileGroup({
 
 function FileIconDoCaminho({ path }: { path: string }) {
   const Icone = iconForPath(path);
-  return <Icone className="mr-1.5 inline-block h-3 w-3 shrink-0 align-[-2px] text-text-muted" aria-hidden />;
+  // Fork (0.9.4): cor por tipo; sem cor conhecida, o cinza de antes.
+  const tinta = tintaDoCaminho(path);
+  return (
+    <span className={`contents ${tinta.className || "text-text-muted"}`} style={tinta.style}>
+      <Icone className="mr-1.5 inline-block h-3 w-3 shrink-0 align-[-2px]" aria-hidden />
+    </span>
+  );
 }

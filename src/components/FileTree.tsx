@@ -4,6 +4,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import gsap from "gsap";
 import { iconForEntry } from "../features/files/fileIcons";
+import { tintaDoArquivo } from "../features/files/coresDosArquivos"; // Fork (0.9.4): cor por tipo.
 import {
   baseName,
   copyIntoProject,
@@ -452,6 +453,7 @@ function FileTreeNode({
   const isDropTarget = entry.isDirectory && dragOverPath === entry.path;
   const iconRef = useRef<HTMLSpanElement>(null);
   const ItemIcon = iconForEntry(entry.name, entry.isDirectory);
+  const tinta = tintaDoArquivo(entry.name, entry.isDirectory);
 
   useEffect(() => {
     if (isRenaming) setDraftName(entry.name);
@@ -510,7 +512,7 @@ function FileTreeNode({
               {entry.isDirectory ? (isOpen ? "▾" : "▸") : ""}
             </span>
             {/* `iconRef` fica no ícone (e não na seta): é a PASTA que pulsa ao virar alvo de drop. */}
-            <span ref={iconRef} className="mr-1.5 inline-block align-[-2px]" aria-hidden="true">
+            <span ref={iconRef} className={`mr-1.5 inline-block align-[-2px] ${tinta.className}`} style={tinta.style} aria-hidden="true">
               <ItemIcon className="h-3 w-3" aria-hidden />
             </span>
             {entry.name}
@@ -558,6 +560,7 @@ function ghostTransform({ x, y }: { x: number; y: number }) {
 const DragGhost = forwardRef<HTMLDivElement, { entry: DragPayload; transform: string }>(function DragGhost({ entry, transform }, ref) {
   const name = baseName(entry.path);
   const Icon = iconForEntry(name, entry.isDirectory);
+  const tinta = tintaDoArquivo(name, entry.isDirectory);
   return (
     <div
       ref={ref}
@@ -566,7 +569,7 @@ const DragGhost = forwardRef<HTMLDivElement, { entry: DragPayload; transform: st
       style={{ position: "fixed", top: 0, left: 0, transform, pointerEvents: "none" }}
       className="popover z-50 flex items-center gap-1.5 px-2 py-1 text-xs text-text-primary opacity-90 whitespace-nowrap"
     >
-      <Icon className="h-3 w-3" aria-hidden />
+      <span className={`contents ${tinta.className}`} style={tinta.style}><Icon className="h-3 w-3" aria-hidden /></span>
       {name}
     </div>
   );
@@ -584,11 +587,12 @@ function NewEntryInput({ depth, isDirectory, onCommit, onCancel }: { depth: numb
     else onCancel();
   };
   const Icon = iconForEntry(name, isDirectory);
+  const tinta = tintaDoArquivo(name, isDirectory);
   return (
     <div className="flex items-center" style={{ paddingLeft: `${depth * 14 + 24}px` }}>
       <span className="mr-0.5 inline-block w-3" aria-hidden="true" />
       <span className="mr-1.5 inline-block" aria-hidden="true">
-        <Icon className="h-3 w-3" aria-hidden />
+        <span className={`contents ${tinta.className}`} style={tinta.style}><Icon className="h-3 w-3" aria-hidden /></span>
       </span>
       <input
         autoFocus
