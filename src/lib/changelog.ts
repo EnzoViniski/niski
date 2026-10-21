@@ -16,6 +16,16 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.9.1",
+    date: "2026-10-21",
+    changes: [
+      "Novo \"Sobre mim\" nas Configurações (e no ⌘K e no celular): escreva quem você é, sua vida, suas empresas e seus estudos, e todos os agentes que você abrir passam a te conhecer. Quando um agente aprende algo novo sobre você, ele deixa uma sugestão para você aceitar, editar ou descartar.",
+      "Agora dá para continuar a mesma conversa com outro agente: em \"Continuar com…\", escolha Claude, Codex, Antigravity ou Cursor (e a conta) e ele segue de onde o anterior parou, com um resumo completo do que já foi feito, tudo na mesma conversa.",
+      "Campo de mensagem mais limpo, como no app do Codex: sem moldura ao digitar, e os controles de baixo só ganham destaque ao passar o mouse.",
+      "O seletor de modelo e esforço ficou mais fluido: o bloco de cima inteiro leva à lista de modelos, a barra desliza e encaixa suave, o painel abre e fecha animado e o nível máximo virou uma nebulosa com estrelas. A troca vale ao fechar o painel, sem botão Aplicar.",
+    ],
+  },
+  {
     version: "0.9.0",
     date: "2026-10-21",
     changes: [

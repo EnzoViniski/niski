@@ -11,6 +11,7 @@ import type { Anexo } from "../anexos";
 import { ControlesDaConversa, type ComandoDaConversa, type ModoDePermissao } from "./ControlesDaConversa";
 import { TelaDeAgendamentos } from "../../features/agendamentos/TelaDeAgendamentos"; // Fork: agenda da conversa (3D).
 import { RenomearConversa } from "./RenomearConversa";
+import { TrocarAgente } from "./TrocarAgente"; // Fork: continuar a mesma conversa com outro agente.
 
 export interface RodapeDaConversaProps {
   conversation: Conversation;
@@ -104,6 +105,11 @@ export function RodapeDaConversa({ conversation, timeline, falhaEnvio, error, an
         <ControlesDaConversa conversaId={conversation.id} provider={conversation.provider}
           modo={modoVigente(conversation.mode, timeline?.modo_de_permissao)} fast={conversation.fast}
           pronto={Boolean(conversation.capabilities?.prompt) && !busy} onModo={onModo} onComando={onComando} onAgendar={() => setAgendando(true)} />
+        {/* Fork: "Continuar com…" outro agente na mesma conversa (passagem de bastão, `TrocarAgente.tsx`). */}
+        <TrocarAgente conversaId={conversation.id} provider={conversation.provider} profileId={conversation.profile_id}
+          pronto={!busy && (Boolean(conversation.capabilities?.prompt) || !conversation.live)}
+          mensagem={texto} titulo={conversation.title}
+          onTrocado={(resultado) => { if (resultado.mensagem_enviada) onTexto(""); }} />
         {/* Fork: modelo e esforço no canto direito, ao lado do Parar/Enviar, como no Codex. */}
         {(conversation.live || conversation.capabilities) ? (
           <AjustesDaConversa conversaId={conversation.id} pronto={Boolean(conversation.capabilities?.prompt) && !busy}
