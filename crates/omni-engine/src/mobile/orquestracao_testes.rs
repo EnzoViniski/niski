@@ -4,6 +4,9 @@
 use super::*;
 use axum::body::{to_bytes, Body};
 use tower::ServiceExt;
+// Fork: cobertura do acesso do Jarvis, com as mesmas fixtures e CLIs falsas.
+#[path = "orquestracao_jarvis_testes.rs"]
+mod jarvis_testes;
 
 const PORTA: u16 = 47_999;
 

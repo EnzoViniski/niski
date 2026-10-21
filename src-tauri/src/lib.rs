@@ -105,10 +105,15 @@ pub fn run() {
             jarvis::jarvis_ouvir,
             jarvis::jarvis_calar,
             jarvis::jarvis_escrever,
+            // Fork: ajustes persistidos e vozes locais do orquestrador Jarvis.
+            jarvis::jarvis_configuracao,
+            jarvis::jarvis_configurar,
+            jarvis::jarvis_vozes,
             jarvis::janela::jarvis_alternar,
             jarvis::janela::jarvis_fechar,
             jarvis::janela::jarvis_bolinha,
             jarvis::janela::jarvis_janela_aberta,
+            jarvis::janela::jarvis_abrir_fluxo,
             atualizacao::versao_nova_no_disco,
             atualizacao::reiniciar_para_atualizar,
             // Fork: "Atualizar agora" (updater) na barra.

@@ -11,6 +11,8 @@ export type EventoDoJarvis =
   | { tipo: "resposta_fim" }
   | { tipo: "nivel"; mic: number; fala: number }
   | { tipo: "interrompido" }
+  | { tipo: "ferramenta"; nome: string; estado: string }
+  | { tipo: "vozes"; vozes: { id: string; nome: string; idioma: string; genero: string; qualidade: string }[]; voz: string | null }
   | { tipo: "aviso"; msg: string }
   | { tipo: "erro"; msg: string };
 
@@ -31,12 +33,13 @@ export interface EstadoDoJarvis {
   aviso: string | null;
   erro: string | null;
   proximoId: number;
+  ferramenta: { nome: string; estado: string } | null;
 }
 
 /** Só as últimas falas: a janela é um painel de conversa, não um histórico. */
 const MAXIMO_DE_FALAS = 40;
 
-export const estadoInicial: EstadoDoJarvis = { estado: "iniciando", falas: [], parcial: "", aviso: null, erro: null, proximoId: 1 };
+export const estadoInicial: EstadoDoJarvis = { estado: "iniciando", falas: [], parcial: "", aviso: null, erro: null, proximoId: 1, ferramenta: null };
 
 function fecharResposta(falas: Fala[], cortada: boolean): Fala[] {
   const ultima = falas[falas.length - 1];
@@ -52,13 +55,15 @@ function acrescentar(estado: EstadoDoJarvis, fala: Omit<Fala, "id">): EstadoDoJa
 export function aplicarEvento(estado: EstadoDoJarvis, evento: EventoDoJarvis | { tipo: "reiniciar" }): EstadoDoJarvis {
   switch (evento.tipo) {
     case "reiniciar":
-      return { ...estado, estado: "iniciando", erro: null, aviso: null, parcial: "" };
+      return { ...estado, estado: "iniciando", erro: null, aviso: null, parcial: "", ferramenta: null };
     case "estado":
       return { ...estado, estado: evento.estado };
     case "parcial":
       return { ...estado, parcial: evento.texto };
     case "voce_disse":
-      return acrescentar({ ...estado, falas: fecharResposta(estado.falas, true), parcial: "", erro: null }, { quem: "voce", texto: evento.texto });
+      return acrescentar({ ...estado, falas: fecharResposta(estado.falas, true), parcial: "", erro: null, ferramenta: null }, { quem: "voce", texto: evento.texto });
+    case "ferramenta":
+      return { ...estado, ferramenta: { nome: evento.nome, estado: evento.estado } };
     case "resposta": {
       const ultima = estado.falas[estado.falas.length - 1];
       if (ultima?.quem === "jarvis" && ultima.aberta) {
@@ -75,6 +80,7 @@ export function aplicarEvento(estado: EstadoDoJarvis, evento: EventoDoJarvis | {
     case "erro":
       return { ...estado, erro: evento.msg };
     case "nivel":
+    case "vozes":
       return estado;
   }
 }

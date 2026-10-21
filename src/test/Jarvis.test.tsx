@@ -109,9 +109,26 @@ describe("janela do Jarvis", () => {
     await userEvent.click(screen.getByRole("button", { name: "Encolher para bolinha" }));
     expect(invoke).toHaveBeenCalledWith("jarvis_bolinha", { ligada: true });
   });
+
+  it("abre a equipe do Jarvis no app principal", async () => {
+    render(<JanelaDoJarvis />);
+    await userEvent.click(screen.getByRole("button", { name: "Ver agentes do Jarvis" }));
+    expect(invoke).toHaveBeenCalledWith("jarvis_abrir_fluxo");
+  });
 });
 
 describe("botão do Jarvis na barra", () => {
+  it("traduz o pedido da janela flutuante para abrir o fluxo da equipe", async () => {
+    const receber = vi.fn();
+    window.addEventListener("medza-orquestracao", receber);
+    try {
+      render(<BotaoDoJarvis />);
+      await waitFor(() => expect(ouvintes["jarvis-abrir-fluxo"]).toBeDefined());
+      act(() => ouvintes["jarvis-abrir-fluxo"]({ payload: null }));
+      expect((receber.mock.calls[0][0] as CustomEvent).detail).toEqual({ tipo: "abrir-fluxo", orquestrador: "jarvis-medza", titulo: "Equipe do Jarvis", paneId: undefined });
+    } finally { window.removeEventListener("medza-orquestracao", receber); }
+  });
+
   it("abre e fecha a janela e acende quando ela está aberta", async () => {
     render(<BotaoDoJarvis />);
     const botao = screen.getByRole("button", { name: "Abrir o Jarvis" });

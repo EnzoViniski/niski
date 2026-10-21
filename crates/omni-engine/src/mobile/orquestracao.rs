@@ -24,6 +24,9 @@ use std::sync::atomic::AtomicU16;
 
 #[path = "orquestracao_ferramentas.rs"]
 mod ferramentas;
+// Fork: Jarvis usa as mesmas ferramentas e os mesmos limites dos orquestradores do chat.
+#[path = "orquestracao_jarvis.rs"]
+pub(crate) mod jarvis;
 
 /// Estado em memória. Nada daqui vai para disco.
 #[derive(Default)]
@@ -203,11 +206,12 @@ async fn responder(state: &Arc<EngineState>, orquestrador: &str, mensagem: Value
                 "serverInfo": {"name": "medza-agents", "version": env!("CARGO_PKG_VERSION")}, "instructions": INSTRUCOES}))
         }
         "ping" => Ok(json!({})),
-        "tools/list" => Ok(json!({"tools": ferramentas::lista()})),
+        "tools/list" => Ok(json!({"tools": if orquestrador == jarvis::DONO { jarvis::lista() } else { ferramentas::lista() }})),
         "tools/call" => {
             let nome = mensagem["params"]["name"].as_str().unwrap_or("").to_owned();
             let argumentos = mensagem["params"]["arguments"].clone();
-            let saida = ferramentas::chamar(state, orquestrador, &nome, &argumentos).await;
+            let saida = if orquestrador == jarvis::DONO { jarvis::chamar(state, &nome, &argumentos).await }
+                else { ferramentas::chamar(state, orquestrador, &nome, &argumentos).await };
             registro::info("orquestracao_ferramenta", &[("orquestrador", orquestrador), ("ferramenta", &nome),
                 ("resultado", if saida.is_ok() { "ok" } else { "erro" })]);
             Ok(match saida {
@@ -227,6 +231,11 @@ async fn responder(state: &Arc<EngineState>, orquestrador: &str, mensagem: Value
 
 /// Estado ao vivo de uma conversa (orquestradora ou subagente).
 fn estado_de(state: &EngineState, conversa: &str) -> (regra::Estado, Option<Arc<LiveSession>>, Option<interaction::Capabilities>) {
+    // Fork: o cérebro do Jarvis é um processo nativo, sem PTY ou conversa fantasma no histórico.
+    if conversa == jarvis::DONO {
+        let aberto=state.mobile.orquestracao.tokens.lock().expect("tokens").values().any(|d|d==jarvis::DONO);
+        return (if aberto{regra::Estado::Pronto}else{regra::Estado::Parado},None,None);
+    }
     let Ok((_, Some(sessao))) = current(state, conversa) else { return (regra::Estado::Parado, None, None) };
     let meta = settle(&sessao);
     let cap = interaction::capabilities(&sessao);
@@ -272,8 +281,8 @@ fn no(state: &EngineState, conversa: &str, perfis: &[omni_core::Profile], agente
     let pendente = state.mobile.orquestracao.pendentes.lock().expect("pendentes poisoned").get(conversa).cloned();
     json!({
         "id": conversa,
-        "titulo": indice.as_ref().map(omni_core::conversations::display_title),
-        "plataforma": segmento.map(|s| s.provider.clone()).or_else(|| agente.map(|a| a.plataforma.clone())),
+        "titulo": if conversa==jarvis::DONO{Some("Jarvis".into())}else{indice.as_ref().map(omni_core::conversations::display_title)},
+        "plataforma": if conversa==jarvis::DONO{Some("claude".into())}else{segmento.map(|s| s.provider.clone()).or_else(|| agente.map(|a| a.plataforma.clone()))},
         "conta_id": conta_id,
         "conta": nome_da_conta(perfis, conta_id.as_deref()),
         "modelo": agente.and_then(|a| a.modelo.clone()),
@@ -285,7 +294,7 @@ fn no(state: &EngineState, conversa: &str, perfis: &[omni_core::Profile], agente
         "branch": agente.and_then(|a| a.branch.clone()),
         "criado_em": agente.map(|a| a.criado_em),
         "estado": estado,
-        "estado_texto": estado.texto(),
+        "estado_texto": if conversa==jarvis::DONO{if estado==regra::Estado::Pronto{"Por voz"}else{"Desconectado"}}else{estado.texto()},
         // Pedido que só o usuário aprova (o orquestrador não pode): o nó destaca.
         "arriscado": cap.as_ref().filter(|c| c.approve).and_then(|c| c.approval_text.as_deref())
             .and_then(omni_core::orquestracao::briefing::pedido_arriscado),
@@ -299,6 +308,8 @@ fn no(state: &EngineState, conversa: &str, perfis: &[omni_core::Profile], agente
 
 pub(super) fn rotas() -> Router<Arc<EngineState>> {
     Router::new()
+        // Fork: emitir/revogar chave Jarvis só pelo IPC autenticado do desktop.
+        .route("/orquestracao/jarvis", post(jarvis::abrir).delete(jarvis::fechar))
         .route("/orquestracao", get(listar))
         .route("/orquestracao/limite", post(definir_limite))
         .route("/orquestracao/{id}", get(fluxo))
@@ -348,6 +359,8 @@ async fn fluxo(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<S
 /// "Tornar orquestradora" / "Deixar de orquestrar": marca no registro e reabre a CLI (com `--resume`)
 /// para as flags e o token valerem — ou saírem. Sem sessão aberta, vale na próxima abertura.
 async fn ativar(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, Json(body): Json<AtivarBody>) -> Result<Json<Value>, ApiError> {
+    // Fork: o centro Jarvis não é uma CLI de conversa que se possa retomar ou reconfigurar aqui.
+    if id==jarvis::DONO{return Err(error(StatusCode::CONFLICT,"Abra ou feche o Jarvis pela janela dele para controlar suas ferramentas"));}
     tokio::task::spawn_blocking(move || {
         let (conversa, viva) = current(&state, &id)?;
         let provider = conversa.segments.last().map(|s| s.provider.clone()).unwrap_or_default();

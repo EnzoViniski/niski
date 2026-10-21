@@ -164,9 +164,12 @@ fn nome_do_agente(a: &regra::Agente) -> String {
 }
 
 /// `(nome, caminhos)` dos subagentes vivos deste orquestrador que têm arquivos.
-fn arquivos_dos_vivos(state: &EngineState, orquestrador: &str) -> Vec<(String, Vec<String>)> {
+fn arquivos_dos_vivos(state: &EngineState, orquestrador: &str, pasta: &str) -> Vec<(String, Vec<String>)> {
     ler_registro(state).orquestrador(orquestrador).map(|o| o.agentes.iter()
         .filter(|a| a.worktree.is_none() && a.arquivos().next().is_some() && estado_de(state, &a.conversation_key).0.vivo())
+        // Fork: o Jarvis trabalha em vários projetos; nomes relativos só disputam a mesma pasta.
+        .filter(|a| orquestrador != super::jarvis::DONO || current(state,&a.conversation_key).ok()
+            .is_some_and(|(c,_)| super::jarvis::mesma_pasta(&c.cwd,pasta)))
         .map(|a| (nome_do_agente(a), a.arquivos().cloned().collect())).collect()).unwrap_or_default()
 }
 
@@ -190,7 +193,9 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
         Some(Value::String(nome)) => Some(worktree_isolada::nome_valido(nome)?),
         Some(_) => return Err("`worktree` é true/false ou um nome".into()),
     };
-    let (mae, _) = current(state, orquestrador).map_err(mensagem_do_erro)?;
+    // Fork: Jarvis só cria no projeto publicado explicitamente escolhido na chamada.
+    let mae = if orquestrador == super::jarvis::DONO { super::jarvis::contexto(state, args)? }
+        else { current(state, orquestrador).map_err(mensagem_do_erro)?.0 };
     // Harness: o que ele pode mexer, relativo à pasta do orquestrador.
     let editar = briefing::normalizar_lista(&textos(args, "editar"), &mae.cwd)?;
     let criar_ = briefing::normalizar_lista(&textos(args, "criar"), &mae.cwd)?;
@@ -229,7 +234,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
 
     regra::pode_criar(vivos(state, orquestrador), ler_registro(state).limite())?;
     // Dois subagentes vivos nunca dividem um caminho; o que é dos outros entra no briefing como "não mexa".
-    let outros = arquivos_dos_vivos(state, orquestrador);
+    let outros = arquivos_dos_vivos(state, orquestrador, &mae.cwd);
     let pedidos: Vec<String> = editar.iter().chain(criar_.iter()).cloned().collect();
     // Em worktree própria ele não toca a pasta dos outros: a disputa vira merge, não arquivo pisado.
     let choques = if nome_da_worktree.is_some() { Vec::new() } else { briefing::conflitos(&pedidos, &outros) };

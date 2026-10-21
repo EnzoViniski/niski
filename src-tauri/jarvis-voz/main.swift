@@ -8,6 +8,7 @@
 // A fala sai pelo mesmo AVAudioEngine que ouve, com o processamento de voz ligado: o macOS tira a
 // voz do próprio Jarvis do microfone (cancelamento de eco), e o Enzo consegue interromper falando.
 // Compilado por `scripts/build-voz-do-jarvis.mjs`. `--arquivo <audio>` transcreve um arquivo (teste).
+// Fork: `--vozes` lista só metadados; `--verificar` testa a política de voz, sem abrir áudio.
 import AVFoundation
 import Foundation
 import Speech
@@ -75,7 +76,7 @@ final class Conversor {
 /// Só o canal 0, em float: com o processamento de voz o macOS pode entregar vários canais.
 func mono(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
     let formato = buffer.format
-    if formato.channelCount == 1 && formato.commonFormat == .pcmFormatFloat32 { return buffer }
+    // Copia também mono: o tap de áudio reutiliza o buffer antes de a fila principal consumi-lo.
     guard formato.commonFormat == .pcmFormatFloat32, let origem = buffer.floatChannelData?[0],
           let alvo = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: formato.sampleRate, channels: 1, interleaved: false),
           let saida = AVAudioPCMBuffer(pcmFormat: alvo, frameCapacity: buffer.frameLength),
@@ -99,12 +100,14 @@ final class Voz: @unchecked Sendable {
     // Estado tocado só na fila principal.
     var ouvindo = false
     var interromperComVoz = true
+    var ecoDisponivel = false
     var voz: AVSpeechSynthesisVoice?
     var filaDeFalas: [(id: Int, texto: String)] = []
     var falandoAgora: (id: Int, texto: String)?
     var geracao = 0 // sobe a cada "calar": buffers atrasados de uma fala cancelada são ignorados
     var agendados = 0
     var sinteseTerminou = false
+    var recebeuAudioDaSintese = false
     var falouHaPouco = ""
     var nivelDoMic: Float = 0
     var nivelDaFala: Float = 0
@@ -119,6 +122,7 @@ final class Voz: @unchecked Sendable {
         let entradaDoMic = motor.inputNode
         do {
             try entradaDoMic.setVoiceProcessingEnabled(true)
+            ecoDisponivel = true
             entradaDoMic.voiceProcessingOtherAudioDuckingConfiguration =
                 AVAudioVoiceProcessingOtherAudioDuckingConfiguration(enableAdvancedDucking: false, duckingLevel: .min)
         } catch {
@@ -135,7 +139,7 @@ final class Voz: @unchecked Sendable {
         }
         motor.prepare()
         try motor.start()
-        voz = melhorVoz()
+        if voz == nil { voz = VozesDoJarvis.padrao() }
         // `dispatchMain()` não roda RunLoop, então nada de `Timer`: relógio do próprio dispatch.
         relogio.schedule(deadline: .now(), repeating: .milliseconds(50))
         relogio.setEventHandler { [weak self] in
@@ -194,17 +198,20 @@ final class Voz: @unchecked Sendable {
     }
 
     func ouviu(_ texto: String, final: Bool) {
+        // Resultados já enfileirados podem chegar depois do botão Pausar.
+        guard ouvindo else { return }
         let falando = falandoAgora != nil
         let referencia = (falandoAgora?.texto ?? "") + " " + falouHaPouco
+        let parar = pedeParaCalar(texto)
         // Logo depois de falar, uma palavra solta é quase sempre a cauda do eco ("Teste" → "Tempo").
         let cauda = !falouHaPouco.isEmpty && palavras(texto).count < 2
-        if cauda || ((falando || !falouHaPouco.isEmpty) && pareceEco(texto, falado: referencia)) {
+        if !parar && (cauda || ((falando || !falouHaPouco.isEmpty) && pareceEco(texto, falado: referencia))) {
             if final { emitir(["ev": "eco"]) }
             return
         }
         if falando {
             // Duas palavras de verdade por cima da fala = o Enzo interrompeu.
-            guard interromperComVoz, palavras(texto).count >= 2 else { return }
+            guard ecoDisponivel, interromperComVoz, parar || palavras(texto).count >= 2 else { return }
             calar()
             emitir(["ev": "interrompido"])
         }
@@ -213,21 +220,31 @@ final class Voz: @unchecked Sendable {
 
     // MARK: fala
 
-    func melhorVoz() -> AVSpeechSynthesisVoice? {
-        let vozes = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == "pt-BR" }
-        return vozes.max { a, b in
-            if a.quality != b.quality { return a.quality.rawValue < b.quality.rawValue }
-            return (a.name == "Luciana" ? 1 : 0) < (b.name == "Luciana" ? 1 : 0)
-        }
+    func emitirVozes(_ evento: String = "vozes") {
+        var catalogo = VozesDoJarvis.catalogo(escolhida: voz)
+        catalogo["ev"] = evento
+        if evento == "pronto" { catalogo["eco"] = ecoDisponivel }
+        emitir(catalogo)
     }
 
-    func vozes() -> [[String: Any]] {
-        AVSpeechSynthesisVoice.speechVoices().filter { $0.language == "pt-BR" }.map {
-            ["id": $0.identifier, "nome": $0.name, "qualidade": $0.quality.rawValue]
+    func escolherVoz(_ id: String) {
+        // Só aceita o catálogo local; identificador antigo/removido não cai silenciosamente na voz padrão.
+        guard let escolhida = id.isEmpty ? VozesDoJarvis.padrao() : VozesDoJarvis.disponiveis().first(where: { $0.identifier == id }) else {
+            emitir(["ev": "erro", "codigo": "voz_indisponivel", "msg": "Esta voz não está disponível no Mac. Escolha uma das vozes instaladas em português."])
+            return
         }
+        voz = escolhida
+        emitirVozes()
     }
 
     func falar(id: Int, texto: String) {
+        guard !texto.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            emitir(["ev": "falou", "id": id]); return
+        }
+        guard voz != nil else {
+            emitir(["ev": "erro", "codigo": "sem_voz", "msg": "Nenhuma voz em português está instalada. Adicione uma voz em Ajustes do Sistema → Acessibilidade → Leitura e Fala → informações ao lado de Voz do sistema."])
+            emitir(["ev": "falou", "id": id]); return
+        }
         filaDeFalas.append((id, texto))
         if falandoAgora == nil { proximaFala() }
     }
@@ -238,11 +255,22 @@ final class Voz: @unchecked Sendable {
         falandoAgora = fala
         agendados = 0
         sinteseTerminou = false
+        recebeuAudioDaSintese = false
         let minhaGeracao = geracao
-        emitir(["ev": "falando", "id": fala.id])
         let frase = AVSpeechUtterance(string: fala.texto)
         frase.voice = voz
-        if !motor.isRunning { try? motor.start() }
+        // Prosódia próxima da voz original; baixar demais o tom cria um efeito robótico.
+        frase.rate = AVSpeechUtteranceDefaultSpeechRate * 0.96
+        frase.pitchMultiplier = 1.0
+        frase.postUtteranceDelay = 0.08
+        if !motor.isRunning {
+            do { try motor.start() } catch {
+                calar()
+                emitir(["ev": "erro", "codigo": "saida_audio", "msg": "A saída de áudio do Jarvis parou. Confira o dispositivo de som e reabra o Jarvis."])
+                return
+            }
+        }
+        emitir(["ev": "falando", "id": fala.id])
         sintetizador.write(frase) { [weak self] buffer in
             DispatchQueue.main.async {
                 guard let self, self.geracao == minhaGeracao else { return }
@@ -251,9 +279,16 @@ final class Voz: @unchecked Sendable {
                     self.talvezTerminou(minhaGeracao)
                     return
                 }
-                guard let pronto = self.conversorDaFala.converter(pcm) else { return }
+                guard let pronto = self.conversorDaFala.converter(pcm) else {
+                    self.calar()
+                    emitir(["ev": "erro", "codigo": "formato_audio", "msg": "Não foi possível reproduzir esta voz. Escolha outra voz instalada."])
+                    return
+                }
                 self.agendados += 1
-                self.tocador.scheduleBuffer(pronto) {
+                self.recebeuAudioDaSintese = true
+                // Espera o áudio sair de fato do alto-falante, inclusive a latência do dispositivo.
+                // O callback padrão (.dataConsumed) terminava cedo e desarmava o filtro de eco.
+                self.tocador.scheduleBuffer(pronto, completionCallbackType: .dataPlayedBack) { _ in
                     DispatchQueue.main.async {
                         guard self.geracao == minhaGeracao else { return }
                         self.agendados -= 1
@@ -267,7 +302,13 @@ final class Voz: @unchecked Sendable {
 
     func talvezTerminou(_ minhaGeracao: Int) {
         guard geracao == minhaGeracao, sinteseTerminou, agendados == 0, let fala = falandoAgora else { return }
+        if !recebeuAudioDaSintese {
+            emitir(["ev": "erro", "codigo": "voz_sem_audio", "msg": "O macOS não gerou áudio para esta voz. Escolha outra voz instalada ou conclua o download nos ajustes de acessibilidade."])
+        }
         falandoAgora = nil
+        agendados = 0
+        sinteseTerminou = false
+        nivelDaFala = 0
         lembrarDoQueFalou(fala.texto)
         emitir(["ev": "falou", "id": fala.id])
         proximaFala()
@@ -287,6 +328,9 @@ final class Voz: @unchecked Sendable {
         filaDeFalas.removeAll()
         if let fala = falandoAgora { lembrarDoQueFalou(fala.texto) }
         falandoAgora = nil
+        agendados = 0
+        sinteseTerminou = false
+        nivelDaFala = 0
         sintetizador.stopSpeaking(at: .immediate)
         tocador.stop()
         emitir(["ev": "calado"])
@@ -328,6 +372,19 @@ func transcreverArquivo(_ caminho: String) async throws {
 }
 
 let argumentos = CommandLine.arguments
+if argumentos.contains("--vozes") {
+    emitir(VozesDoJarvis.catalogo(escolhida: VozesDoJarvis.padrao()))
+    filaDeSaida.sync {}
+    exit(0)
+}
+if argumentos.contains("--verificar") {
+    let sucesso = verificarPoliticaDeVoz()
+        && pareceEco("Uma resposta do Jarvis", falado: "Esta é uma resposta do Jarvis.")
+        && !pareceEco("Quero mudar o projeto", falado: "Esta é uma resposta do Jarvis.")
+    emitir(["ev": "verificacao", "ok": sucesso])
+    filaDeSaida.sync {}
+    exit(sucesso ? 0 : 1)
+}
 if let i = argumentos.firstIndex(of: "--arquivo"), i + 1 < argumentos.count {
     let caminho = argumentos[i + 1]
     Task {
@@ -352,7 +409,8 @@ func tratar(_ linha: String) {
     case "calar": voz.calar()
     case "interromper": voz.interromperComVoz = (comando["ligado"] as? Bool) ?? true
     case "voz":
-        if let id = comando["id"] as? String, let escolhida = AVSpeechSynthesisVoice(identifier: id) { voz.voz = escolhida }
+        if let id = comando["id"] as? String { voz.escolherVoz(id) }
+    case "vozes": voz.emitirVozes()
     case "sair":
         voz.encerrar()
         filaDeSaida.sync {}
@@ -369,7 +427,12 @@ Task { @MainActor in
     do {
         try voz.preparar()
         try await voz.iniciarTranscricao()
-        emitir(["ev": "pronto", "vozes": voz.vozes(), "voz": voz.voz?.identifier ?? "", "eco": voz.interromperComVoz])
+        voz.emitirVozes("pronto")
+        if voz.voz?.gender != .male {
+            emitir(["ev": "aviso", "msg": "Não há voz masculina natural em português disponível neste Mac. Adicione uma voz masculina aprimorada ou premium em Ajustes do Sistema → Acessibilidade → Leitura e Fala → informações ao lado de Voz do sistema e escolha no Jarvis. Até lá, está em uso a voz disponível."])
+        } else if voz.voz?.quality == .default {
+            emitir(["ev": "aviso", "msg": "A voz masculina disponível usa qualidade padrão. Você pode adicionar uma voz aprimorada ou premium nos ajustes de acessibilidade do macOS e escolher no Jarvis."])
+        }
     } catch {
         emitir(["ev": "erro", "msg": "A voz não abriu: \(error.localizedDescription)"])
     }

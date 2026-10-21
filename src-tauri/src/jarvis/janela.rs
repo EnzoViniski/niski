@@ -117,6 +117,17 @@ pub fn jarvis_fechar(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn jarvis_janela_aberta(app: AppHandle) -> bool { app.get_webview_window(ROTULO).is_some() }
 
+/// Fork: a equipe fica no fluxo existente do app, com estado e aprovações dos agentes.
+#[tauri::command]
+pub fn jarvis_abrir_fluxo(app: AppHandle) -> Result<(), String> {
+    app.emit_to("main", "jarvis-abrir-fluxo", ()).map_err(|_| "Não consegui abrir a equipe do Jarvis".to_owned())?;
+    if let Some(principal) = app.get_webview_window("main") {
+        let _ = principal.unminimize();
+        let _ = principal.set_focus();
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn jarvis_bolinha(app: AppHandle, ligada: bool) -> Result<(), String> {
     let janela = app.get_webview_window(ROTULO).ok_or("O Jarvis não está aberto")?;

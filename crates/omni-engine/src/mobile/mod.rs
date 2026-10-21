@@ -280,7 +280,8 @@ pub async fn local(state: Arc<EngineState>, method: &str, path: &str, body: Opti
         request = request.header("content-type","application/json");
     }
     for (nome, valor) in &headers { request = request.header(nome.as_str(), valor.as_str()); }
-    let request = request.body(corpo);
+    // Fork: capacidade em memória do IPC; o HTTP do celular nunca recebe esta extensão.
+    let request = request.extension(orquestracao::jarvis::Desktop).body(corpo);
     let Ok(request) = request else {
         return EngineResponse::Error { code: "INVALID_REQUEST".into(), message: format!("requisição inválida: {method} {path}") };
     };

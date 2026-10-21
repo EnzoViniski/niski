@@ -3,6 +3,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
+// Fork: a janela flutuante pede para abrir a equipe no layout principal.
+import { pedirAbrirFluxo } from "../orquestracao/abrirFluxo";
 
 export function BotaoDoJarvis() {
   const [aberto, setAberto] = useState(false);
@@ -10,10 +12,13 @@ export function BotaoDoJarvis() {
   useEffect(() => {
     let solto = false;
     let soltar: (() => void) | undefined;
+    let soltarFluxo: (() => void) | undefined;
     void invoke<boolean>("jarvis_janela_aberta").then((v) => { if (!solto) setAberto(Boolean(v)); }).catch(() => undefined);
     void listen<{ aberta: boolean }>("jarvis-janela", ({ payload }) => setAberto(payload.aberta))
       .then((parar) => { if (solto) parar(); else soltar = parar; });
-    return () => { solto = true; soltar?.(); };
+    void listen("jarvis-abrir-fluxo", () => pedirAbrirFluxo("jarvis-medza", "Equipe do Jarvis"))
+      .then((parar) => { if (solto) parar(); else soltarFluxo = parar; }).catch(() => undefined);
+    return () => { solto = true; soltar?.(); soltarFluxo?.(); };
   }, []);
 
   return (
