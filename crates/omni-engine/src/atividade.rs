@@ -89,6 +89,8 @@ fn classificar(meta: &TerminalSession, aprovar: bool, escolha: bool, subagente: 
     if aprovar || escolha || meta.state == SessionState::ApprovalRequired { return Some(Tipo::PrecisaDeVoce); }
     if meta.notice.as_deref() == Some("usage_limit") { return Some(Tipo::Limite); }
     if meta.notice.as_deref() == Some("api_error") || meta.state == SessionState::Crashed { return Some(Tipo::Erro); }
+    // Fork (Telegram): sessão interrompida depois de ter atividade também chama o usuário.
+    if meta.state == SessionState::Stopped && meta.attention_seq > 0 { return Some(Tipo::Erro); }
     if meta.state == SessionState::Answered && meta.attention_seq > 0 {
         return Some(if subagente { Tipo::SubagenteTerminou } else { Tipo::Terminou });
     }
@@ -130,7 +132,7 @@ fn coletar(state: &EngineState) -> Vec<Item> {
         // Fork (pergunta-da-cli): menu da CLI ou espera no terminal também é "precisa de você".
         let Some(tipo) = classificar(&meta, cap.as_ref().is_some_and(|c| c.approve),
             cap.as_ref().is_some_and(|c| c.escolha.is_some() || c.espera.is_some()), orquestrador.is_some()) else { continue };
-        let resumo = resumo(tipo, cap.as_ref());
+        let resumo = if meta.state == SessionState::Stopped { "O agente foi parado" } else { resumo(tipo, cap.as_ref()) };
         let tipo_id = serde_json::to_value(tipo).unwrap();
         let conta = perfis.iter().find(|p| Some(&p.id) == meta.profile_id.as_ref()).map(|p| p.name.clone())
             .unwrap_or_else(|| if meta.profile_id.is_none() { "Padrão".into() } else { "Conta indisponível".into() });
@@ -151,6 +153,18 @@ fn coletar(state: &EngineState) -> Vec<Item> {
 fn atualizar(state: &EngineState) {
     let itens = coletar(state);
     state.mobile.atividade.lock().expect("atividade poisoned").observar(itens);
+}
+
+// Fork (Telegram): cópia dos eventos atuais; não expõe títulos/transcripts além da escolha do usuário.
+pub(super) fn para_avisos(state: &EngineState) -> Vec<Value> {
+    let registro = state.mobile.atividade.lock().expect("atividade poisoned");
+    registro.itens.iter().filter(|i| registro.ultimos.get(&i.conversa) == Some(&i.id))
+        .rev().filter_map(|i| serde_json::to_value(i).ok()).collect()
+}
+
+#[cfg(test)]
+pub(super) fn registrar_fixture(state: &EngineState, item: Value) {
+    state.mobile.atividade.lock().unwrap().observar(vec![serde_json::from_value(item).unwrap()]);
 }
 
 pub(super) fn iniciar(state: Arc<EngineState>) {

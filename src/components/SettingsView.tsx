@@ -23,6 +23,7 @@ import { MobileSettings } from "../features/mobile/MobileSettings";
 import { LimiteDeSessoes } from "../features/terminal/LimiteDeSessoes";
 import { testarAviso } from "../features/terminal/useAttentionNotifier";
 import { ConfiguracaoDeAvisos } from "../features/atividade/ConfiguracaoDeAvisos";
+import { TelegramSettings } from "../features/telegram/TelegramSettings"; // Fork: bot de avisos.
 import { BlocksIcon, BookIcon, BrushIcon, CardTextIcon, ChartIcon, CloseIcon, SparkleIcon, GearIcon, GlobeIcon, KeyboardIcon, ListIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
 import { RelatoriosIa } from "../features/relatorios/RelatoriosIa";
 import { ModelosDeAgentes } from "../features/agentes/ModelosDeAgentes";
@@ -402,6 +403,7 @@ function GeralSection({ settings, onChange }: SectionProps) {
       </Card>
 
       {/* Fork: teto de sessões ativas (agentes e terminais rodando comando). */}
+      <TelegramSettings />
       <LimiteDeSessoes />
 
       {/* Fork: volta uma cópia guardada do workspace ou recria pelos projetos das conversas recentes. */}

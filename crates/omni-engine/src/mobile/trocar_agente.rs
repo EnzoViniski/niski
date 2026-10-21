@@ -35,6 +35,8 @@ pub(super) struct PedidoDeTroca {
 
 fn sessao_ocupada(sessao: &Arc<LiveSession>) -> Option<&'static str> {
     if sessao.reserved.load(Ordering::SeqCst) { return Some("Consulta de uso em andamento; tente de novo em alguns segundos"); }
+    // Fork: a CLI que mostra esta trava não está trabalhando. A passagem não mexe na trava externa.
+    if sessao.interaction.lock().is_ok_and(|i| !i.turn_active && crate::conversa_bloqueada::reconhece(&i.parser.screen().contents())) { return None; }
     let cap = interaction::capabilities(sessao);
     if cap.approve || cap.escolha.is_some() || cap.pedido.is_some() { return Some("Responda a pergunta do agente antes de trocar"); }
     if cap.prompt { return None; }
@@ -236,7 +238,8 @@ fn trocar_travado(state: &Arc<EngineState>, id: &str, pedido: &PedidoDeTroca, me
             empurrar(&terminal).map_err(|e| error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()))?;
             // A CLI anterior sai: o que ela fez já está no transcript dela (gravado a cada mensagem).
             if atual.provider == "codex" { codex_app_server::esquecer(&terminal); }
-            if let Err(e) = restart_session(state, &terminal) {
+            // Fork: uma passagem entre provedores nunca retoma uma sessão descoberta por horário.
+            if let Err(e) = restart_session_com_comando(state, &terminal, Some(comando.clone())) {
                 // Volta tudo como estava: a conversa segue com o agente anterior.
                 if let Ok(mut meta) = sessao.meta.lock() {
                     meta.env = anterior.env; meta.provider = anterior.provider; meta.profile_id = anterior.profile_id;

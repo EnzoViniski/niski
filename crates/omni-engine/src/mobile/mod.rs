@@ -71,6 +71,7 @@ mod ganchos_rotas;
 mod codex_rotas; // Fork: Codex app-server, opção por agente.
 // Fork (trocar agente): "Continuar com…" outro agente na mesma conversa (passagem de bastão).
 mod trocar_agente;
+mod telegram; // Fork: Bot API; avisos no engine mesmo com a janela fechada.
 pub(crate) use celular::{check, settings, totp};
 pub(crate) use catalogo::{publish};
 pub(crate) use contas::{comando_do_agente};
@@ -104,6 +105,7 @@ pub struct MobileRuntime {
     /// Fork: tokens e pendências do orquestrador, só em memória (`orquestracao.rs`).
     orquestracao: orquestracao::Runtime,
     atividade: Mutex<caixa_de_atividade::Registro>,
+    telegram: telegram::Runtime,
 }
 
 #[derive(Default)]
@@ -125,13 +127,15 @@ impl MobileRuntime {
             history: Mutex::new(MobileHistory::default()),
             feeds: Mutex::new(omni_core::feed::FeedCache::default()),
             codex_descoberto_em: Mutex::new(0), arquivos: Mutex::new(HashMap::new()),
-            orquestracao: orquestracao::Runtime::default(), atividade: Mutex::new(caixa_de_atividade::Registro::abrir(dir)) }
+            orquestracao: orquestracao::Runtime::default(), atividade: Mutex::new(caixa_de_atividade::Registro::abrir(dir)),
+            telegram: telegram::Runtime::abrir(dir) }
     }
 }
 
 pub fn start(state: Arc<EngineState>) {
     agendamentos::iniciar(state.clone()); // Fork: continua com a janela fechada.
     caixa_de_atividade::iniciar(state.clone()); // Fork: observa mesmo sem clientes conectados.
+    telegram::iniciar(state.clone()); // Fork: mensagens só quando o usuário conecta seu bot.
     // A primeira leitura do histórico abre o começo de todo transcript de todas as contas: segundos,
     // numa máquina com muito histórico. Feita já na subida, quando ninguém está esperando, a primeira
     // abertura do celular ou da web encontra tudo pronto em vez de ficar carregando.
@@ -200,6 +204,7 @@ fn rotas() -> Router<Arc<EngineState>> {
     Router::new().route("/conversas",get(conversations))
         .merge(agendamentos::rotas()) // Fork: agendamentos (3D).
         .merge(caixa_de_atividade::rotas()) // Fork: atividade e vistos, mesma API nos dois transportes.
+        .merge(telegram::rotas()) // Fork: configuração exclusiva do IPC do desktop.
         .route("/projetos",get(projects))
         .route("/painel",get(painel))
         .route("/conversas/{id}/timeline",get(timeline))

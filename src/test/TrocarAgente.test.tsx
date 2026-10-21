@@ -52,11 +52,18 @@ it("outra conta do mesmo agente diz que é continuação literal", async () => {
 });
 
 it("agente trabalhando: opções desligadas com o motivo", async () => {
-  engine();
+  vi.mocked(request).mockResolvedValue({ ...opcoes, pode_trocar:false, motivo:"Espere o agente terminar para trocar" });
   render(<TrocarAgente conversaId="c" provider="claude" pronto={false} />);
   fireEvent.click(screen.getByRole("button", { name: /Continuar com…/ }));
   expect(await screen.findByText("Espere o agente terminar para trocar")).toBeInTheDocument();
   for (const item of screen.getAllByRole("menuitem")) expect(item).toBeDisabled();
+});
+
+it("CLI travada em outro app: aceita a autorização atual do engine para passar o bastão", async () => {
+  engine();
+  render(<TrocarAgente conversaId="c" provider="claude" pronto={false} />);
+  fireEvent.click(screen.getByRole("button", { name: /Continuar com…/ }));
+  expect(await screen.findByRole("menuitem", { name: /Codex.*Trabalho/ })).toBeEnabled();
 });
 
 it("erro do engine aparece claro e o painel continua aberto", async () => {

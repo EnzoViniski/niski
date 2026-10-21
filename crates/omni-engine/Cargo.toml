@@ -23,6 +23,12 @@ vt100 = "0.16"
 base64 = "0.22"
 sha1 = "0.10"
 include_dir = "0.7"
+# Fork: Bot API oficial; erros de transporte nunca saem com a URL (ela contém o token).
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["std", "ring", "tls12"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp"] }

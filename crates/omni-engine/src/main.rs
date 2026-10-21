@@ -13,6 +13,8 @@ mod fluxos;
 // Fork (Onda 2): ganchos HTTP do Claude por sessão, pedidos de permissão e statusline.
 mod ganchos;
 mod preparo_da_sessao;
+mod encerramento_da_pty; // Fork: solta a CLI/trava da conversa antes de reabrir.
+mod conversa_bloqueada; // Fork: permite passar para outro provedor quando a CLI está na tela de trava.
 mod memoria_compartilhada;
 mod interaction;
 // Fork (pergunta-da-cli): menu genérico da CLI e "esperando algo no terminal".
@@ -659,10 +661,14 @@ fn variaveis_do_alvo(
 
 fn spawn_initial_command_thread(session: Arc<LiveSession>, initial_command: Option<String>) {
     if let Some(initial_command) = initial_command.filter(|command| !command.trim().is_empty()) {
+        // Fork: trocar durante os 800 ms invalida o comando do processo anterior.
+        let processo = session.meta.lock().ok().and_then(|m| m.pid);
         std::thread::spawn(move || {
             // ConPTY/PowerShell performs a cursor-position handshake during startup.
             // Let xterm answer it before injecting the selected agent command.
             std::thread::sleep(std::time::Duration::from_millis(800));
+            let Ok(_tela) = session.interaction.lock() else { return };
+            if session.meta.lock().ok().and_then(|m| m.pid) != processo { return; }
             if let Ok(mut writer) = session.writer.lock() {
                 let _ = writer.write_all(initial_command.as_bytes());
                 // Fork: no macOS/Linux só o Enter (`\r`). O `\n` que sobrava chegava à CLI já aberta como
@@ -1062,6 +1068,11 @@ fn rename_session(state: &EngineState, session_id: &str, name: &str) -> Result<E
 }
 
 fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineResponse> {
+    restart_session_com_comando(state, session_id, None)
+}
+
+// Fork: trocar de provedor abre uma conversa nativa NOVA; não descobre/resume rollout alheio.
+fn restart_session_com_comando(state: &Arc<EngineState>, session_id: &str, comando_novo: Option<String>) -> Result<EngineResponse> {
     let target = {
         let sessions = state.sessions.lock().map_err(|_| anyhow!("sessions lock poisoned"))?;
         match sessions.get(session_id).ok_or_else(|| anyhow!("session not found"))? {
@@ -1084,9 +1095,8 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
         RestartTarget::Live(session) => {
             let mut context = session.interaction.lock().map_err(|_| anyhow!("screen poisoned"))?;
             if session.reserved.load(Ordering::SeqCst) { return Err(anyhow!("Consulta de uso em andamento")); }
-            if let Ok(mut child) = session.child.lock() {
-                let _ = child.kill();
-            }
+            encerramento_da_pty::encerrar(&session)?; // Fork: aguarda a CLI antiga liberar sua trava.
+            session.meta.lock().map_err(|_| anyhow!("metadata poisoned"))?.pid = None;
             let meta = session.meta.lock().map_err(|_| anyhow!("session metadata poisoned"))?.clone();
             context.parser = vt100::Parser::new(meta.rows, meta.cols, 0);
             context.codex_visto = false; // Fork (chat-estavel): a CLI nova precisa aparecer de novo.
@@ -1101,7 +1111,7 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
             compartilhar_extensoes(state, meta.provider.as_deref(), meta.profile_id.as_deref());
             // Fork: reabre com as flags de MCP/ganchos e tokens novos (só no ambiente da PTY).
             let (comando, env_do_orquestrador) = preparo_da_sessao::preparar(state, &meta.id, &SessionOrigin::of(&meta), &meta.cwd,
-                comando_ao_reiniciar_com_codex(state, &meta));
+                comando_novo.or_else(|| comando_ao_reiniciar_com_codex(state, &meta)));
             let (pid, writer, master, child, reader) =
                 open_pty_and_spawn(&meta.cwd, &meta.shell, meta.rows, meta.cols, &[meta.env.clone(), env_do_orquestrador].concat(), meta.provider.is_some())?;
             *session.writer.lock().map_err(|_| anyhow!("terminal writer poisoned"))? = writer;
@@ -1128,7 +1138,7 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
         // LiveSession (same id) via spawn_terminal_inner is the whole job.
         RestartTarget::Historical(meta) => {
             let origin = SessionOrigin::of(&meta);
-            let comando = comando_ao_reiniciar_com_codex(state, &meta);
+            let comando = comando_novo.or_else(|| comando_ao_reiniciar_com_codex(state, &meta));
             let metadata = spawn_terminal_inner(
                 state,
                 meta.id,
@@ -1387,7 +1397,7 @@ fn stop_session(state: &EngineState, session_id: &str) -> Result<EngineResponse>
     let SessionEntry::Live(session) = sessions.get(session_id).ok_or_else(|| anyhow!("session not found"))? else {
         return Ok(EngineResponse::Ok);
     };
-    session.child.lock().map_err(|_| anyhow!("terminal child poisoned"))?.kill()?;
+    encerramento_da_pty::encerrar(session)?; // Fork: troca pela UI também espera a CLI sair.
     let mut meta = session.meta.lock().map_err(|_| anyhow!("session metadata poisoned"))?;
     meta.state = SessionState::Stopped;
     meta.pid = None;

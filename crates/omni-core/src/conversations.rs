@@ -213,7 +213,8 @@ fn resolve_transcript_nativo(
         if let Some(id) = &segment.external_session_id { return meta["id"].as_str() == Some(id.as_str()); }
         let same_cwd = meta["cwd"].as_str().is_some_and(|cwd| cwd.replace('\\',"/").eq_ignore_ascii_case(&conversation.cwd.replace('\\',"/")));
         same_cwd && timestamp(&meta["timestamp"]).or_else(|| timestamp(&value["timestamp"]))
-            .is_some_and(|t| t.abs_diff(segment.started_at_ms) <= 30_000)
+            // Fork (troca segura): sessão nova não pode capturar um rollout já aberto no projeto.
+            .is_some_and(|t| t.saturating_add(999) >= segment.started_at_ms && t.saturating_sub(segment.started_at_ms) <= 30_000)
     }).collect();
     (candidates.len() == 1).then(|| candidates[0].clone())
 }
@@ -251,11 +252,20 @@ pub fn discover_codex_transcripts(
                 resolve_transcript(&conversation.segments[segment_index], conversation, profiles)
             };
             let Some(path) = resolved else { continue };
-            let atual = conversations[conversation_index].segments[segment_index].transcript_path.as_deref().map(Path::new);
-            if atual.is_some_and(|atual| atual == path) { continue; }
             let session_id = if conversations[conversation_index].segments[segment_index].provider == "antigravity" {
                 path.file_stem().map(|s| s.to_string_lossy().into_owned())
             } else { codex_session_id(&path) };
+            // Fork: descoberta por horário não reutiliza um arquivo de outro trecho/conversa.
+            // Retomadas com id explícito continuam podendo compartilhar o mesmo transcript.
+            let segmento = &conversations[conversation_index].segments[segment_index];
+            if segmento.provider == "codex" && segmento.external_session_id.is_none()
+                && conversations.iter().enumerate().any(|(ci, c)| c.segments.iter().enumerate().any(|(si, s)| {
+                    (ci != conversation_index || si != segment_index) && s.provider == "codex"
+                        && (s.transcript_path.as_deref().and_then(|p| Path::new(p).canonicalize().ok()).as_ref() == Some(&path)
+                            || session_id.as_deref().is_some_and(|id| s.external_session_id.as_deref() == Some(id)))
+                })) { continue; }
+            let atual = conversations[conversation_index].segments[segment_index].transcript_path.as_deref().map(Path::new);
+            if atual.is_some_and(|atual| atual == path) { continue; }
             let segment = &mut conversations[conversation_index].segments[segment_index];
             segment.transcript_path = Some(path.to_string_lossy().into_owned());
             if segment.external_session_id.is_none() || segment.provider == "antigravity" {
