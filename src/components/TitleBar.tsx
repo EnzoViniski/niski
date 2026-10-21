@@ -10,6 +10,7 @@ import { GavetaDeUso } from "../features/terminal/GavetaDeUso";
 import { AvisoDeAtualizacao } from "./AvisoDeAtualizacao";
 import { CentralDeAgendamentos } from "../features/agendamentos/CentralDeAgendamentos"; // Fork: agenda e ação na paleta.
 import { CaixaDeAtividade } from "../features/atividade/CaixaDeAtividade";
+import "./titleBarMac.css"; // Fork: a barra acompanha a duração/curva nativa ao revelar o menu no Mac.
 
 /*
  * Barra superior própria (a janela nasce sem a moldura do Windows: `decorations: false`).

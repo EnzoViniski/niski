@@ -1,0 +1,15 @@
+/* Fork: anima top sem transform, preservando as gavetas position: fixed da TitleBar.
+   O nativo fornece a curva/duração do próprio AppKit; amostras intermediárias usam duração zero. */
+html.medza-tela-cheia .titlebar-mac,
+html.medza-tela-cheia .gaveta-uso,
+html.medza-tela-cheia .gaveta-uso-fundo {
+  transition-property: top;
+  transition-duration: var(--medza-barra-duracao, 0s);
+  transition-timing-function: var(--medza-barra-curva, ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.medza-tela-cheia .titlebar-mac,
+  html.medza-tela-cheia .gaveta-uso,
+  html.medza-tela-cheia .gaveta-uso-fundo { transition-duration: 0s; }
+}
