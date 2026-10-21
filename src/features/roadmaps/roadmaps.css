@@ -151,6 +151,10 @@
 
 /* Placar do topo */
 .roadmap-placar { row-gap: .5rem; }
+/* O nome e a barra de XP nunca espremem: sem espaço, os botões descem para a linha de baixo. */
+.roadmap-placar > .min-w-0.flex-1 { min-width: 16rem; }
+.roadmap-placar > .min-w-0.flex-1 > div { white-space: nowrap; }
+.roadmap-placar > .min-w-0.flex-1 > div > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .roadmap-nivel {
   display: inline-flex; align-items: center; padding: 0 .5rem; font-size: .6875rem; font-weight: 700; line-height: 1.25rem;
   color: rgb(var(--c-bg-primary)); background: var(--roadmap-cor); clip-path: polygon(8% 0, 92% 0, 100% 50%, 92% 100%, 8% 100%, 0 50%);
@@ -168,7 +172,8 @@
   border: 1px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-overlay) / .04); border-radius: 999px;
 }
 .roadmap-chip:hover, .roadmap-chip.is-ativo { color: rgb(var(--c-text-primary)); border-color: var(--roadmap-cor, rgb(var(--c-accent))); }
-.roadmap-chip-painel {
+/* `.roadmap-chip-ia >` vence o `position: relative` do `.glass`. */
+.roadmap-chip-painel, .roadmap-chip-ia > .roadmap-chip-painel {
   position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; display: flex; flex-direction: column; gap: .5rem;
   width: 22rem; padding: .875rem; background: rgb(var(--c-bg-surface));
 }
@@ -234,11 +239,11 @@
 /* Celular (`src/mobile/telas/Roadmaps.tsx`): mapa em lista, alvos de toque de 44 px. */
 .roadmaps-m-lista { display: flex; flex-direction: column; gap: .625rem; padding: .75rem; }
 .roadmaps-m-pasta { display: block; width: 100%; padding: .75rem; text-align: left; }
-.roadmaps-m { display: flex; flex-direction: column; gap: .75rem; padding: .75rem; }
+.roadmaps-m { display: flex; min-width: 0; max-width: 100%; flex-direction: column; gap: .75rem; padding: .75rem; overflow-x: hidden; }
 .roadmaps-m-placar { display: flex; align-items: center; gap: .75rem; padding: .75rem; }
 .roadmaps-m-acoes { display: flex; gap: .5rem; }
-.roadmaps-m-acoes .btn { flex: 1; min-height: 44px; }
-.roadmaps-m-regiao { width: 100%; padding: .75rem; align-items: stretch; gap: .5rem; margin-bottom: .5rem; }
+.roadmaps-m-acoes .btn { flex: 1 1 0; min-width: 0; min-height: 44px; padding-left: .5rem; padding-right: .5rem; }
+.roadmaps-m-regiao { width: 100%; min-width: 0; padding: .625rem; align-items: stretch; gap: .5rem; margin-bottom: .5rem; }
 .roadmaps-m-regiao .roadmap-regiao-faixa { width: 100%; }
 .roadmaps-m-etapas { display: flex; flex-direction: column; gap: .375rem; }
 .roadmaps-m-etapa {
