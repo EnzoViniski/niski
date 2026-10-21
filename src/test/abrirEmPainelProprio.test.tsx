@@ -92,7 +92,7 @@ describe("lateral", () => {
     expect(linha("Testes")).not.toHaveClass("is-ativa");
   });
 
-  it("um clique abre e fecha a pasta; numa pasta de outro projeto também seleciona", async () => {
+  it("um clique só abre e fecha a pasta, sem trocar o painel da direita", async () => {
     localStorage.setItem("omni-pastas-abertas", JSON.stringify(["p"]));
     const { onSelectProject } = montar();
     await userEvent.click(screen.getByRole("button", { name: /^omni/ }));
@@ -102,7 +102,16 @@ describe("lateral", () => {
     expect(screen.getByRole("list", { name: "Conversas de omni" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /^site/ }));
-    expect(onSelectProject).toHaveBeenCalledWith("q");
+    expect(onSelectProject).not.toHaveBeenCalled();
+    expect(screen.getByRole("list", { name: "Conversas de site" })).toBeInTheDocument();
+  });
+
+  it("o + da pasta pede uma conversa nova naquele projeto e deixa a pasta aberta", async () => {
+    localStorage.setItem("omni-pastas-abertas", JSON.stringify([]));
+    const onNovaConversa = vi.fn();
+    montar({ onNovaConversa });
+    await userEvent.click(screen.getByRole("button", { name: "Nova conversa em site" }));
+    expect(onNovaConversa).toHaveBeenCalledWith("q");
     expect(screen.getByRole("list", { name: "Conversas de site" })).toBeInTheDocument();
   });
 });

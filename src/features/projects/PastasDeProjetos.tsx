@@ -73,8 +73,11 @@ interface Props {
   /** Conversas de agente de todos os projetos (uma por conversa). */
   agentSessions: TerminalSession[];
   naoVistas: Set<string>;
-  onSelectProject: (projectId: string) => void;
+  /** Fork: a pasta não seleciona mais o projeto ao abrir (só a conversa ou o "+" mexem na direita). */
+  onSelectProject?: (projectId: string) => void;
   onCloseProject: (projectId: string) => void;
+  /** Fork: "+" da pasta — conversa nova nesse projeto, no painel em foco (sem trocar o layout). */
+  onNovaConversa?: (projectId: string) => void;
   onAbrirConversa: (projectId: string, session: TerminalSession) => void;
   onBifurcar: (sessionId: string) => void;
   onReiniciar: (sessionId: string) => void;
@@ -94,7 +97,7 @@ interface Props {
  */
 export function PastasDeProjetos({
   projects, activeProjectId, activeSessionId, sessoesNaTela = [], agentSessions, naoVistas,
-  onSelectProject, onCloseProject, onAbrirConversa, onBifurcar, onReiniciar, onFechar, onSoltarNoLayout,
+  onCloseProject, onNovaConversa, onAbrirConversa, onBifurcar, onReiniciar, onFechar, onSoltarNoLayout,
   onRetomarAnterior, onVerHistorico,
 }: Props) {
   const historico = useConversasAnteriores();
@@ -241,9 +244,8 @@ export function PastasDeProjetos({
                   ordenarProjetos(mover(idsDosProjetos, project.id, passo < 0 ? indice - 1 : indice + 2));
                 }}
                 onClick={() => {
-                  // Fork: um clique abre/fecha a pasta (como nos apps do Claude/Codex); numa pasta de
-                  // outro projeto, também seleciona o projeto. Antes eram dois cliques.
-                  if (!ativa) onSelectProject(project.id);
+                  // Fork: a pasta só abre/fecha (como nos apps do Claude/Codex) — não troca o que está
+                  // no painel da direita. Quem abre algo lá é a conversa (clique) ou o "+" da pasta.
                   alternar(project.id);
                 }}
                 className="pasta-botao">
@@ -252,6 +254,13 @@ export function PastasDeProjetos({
                 <span className="min-w-0 flex-1 truncate">{project.name}</span>
                 {todas.length > 0 && <span className="pasta-contagem">{todas.length}</span>}
               </button>
+              {onNovaConversa && (
+                <button type="button" data-nao-arrasta aria-label={`Nova conversa em ${project.name}`} title="Nova conversa nesta pasta"
+                  onClick={() => { onNovaConversa(project.id); setAbertas((atual) => new Set(atual).add(project.id)); }}
+                  className="pasta-acao pasta-nova">
+                  <svg aria-hidden width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                </button>
+              )}
               <button type="button" data-nao-arrasta aria-label={`Fechar projeto ${project.name}`} title="Fechar projeto"
                 onClick={() => onCloseProject(project.id)} className="pasta-acao hover:text-danger">
                 <CloseIcon aria-hidden className="h-3 w-3" />

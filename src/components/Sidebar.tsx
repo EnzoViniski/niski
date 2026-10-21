@@ -114,6 +114,8 @@ interface SidebarProps {
   onAddProject: (path: string) => void;
   onSelectProject: (projectId: string) => void;
   onCloseProject: (projectId: string) => void;
+  /** Fork: "+" da pasta — conversa nova nesse projeto. */
+  onNovaConversaNoProjeto?: (projectId: string) => void;
   onAttachTerminal: (sessionId: string, title: string) => void;
   /** Abre uma conversa de qualquer projeto (pasta) — seleciona o projeto e foca a aba dela. */
   onAbrirConversa?: (projectId: string, sessionId: string, title: string) => void;
@@ -162,6 +164,7 @@ export function Sidebar({
   onAddProject,
   onSelectProject,
   onCloseProject,
+  onNovaConversaNoProjeto,
   onAttachTerminal,
   onAbrirConversa,
   onSoltarConversaNoLayout,
@@ -289,6 +292,7 @@ export function Sidebar({
             naoVistas={naoVistas}
             onSelectProject={onSelectProject}
             onCloseProject={onCloseProject}
+            onNovaConversa={onNovaConversaNoProjeto}
             onSoltarNoLayout={onSoltarConversaNoLayout
               ? (_projectId, session, alvo) => onSoltarConversaNoLayout(session.id, session.name, alvo.paneId, alvo.zone)
               : undefined}

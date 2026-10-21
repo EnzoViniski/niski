@@ -213,3 +213,5 @@ body.lateral-arrastando, body.lateral-arrastando * { cursor: grabbing !important
 .pasta-gaveta:not(.is-aberta) > .pasta-conversas { margin-top: 0; margin-bottom: 0; }
 .pasta-icone { display: inline-flex; flex-shrink: 0; }
 .pasta-icone-minimalista { display: none; }
+/* Fork: "+" da pasta (conversa nova nela), ao lado do fechar; aparece no hover como ele. */
+.pasta-nova:hover { color: rgb(var(--c-accent)); }

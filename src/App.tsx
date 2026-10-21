@@ -306,6 +306,14 @@ function AppComPaleta() {
           const closing = project ? collectResourceIds(project.layout).map((id) => closeTerminal(id)) : [];
           void Promise.allSettled(closing).then(() => dispatch({ type: "CLOSE_PROJECT", projectId }));
         }}
+        onNovaConversaNoProjeto={(projectId) => {
+          // Fork: "+" da pasta — o "Novo agente" daquele projeto vira aba no painel em foco, sem trocar
+          // o layout da direita (a aba guarda de qual projeto é, como o "+" de um painel).
+          if (!activeProject) dispatch({ type: "SELECT_PROJECT", projectId });
+          const projeto = activeProject ?? workspace.projects.find((item) => item.id === projectId);
+          if (projeto) dispatch({ type: "CREATE_TAB", paneId: projeto.activePaneId, kind: "agent", title: "Novo agente", projectId });
+          setView("workspace");
+        }}
         onAbrirConversa={(projectId, sessionId, title) => {
           if (!activeWorkspaceId) return;
           // Fork: conversa que não está na tela abre num painel próprio ao lado (`abrirEmPainelProprio.ts`).

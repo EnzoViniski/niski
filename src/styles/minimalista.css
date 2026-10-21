@@ -597,3 +597,5 @@
 :root[data-estilo="minimalista"] .conversa-linha.is-ativa { background: rgb(var(--c-overlay) / .1); box-shadow: none; }
 :root[data-estilo="minimalista"] .conversa-linha.is-ativa .conversa-nome { color: rgb(var(--c-text-primary)); font-weight: 500; }
 :root[data-estilo="minimalista"] .conversa-linha.is-anterior .icone-do-agente { opacity: .7; }
+:root[data-estilo="minimalista"] .pasta-acao { width: 1.625rem; height: 1.625rem; align-self: center; border-radius: 7px; }
+:root[data-estilo="minimalista"] .pasta-acao:hover { background: rgb(var(--c-overlay) / .08); color: rgb(var(--c-text-primary)); }
