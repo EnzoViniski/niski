@@ -399,6 +399,12 @@ fn list_sessions(state: &EngineState) -> Result<EngineResponse> {
                 mudou
             });
             omni_core::arquivo_de_conversas::guardar_indice(dir, &conversas, &profiles);
+            // Fork (espaço em disco): uma vez, em segundo plano, cópias antigas viram clones APFS.
+            static RECLONAR: std::sync::Once = std::sync::Once::new();
+            RECLONAR.call_once(|| {
+                let (dir, profiles) = (dir.to_path_buf(), profiles.clone());
+                std::thread::spawn(move || omni_core::arquivo_de_conversas::reclonar_copias_antigas(&dir, &profiles));
+            });
         }
         conversas
     }).unwrap_or_default();

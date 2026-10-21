@@ -35,8 +35,16 @@ fn copiar(dir: &Path, perfil: &Profile, origem: &Path) -> io::Result<()> {
     opcoes.write(true).create_new(true);
     #[cfg(unix)] { use std::os::unix::fs::OpenOptionsExt; opcoes.mode(0o600); }
     let resultado = (|| {
-        let mut saida = opcoes.open(&temporario)?;
-        io::copy(&mut File::open(&origem)?, &mut saida)?;
+        // Fork (espaço em disco): clone APFS (não ocupa espaço até o original mudar); cópia byte a
+        // byte só onde não houver clone.
+        let saida = if crate::clonar_arquivo::clonar(&origem, &temporario)? {
+            somente_dono(&temporario)?;
+            OpenOptions::new().write(true).open(&temporario)?
+        } else {
+            let mut saida = opcoes.open(&temporario)?;
+            io::copy(&mut File::open(&origem)?, &mut saida)?;
+            saida
+        };
         let depois = fs::metadata(&origem)?;
         // A CLI estava escrevendo: a próxima rodada pega um snapshot estável.
         if meta.len() != depois.len() || meta.modified().ok() != depois.modified().ok() { return Ok(()) }
@@ -79,6 +87,63 @@ pub fn scan(dir: &Path, provider: &str, perfis: &[Profile], cache: &mut ScanCach
     entradas
 }
 
+fn somente_dono(caminho: &Path) -> io::Result<()> {
+    #[cfg(unix)] { use std::os::unix::fs::PermissionsExt; fs::set_permissions(caminho, fs::Permissions::from_mode(0o600))?; }
+    #[cfg(not(unix))] { let _ = caminho; }
+    Ok(())
+}
+
+/// Fork (espaço em disco): até a 0.9.3 o arquivo guardava cópias byte a byte. Uma vez por pasta de
+/// dados, troca as que ainda são idênticas ao original (mesmo tamanho e data, o critério de `copiar`)
+/// por clones, devolvendo o espaço. Cópia cujo original sumiu ou mudou fica como está.
+pub fn reclonar_copias_antigas(dir: &Path, perfis: &[Profile]) {
+    let raiz_do_arquivo = dir.join("arquivo-conversas");
+    let marca = raiz_do_arquivo.join(".clones-v1");
+    if marca.exists() || !raiz_do_arquivo.is_dir() { return }
+    let mut reclonadas = 0usize;
+    for perfil in perfis.iter().filter(|p| matches!(p.provider.as_str(), "claude" | "codex")) {
+        let copias = PathBuf::from(perfil_no_arquivo(dir, perfil).config_dir);
+        let Ok(raiz) = Path::new(&perfil.config_dir).canonicalize() else { continue };
+        let mut pendentes = vec![copias.clone()];
+        while let Some(pasta) = pendentes.pop() {
+            let Ok(itens) = fs::read_dir(&pasta) else { continue };
+            for item in itens.flatten() {
+                let caminho = item.path();
+                let Ok(tipo) = item.file_type() else { continue };
+                if tipo.is_dir() { pendentes.push(caminho); continue }
+                if !tipo.is_file() || caminho.extension().is_none_or(|e| e != "jsonl") { continue }
+                let Ok(relativo) = caminho.strip_prefix(&copias) else { continue };
+                if reclonar(&raiz.join(relativo), &caminho).unwrap_or(false) { reclonadas += 1; }
+            }
+        }
+    }
+    crate::registro::info("arquivo_conversas_reclonado", &[("arquivos", &reclonadas.to_string())]);
+    let _ = fs::write(marca, "");
+}
+
+fn reclonar(original: &Path, copia: &Path) -> io::Result<bool> {
+    let trava = OpenOptions::new().create(true).truncate(false).write(true).open(copia.with_extension("lock"))?;
+    trava.lock()?;
+    let (antes, guardada) = (fs::metadata(original)?, fs::metadata(copia)?);
+    if antes.len() != guardada.len() || antes.modified().ok() != guardada.modified().ok() { return Ok(false) }
+    let temporario = copia.with_extension(format!("{}.reclone.tmp", std::process::id()));
+    let _ = fs::remove_file(&temporario);
+    if !crate::clonar_arquivo::clonar(original, &temporario)? { return Ok(false) }
+    let resultado = (|| {
+        let depois = fs::metadata(original)?;
+        // A CLI escreveu no meio: a cópia antiga continua valendo.
+        if depois.len() != antes.len() || depois.modified().ok() != antes.modified().ok() { return Ok(false) }
+        somente_dono(&temporario)?;
+        if let Ok(modificacao) = antes.modified() {
+            OpenOptions::new().write(true).open(&temporario)?.set_times(fs::FileTimes::new().set_modified(modificacao))?;
+        }
+        fs::rename(&temporario, copia)?;
+        Ok(true)
+    })();
+    let _ = fs::remove_file(&temporario);
+    resultado
+}
+
 #[cfg(test)]
 mod testes {
     use super::*;
@@ -108,6 +173,37 @@ mod testes {
         let achado = crate::achar_transcript::achar_claude(&perfis, Some("a"), "/repo", "abc").unwrap();
         crate::achar_transcript::colocar_onde_a_cli_procura(&achado, &perfil, "/repo", "abc").unwrap();
         assert_eq!(fs::read_to_string(original).unwrap(), texto);
+    }
+
+    #[test]
+    fn copias_antigas_identicas_viram_clone_uma_vez_e_as_diferentes_ficam() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = dir.path().join("conta");
+        let perfil = Profile { id:"a".into(),provider:"claude".into(),name:"Padrão".into(),config_dir:config.to_string_lossy().into_owned(),builtin:false,
+            created_at_ms:0,last_used_at_ms:None,authenticated:false,email:None };
+        let original = config.join("projects").join("-repo").join("abc.jsonl");
+        fs::create_dir_all(original.parent().unwrap()).unwrap();
+        fs::write(&original, "{\"type\":\"user\"}\n").unwrap();
+        let copia = PathBuf::from(perfil_no_arquivo(dir.path(), &perfil).config_dir).join("projects/-repo/abc.jsonl");
+        fs::create_dir_all(copia.parent().unwrap()).unwrap();
+        fs::copy(&original, &copia).unwrap();
+        let data = fs::metadata(&original).unwrap().modified().unwrap();
+        File::options().write(true).open(&copia).unwrap().set_times(fs::FileTimes::new().set_modified(data)).unwrap();
+        // Cópia de um original que já mudou: fica intacta.
+        let outra = copia.with_file_name("velha.jsonl");
+        fs::write(&outra, "antiga").unwrap();
+        fs::write(original.with_file_name("velha.jsonl"), "nova e maior").unwrap();
+
+        reclonar_copias_antigas(dir.path(), std::slice::from_ref(&perfil));
+
+        assert_eq!(fs::read_to_string(&copia).unwrap(), "{\"type\":\"user\"}\n");
+        assert_eq!(fs::metadata(&copia).unwrap().modified().unwrap(), data);
+        assert_eq!(fs::read_to_string(&outra).unwrap(), "antiga");
+        assert!(dir.path().join("arquivo-conversas/.clones-v1").exists());
+        // Segunda vez não faz nada (a marca existe).
+        fs::write(&outra, "mexida").unwrap();
+        reclonar_copias_antigas(dir.path(), std::slice::from_ref(&perfil));
+        assert_eq!(fs::read_to_string(&outra).unwrap(), "mexida");
     }
 
     #[test]
