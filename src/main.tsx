@@ -20,8 +20,17 @@ instalarRegistroDeErros();
 usarTransporte(transporteDoEngine);
 
 const noTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+// Fork: a janela flutuante do Jarvis carrega este mesmo index.html. Ela mostra só o Jarvis e não toca
+// no estado da interface (nada de restaurar nem espelhar workspaces/aparência).
+const ehJarvis = noTauri && (window as { __TAURI_INTERNALS__?: { metadata?: { currentWindow?: { label?: string } } } })
+  .__TAURI_INTERNALS__?.metadata?.currentWindow?.label === "jarvis";
 
-void (noTauri ? restaurarDoDisco() : Promise.resolve("sem-copia")).then(() => {
+if (ehJarvis) {
+  document.documentElement.classList.add("janela-jarvis");
+  void import("./features/jarvis/JanelaDoJarvis").then(({ JanelaDoJarvis }) => {
+    ReactDOM.createRoot(document.getElementById("root")!).render(<JanelaDoJarvis />);
+  });
+} else void (noTauri ? restaurarDoDisco() : Promise.resolve("sem-copia")).then(() => {
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <App />

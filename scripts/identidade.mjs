@@ -36,6 +36,14 @@ function janelas(titulo) {
   return base.app.windows.map((janela) => (janela.label === "main" ? { ...janela, title: titulo } : janela));
 }
 
+/** Fork: no Mac, o auxiliar de voz do Jarvis vai junto do engine e do shim (`build-voz-do-jarvis.mjs`).
+ *  Fica fora do `tauri.conf.json` para o `cargo test` não exigir o binário compilado. */
+function binariosExtras() {
+  if (process.platform !== "darwin") return {};
+  const base = JSON.parse(readFileSync(join(RAIZ, "src-tauri", "tauri.conf.json"), "utf8"));
+  return { externalBin: [...base.bundle.externalBin, "binaries/medza-voz"] };
+}
+
 /** Sobreposição para `tauri build --config`. `ajuste` permite derivar variantes (build local). */
 export function sobreposicaoDoTauri(id, ajuste = {}) {
   const nome = ajuste.nome ?? id.nome;
@@ -46,7 +54,7 @@ export function sobreposicaoDoTauri(id, ajuste = {}) {
     productName: nome,
     identifier: ajuste.bundleId ?? id.bundleId,
     app: { windows: janelas(nome) },
-    bundle: { createUpdaterArtifacts: assinado, ...ajuste.bundle },
+    bundle: { createUpdaterArtifacts: assinado, ...binariosExtras(), ...ajuste.bundle },
     ...(updater ? { plugins: { updater } } : {}),
   };
 }

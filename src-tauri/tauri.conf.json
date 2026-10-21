@@ -9,6 +9,7 @@
     "beforeBuildCommand": "npm run build:vite"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "main",
