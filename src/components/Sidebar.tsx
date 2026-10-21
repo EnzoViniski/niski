@@ -266,7 +266,7 @@ export function Sidebar({
 
         <div className="space-y-1">
           <div className="flex items-center justify-between px-3 pt-1">
-            <p className="text-text-muted text-[10px] font-medium uppercase tracking-wider">Projects</p>
+            <p className="text-text-muted text-[10px] font-medium uppercase tracking-wider">Projetos</p>
             <button
               data-nav-item
               onClick={() => setPickerAberto(true)}

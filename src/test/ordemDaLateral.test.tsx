@@ -40,7 +40,9 @@ function renderizar() {
 
 const nomesDosProjetos = () => within(screen.getByRole("list", { name: "Projetos" })).getAllByRole("button", { expanded: undefined })
   .filter((b) => b.hasAttribute("aria-expanded")).map((b) => b.textContent);
-const nomesDasConversas = () => within(screen.getByRole("list", { name: "Conversas de api" })).getAllByRole("listitem").map((li) => li.textContent);
+const nomesDasConversas = () => within(screen.getByRole("list", { name: "Conversas de api" })).getAllByRole("listitem")
+  // Fork (lateral fluida): a linha tem nome e, embaixo, agente · estado · quando; a ordem é a dos nomes.
+  .map((li) => li.querySelector(".conversa-nome")?.textContent ?? li.textContent);
 
 /** Cada linha com 20px de altura, uma embaixo da outra. */
 function alturas(lista: HTMLElement) {

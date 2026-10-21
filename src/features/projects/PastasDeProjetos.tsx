@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ChevronDownIcon, CloseIcon, FolderIcon, GitBranchIcon, ReloadIcon } from "../../components/ui/PixelIcon";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { IconeDoStatus, rotuloDoStatus, statusDaConversa } from "../../components/ConversaStatus";
@@ -16,6 +16,9 @@ import { TAB_DRAG_EVENT, type TabDragState, type TabDropTarget } from "../worksp
 import { anterioresDaPasta, relerConversasAnteriores, useConversasAnteriores } from "./historicoDaPasta";
 import { ConversasAnteriores } from "./ConversasAnteriores";
 import type { HistoryEntry } from "../history/historyService";
+// Fork (lateral fluida): linhas deslizam ao reordenar/abrir e a conversa diz agente, estado e quando.
+import { useAnimarLista } from "./animarLateral";
+import { haQuanto } from "../../lib/tempo";
 
 /** A linha sendo arrastada: em qual lista (`projetos` ou o id do projeto), qual, e a posição prevista
  *  entre as outras (`null` = fora da lista, por exemplo sobre o layout). */
@@ -93,6 +96,8 @@ export function PastasDeProjetos({
   onRetomarAnterior, onVerHistorico,
 }: Props) {
   const historico = useConversasAnteriores();
+  const listaRef = useRef<HTMLUListElement>(null);
+  useAnimarLista(listaRef);
   const { ordem, ordenarProjetos, ordenarConversas } = useOrdemDaLateral();
   const [soltura, setSoltura] = useState<Soltura>(null);
   // Fork: apagar conversa pede um segundo clique (o "×" vira "Apagar?" por alguns segundos).
@@ -145,7 +150,7 @@ export function PastasDeProjetos({
     const emFoco = session.id === activeSessionId;
     const chave = conversationKey(session);
     return (
-                    <li key={session.id} data-reordenar={sub ? undefined : ""}
+                    <li key={session.id} data-reordenar={sub ? undefined : ""} data-anima={`c:${chave}`}
                       className={`conversa-linha group${emFoco ? " is-ativa" : ""}${sub ? ` is-subagente${extra.ultimo ? " is-ultimo" : ""}` : ""}${classeDeSoltura(soltura, project.id, chave)}`}
                       style={{ "--cor-agente": corDoAgente(session.provider) } as React.CSSProperties}
                       onPointerDown={sub ? undefined : (evento) => iniciarArraste(evento, evento.currentTarget.closest("ul"), {
@@ -175,7 +180,10 @@ export function PastasDeProjetos({
                         }}
                         className="conversa-botao">
                         <AgentIcon provider={session.provider} size={13} className="shrink-0" />
-                        <span className="min-w-0 flex-1 truncate">{session.name}</span>
+                        <span className="conversa-textos">
+                          <span className="conversa-nome">{session.name}</span>
+                          <SubtituloDaConversa session={session} status={status} />
+                        </span>
                         <IconeDoStatus status={status} className="h-3 w-3" />
                       </button>
                       <IconeDaOrquestradora conversa={chave} titulo={session.name} />
@@ -199,7 +207,7 @@ export function PastasDeProjetos({
   }
 
   return (
-    <ul className="pastas space-y-0.5" aria-label="Projetos">
+    <ul ref={listaRef} className="pastas space-y-0.5" aria-label="Projetos">
       {projetosNaTela.map((project) => {
         const indice = idsDosProjetos.indexOf(project.id);
         const aberta = abertas.has(project.id);
@@ -216,7 +224,7 @@ export function PastasDeProjetos({
         const soltaNoLayout = onSoltarNoLayout;
         const anteriores = onRetomarAnterior && aberta ? anterioresDaPasta(project.path, historico, agentSessions) : [];
         return (
-          <li key={project.id} data-reordenar className={classeDeSoltura(soltura, "projetos", project.id).trim() || undefined}>
+          <li key={project.id} data-reordenar data-anima={`p:${project.id}`} className={classeDeSoltura(soltura, "projetos", project.id).trim() || undefined}>
             <div className={`pasta group${ativa ? " is-ativa" : ""}`}
               onPointerDown={(evento) => iniciarArraste(evento, evento.currentTarget.closest("ul"), {
                 aoMudar: (posicao) => setSoltura({ lista: "projetos", id: project.id, posicao }),
@@ -274,5 +282,18 @@ export function PastasDeProjetos({
         );
       })}
     </ul>
+  );
+}
+
+/** Fork: segunda linha da conversa — qual agente, o que ele está fazendo e há quanto tempo mexeu. */
+function SubtituloDaConversa({ session, status }: { session: TerminalSession; status: ReturnType<typeof statusDaConversa> }) {
+  const quando = haQuanto(session.last_activity_at_ms ?? session.created_at_ms);
+  const rotulo = rotuloDoStatus(status);
+  return (
+    <span className="conversa-sub">
+      <span>{nomeDoAgente(session.provider)}</span>
+      {rotulo && <><span aria-hidden> · </span><span className={`conversa-estado is-${status}`}>{rotulo}</span></>}
+      {quando && <><span aria-hidden> · </span><span>{quando}</span></>}
+    </span>
   );
 }

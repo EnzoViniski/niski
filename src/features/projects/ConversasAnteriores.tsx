@@ -42,9 +42,10 @@ export function ConversasAnteriores({ nomeDoProjeto, anteriores, onRetomar, onVe
 
   return (
     <>
-      <li className="conversas-anteriores-rotulo" aria-hidden>Anteriores</li>
+      <li className="conversas-anteriores-rotulo" aria-hidden data-anima={`rotulo-anteriores:${nomeDoProjeto}`}>Anteriores</li>
       {anteriores.slice(0, quantas).map(({ entry, titulo }) => (
         <li key={`${entry.provider}:${entry.profile_id}:${entry.session_id}`} className="conversa-linha is-anterior"
+          data-anima={`a:${entry.provider}:${entry.profile_id}:${entry.session_id}`}
           style={{ "--cor-agente": corDoAgente(entry.provider) } as React.CSSProperties}>
           <button type="button" data-nav-item className="conversa-botao" disabled={abrindo !== null}
             aria-label={`Retomar conversa anterior ${titulo} de ${nomeDoProjeto}`}
