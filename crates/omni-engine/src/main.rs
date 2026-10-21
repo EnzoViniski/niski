@@ -447,7 +447,10 @@ fn ambiente_do_terminal(command: &mut CommandBuilder, env: &[(String, String)]) 
 #[cfg(not(windows))]
 fn terminal_e_locale_padrao(command: &mut CommandBuilder) {
     let falta = |command: &CommandBuilder, nome: &str| command.get_env(nome).is_none_or(|valor| valor.is_empty());
-    if falta(command, "TERM") {
+    // Fork: `TERM=dumb` herdado (contorno antigo do Tailscale via `launchctl setenv`) conta como
+    // faltando: a tela é o xterm.js, e com `dumb` o Codex pergunta "Continue anyway? [y/N]" toda vez.
+    let burro = command.get_env("TERM").is_some_and(|valor| valor == "dumb");
+    if falta(command, "TERM") || burro {
         command.env("TERM", "xterm-256color");
     }
     if falta(command, "COLORTERM") {
@@ -1577,6 +1580,17 @@ mod tests {
         ambiente_do_terminal_com(&mut comando, &[], false);
         assert_eq!(comando.get_env("TERM").and_then(|v| v.to_str()), Some("screen"));
         assert!(comando.get_env("LC_CTYPE").is_none(), "LANG definido: o locale do usuário vale");
+    }
+
+    /// Fork: `TERM=dumb` herdado do launchd vira o terminal de verdade (o Codex parava numa pergunta).
+    #[cfg(not(windows))]
+    #[test]
+    fn term_dumb_herdado_vira_xterm() {
+        let mut comando = CommandBuilder::new("zsh");
+        comando.env_clear();
+        comando.env("TERM", "dumb");
+        ambiente_do_terminal_com(&mut comando, &[], false);
+        assert_eq!(comando.get_env("TERM").and_then(|v| v.to_str()), Some("xterm-256color"));
     }
 
     #[test]

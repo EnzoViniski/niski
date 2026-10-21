@@ -191,8 +191,16 @@ pub fn menu_no_texto(texto: &str, provider: &str, cursor: Option<usize>) -> Opti
     // "(y/n)" numa das três últimas linhas úteis.
     if let Some(i) = ultimas.iter().copied().find(|&i| sim_ou_nao(caixa[i])) {
         // Cursor na mesma linha da pergunta: é leitura de linha (precisa de Enter).
-        let linha_original = texto.lines().position(|l| l == caixa[i]);
-        let enter = if cursor.is_some() && cursor == linha_original { "\r" } else { "" };
+        // Fork: também com o cursor na linha vazia logo abaixo — o `eprintln!` + `read_line` do Codex
+        // ("Continue anyway? [y/N]:") pula a linha antes de ler, e sem Enter o botão só escrevia o "y".
+        // `rposition`: a pergunta repetida na tela conta a última vez que apareceu.
+        let linhas: Vec<&str> = texto.lines().collect();
+        let linha_original = linhas.iter().rposition(|l| *l == caixa[i]);
+        let vazia = |c: usize| linhas.get(c).is_none_or(|l| l.trim().is_empty());
+        let enter = match (cursor, linha_original) {
+            (Some(c), Some(l)) if c == l || (c == l + 1 && vazia(c)) => "\r",
+            _ => "",
+        };
         return Some(Escolha {
             pergunta: limpa(caixa[i]).to_owned(), detalhe: None,
             opcoes: vec![
