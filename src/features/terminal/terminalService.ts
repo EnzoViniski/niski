@@ -67,6 +67,8 @@ type EngineResponse =
       from_seq: number;
       next_seq: number;
       data: string;
+      /** Fork (energia): impressão do estado, para o long-poll. Ausente = engine sem espera. */
+      estado?: string;
     }
   | { type: "api"; status: number; body: string }
   | { type: "ok" }
@@ -335,6 +337,15 @@ export async function restartTerminal(sessionId: string) {
 export async function terminalSnapshot(sessionId: string, since: number) {
   return expect(
     await invoke<EngineResponse>("terminal_snapshot", { sessionId, since }),
+    "snapshot"
+  );
+}
+
+/** Fork (energia): o engine segura o pedido até a PTY escrever depois de `since`, o estado deixar
+ *  de ser `estadoConhecido` ou `esperaMs` vencer. Uma aba parada não gasta nada com isso. */
+export async function terminalSnapshotEspera(sessionId: string, since: number, estadoConhecido: string | null, esperaMs: number) {
+  return expect(
+    await invoke<EngineResponse>("terminal_snapshot_espera", { sessionId, since, esperaMs, estadoConhecido }),
     "snapshot"
   );
 }

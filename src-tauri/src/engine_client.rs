@@ -529,7 +529,7 @@ pub fn restart_terminal(session_id: String) -> EngineResponse {
 
 #[tauri::command(async)]
 pub fn terminal_snapshot(session_id: String, since: u64) -> EngineResponse {
-    request_or_error(|token| EngineRequest::Snapshot { token, session_id, since })
+    request_or_error(|token| EngineRequest::Snapshot { token, session_id, since, espera_ms: 0, estado_conhecido: None })
 }
 
 fn request_or_error(build: impl FnOnce(String) -> EngineRequest) -> EngineResponse {
@@ -540,9 +540,13 @@ fn request_or_error(build: impl FnOnce(String) -> EngineRequest) -> EngineRespon
 }
 
 pub(crate) fn authenticated_request(build: impl FnOnce(String) -> EngineRequest) -> Result<EngineResponse, String> {
+    send_request(build(engine_token()?))
+}
+
+pub(crate) fn engine_token() -> Result<String, String> {
     let token = fs::read_to_string(engine_dir()?.join("engine.token"))
         .map_err(|error| format!("engine token unavailable: {error}"))?;
-    send_request(build(token.trim().to_owned()))
+    Ok(token.trim().to_owned())
 }
 
 /// Porta do engine. `OMNI_ENGINE_PORT` existe para subir uma instância paralela — app instalado e
@@ -570,14 +574,15 @@ pub(crate) fn engine_port() -> u16 {
 /// conexão (`serve_client` lê linha a linha em laço); era o cliente que jogava o socket fora.
 static IDLE_CONNECTION: Mutex<Option<BufReader<TcpStream>>> = Mutex::new(None);
 
-struct ExchangeError {
-    message: String,
+// Fork (energia): `pub(crate)` para o long-poll do terminal (`espera_do_terminal.rs`) usar conexão própria.
+pub(crate) struct ExchangeError {
+    pub(crate) message: String,
     /// A requisição com certeza não chegou a ser executada (falha ao conectar ou ao escrever — o
     /// engine só age depois de receber a linha inteira). Só nesse caso reenviar é seguro.
-    unsent: bool,
+    pub(crate) unsent: bool,
 }
 
-fn connect() -> Result<BufReader<TcpStream>, String> {
+pub(crate) fn connect() -> Result<BufReader<TcpStream>, String> {
     let address = ("127.0.0.1", engine_port())
         .to_socket_addrs()
         .map_err(|error| error.to_string())?
@@ -589,7 +594,7 @@ fn connect() -> Result<BufReader<TcpStream>, String> {
     Ok(BufReader::new(stream))
 }
 
-fn exchange(
+pub(crate) fn exchange(
     connection: &mut BufReader<TcpStream>,
     request: &EngineRequest,
     timeout: Duration,

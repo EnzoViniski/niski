@@ -1,5 +1,7 @@
 // Fork: cache curto do `ps` e da busca de rollouts do Codex (energia).
 mod economia;
+// Fork (energia): long-poll do snapshot do terminal.
+mod espera_de_saida;
 // Fork: modo do Antigravity nas sessões do app e o diálogo de permissão dele na conversa.
 mod antigravity_permissoes;
 // Fork: versão da tela sem os quadros de animação (o `If-Match` do chat não falha com o spinner).
@@ -348,7 +350,11 @@ fn handle_request(request: EngineRequest, state: &Arc<EngineState>) -> EngineRes
         EngineRequest::CloseSession { session_id, .. } => close_session(state, &session_id),
         EngineRequest::DuplicateSession { session_id, .. } => duplicate_session(state, &session_id),
         EngineRequest::RestartSession { session_id, .. } => restart_session(state, &session_id),
-        EngineRequest::Snapshot { session_id, since, .. } => snapshot(state, &session_id, since),
+        EngineRequest::Snapshot { session_id, since, espera_ms, estado_conhecido, .. } => {
+            // Fork (energia): espera saída nova ou mudança de estado em vez de a UI perguntar 10x/s.
+            espera_de_saida::esperar_snapshot(state, &session_id, since, espera_ms, estado_conhecido.as_deref());
+            snapshot(state, &session_id, since)
+        }
         EngineRequest::RenameConversation { conversation_id, title, .. } => engine_dir()
             .and_then(|dir| {
                 omni_core::conversations::rename(&dir, &conversation_id, &title).map_err(|erro| anyhow!(erro))
@@ -669,7 +675,10 @@ fn spawn_reader_thread(state: Arc<EngineState>, session: Arc<LiveSession>, mut r
         loop {
             match reader.read(&mut bytes) {
                 Ok(0) => break,
-                Ok(length) => append_output(&session, &bytes[..length], watched_pid),
+                Ok(length) => {
+                    append_output(&session, &bytes[..length], watched_pid);
+                    espera_de_saida::avisar(); // Fork (energia): acorda o long-poll do snapshot.
+                }
                 Err(error) => {
                     eprintln!("terminal reader failed: {error}");
                     break;
@@ -1407,7 +1416,8 @@ fn snapshot(state: &EngineState, session_id: &str, since: u64) -> Result<EngineR
     let entry = sessions.get(session_id).ok_or_else(|| anyhow!("session not found"))?;
     let session_meta = entry.metadata();
     let SessionEntry::Live(session) = entry else {
-        return Ok(EngineResponse::Snapshot { session: session_meta, from_seq: since, next_seq: since, data: String::new() });
+        let estado = Some(espera_de_saida::impressao(&session_meta));
+        return Ok(EngineResponse::Snapshot { session: session_meta, from_seq: since, next_seq: since, data: String::new(), estado });
     };
     // Snapshot só vem de quem renderiza a PTY num terminal (o xterm do desktop). A partir daqui é ele
     // quem responde as perguntas do terminal.
@@ -1420,7 +1430,8 @@ fn snapshot(state: &EngineState, session_id: &str, since: u64) -> Result<EngineR
         .filter(|(sequence, _)| *sequence >= since)
         .map(|(_, chunk)| chunk.as_str())
         .collect();
-    Ok(EngineResponse::Snapshot { session: session_meta, from_seq, next_seq: output.next_seq, data })
+    let estado = Some(espera_de_saida::impressao(&session_meta));
+    Ok(EngineResponse::Snapshot { session: session_meta, from_seq, next_seq: output.next_seq, data, estado })
 }
 
 /// Quem decide a pasta é **quem lança** o engine (`engine_client::spawn_engine` passa

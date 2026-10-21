@@ -199,7 +199,19 @@ pub enum EngineRequest {
     CloseSession { token: String, session_id: String },
     DuplicateSession { token: String, session_id: String },
     RestartSession { token: String, session_id: String },
-    Snapshot { token: String, session_id: String, since: u64 },
+    Snapshot {
+        token: String,
+        session_id: String,
+        since: u64,
+        /// Fork (energia): long-poll. Com `espera_ms > 0` o engine só responde quando a PTY escreve
+        /// depois de `since`, quando o estado da sessão deixa de ser `estado_conhecido` ou no prazo.
+        /// Engine antigo ignora os dois campos e responde na hora (o cliente detecta pela falta de
+        /// `estado` na resposta e volta ao ritmo antigo).
+        #[serde(default)]
+        espera_ms: u64,
+        #[serde(default)]
+        estado_conhecido: Option<String>,
+    },
     /// Renomear a conversa. Mora aqui (e não num comando do Tauri escrevendo o arquivo) para o
     /// índice de conversas ter um escritor só — desktop e celular passam pelo mesmo caminho.
     RenameConversation { token: String, conversation_id: String, title: String },
@@ -316,7 +328,16 @@ pub enum EngineResponse {
     },
     Sessions { sessions: Vec<TerminalSession> },
     Session { session: TerminalSession },
-    Snapshot { session: TerminalSession, from_seq: u64, next_seq: u64, data: String },
+    Snapshot {
+        session: TerminalSession,
+        from_seq: u64,
+        next_seq: u64,
+        data: String,
+        /// Fork (energia): impressão digital de `session`, devolvida em `estado_conhecido` no pedido
+        /// seguinte. Ausente = engine sem long-poll.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        estado: Option<String>,
+    },
     Api { status: u16, body: String },
     Ok,
     Error { code: String, message: String },

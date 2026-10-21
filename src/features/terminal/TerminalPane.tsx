@@ -23,6 +23,7 @@ import {
   engineApi,
   stopTerminal,
   terminalSnapshot,
+  terminalSnapshotEspera,
   type AgentCliStatus,
   type AgentCliId,
   type AgentLaunch,
@@ -77,6 +78,14 @@ const POLL_OCULTO_MS = 1_000;
 const VAZIAS_ATE_ESPACAR = 10;
 const POLL_CALADO_MS = 250;
 const POLL_CALADO_SEM_FOCO_MS = 500;
+/** Fork (energia): com engine novo a leitura é long-poll. O engine segura o pedido até a PTY
+ *  escrever ou o estado mudar; o prazo só garante uma resposta de tempos em tempos. Os ritmos acima
+ *  ficam para um engine antigo ainda aberto (a troca do engine é adiada com conversa ocupada). */
+const ESPERA_MS = 20_000;
+/** Esperando a conta nova ficar pronta para o "continue": precisa olhar a cada {@link CONTINUAR_RITMO_MS}. */
+const ESPERA_CURTA_MS = 1_500;
+/** Entre duas leituras com saída: no máximo uma por quadro. */
+const QUADRO_MS = 16;
 /** Intervalo entre tentativas quando o failover não achou conta ou falhou. O aviso de limite
  *  continua na tela, então a próxima leitura reabre a busca — e uma conta conectada depois do
  *  limite passa a ser encontrada sem o usuário precisar reabrir a aba. */
@@ -221,6 +230,8 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
     };
     document.addEventListener("visibilitychange", aoVoltar);
     let firstPoll = true;
+    /** Fork (energia): o engine respondeu com `estado` = sabe esperar. `null` até a 1ª leitura. */
+    let estadoConhecido: string | null = null;
     /** Escritas do histórico em andamento no xterm. Enquanto > 0, o que ele "responde" sai de
      *  perguntas antigas (posição do cursor, cor do fundo que o shell fez ao abrir) e não vai para
      *  a PTY: chegava ao prompt como letras soltas — "R", "1", ":". */
@@ -495,8 +506,15 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
 
     async function poll() {
       if (cancelled || !sessionRef.current) return;
+      const pedidoEm = Date.now();
       try {
-        const snapshot = await terminalSnapshot(sessionRef.current, sequenceRef.current);
+        const snapshot = estadoConhecido
+          ? await terminalSnapshotEspera(sessionRef.current, sequenceRef.current, estadoConhecido,
+            continuarRef.current ? ESPERA_CURTA_MS : ESPERA_MS)
+          : await terminalSnapshot(sessionRef.current, sequenceRef.current);
+        // A espera pode durar segundos: a aba pode ter fechado ou trocado de sessão nesse meio-tempo.
+        if (cancelled) return;
+        estadoConhecido = snapshot.estado ?? null;
         // Sessão histórica: o engine devolve `next_seq` 0 e nenhuma saída. Só na primeira leitura,
         // para não ressuscitar em loop quem o usuário parou nesta mesma montagem.
         // Fork (retomar-sempre): `orphan` (pasta sumiu) também tenta voltar: o erro do engine vira as
@@ -587,6 +605,8 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
         const ativo = Date.now() - atividadeEm < JANELA_ATIVA_MS;
         const intervalo = falhasRef.current >= FALHAS_ATE_AVISAR
           ? 1_000
+          // Long-poll: a próxima espera sai já (no máximo uma leitura por quadro).
+          : estadoConhecido ? Math.max(0, QUADRO_MS - (Date.now() - pedidoEm))
           : document.hidden ? POLL_OCULTO_MS
           : ativo ? POLL_ATIVO_MS
           : vazias >= VAZIAS_ATE_ESPACAR ? (document.hasFocus() ? POLL_CALADO_MS : POLL_CALADO_SEM_FOCO_MS)

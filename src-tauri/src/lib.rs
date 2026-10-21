@@ -3,6 +3,8 @@ mod account_usage;
 mod agent_runtime;
 mod mobile;
 mod engine_client;
+// Fork (energia): snapshot do terminal com espera (long-poll).
+mod espera_do_terminal;
 mod git_client;
 // Fork: revisão por arquivo/trecho.
 mod revisao;
@@ -148,6 +150,7 @@ pub fn run() {
             engine_client::duplicate_terminal,
             engine_client::restart_terminal,
             engine_client::terminal_snapshot,
+            espera_do_terminal::terminal_snapshot_espera, // Fork (energia): long-poll do terminal.
             conversations::list_conversations,
             conversations::begin_conversation,
             conversations::attach_terminal,
