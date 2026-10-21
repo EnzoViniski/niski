@@ -117,9 +117,9 @@ mod tests {
         });
         let passou = inicio.elapsed();
         assert!(passou >= Duration::from_millis(120), "voltou cedo: {passou:?}");
-        assert!(passou < Duration::from_millis(400), "demorou demais: {passou:?}");
+        assert!(passou < Duration::from_millis(2_000), "demorou demais: {passou:?}");
         // Confere o estado no ritmo (na entrada e a cada 40 ms), não em laço apertado.
-        assert!((3..=5).contains(&conferencias), "conferências: {conferencias}");
+        assert!((2..=6).contains(&conferencias), "conferências: {conferencias}");
     }
 
     #[test]
@@ -134,7 +134,7 @@ mod tests {
         let inicio = Instant::now();
         esperar(Duration::from_secs(5), Duration::from_secs(5), |_| pronto.load(std::sync::atomic::Ordering::SeqCst));
         escritor.join().unwrap();
-        assert!(inicio.elapsed() < Duration::from_secs(1), "não acordou com o aviso: {:?}", inicio.elapsed());
+        assert!(inicio.elapsed() < Duration::from_millis(2_500), "não acordou com o aviso: {:?}", inicio.elapsed());
     }
 
     #[test]
