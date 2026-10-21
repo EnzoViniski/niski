@@ -39,3 +39,56 @@ export function sessoesNaTela(layout: LayoutNode | undefined): string[] {
     return id ? [id] : [];
   });
 }
+
+type Redutor = (state: WorkspaceState, action: import("../../types/workspace").WorkspaceAction) => WorkspaceState;
+
+function mapearPaineis(node: LayoutNode, f: (pane: PaneNode) => PaneNode): LayoutNode {
+  return node.type === "pane" ? f(node) : { ...node, first: mapearPaineis(node.first, f), second: mapearPaineis(node.second, f) };
+}
+
+/**
+ * Fork: o "+" da pasta — conversa nova do projeto num painel próprio (mesma regra do clique numa
+ * conversa), sem trocar o layout da direita. A aba nasce com `iniciarDireto`: o "Novo agente" abre já
+ * com o último agente e a última conta usados, sem esperar escolha (`AgentLauncher`).
+ */
+export function novaConversaEmPainelProprio(state: WorkspaceState, projectId: string, reducer: Redutor): WorkspaceState {
+  let atual = state.activeProjectId ? state : reducer(state, { type: "SELECT_PROJECT", projectId });
+  const projeto = atual.projects.find((project) => project.id === atual.activeProjectId);
+  if (!projeto) return state;
+  const todos = paineis(projeto.layout);
+  const ativo = todos.find((pane) => pane.id === projeto.activePaneId) ?? todos[0];
+  if (!ativo) return state;
+  const vazio = ativo.tabs.every((tab) => !tab.resourceId);
+  let alvo = ativo.id;
+  if (!vazio && todos.length < MAX_PAINEIS) {
+    atual = reducer(atual, { type: "SPLIT_PANE", paneId: ativo.id, direction: "horizontal" });
+    alvo = atual.projects.find((project) => project.id === atual.activeProjectId)!.activePaneId;
+  }
+  const deFora = projectId !== projeto.id ? projectId : undefined;
+  atual = reducer(atual, { type: "CREATE_TAB", paneId: alvo, kind: "agent", title: "Novo agente", projectId: deFora, iniciarDireto: true });
+  // O painel novo (ou vazio) não precisa da aba de boas-vindas/"Novo agente" parada que já tinha.
+  return {
+    ...atual,
+    projects: atual.projects.map((project) => project.id !== atual.activeProjectId ? project : {
+      ...project,
+      layout: mapearPaineis(project.layout, (pane) => pane.id !== alvo ? pane : {
+        ...pane, tabs: pane.tabs.filter((tab) => tab.iniciarDireto || tab.resourceId || tab.kind !== "agent"),
+      }),
+    }),
+  };
+}
+
+/** Fork: os painéis do layout com as abas de conversa de cada um (para o "Na tela" da lateral). */
+export function paineisNaTela(projeto: { id: string; layout: LayoutNode; activePaneId: string } | null | undefined,
+  nomeDoProjeto: (id: string) => string | undefined) {
+  if (!projeto) return [];
+  return paineis(projeto.layout).map((pane) => ({
+    paneId: pane.id,
+    emFoco: pane.id === projeto.activePaneId,
+    abas: pane.tabs.filter((tab) => tab.kind === "agent" && tab.resourceId).map((tab) => ({
+      tabId: tab.id, titulo: tab.title, sessionId: tab.resourceId!, provider: tab.provider,
+      projeto: tab.projectId && tab.projectId !== projeto.id ? nomeDoProjeto(tab.projectId) : undefined,
+      ativa: tab.id === pane.activeTabId,
+    })),
+  }));
+}

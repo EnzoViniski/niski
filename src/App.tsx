@@ -31,7 +31,7 @@ import { useAttentionNotifier } from "./features/terminal/useAttentionNotifier";
 import { useJanelaEmFoco } from "./hooks/useJanelaEmFoco";
 // Fork: pausa animações e fundos WebGL com a janela oculta, sem foco ou parada (energia).
 import { useEconomiaDeEnergia } from "./hooks/useEconomiaDeEnergia";
-import { sessoesNaTela } from "./features/workspace/abrirEmPainelProprio"; // Fork: lateral clareia o que está na tela.
+import { paineisNaTela, sessoesNaTela } from "./features/workspace/abrirEmPainelProprio"; // Fork: lateral clareia o que está na tela.
 import { useAtenderPedidoDeAtualizacao } from "./lib/pedidoDeAtualizacao"; // Fork: "Atualizar o PC" pelo celular.
 import {
   closeTerminal,
@@ -286,6 +286,12 @@ function AppComPaleta() {
         )}
         agentSessions={latestPerConversation(sessions.filter((session) => session.provider))}
         sessoesNaTela={sessoesNaTela(activeProject?.layout)}
+        paineisNaTela={paineisNaTela(activeProject, (id) => workspace.projects.find((item) => item.id === id)?.name)}
+        onFocarAba={(paneId, tabId) => {
+          dispatch({ type: "FOCUS_PANE", paneId });
+          dispatch({ type: "SELECT_TAB", paneId, tabId });
+          setView("workspace");
+        }}
         showSettings={view === "settings"}
         showHistory={view === "history"}
         showFluxos={view === "fluxos"}
@@ -307,11 +313,9 @@ function AppComPaleta() {
           void Promise.allSettled(closing).then(() => dispatch({ type: "CLOSE_PROJECT", projectId }));
         }}
         onNovaConversaNoProjeto={(projectId) => {
-          // Fork: "+" da pasta — o "Novo agente" daquele projeto vira aba no painel em foco, sem trocar
-          // o layout da direita (a aba guarda de qual projeto é, como o "+" de um painel).
-          if (!activeProject) dispatch({ type: "SELECT_PROJECT", projectId });
-          const projeto = activeProject ?? workspace.projects.find((item) => item.id === projectId);
-          if (projeto) dispatch({ type: "CREATE_TAB", paneId: projeto.activePaneId, kind: "agent", title: "Novo agente", projectId });
+          // Fork: "+" da pasta — conversa nova do projeto num painel próprio, sem trocar o layout da direita
+          // e já começando com o último agente/conta usados (`abrirEmPainelProprio.ts`).
+          dispatch({ type: "NEW_CONVERSATION_OWN_PANE", projectId });
           setView("workspace");
         }}
         onAbrirConversa={(projectId, sessionId, title) => {

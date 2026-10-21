@@ -215,3 +215,6 @@ body.lateral-arrastando, body.lateral-arrastando * { cursor: grabbing !important
 .pasta-icone-minimalista { display: none; }
 /* Fork: "+" da pasta (conversa nova nela), ao lado do fechar; aparece no hover como ele. */
 .pasta-nova:hover { color: rgb(var(--c-accent)); }
+/* Fork (21/10/2026): o "+" fica sempre à vista em todas as pastas (o fechar segue só no hover). */
+.pasta .pasta-nova { opacity: .75; }
+.pasta:hover .pasta-nova, .pasta .pasta-nova:focus-visible { opacity: 1; }

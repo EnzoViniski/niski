@@ -688,7 +688,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
   // Aba de terminal puro não passa pelo seletor de CLI: sobe direto no shell do sistema.
   if (tab.kind !== "terminal" && !tab.resourceId && !agent) {
     const projectName = projectPath.split(/[\\/]/).filter(Boolean).pop() ?? projectPath;
-    return <AgentLauncher projectName={projectName} projectPath={projectPath} onLaunch={setLaunch} />;
+    return <AgentLauncher projectName={projectName} projectPath={projectPath} onLaunch={setLaunch} iniciarDireto={tab.iniciarDireto} />;
   }
 
   return (

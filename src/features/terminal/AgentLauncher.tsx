@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Select } from "../../components/ui";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { ChatIcon, FolderIcon } from "../../components/ui/PixelIcon";
@@ -29,6 +29,8 @@ interface AgentLauncherProps {
   projectName: string;
   projectPath: string;
   onLaunch: (launch: AgentLaunch) => void;
+  /** Fork: "+" da pasta — abre sozinho com o último agente e a última conta usados, assim que der. */
+  iniciarDireto?: boolean;
 }
 
 const FALLBACK_AGENTS: AgentCliStatus[] = [
@@ -38,7 +40,7 @@ const FALLBACK_AGENTS: AgentCliStatus[] = [
   { id: "antigravity", label: "Antigravity", command: "agy", path: null, available: false, authenticated: false },
 ];
 
-export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLauncherProps) {
+export function AgentLauncher({ projectName, projectPath, onLaunch, iniciarDireto = false }: AgentLauncherProps) {
   const [agents, setAgents] = useState(FALLBACK_AGENTS);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selected, setSelected] = useState<AgentCliId>(FALLBACK_AGENTS[0].id);
@@ -132,6 +134,16 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
       hint: item.authenticated ? "conectado" : "sem login",
     })),
   ];
+
+  // Fork: "+" da pasta — depois de carregar os agentes e escolher a conta, abre uma vez sozinho. Sem
+  // agente instalado (ou conta automática ainda sem escolha), fica a tela de sempre.
+  const iniciou = useRef(false);
+  useEffect(() => {
+    if (!iniciarDireto || iniciou.current || loading || !agent?.available || semContaAutomatica) return;
+    if (accounts.length > 0 && !profile) return;
+    iniciou.current = true;
+    void launch();
+  });
 
   async function launch(command?: string) {
     if (!agent) return;

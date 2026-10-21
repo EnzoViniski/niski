@@ -29,6 +29,9 @@ export interface WorkspaceTab {
   /** Fork: projeto da aba quando não é o dono do layout (agente novo aberto pelo "+" num painel que
    *  mostra conversa de outro projeto). Ausente = projeto do layout. */
   projectId?: string;
+  /** Fork: aba criada pelo "+" da pasta — o "Novo agente" já abre com o último agente e a última
+   *  conta usados, sem esperar a escolha. Depois que a sessão nasce, não vale mais (`resourceId`). */
+  iniciarDireto?: boolean;
 }
 
 export interface PaneNode {
@@ -85,7 +88,9 @@ export type WorkspaceAction =
   | { type: "CLOSE_PROJECT"; projectId: string }
   | { type: "FOCUS_PANE"; paneId: string }
   | { type: "SELECT_TAB"; paneId: string; tabId: string }
-  | { type: "CREATE_TAB"; paneId: string; kind?: PaneKind; title?: string; resourceId?: string; projectId?: string }
+  | { type: "CREATE_TAB"; paneId: string; kind?: PaneKind; title?: string; resourceId?: string; projectId?: string; iniciarDireto?: boolean }
+  /** Fork: "+" da pasta — conversa nova do projeto num painel próprio (`abrirEmPainelProprio.ts`). */
+  | { type: "NEW_CONVERSATION_OWN_PANE"; projectId: string }
   | { type: "BIND_TAB_RESOURCE"; paneId: string; tabId: string; resourceId: string; title?: string; provider?: string }
   | { type: "ATTACH_TERMINAL"; sessionId: string; title: string }
   | { type: "RENAME_TAB_RESOURCE"; fromResourceId: string; toResourceId: string; title?: string }
