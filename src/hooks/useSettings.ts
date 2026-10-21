@@ -39,7 +39,7 @@ export function useSettings() {
 
     const aplicar = (claro: boolean) => {
       aplicarPaleta(root, settings.accent, claro);
-      // Fork: o ícone da janela fica o do app (Medza); o upstream repintava a logo do OMNI aqui.
+      // Fork: o ícone da janela fica o do app (Niski); o upstream repintava a logo do OMNI aqui.
     };
 
     if (settings.theme !== "sistema") {

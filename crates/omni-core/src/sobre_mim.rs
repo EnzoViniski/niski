@@ -182,7 +182,7 @@ fn preparar_pasta(dir_de_dados: &Path) -> io::Result<()> {
 }
 
 fn cabecalho_das_propostas() -> String {
-    format!("# Sugestões dos agentes\n\nUma por linha: `- [área] fato curto (agente, AAAA-MM-DD)`. Áreas: {}.\nO Medza Agents mostra estas linhas para o usuário aceitar, editar ou descartar.\n\n",
+    format!("# Sugestões dos agentes\n\nUma por linha: `- [área] fato curto (agente, AAAA-MM-DD)`. Áreas: {}.\nO Niski mostra estas linhas para o usuário aceitar, editar ou descartar.\n\n",
         AREAS.iter().map(|a| a.id).collect::<Vec<_>>().join(", "))
 }
 
@@ -305,7 +305,7 @@ fn contexto_com(dir_de_dados: &Path, mesmo_desligado: bool) -> io::Result<Option
     let cotas = cotas(&tamanhos, ORCAMENTO_DO_CONTEXTO);
     let pasta_txt = base.to_string_lossy();
     let mut saida = format!(
-        "## Sobre o usuário (Sobre mim, do Medza Agents)\n\
+        "## Sobre o usuário (Sobre mim, do Niski)\n\
          O usuário escreveu isto para os agentes o conhecerem. Use quando ajudar na tarefa; a tarefa atual e as regras do projeto vêm primeiro. \
          Não invente fatos pessoais nem repita estes dados sem necessidade.\n\
          Arquivos completos (um por área, markdown): {pasta_txt}\n");

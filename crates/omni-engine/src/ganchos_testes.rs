@@ -288,7 +288,7 @@ async fn permissao_permitida_negada_solta_vencida_e_pergunta_da_tela() {
     let (status, _) = c.api("POST", "/conversas/conv/aprovar", Some(json!({"permitir": false, "pedido": visto.id, "mensagem": "use git clean"}))).await;
     assert_eq!(status, 200);
     let saida: Value = serde_json::from_str(&espera.await.unwrap().1).unwrap();
-    assert_eq!(saida["hookSpecificOutput"]["decision"], json!({"behavior": "deny", "message": "Negado no Medza: use git clean"}));
+    assert_eq!(saida["hookSpecificOutput"]["decision"], json!({"behavior": "deny", "message": "Negado no Niski: use git clean"}));
     assert!(saida["hookSpecificOutput"]["decision"].get("updatedPermissions").is_none());
 
     // "Responder no terminal": resposta vazia, a CLI mostra o diálogo dela.
@@ -345,7 +345,7 @@ async fn cli_falsa_com_ganchos_permite_nega_solta_e_segue_sem_rodape() {
     write_terminal(&c.state, &terminal, "PEDIR\r").unwrap();
     let visto = pedido_pendente(&terminal).await;
     c.api("POST", "/conversas/conv/aprovar", Some(json!({"permitir": false, "pedido": visto.id, "mensagem": "não liste"}))).await;
-    assert!(ate(10, || lidas().contains("Negado no Medza: não liste")).await, "{}", lidas());
+    assert!(ate(10, || lidas().contains("Negado no Niski: não liste")).await, "{}", lidas());
 
     write_terminal(&c.state, &terminal, "PEDIR\r").unwrap();
     let visto = pedido_pendente(&terminal).await;

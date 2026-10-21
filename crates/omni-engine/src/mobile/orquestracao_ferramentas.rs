@@ -669,7 +669,7 @@ mod testes_dos_ganchos {
         assert!(erro.contains("só o usuário aprova"), "{erro}");
         assert!(crate::ganchos::pedido(&terminal).is_some(), "continua esperando o usuário");
         responder(&state, "orq", &json!({"agente": "sub", "permitir": false, "mensagem": "não apague"})).unwrap();
-        assert!(resposta.await.unwrap().contains("Negado no Medza: não apague"));
+        assert!(resposta.await.unwrap().contains("Negado no Niski: não apague"));
         let _ = close_session(&state, &terminal);
     }
 

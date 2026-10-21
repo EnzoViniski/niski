@@ -175,7 +175,7 @@ const VERSOES: [&str; 4] = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-0
 
 /// Fork (harness): o método que o orquestrador segue. Vai no `initialize` (as CLIs põem no contexto) e,
 /// resumido, na descrição do `criar_agente`.
-const INSTRUCOES: &str = "Ferramentas do Medza Agents para orquestrar subagentes de qualquer plataforma (Claude Code, Codex…). \
+const INSTRUCOES: &str = "Ferramentas do Niski para orquestrar subagentes de qualquer plataforma (Claude Code, Codex…). \
 O usuário acompanha tudo num fluxo visual e aprova permissões por lá. Método:\n\
 1. Entenda o pedido e explore o projeto antes de criar subagentes: estrutura, arquivos envolvidos, convenções, como testar.\n\
 2. Divida em tarefas independentes que possam correr em paralelo, cada uma com arquivos próprios e DISJUNTOS. O engine recusa \

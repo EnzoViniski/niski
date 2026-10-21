@@ -206,7 +206,7 @@ fn copiar_incluidos(origem: &Path, destino: &Path) -> Result<usize, String> {
 /// Raiz da worktree isolada que contém `caminho`, conferindo que é mesmo uma (`…/.medza-worktrees/<repo>/<nome>`)
 /// e não o repositório principal.
 fn raiz_isolada(caminho: &Path) -> Result<PathBuf, String> {
-    let nao_e = || "Esta pasta não é uma worktree isolada do Medza".to_owned();
+    let nao_e = || "Esta pasta não é uma worktree isolada do Niski".to_owned();
     if da_pasta(caminho).is_none() { return Err(nao_e()); }
     let raiz = PathBuf::from(git(caminho, &["rev-parse", "--show-toplevel"]).map_err(|_| nao_e())?);
     let (_, nome) = da_pasta(&raiz).ok_or_else(nao_e)?;

@@ -72,7 +72,7 @@ pub fn linha_propria(entrada: &[u8]) -> String {
     let medicao = omni_core::ganchos::medicao(&valor, 0);
     let partes: Vec<String> = [medicao.modelo, medicao.contexto_pct.map(|p| format!("contexto {}%", p.round()))]
         .into_iter().flatten().collect();
-    if partes.is_empty() { "Medza".into() } else { partes.join(" · ") }
+    if partes.is_empty() { "Niski".into() } else { partes.join(" · ") }
 }
 
 #[cfg(test)]
@@ -129,6 +129,6 @@ mod testes {
     #[test]
     fn linha_propria_curta() {
         assert_eq!(linha_propria(br#"{"model":{"display_name":"Opus"},"context_window":{"used_percentage":33.6}}"#), "Opus · contexto 34%");
-        assert_eq!(linha_propria(b"lixo"), "Medza");
+        assert_eq!(linha_propria(b"lixo"), "Niski");
     }
 }

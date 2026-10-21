@@ -50,7 +50,8 @@ fn normalizar(texto: &str) -> Vec<String> {
 /// "Medza, para", "para tudo", "chega", "silêncio": fala curta que só pede para calar. "Manda para o
 /// Claude" não conta (fala longa ou "para" no meio).
 pub fn pede_para_parar(texto: &str) -> bool {
-    const NOMES: [&str; 6] = ["medza", "medes", "jarvis", "claudio", "chat", "ok"];
+    // Fork: "niski" e as variações do ditado entram com o nome novo (21/10/2026); "medza" segue valendo.
+    const NOMES: [&str; 9] = ["niski", "nisque", "nisq", "medza", "medes", "jarvis", "claudio", "chat", "ok"];
     const PARAR: [&str; 8] = ["para", "pare", "parar", "chega", "silencio", "cala", "calado", "stop"];
     let palavras: Vec<String> = normalizar(texto).into_iter()
         .filter(|p| !NOMES.contains(&p.as_str()) && !matches!(p.as_str(), "ola" | "oi" | "pode" | "tudo" | "ai" | "por" | "favor"))
@@ -85,7 +86,7 @@ mod tests {
 
     #[test]
     fn reconhece_pedido_de_parar() {
-        for frase in ["Medza, para.", "Para!", "para tudo", "Chega", "Silêncio", "Jarvis, pode parar", "Olá Medza, para"] {
+        for frase in ["Medza, para.", "Para!", "para tudo", "Chega", "Silêncio", "Jarvis, pode parar", "Olá Medza, para", "Niski, para."] {
             assert!(pede_para_parar(frase), "{frase}");
         }
         for frase in ["manda para o Claude", "para que serve isso?", "abre o Codex", "", "olá Medza"] {

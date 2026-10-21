@@ -74,7 +74,7 @@ async fn conectar(
     if webhook["url"].as_str().is_some_and(|u| !u.is_empty()) {
         return Err(error(
             StatusCode::CONFLICT,
-            "Este bot já tem outra integração. Crie um bot exclusivo para o Medza.",
+            "Este bot já tem outra integração. Crie um bot exclusivo para o Niski.",
         ));
     }
     let config = Config {

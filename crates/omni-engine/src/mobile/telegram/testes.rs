@@ -98,7 +98,7 @@ fn aviso_sem_conteudo_e_link_sem_token() {
     assert_eq!(url, "https://pc.tail123.ts.net/#/c/c%2Fduas%20partes");
     assert_eq!(
         aviso(&item("um"), &c, Some(url))["reply_markup"]["inline_keyboard"][0][0]["text"],
-        "Abrir conversa no Medza"
+        "Abrir conversa no Niski"
     );
     c.incluir_titulos = true;
     assert!(aviso(&item("um"), &c, None)

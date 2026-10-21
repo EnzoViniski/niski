@@ -7,5 +7,7 @@ import "./mobile.css";
 import "../styles/minimalista.css";
 // Fork: estilo Vidro (só vale com data-variante="vidro"; depois do Minimalista, que ele reaproveita).
 import "../styles/vidro.css";
+// Fork: símbolo do Niski conforme o tema.
+import "../styles/marca.css";
 
 createRoot(document.getElementById("root")!).render(<MobileApp />);

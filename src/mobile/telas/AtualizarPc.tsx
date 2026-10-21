@@ -7,7 +7,7 @@ export function AtualizarPc() {
   const [estado, setEstado] = useState<"ocioso" | "enviando" | "enviado" | "erro">("ocioso");
 
   async function pedir() {
-    if (!window.confirm("Atualizar o Medza Agents do PC agora? Os agentes que estiverem trabalhando reiniciam e voltam sozinhos.")) return;
+    if (!window.confirm("Atualizar o Niski do PC agora? Os agentes que estiverem trabalhando reiniciam e voltam sozinhos.")) return;
     setEstado("enviando");
     try {
       const resposta = await request<{ ok: boolean }>("/pc/atualizar", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });

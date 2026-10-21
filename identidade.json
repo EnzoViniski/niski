@@ -1,7 +1,7 @@
 {
-  "_leia": "Identidade do produto num lugar só. Mudar aqui e recompilar: Rust (omni-protocol/build.rs), interface (src/lib/identidade.ts) e Tauri (scripts/identidade.mjs) leem deste arquivo. Bundle id = pasta de dados; trocar começa com dados vazios.",
-  "nome": "Medza Agents",
-  "nomeCurto": "Medza",
+  "_leia": "Identidade do produto num lugar só. Mudar aqui e recompilar: Rust (omni-protocol/build.rs), interface (src/lib/identidade.ts) e Tauri (scripts/identidade.mjs) leem deste arquivo. Bundle id = pasta de dados; trocar começa com dados vazios. O nome mudou de Medza Agents para Niski em 21/10/2026 sem trocar bundle id, portas, pastas nem updater.",
+  "nome": "Niski",
+  "nomeCurto": "Niski",
   "bundleId": "ai.medza.agents",
   "portaDoEngine": 47421,
   "portaDoCelular": 47422,

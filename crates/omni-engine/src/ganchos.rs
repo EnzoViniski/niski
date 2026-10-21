@@ -583,8 +583,8 @@ fn resposta(decisao: &Decisao) -> Response {
     let decisao = match decisao {
         Decisao::Permitir => json!({"behavior": "allow"}),
         Decisao::Negar(texto) => json!({"behavior": "deny", "message": match texto.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
-            Some(texto) => format!("Negado no Medza: {texto}"),
-            None => "Negado no Medza".to_owned(),
+            Some(texto) => format!("Negado no Niski: {texto}"),
+            None => "Negado no Niski".to_owned(),
         }}),
         Decisao::Soltar => return StatusCode::OK.into_response(),
     };

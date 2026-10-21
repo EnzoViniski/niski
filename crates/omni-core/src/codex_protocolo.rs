@@ -45,7 +45,7 @@ pub fn inicializar(id: u64, versao: &str) -> Value {
     pedido(
         id,
         "initialize",
-        json!({"clientInfo":{"name":"medza_agents","title":"Medza Agents","version":versao}}),
+        json!({"clientInfo":{"name":"medza_agents","title":"Niski","version":versao}}),
     )
 }
 pub fn entrada(texto: &str) -> Value {

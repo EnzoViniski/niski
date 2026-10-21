@@ -36,7 +36,7 @@ export function UpdateCard() {
 
   if (!ATUALIZACAO_AUTOMATICA) return (
     <Card>
-      <p className="text-xs text-text-muted">Baixe as novas versões na página do Medza Agents.</p>
+      <p className="text-xs text-text-muted">Baixe as novas versões na página do Niski.</p>
       <Button onClick={() => { void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(PAGINA_DE_DOWNLOADS)); }}>
         Ver versões para baixar
       </Button>

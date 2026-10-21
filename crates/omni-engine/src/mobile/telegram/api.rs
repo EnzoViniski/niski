@@ -81,7 +81,7 @@ impl Cliente {
                 401 | 404 => "Token do bot inválido. Conecte novamente com o token do BotFather.",
                 403 => "O bot foi bloqueado no Telegram. Desbloqueie e conecte novamente.",
                 409 => {
-                    "Este bot está sendo usado por outra integração. Use um bot exclusivo do Medza."
+                    "Este bot está sendo usado por outra integração. Use um bot exclusivo do Niski."
                 }
                 429 => "O Telegram pediu uma pausa. O envio será tentado novamente.",
                 _ => "O Telegram não aceitou o pedido. Confira o bot e tente novamente.",

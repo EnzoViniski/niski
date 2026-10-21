@@ -59,7 +59,7 @@ export function indexInicial({ nome, formato, duracao, fps = 30, cor = "#0b0f14"
 
 /** CLAUDE.md e AGENTS.md do projeto (Claude lê um, Codex o outro). */
 export function instrucoesDoAgente() {
-  return `# Projeto de vídeo do Medza Agents (HyperFrames ${VERSAO_DO_HYPERFRAMES})
+  return `# Projeto de vídeo do Niski (HyperFrames ${VERSAO_DO_HYPERFRAMES})
 
 Você edita um vídeo feito em HTML com HyperFrames. O app mostra o preview e a timeline ao lado do
 chat; a pessoa pede mudanças e você edita os arquivos desta pasta. O preview recarrega sozinho.

@@ -37,7 +37,7 @@ export function TelegramSettings() {
   return <Card title="Telegram">
     <div className="space-y-3 text-xs">
       <p className="text-text-secondary">Receba avisos quando um agente terminar, encontrar um erro, atingir o limite ou precisar de você. Funciona com a janela fechada enquanto o Mac e o engine estiverem ligados e com internet.</p>
-      <p className="text-text-muted">Para responder, toque em Abrir conversa no Medza no aviso, com o Tailscale conectado e o celular pareado em Acesso remoto.</p>
+      <p className="text-text-muted">Para responder, toque em Abrir conversa no Niski no aviso, com o Tailscale conectado e o celular pareado em Acesso remoto.</p>
       {!status?.conectado && !status?.parear_url && <>
         <p>Crie um bot exclusivo no <button className="text-accent" onClick={() => void openUrl("https://t.me/BotFather").catch(() => setErro("Não consegui abrir o Telegram."))}>@BotFather</button> com /newbot e cole o token abaixo.</p>
         <label className="block">Token do bot
@@ -62,7 +62,7 @@ export function TelegramSettings() {
             onChange={e => void salvar({ tipos: e.target.checked ? [...status.tipos, tipo] : status.tipos.filter(t => t !== tipo) })} />{ROTULOS_DA_ATIVIDADE[tipo]}</label>)}
           <label className="flex gap-2"><input type="checkbox" checked={status.incluir_titulos} onChange={e => void salvar({ incluir_titulos: e.target.checked })} />Incluir nome do projeto e título da conversa nos avisos</label>
         </fieldset>
-        <p className="text-text-muted">Por padrão, o Telegram recebe apenas o agente, o tipo de aviso e o link. Textos das conversas e pedidos de permissão ficam no Medza.</p>
+        <p className="text-text-muted">Por padrão, o Telegram recebe apenas o agente, o tipo de aviso e o link. Textos das conversas e pedidos de permissão ficam no Niski.</p>
         <Button size="sm" disabled={ocupado} onClick={() => void executar(async () => { await telegram("/testar", {}); return telegram(); }, "Teste enviado ao Telegram.")}>Enviar teste</Button>
         {/* Fork: um exemplo de cada caso (erro, limite, pergunta…) para ver como chega no Telegram. */}
         <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => void executar(async () => { await telegram("/exemplos", {}); return telegram(); }, "Exemplos enviados: um de cada aviso.")}>Enviar exemplo de cada aviso</Button>

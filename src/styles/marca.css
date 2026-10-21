@@ -1,0 +1,5 @@
+/* Fork (Niski, 21/10/2026): qual símbolo aparece (`MarcaDoProduto.tsx`). Com brilho no escuro, preto
+   chapado no claro. Carregado no PC, na web e no celular. */
+.marca-no-claro { display: none; }
+:root[data-theme="claro"] .marca-no-escuro { display: none; }
+:root[data-theme="claro"] .marca-no-claro { display: inline-block; }

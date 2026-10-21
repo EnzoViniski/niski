@@ -42,7 +42,7 @@ export function contarCaracteres(texto: string): number {
 /** Prompt para colar numa conversa: o agente só propõe, quem grava é o usuário (pelo app). */
 export function promptParaOrganizar(pasta: string): string {
   return [
-    `Leia os arquivos .md da pasta "${pasta}" (o meu "Sobre mim" do Medza Agents, um arquivo por área) e o propostas.md, com as sugestões pendentes.`,
+    `Leia os arquivos .md da pasta "${pasta}" (o meu "Sobre mim" do Niski, um arquivo por área) e o propostas.md, com as sugestões pendentes.`,
     "Proponha uma versão organizada de cada área: tópicos curtos, sem repetição, sem perder nenhum fato e sem inventar nada.",
     "Aponte o que parece desatualizado ou contraditório e pergunte antes de remover.",
     "Não grave nenhum arquivo: me mostre o texto final de cada área para eu colar no app.",

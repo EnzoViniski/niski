@@ -10,7 +10,7 @@ import type { EntrevistaSalva, Etapa, Fonte, MensagemDoPainel, Plano, Progresso 
 export const PERGUNTAS_MAXIMAS = 12;
 
 const BASE = `Você é um mentor de estudos experiente, direto e didático. Fala em português do Brasil.
-Você ajuda a pessoa a montar e seguir um caminho de estudo dentro do app Medza Agents, que mostra o caminho como uma trilha de fases (módulos com etapas de um dia).`;
+Você ajuda a pessoa a montar e seguir um caminho de estudo dentro do app Niski, que mostra o caminho como uma trilha de fases (módulos com etapas de um dia).`;
 
 export const SISTEMA_DA_ENTREVISTA = `${BASE}
 

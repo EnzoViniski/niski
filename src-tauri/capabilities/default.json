@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Default capability for Medza Agents",
+  "description": "Default capability for Niski",
   "windows": ["main"],
   "permissions": [
     "core:default",

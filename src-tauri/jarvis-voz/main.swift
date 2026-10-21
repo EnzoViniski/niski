@@ -421,7 +421,7 @@ func tratar(_ linha: String) {
 
 Task { @MainActor in
     guard await pedirPermissoes() else {
-        emitir(["ev": "erro", "codigo": "microfone", "msg": "Libere o Medza Agents em Ajustes do Sistema → Privacidade e Segurança → Microfone."])
+        emitir(["ev": "erro", "codigo": "microfone", "msg": "Libere o Niski em Ajustes do Sistema → Privacidade e Segurança → Microfone."])
         return
     }
     do {

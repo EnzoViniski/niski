@@ -58,7 +58,7 @@ pub fn instrucao_codex(config_dir: &Path, memoria: &str) -> io::Result<String> {
 
 pub fn contexto(memoria: &Memoria) -> Option<String> {
     (memoria.ativa && !memoria.texto.trim().is_empty()).then(|| format!(
-        "Preferências compartilhadas pelo usuário do Medza Agents. A tarefa atual e as regras do projeto continuam valendo. Não invente informações pessoais.\n\n{}", memoria.texto.trim()))
+        "Preferências compartilhadas pelo usuário do Niski. A tarefa atual e as regras do projeto continuam valendo. Não invente informações pessoais.\n\n{}", memoria.texto.trim()))
 }
 
 #[cfg(test)]

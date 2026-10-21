@@ -16,6 +16,14 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.14.0",
+    date: "2026-10-21",
+    changes: [
+      "O app agora se chama Niski, com logo nova: ícone novo no Dock e no celular, e o símbolo na barra do topo (com brilho no tema escuro e preto no claro). Conversas, projetos, contas e configurações continuam todos aqui, do jeito que estavam.",
+      "Os avisos do Telegram, o acesso pelo celular e o Jarvis também passam a falar Niski. O Jarvis para quando você diz \"Niski, para\" (\"Medza, para\" continua valendo).",
+    ],
+  },
+  {
     version: "0.13.1",
     date: "2026-10-21",
     changes: [

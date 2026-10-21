@@ -37,7 +37,7 @@ pub const FOLGA_ANTES_DO_PRAZO_S: u64 = 5;
 pub const ARQUIVO_DE_AJUSTES: &str = "ganchos.json";
 pub const PASTA_DOS_ARQUIVOS: &str = "ganchos";
 pub const LIMITE_DO_CORPO: usize = 1024 * 1024;
-pub const STATUS_DA_ESPERA: &str = "Aguardando sua resposta no Medza…";
+pub const STATUS_DA_ESPERA: &str = "Aguardando sua resposta no Niski…";
 
 /// Eventos que só observam (sem `PostToolUse`: o `tool_response` do Read/Write traz o arquivo inteiro).
 pub const EVENTOS_OBSERVADOS: [&str; 15] = [

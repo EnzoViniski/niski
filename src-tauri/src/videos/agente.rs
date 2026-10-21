@@ -54,7 +54,7 @@ pub struct Resposta {
 }
 
 pub fn sistema() -> String {
-    format!("Você está no editor de vídeo do Medza Agents. O diretório atual é um projeto HyperFrames {VERSAO_DO_HYPERFRAMES}: \
+    format!("Você está no editor de vídeo do Niski. O diretório atual é um projeto HyperFrames {VERSAO_DO_HYPERFRAMES}: \
 siga o CLAUDE.md/AGENTS.md daqui, leia o BRIEF.md e as skills em .claude/skills/ antes de editar. Edite só arquivos \
 desta pasta. Confira com `npx --yes hyperframes@{VERSAO_DO_HYPERFRAMES} lint`. Não rode render, preview, publish nem nada \
 na nuvem: o app faz o preview e a exportação. Responda curto, em português, dizendo o que mudou.")

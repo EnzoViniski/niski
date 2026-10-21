@@ -143,13 +143,13 @@ fn aviso(item: &Value, config: &Config, url: Option<String>) -> Value {
     texto.push_str(if url.is_some() {
         "\nAbra a conversa para responder (Tailscale conectado)."
     } else {
-        "\nAtive o acesso remoto no Medza para abrir a conversa pelo celular."
+        "\nAtive o acesso remoto no Niski para abrir a conversa pelo celular."
     });
     let mut corpo =
         json!({"chat_id":config.chat, "text":texto, "link_preview_options":{"is_disabled":true}});
     if let Some(url) = url {
         corpo["reply_markup"] =
-            json!({"inline_keyboard":[[{"text":"Abrir conversa no Medza", "url":url}]]});
+            json!({"inline_keyboard":[[{"text":"Abrir conversa no Niski", "url":url}]]});
     }
     corpo
 }
