@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { ChipDeTokens } from "../../mobile/conversa/TokensDaSessao"; // Fork: total de tokens da conversa.
 import { ApiError, actionKey, request, type Timeline, type Conversation } from "../../mobile/api";
 import { AjustesDaConversa, type Ajustes } from "../../mobile/AjustesDaConversa";
 import { usePoll } from "../../mobile/usePoll";
@@ -154,6 +155,7 @@ function ResumoDaConversa({ conversa }: { conversa: Conversation }) {
       {conversa.provider && <AgentIcon provider={conversa.provider} size={14} className="shrink-0" />}
       <span className="aba-agente-titulo">{conversa.title}</span>
       <span className="aba-agente-estado">{aviso ?? rotuloDoEstado(conversa.state, "detalhado") ?? "Sem sessão aberta"}</span>
+      <ChipDeTokens tokens={conversa.tokens_da_sessao} />
       <EtiquetaDoStatus status={status} />
     </div>
   );

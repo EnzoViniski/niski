@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
+import "./conversa/rodapeDaMensagem.css"; // Fork: horário e Copiar embaixo de cada mensagem.
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
@@ -172,7 +173,9 @@ export const MessageBubble = memo(function MessageBubble({ lado, provider, texto
   const cartoes = anexosLocais ?? anexos.map((caminho) => ({ nome: nomeDoCaminho(caminho) }));
   const autor = doUsuario ? "Você" : nomeDaPlataforma(provider) ?? provider ?? "Agente";
   const hora = horarioCurto(horario);
-  return (
+  // Fork: o que o "Copiar" leva — a resposta inteira, ou tudo que você mandou (texto e anexos).
+  const paraCopiar = doUsuario ? [corpo, ...anexos].filter(Boolean).join("\n") : corpo;
+  return (<>
     <article className={`bubble ${doUsuario ? "bubble-user" : "bubble-agent"}${pendente ? " bubble-pending" : ""}${continua ? " bubble-continua" : ""}`}>
       {/* Avatar só na primeira fala do turno; as seguintes alinham com ele. */}
       {!doUsuario && !continua && (
@@ -180,7 +183,6 @@ export const MessageBubble = memo(function MessageBubble({ lado, provider, texto
       )}
       <header className="bubble-author">
         <span>{autor}</span>
-        {pendente ? <span className="bubble-time">{typeof pendente === "string" ? pendente : "enviando…"}</span> : hora && <time className="bubble-time">{hora}</time>}
       </header>
       {corpo && (doUsuario
         ? <div className="mobile-message">{corpo}</div>
@@ -197,9 +199,14 @@ export const MessageBubble = memo(function MessageBubble({ lado, provider, texto
       )}
       <CartoesDeAnexo anexos={cartoes} />
       {arquivos && <ArquivosDoAgente {...arquivos} />}
-      {!doUsuario && corpo && <BotaoCopiar texto={corpo} rotulo="Copiar resposta" className="bubble-copiar" />}
     </article>
-  );
+    {/* Fork: rodapé embaixo de cada mensagem (sua e do agente): horário e "Copiar", como nos apps do
+        Claude/Codex. Fora do balão de propósito — o seu balão colorido fica só com o que você escreveu. */}
+    <footer className={`bubble-rodape ${doUsuario ? "is-voce" : "is-agente"}`}>
+      {pendente ? <span className="bubble-time">{typeof pendente === "string" ? pendente : "enviando…"}</span> : hora && <time className="bubble-time">{hora}</time>}
+      {paraCopiar && !pendente && <BotaoCopiar texto={paraCopiar} rotulo={doUsuario ? "Copiar mensagem" : "Copiar resposta"} className="bubble-copiar" />}
+    </footer>
+  </>);
 });
 
 /** Copiar para a área de transferência. Some onde ela não existe (HTTP fora de localhost). */

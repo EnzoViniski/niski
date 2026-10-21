@@ -599,3 +599,15 @@
 :root[data-estilo="minimalista"] .conversa-linha.is-anterior .icone-do-agente { opacity: .7; }
 :root[data-estilo="minimalista"] .pasta-acao { width: 1.625rem; height: 1.625rem; align-self: center; border-radius: 7px; }
 :root[data-estilo="minimalista"] .pasta-acao:hover { background: rgb(var(--c-overlay) / .08); color: rgb(var(--c-text-primary)); }
+
+/* ── Conversa, sem balão no agente (Enzo, 21/10/2026): como nos apps do Claude/Codex, a resposta é
+   texto solto; só a sua mensagem fica no balão colorido. Autor some (o ícone diz quem é) e horário e
+   "Copiar" ficam embaixo (`.bubble-rodape`). ─────────────────────────────────────────────────── */
+:root[data-estilo="minimalista"] .chat .bubble-agent { background: none; padding: 0; border-radius: 0; box-shadow: none; }
+:root[data-estilo="minimalista"] .chat .bubble-author { display: none; }
+:root[data-estilo="minimalista"] .chat .bubble-user { padding: .625rem 1rem; }
+:root[data-estilo="minimalista"] .chat .bubble-avatar { top: .125rem; }
+:root[data-estilo="minimalista"] .bubble-rodape.is-agente { padding-left: 0; }
+:root[data-estilo="minimalista"] .bubble-rodape .bubble-copiar { border: 0; border-radius: 999px; padding: .125rem .5rem; background: none; }
+:root[data-estilo="minimalista"] .bubble-rodape .bubble-copiar:hover { background: rgb(var(--c-overlay) / .07); }
+:root[data-estilo="minimalista"] .chip-tokens { border: 0; border-radius: 999px; padding: 0 .5rem; background: rgb(var(--c-overlay) / .07); }

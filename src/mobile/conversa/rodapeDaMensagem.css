@@ -1,0 +1,21 @@
+/* Fork: rodapé embaixo de cada mensagem da Conversa (`Chat.tsx`): horário e "Copiar", para a sua e para
+   a do agente; e o total de tokens no topo da aba (`TokensDaSessao.tsx`). */
+.bubble-rodape {
+  display: flex; align-items: center; gap: .375rem; min-height: 1.5rem; margin-top: -.25rem;
+  font-size: .6875rem; color: rgb(var(--c-text-muted));
+}
+.bubble-rodape:empty { display: none; }
+.bubble-rodape.is-voce { align-self: flex-end; }
+.bubble-rodape.is-agente { align-self: flex-start; padding-left: .875rem; }
+/* Na Conversa o turno do agente começa depois da coluna do avatar (`mobile.css`): o rodapé acompanha. */
+.chat .bubble-rodape.is-agente { margin-left: 2.5rem; padding-left: 0; }
+.bubble-rodape .bubble-time { margin-left: 0; padding-left: 0; }
+.bubble-rodape .bubble-copiar { margin-top: 0; opacity: .55; }
+.bubble-rodape:hover .bubble-copiar, .bubble:hover + .bubble-rodape .bubble-copiar, .bubble-rodape .bubble-copiar:focus-visible { opacity: 1; }
+
+.chip-tokens {
+  flex-shrink: 0; margin-left: .5rem; padding: 0 .4375rem; font-size: .6875rem; line-height: 1.125rem;
+  font-variant-numeric: tabular-nums; color: rgb(var(--c-text-secondary));
+  border: 1px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-overlay) / .04);
+  cursor: help;
+}

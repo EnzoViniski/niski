@@ -6,6 +6,7 @@ pub mod comandos_oficiais;
 pub mod usage;
 pub mod conversations;
 pub mod titulo_do_agente; // Fork: nome da conversa dado pelo próprio agente.
+pub mod tokens_da_sessao; // Fork: total de tokens da conversa, no topo da aba.
 pub mod feed;
 pub mod history;
 // Fork: busca textual limitada nos transcripts do índice.

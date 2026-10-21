@@ -36,6 +36,8 @@ export interface Conversation {
   ganchos?: GanchosDaConversa | null;
   /** Fork 3A: contexto estruturado do Codex, quando optou por app-server. */
   codex_app_server?: { ativo: boolean; contexto_pct: number | null } | null;
+  /** Fork: total de tokens da conversa (soma do que a CLI gravou). */
+  tokens_da_sessao?: import("./conversa/TokensDaSessao").TokensDaSessao | null;
 }
 
 /** Fork (Onda 2): pedido de permissão que o engine segura até alguém decidir (`expira_em_ms`: depois

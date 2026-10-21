@@ -94,7 +94,8 @@ pub(super) fn resumo(state: &EngineState, c: &omni_core::conversations::Conversa
         "profile_id":c.segments.last().and_then(|s|s.profile_id.as_ref()),"state":status,"mode":mode,"capabilities":capabilities,
         "attention":attention,"tokens":tokens,"fast":fast,"ganchos":meta.as_ref().map(|m| crate::ganchos::resumo(&m.id)), // Fork (Onda 2)
         "codex_app_server":meta.as_ref().and_then(|m|crate::codex_app_server::resumo(&m.id)), // Fork: contexto do protocolo.
-        "notice":meta.as_ref().and_then(|m|m.notice.clone()),"live":live.is_some(),"updated_at_ms":atividade(c,live.as_ref())})
+        "notice":meta.as_ref().and_then(|m|m.notice.clone()),"live":live.is_some(),"updated_at_ms":atividade(c,live.as_ref()),
+        "tokens_da_sessao":omni_core::tokens_da_sessao::da_conversa(c)}) // Fork: total da conversa, no topo da aba.
 }
 
 /// Último sinal de vida da conversa: saída do terminal, escrita no transcript ou a criação. É o que
