@@ -87,6 +87,9 @@ mod terminais;
 // Fork (retomar-sempre): rotas /retomada/* e Retomar sem beco sem saída.
 #[cfg(unix)]
 mod retomada;
+// Fork (trocar agente): rota /conversas/{id}/trocar-agente com CLIs falsas.
+#[cfg(unix)]
+mod trocar_agente;
 // Só no Windows (PTY falsa com o `FakeChild`).
 #[cfg(windows)]
 mod acoes;

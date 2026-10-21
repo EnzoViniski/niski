@@ -67,6 +67,8 @@ use fila::*;
 // Fork (Onda 2): "Responder no terminal" e os ajustes dos ganchos do Claude.
 mod ganchos_rotas;
 mod codex_rotas; // Fork: Codex app-server, opção por agente.
+// Fork (trocar agente): "Continuar com…" outro agente na mesma conversa (passagem de bastão).
+mod trocar_agente;
 pub(crate) use celular::{check, settings, totp};
 pub(crate) use catalogo::{publish};
 pub(crate) use contas::{comando_do_agente};
@@ -249,6 +251,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .merge(roteamento::rotas()) // Fork (3B): fila de contas.
         .merge(codex_rotas::rotas()) // Fork: 3A.
         .merge(retomada_rotas::rotas()) // Fork (retomar-sempre).
+        .merge(trocar_agente::rotas()) // Fork (trocar agente).
         .merge(memoria_rotas::rotas())
 }
 
