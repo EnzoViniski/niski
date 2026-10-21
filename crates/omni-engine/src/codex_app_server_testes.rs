@@ -46,13 +46,13 @@ fn log(dir: &Path) -> Vec<Value> {
 
 // Fork: PTY e processo sintéticos permitem reproduzir parada/teclado no sandbox.
 #[derive(Debug)]
-struct FilhoSintetico;
+struct FilhoSintetico(bool); // Fork: `kill` também torna o filho esperável, como um processo real.
 impl portable_pty::ChildKiller for FilhoSintetico {
-    fn kill(&mut self) -> std::io::Result<()> { Ok(()) }
-    fn clone_killer(&self) -> Box<dyn portable_pty::ChildKiller + Send + Sync> { Box::new(Self) }
+    fn kill(&mut self) -> std::io::Result<()> { self.0=true; Ok(()) }
+    fn clone_killer(&self) -> Box<dyn portable_pty::ChildKiller + Send + Sync> { Box::new(Self(self.0)) }
 }
 impl Child for FilhoSintetico {
-    fn try_wait(&mut self) -> std::io::Result<Option<portable_pty::ExitStatus>> { Ok(None) }
+    fn try_wait(&mut self) -> std::io::Result<Option<portable_pty::ExitStatus>> { Ok(self.0.then(|| portable_pty::ExitStatus::with_exit_code(0))) }
     fn wait(&mut self) -> std::io::Result<portable_pty::ExitStatus> { Ok(portable_pty::ExitStatus::with_exit_code(0)) }
     fn process_id(&self) -> Option<u32> { Some(42) }
     #[cfg(windows)]
@@ -88,7 +88,7 @@ fn terminal_sintetico(dir: &Path, id: &str) -> (Arc<EngineState>, Arc<Mutex<Vec<
         interaction: Mutex::new(interaction::Interaction::new(24, 80)),
         reserved: AtomicBool::new(false), headless: AtomicBool::new(false), meta: Mutex::new(meta),
         writer: Mutex::new(Box::new(GravadorSintetico(bytes.clone()))),
-        master: Mutex::new(Box::new(MestreSintetico)), child: Mutex::new(Box::new(FilhoSintetico)),
+        master: Mutex::new(Box::new(MestreSintetico)), child: Mutex::new(Box::new(FilhoSintetico(false))),
         output: Mutex::new(OutputBuffer { chunks: VecDeque::new(), bytes: 0, next_seq: 0 }),
     });
     let state = Arc::new(EngineState {

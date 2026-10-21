@@ -5,6 +5,8 @@ pub mod agendamentos; // Fork: calendário e destinos dos agendamentos.
 pub mod comandos_oficiais;
 pub mod usage;
 pub mod conversations;
+#[cfg(test)]
+mod conversas_exclusivas_testes; // Fork: regressão da troca de provedor com outra conversa aberta.
 pub mod titulo_do_agente; // Fork: nome da conversa dado pelo próprio agente.
 pub mod tokens_da_sessao; // Fork: total de tokens da conversa, no topo da aba.
 pub mod feed;
