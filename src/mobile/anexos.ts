@@ -15,6 +15,9 @@ const MARCADORES_ANTIGOS = ["[Anexos enviados pelo celular]", "[Anexos enviados 
 export const EVENTO_ANEXAR = "omni:anexar";
 /** `detail: boolean` — arquivo sendo arrastado por cima da conversa (mostra "Solte para anexar"). */
 export const EVENTO_ARRASTANDO = "omni:arrastando";
+/** Fork (editor de vídeo): `detail: string` — põe um texto no fim do campo da conversa aberta (ex.:
+ *  "sobre o elemento X do vídeo"), sem enviar. */
+export const EVENTO_INSERIR_TEXTO = "omni:inserir-texto";
 
 /** Tipo pelo nome do arquivo, para quem só tem o caminho (o arrastar do app do PC). */
 export function tipoPelaExtensao(nome: string): string {

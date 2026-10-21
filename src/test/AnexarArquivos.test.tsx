@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ConversationDetail } from "../mobile/MobileApp";
-import { EVENTO_ANEXAR, separarAnexos, tipoPelaExtensao } from "../mobile/anexos";
+import { EVENTO_ANEXAR, EVENTO_INSERIR_TEXTO, separarAnexos, tipoPelaExtensao } from "../mobile/anexos";
 import type { Conversation } from "../mobile/api";
 
 const CONVERSA: Conversation = {
@@ -45,6 +45,15 @@ it("o app do PC entrega arquivos arrastados pelo evento da conversa", async () =
     tela.dispatchEvent(new CustomEvent(EVENTO_ANEXAR, { detail: [arquivo("notas.md", "text/markdown")] }));
   });
   expect(screen.getByText("notas.md")).toBeInTheDocument();
+});
+
+it("Fork: o editor de vídeo põe um texto no campo sem enviar", async () => {
+  const tela = abrir();
+  const campo = tela.querySelector("textarea") as HTMLTextAreaElement;
+  await act(async () => { tela.dispatchEvent(new CustomEvent(EVENTO_INSERIR_TEXTO, { detail: "Sobre o elemento “Oi”: " })); });
+  expect(campo.value).toBe("Sobre o elemento “Oi”: ");
+  await act(async () => { tela.dispatchEvent(new CustomEvent(EVENTO_INSERIR_TEXTO, { detail: "e mais" })); });
+  expect(campo.value).toBe("Sobre o elemento “Oi”:\ne mais");
 });
 
 it("colar um arquivo com o foco fora do campo também anexa (uma vez só)", async () => {

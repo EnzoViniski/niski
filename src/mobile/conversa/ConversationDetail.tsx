@@ -22,7 +22,7 @@ import {
   descartarAnexo,
   enviarAnexo,
   montarPrompt,
-  type Anexo, EVENTO_ANEXAR, EVENTO_ARRASTANDO } from "../anexos";
+  type Anexo, EVENTO_ANEXAR, EVENTO_ARRASTANDO, EVENTO_INSERIR_TEXTO } from "../anexos";
 import { usePoll } from "../usePoll";
 import { lerSessao, gravarSessao } from "../sessaoDaAba";
 import { Vazio } from "../listas/Secao";
@@ -149,10 +149,17 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     };
     tela.addEventListener(EVENTO_ANEXAR, anexar);
     tela.addEventListener(EVENTO_ARRASTANDO, arrastar);
+    // Fork (editor de vídeo): texto vindo de fora entra no fim do campo, sem enviar.
+    const inserir = (evento: Event) => {
+      const extra = (evento as CustomEvent<string>).detail;
+      if (typeof extra === "string" && extra) setText((atual) => (atual.trim() ? `${atual.trimEnd()}\n${extra}` : extra));
+    };
+    tela.addEventListener(EVENTO_INSERIR_TEXTO, inserir);
     document.addEventListener("paste", colarSolto);
     return () => {
       tela.removeEventListener(EVENTO_ANEXAR, anexar);
       tela.removeEventListener(EVENTO_ARRASTANDO, arrastar);
+      tela.removeEventListener(EVENTO_INSERIR_TEXTO, inserir);
       document.removeEventListener("paste", colarSolto);
     };
   }, []);

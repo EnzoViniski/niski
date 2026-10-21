@@ -4,7 +4,8 @@ import { Button } from "../../components/ui";
 import { ArrowLeftIcon, ClockIcon, PlayIcon, StopIcon } from "../../components/ui/PixelIcon";
 import * as disco from "./armazenamento";
 import { Biblioteca, type AbaDaBiblioteca } from "./Biblioteca";
-import { EdicaoNoPreview, type Retangulo } from "./EdicaoNoPreview";
+import { EdicaoNoPreview, nomeDoElemento, type Retangulo } from "./EdicaoNoPreview";
+import { EVENTO_INSERIR_TEXTO } from "../../mobile/anexos";
 import { PropriedadesDoElemento } from "./PropriedadesDoElemento";
 import { ChatDoEditor } from "./ChatDoEditor";
 import { useAgenteNoProjeto } from "./conversaDoVideo";
@@ -275,6 +276,7 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
           propriedades={<>
             {elemento && (
               <PropriedadesDoElemento elemento={elemento} bloqueado={bloqueado} onFechar={() => setElemento(null)}
+                onPedirAoAgente={() => citarNaConversa(elemento, formatarTempo(relogio.ler().tempo))}
                 onEstilo={(props, motivo) => gravarEstilo(elemento.ref, props, motivo)} onTexto={(t) => gravarTexto(elemento.ref, t)} />
             )}
             <Propriedades comp={comp} clipe={clipe} duracoes={duracoes} bloqueado={bloqueado}
@@ -341,6 +343,16 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
       {dialogoADois && <SessaoADoisDialogo sessao={sessao} onFechar={() => setDialogoADois(false)} />}
     </div>
   );
+}
+
+/** Fork (0.16): escreve no campo da conversa ao lado qual elemento a pessoa escolheu no vídeo. */
+function citarNaConversa(el: ElementoNoPreview, tempo: string) {
+  const r = lerRef(el.ref);
+  const onde = r ? `${r.arquivo}, tag nº ${r.ordem} (<${el.tag}${el.id ? ` id="${el.id}"` : ""}>)` : el.tag;
+  const texto = `Sobre o elemento ${nomeDoElemento(el)} do vídeo (${onde}, aparece em ${tempo}): `;
+  const tela = document.querySelector(".video-chat-normal .chat-tela");
+  if (tela) tela.dispatchEvent(new CustomEvent(EVENTO_INSERIR_TEXTO, { detail: texto }));
+  else void navigator.clipboard?.writeText(texto).catch(() => undefined);
 }
 
 /** Grava o nome só ao sair do campo (ou Enter), não a cada tecla. */

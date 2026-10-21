@@ -33,13 +33,15 @@ function Numero({ rotulo, valor, sufixo, onGravar, passo = 1 }: { rotulo: string
   );
 }
 
-export function PropriedadesDoElemento({ elemento, bloqueado, onEstilo, onTexto, onFechar }: {
+export function PropriedadesDoElemento({ elemento, bloqueado, onEstilo, onTexto, onFechar, onPedirAoAgente }: {
   elemento: ElementoNoPreview;
   bloqueado: boolean;
   /** Muda o `style` (na hora e no arquivo). */
   onEstilo: (props: Record<string, string | null>, motivo: string) => void;
   onTexto: (texto: string) => void;
   onFechar: () => void;
+  /** Põe a referência do elemento no campo da conversa ao lado. */
+  onPedirAoAgente?: () => void;
 }) {
   const [x, y] = lerTranslate(elemento.translate);
   const escala = lerScale(elemento.scale);
@@ -75,6 +77,7 @@ export function PropriedadesDoElemento({ elemento, bloqueado, onEstilo, onTexto,
         <Numero rotulo="Giro" valor={giro} sufixo="°" onGravar={(v) => onEstilo({ rotate: `${Math.round(v * 10) / 10}deg` }, `Girei ${nome}`)} />
       </div>
       <div className="video-prop-botoes">
+        {onPedirAoAgente && <Button size="sm" variant="glass" onClick={onPedirAoAgente} title="Escreve no campo da conversa qual é este elemento; complete com o pedido">Pedir ao agente sobre isto</Button>}
         <Button size="sm" variant="ghost" disabled={bloqueado || (!elemento.translate && !elemento.scale && !elemento.rotate)}
           onClick={() => onEstilo({ translate: null, scale: null, rotate: null }, `Voltei ${nome} para o lugar original`)}>Voltar ao lugar original</Button>
       </div>
