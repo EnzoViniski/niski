@@ -16,6 +16,20 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.9.4",
+    date: "2026-10-21",
+    changes: [
+      "As conversas voltaram a entrar com uma animação suave ao abrir, trocar e fechar abas. Agora feita de um jeito que nunca segura cliques: no pior caso a animação só não aparece.",
+      "Em tela cheia, a barra do topo desce junto com a barra de menus do macOS, na mesma velocidade e curva. Fechar, minimizar e tela cheia continuam sendo os botões do próprio macOS.",
+      "Arquivos coloridos por tipo na árvore de arquivos, na busca rápida, no painel do Git e nas abas: TypeScript azul, React ciano, Rust laranja, Python azul, imagens roxas e assim por diante.",
+      "Bem mais leve parado: o terminal não fica mais perguntando ao app se chegou texto novo várias vezes por segundo. Ele espera e recebe o texto no instante em que o agente escreve, o que também deixa a digitação mais rápida.",
+      "Menos trabalho para desenhar o terminal enquanto um agente escreve muito texto, o que gasta menos bateria.",
+      "O histórico de conversas guardado pelo app ocupa muito menos espaço no disco: as cópias passam a dividir o espaço com os arquivos originais. Na primeira abertura o app libera o espaço das cópias antigas.",
+      "O modelo de voz sai da memória depois de 5 minutos sem ditado, liberando mais de meio giga de RAM, e volta a carregar enquanto você fala, sem espera.",
+      "Com a janela minimizada ou em outra mesa, o app consulta a lista de conversas com menos frequência.",
+    ],
+  },
+  {
     version: "0.9.3",
     date: "2026-10-21",
     changes: [
