@@ -17,12 +17,13 @@ import { Button, Card, Field, Input, SegmentedControl, Slider } from "./ui";
 import { AgentConnections } from "../features/terminal/AgentConnections";
 import { SkillsManager } from "../features/skills/SkillsManager";
 import { MemoriaCompartilhada } from "../features/memoria/MemoriaCompartilhada";
+import { SobreMimDoDesktop } from "../features/sobreMim/SobreMimDoDesktop"; // Fork (Sobre mim).
 import { ExtensoesSettings } from "../features/extensoes/ExtensoesSettings";
 import { MobileSettings } from "../features/mobile/MobileSettings";
 import { LimiteDeSessoes } from "../features/terminal/LimiteDeSessoes";
 import { testarAviso } from "../features/terminal/useAttentionNotifier";
 import { ConfiguracaoDeAvisos } from "../features/atividade/ConfiguracaoDeAvisos";
-import { BlocksIcon, BookIcon, BrushIcon, ChartIcon, CloseIcon, SparkleIcon, GearIcon, GlobeIcon, KeyboardIcon, ListIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
+import { BlocksIcon, BookIcon, BrushIcon, CardTextIcon, ChartIcon, CloseIcon, SparkleIcon, GearIcon, GlobeIcon, KeyboardIcon, ListIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
 import { RelatoriosIa } from "../features/relatorios/RelatoriosIa";
 import { ModelosDeAgentes } from "../features/agentes/ModelosDeAgentes";
 // Fork (3B): ordem das contas, modo fila/automático, orçamento e "por que esta conta".
@@ -30,13 +31,15 @@ import { FilaDeContas } from "../features/roteamento/FilaDeContas";
 import { SHORTCUTS, shortcutLabel, comboFromEvent, setRecordingShortcut, shortcutFor, type ShortcutId } from "../lib/shortcuts";
 import { NOME_DO_PRODUTO } from "../lib/identidade";
 
-type SectionId = "geral" | "aparencia" | "agentes" | "memoria" | "fila" | "modelos" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
+// Fork (Sobre mim): "sobre-mim" no topo do menu.
+export type SectionId = "sobre-mim" | "geral" | "aparencia" | "agentes" | "memoria" | "fila" | "modelos" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
 
 type Icone = React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 
 /** Cada seção com ícone e uma linha do que tem dentro: o menu diz onde está cada coisa sem precisar
  *  abrir uma por uma. "Geral" saiu de "Aparência", que juntava sete cartões de assuntos diferentes. */
 const SECTIONS: { id: SectionId; label: string; desc: string; icon: Icone }[] = [
+  { id: "sobre-mim", label: "Sobre mim", desc: "O que seus agentes sabem de você", icon: CardTextIcon },
   { id: "geral", label: "Geral", desc: "Conversa ou terminal, arquivos, avisos e sessões", icon: GearIcon },
   { id: "aparencia", label: "Aparência", desc: "Tema, cor, fundo e animações", icon: BrushIcon },
   { id: "agentes", label: "Agentes", desc: "CLIs instaladas e contas", icon: RobotIcon },
@@ -163,6 +166,7 @@ export function SettingsView({ settings, onChange, onReset, initialSection, proj
           {section === "extensoes" && <ExtensoesSettings projectPath={projectPath} />}
           {section === "skills" && <SkillsManager projectPath={projectPath} />}
           {section === "memoria" && <MemoriaCompartilhada />}
+          {section === "sobre-mim" && <SobreMimDoDesktop />}
           {section === "mobile" && <MobileSettings accent={settings.accent} />}
           {section === "relatorios" && <RelatoriosIa projectPaths={projectPaths} />}
           {section === "atalhos" && <AtalhosSection settings={settings} onChange={onChange} />}

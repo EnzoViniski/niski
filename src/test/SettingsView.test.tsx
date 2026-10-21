@@ -14,6 +14,8 @@ vi.mock("../features/extensoes/ExtensoesSettings", () => ({ ExtensoesSettings: (
 vi.mock("../features/skills/SkillsManager", () => ({ SkillsManager: () => <p>Skills instaladas</p> }));
 vi.mock("../features/mobile/MobileSettings", () => ({ MobileSettings: () => <p>Pareamento remoto</p> }));
 vi.mock("../features/relatorios/RelatoriosIa", () => ({ RelatoriosIa: ({ projectPaths }: { projectPaths: string[] }) => <p>Relatórios de {projectPaths.join(", ")}</p> }));
+// Fork (Sobre mim): a tela tem suíte própria (SobreMim.test.tsx).
+vi.mock("../features/sobreMim/SobreMimDoDesktop", () => ({ SobreMimDoDesktop: () => <p>Áreas do Sobre mim</p> }));
 vi.mock("../components/UpdateCard", () => ({ UpdateCard: () => <p>Atualização do app</p> }));
 vi.mock("../features/terminal/useAttentionNotifier", () => ({ testarAviso: vi.fn(async () => null) }));
 
@@ -45,11 +47,11 @@ it.each([
   ["Geral", "Salvar edições"], ["Aparência", "Fundo do app"], ["Agentes", "Contas instaladas"],
   ["Modelos de agentes", "Modelos em /fake/projeto"], ["Extensões", "Extensões por conta"],
   ["Skills", "Skills instaladas"], ["Acesso remoto", "Pareamento remoto"],
-  ["Relatórios", "Relatórios de /fake/projeto, /fake/outro"], ["Atalhos", "Atalhos do teclado"], ["Sobre", "Atualização do app"],
+  ["Relatórios", "Relatórios de /fake/projeto, /fake/outro"], ["Atalhos", "Atalhos do teclado"], ["Sobre", "Atualização do app"], ["Sobre mim", "Áreas do Sobre mim"],
 ])("abre a seção %s pelo menu", async (nome, conteudo) => {
   montar();
   const menu = screen.getByRole("navigation", { name: "Seções de configurações" });
-  const botao = within(menu).getByRole("button", { name: new RegExp(`^${nome}`) });
+  const botao = within(menu).getByRole("button", { name: new RegExp(`^${nome}(?! mim)`) }); // Fork: "Sobre" × "Sobre mim".
   await userEvent.click(botao);
   expect(botao).toHaveAttribute("aria-current", "page");
   expect(screen.getByText(conteudo)).toBeInTheDocument();

@@ -192,6 +192,7 @@ export function Sidebar({
     { id: "adicionar-projeto", titulo: "Adicionar projeto", executar: () => setPickerAberto(true) },
     { id: "novo-workspace", titulo: "Novo workspace", executar: onCreateWorkspace },
     { id: "configuracoes", titulo: "Configurações", executar: () => onOpenSettings() },
+    { id: "sobre-mim", titulo: "Sobre mim (o que os agentes sabem de você)", executar: () => onOpenSettings("sobre-mim") }, // Fork (Sobre mim).
     { id: "historico", titulo: "Histórico de conversas", executar: onOpenHistory },
     ...(onHome ? [{ id: "inicio", titulo: "Voltar ao projeto", executar: onHome }] : []),
     ...(onOpenFluxos ? [{ id: "fluxos", titulo: "Fluxos de agentes", executar: onOpenFluxos }] : []),

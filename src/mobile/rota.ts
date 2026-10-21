@@ -4,6 +4,7 @@ export type Rota =
   | { tela: "inicio" }
   | { tela: "atividade" }
   | { tela: "uso" }
+  | { tela: "sobre-mim" } // Fork (Sobre mim).
   | { tela: "projeto"; projeto: string }
   | { tela: "conversa"; conversa: string };
 
@@ -11,6 +12,7 @@ export type Rota =
 export function lerRota(hash = location.hash): Rota {
   if (hash === "#/atividade") return { tela: "atividade" }; // Fork: caixa compartilhada com o PC.
   if (hash === "#/uso") return { tela: "uso" }; // Fork: uso das contas, como no rodapé do PC.
+  if (hash === "#/sobre-mim") return { tela: "sobre-mim" }; // Fork (Sobre mim).
   const [, tipo, id] = hash.match(/^#\/([pc])\/([^/?#]+)$/) ?? [];
   if (!id) return { tela: "inicio" };
   let valor: string;
@@ -22,6 +24,7 @@ export function urlDaRota(rota: Rota): string {
   const base = location.pathname + location.search;
   if (rota.tela === "atividade") return `${base}#/atividade`;
   if (rota.tela === "uso") return `${base}#/uso`;
+  if (rota.tela === "sobre-mim") return `${base}#/sobre-mim`;
   if (rota.tela === "projeto") return `${base}#/p/${encodeURIComponent(rota.projeto)}`;
   if (rota.tela === "conversa") return `${base}#/c/${encodeURIComponent(rota.conversa)}`;
   return base;

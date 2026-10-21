@@ -2,7 +2,8 @@ import { ATUALIZACAO_AUTOMATICA } from "../lib/identidade";
 // Fork (atualização automática): a mesma checagem da barra (ao abrir e a cada 30 min), sem consulta própria.
 import { useAtualizacaoRemota } from "../lib/atualizacaoRemota";
 
-export type SettingsSection = "sobre";
+// Fork (Sobre mim): a paleta (⌘K) também abre a seção "Sobre mim".
+export type SettingsSection = "sobre" | "sobre-mim";
 
 export interface Notificacao {
   id: string;
