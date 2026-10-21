@@ -16,6 +16,16 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.11.1",
+    date: "2026-10-21",
+    changes: [
+      "Na barra lateral, em \"Na tela\", as conversas que estão na mesma tela agora aparecem juntas num cartão só, com um mini desenho de como a tela está dividida, o número de cada painel e o aviso \"agora\" na tela que está à vista.",
+      "Roadmaps: arraste a divisória para deixar o painel do lado (etapa, caderno, IA) mais largo ou mais estreito, e também a divisão entre o conteúdo e a fonte na tela cheia. O app lembra o tamanho que você escolheu.",
+      "Roadmaps: botões A− e A+ para aumentar ou diminuir o texto do conteúdo, do caderno e da conversa com a IA, também no celular.",
+      "Roadmaps mais fluido: as trocas de tela, de aba e de card entram com uma animação suave, as etapas aparecem em sequência ao abrir o mapa e o painel do lado desliza ao abrir, no computador e no celular. Com \"reduzir movimento\" ligado, nada anima.",
+    ],
+  },
+  {
     version: "0.11.0",
     date: "2026-10-21",
     changes: [
