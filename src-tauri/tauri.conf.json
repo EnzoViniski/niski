@@ -47,7 +47,8 @@
     ],
     "createUpdaterArtifacts": false,
     "resources": {
-      "../skills/basicas/": "skills/basicas/"
+      "../skills/basicas/": "skills/basicas/",
+      "../skills/video/": "skills/video/"
     },
     "externalBin": [
       "binaries/omni-engine",

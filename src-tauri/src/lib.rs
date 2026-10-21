@@ -44,6 +44,8 @@ mod pedido_de_atualizacao; // Fork: "Atualizar o PC" pedido pelo celular.
 mod jarvis;
 // Fork: Roadmaps de estudo (trilhas, cards de revisão e IA ao lado).
 mod roadmaps;
+// Fork: Editor de vídeo (projetos HyperFrames, biblioteca, chat do agente, exportar, edição a dois).
+mod videos;
 
 pub fn run() {
     // Fork: contas com pasta mas fora do `profiles.json` desta variante voltam a ser reconhecidas.
@@ -133,6 +135,31 @@ pub fn run() {
             roadmaps::roadmaps_backup_antes_de_migrar,
             roadmaps::ia::roadmaps_ia,
             roadmaps::ia::roadmaps_ia_cancelar,
+            videos::videos_listar, // Fork: Editor de vídeo.
+            videos::videos_criar,
+            videos::videos_abrir,
+            videos::videos_ler,
+            videos::videos_gravar,
+            videos::videos_anexar_conversa,
+            videos::videos_ordenar,
+            videos::videos_composicoes,
+            videos::videos_versoes,
+            videos::videos_criar_versao,
+            videos::videos_restaurar_versao,
+            videos::videos_apagar,
+            videos::videos_importar_midia,
+            videos::videos_remover_midia,
+            videos::videos_midias_faltando,
+            videos::videos_backup,
+            videos::videos_ref_listar,
+            videos::videos_ref_criar,
+            videos::videos_ref_editar,
+            videos::videos_ref_ler,
+            videos::videos_ref_importar,
+            videos::videos_ref_remover_item,
+            videos::videos_ref_apagar,
+            videos::videos_ref_aplicar,
+            videos::videos_ref_de_projeto,
             estado_da_interface::ler_estado_da_interface,
             estado_da_interface::gravar_estado_da_interface,
             engine_client::registrar_evento_da_ui,
