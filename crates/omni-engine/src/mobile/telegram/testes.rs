@@ -381,3 +381,35 @@ async fn worker_em_memoria_reenvia_falha_sem_duplicar_e_respeita_desligado() {
     );
     trabalhador.abort();
 }
+
+// Fork: "Enviar exemplo de cada aviso".
+#[tokio::test]
+async fn exemplos_mandam_um_aviso_por_caso_no_formato_real_e_sem_titulo_por_padrao() {
+    let (_dir, state) = fixture();
+    let chamadas = Arc::new(Mutex::new(Vec::new()));
+    let bot = BotEmMemoria { chamadas: chamadas.clone(), falhar: Arc::new(AtomicBool::new(false)), updates: json!([]) };
+    let mut cfg = config();
+    cfg.tipos.clear(); // não depende dos tipos marcados
+    let enviados = exemplos::enviar(&state, &bot, &cfg, std::time::Duration::ZERO).await.ok().unwrap();
+    assert_eq!(enviados, exemplos::CASOS.len());
+    let chamadas = chamadas.lock().unwrap();
+    assert_eq!(chamadas.len(), exemplos::CASOS.len() + 1);
+    assert!(chamadas[0].1["text"].as_str().unwrap().contains("Nada disto aconteceu"));
+    let textos: Vec<&str> = chamadas[1..].iter().map(|(m, c)| { assert_eq!(m, "sendMessage"); assert_eq!(c["chat_id"], 42); c["text"].as_str().unwrap() }).collect();
+    for (texto, (_, _, resumo)) in textos.iter().zip(exemplos::CASOS) {
+        assert!(texto.contains(&format!("(exemplo) {resumo}")), "{texto}");
+        assert!(!texto.contains("Conversa de exemplo"), "título só com incluir_titulos");
+    }
+    for caso in ["Limite de uso", "perguntando", "Precisa de você", "erro", "parado", "Terminou", "Agendamento"] {
+        assert!(textos.iter().any(|t| t.contains(caso)), "{caso}");
+    }
+}
+
+#[tokio::test]
+async fn exemplos_param_na_primeira_falha_do_telegram() {
+    let (_dir, state) = fixture();
+    let chamadas = Arc::new(Mutex::new(Vec::new()));
+    let bot = BotEmMemoria { chamadas: chamadas.clone(), falhar: Arc::new(AtomicBool::new(true)), updates: json!([]) };
+    assert!(exemplos::enviar(&state, &bot, &config(), std::time::Duration::ZERO).await.is_err());
+    assert_eq!(chamadas.lock().unwrap().len(), 1);
+}

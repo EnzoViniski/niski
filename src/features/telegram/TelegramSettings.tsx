@@ -64,6 +64,8 @@ export function TelegramSettings() {
         </fieldset>
         <p className="text-text-muted">Por padrão, o Telegram recebe apenas o agente, o tipo de aviso e o link. Textos das conversas e pedidos de permissão ficam no Medza.</p>
         <Button size="sm" disabled={ocupado} onClick={() => void executar(async () => { await telegram("/testar", {}); return telegram(); }, "Teste enviado ao Telegram.")}>Enviar teste</Button>
+        {/* Fork: um exemplo de cada caso (erro, limite, pergunta…) para ver como chega no Telegram. */}
+        <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => void executar(async () => { await telegram("/exemplos", {}); return telegram(); }, "Exemplos enviados: um de cada aviso.")}>Enviar exemplo de cada aviso</Button>
       </>}
       {(status?.conectado || status?.parear_url) && <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => void executar(() => telegram("/desconectar", {}), "Telegram desconectado.")}>Desconectar Telegram</Button>}
       {(erro || status?.erro) && <p className="text-danger" role="alert">{erro || status?.erro}</p>}

@@ -4,6 +4,7 @@ use super::*;
 use std::collections::BTreeSet;
 
 mod api;
+mod exemplos; // Fork: um exemplo de cada aviso.
 mod rotas;
 #[cfg(test)]
 mod testes;

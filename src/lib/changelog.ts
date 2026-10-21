@@ -16,6 +16,13 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.13.1",
+    date: "2026-10-21",
+    changes: [
+      "Telegram: novo botão \"Enviar exemplo de cada aviso\" em Configurações → Geral → Telegram. Ele manda uma mensagem de exemplo para cada caso (precisa de você, pergunta da CLI, terminou, erro, parado, limite de uso, subagente e agendamento) para você ver como cada aviso chega.",
+    ],
+  },
+  {
     version: "0.13.0",
     date: "2026-10-21",
     changes: [

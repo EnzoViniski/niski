@@ -176,10 +176,26 @@ async fn testar(
     cliente.chamar(&config.token,"sendMessage",json!({"chat_id":config.chat, "text":format!("{}: Telegram conectado. Você receberá os avisos escolhidos nas configurações. Para responder aos agentes, abra a conversa pelo acesso remoto com o Tailscale conectado.", omni_protocol::NOME_DO_PRODUTO)})).await.map_err(falha)?;
     Ok(Json(json!({"ok":true})))
 }
+/// Fork: manda um exemplo de cada caso de aviso (`exemplos.rs`).
+async fn exemplos(
+    State(state): State<Arc<EngineState>>,
+    acesso: Desktop,
+) -> Result<Json<Value>, ApiError> {
+    desktop(&acesso)?;
+    let _operacao = state.mobile.telegram.operacao.lock().await;
+    let config = state.mobile.telegram.dados.lock().expect("telegram poisoned").config.clone();
+    if config.chat.is_none() {
+        return Err(error(StatusCode::CONFLICT, "Conecte o Telegram primeiro"));
+    }
+    let cliente = api::Cliente::novo().map_err(falha)?;
+    let enviados = super::exemplos::enviar(&state, &cliente, &config, std::time::Duration::from_millis(700)).await.map_err(falha)?;
+    Ok(Json(json!({"ok":true, "enviados":enviados})))
+}
 pub(super) fn rotas() -> Router<Arc<EngineState>> {
     Router::new()
         .route("/telegram", get(status).post(preferencias))
         .route("/telegram/conectar", post(conectar))
         .route("/telegram/desconectar", post(desconectar))
         .route("/telegram/testar", post(testar))
+        .route("/telegram/exemplos", post(exemplos))
 }

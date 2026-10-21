@@ -33,6 +33,8 @@ impl BotApi for Cliente {
 impl Cliente {
     #[cfg(test)]
     pub(super) fn local(base: String) -> Self {
+        // Fork: sem isto o teste só passava se outro teste tivesse instalado o provedor antes.
+        let _ = rustls::crypto::ring::default_provider().install_default();
         Self {
             http: reqwest::Client::new(),
             base,

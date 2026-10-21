@@ -35,6 +35,11 @@ it("salva preferências sem reenviar token e envia teste só pelo botão", async
   await userEvent.click(screen.getByRole("button",{name:"Enviar teste"}));
   await screen.findByText("Teste enviado ao Telegram.");
   expect(telegram).toHaveBeenCalledWith("/testar",{});
+  // Fork: um exemplo de cada aviso.
+  await waitFor(() => expect(screen.getByRole("button",{name:"Enviar exemplo de cada aviso"})).toBeEnabled());
+  await userEvent.click(screen.getByRole("button",{name:"Enviar exemplo de cada aviso"}));
+  await screen.findByText("Exemplos enviados: um de cada aviso.");
+  expect(telegram).toHaveBeenCalledWith("/exemplos",{});
   await userEvent.click(screen.getByRole("button",{name:"Desconectar Telegram"}));
   expect(telegram).toHaveBeenCalledWith("/desconectar",{});
 });
