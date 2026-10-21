@@ -131,6 +131,8 @@ pub fn run() {
             roadmaps::roadmaps_anexar_conversa,
             roadmaps::roadmaps_ordenar,
             roadmaps::roadmaps_backup_antes_de_migrar,
+            roadmaps::ia::roadmaps_ia,
+            roadmaps::ia::roadmaps_ia_cancelar,
             estado_da_interface::ler_estado_da_interface,
             estado_da_interface::gravar_estado_da_interface,
             engine_client::registrar_evento_da_ui,

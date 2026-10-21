@@ -3,6 +3,7 @@
 //! O domínio (plano, progresso, cards FSRS, prompts) mora no front, em `src/features/roadmaps/`.
 
 pub mod armazenamento;
+pub mod ia;
 
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
