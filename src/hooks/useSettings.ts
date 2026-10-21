@@ -6,6 +6,7 @@ import { loadSettings, saveSettings } from "../services/settingsService";
 import { setMotionLevel } from "../lib/motion";
 import { setShortcutOverrides } from "../lib/shortcuts";
 import { aplicarPaleta } from "../lib/aplicarTema";
+import { aplicarEstilo } from "../lib/estiloDaInterface"; // Fork: Clássico, Minimalista ou Vidro.
 import { isBackgroundEffect } from "../components/backgrounds/registry";
 
 export function useSettings() {
@@ -62,7 +63,8 @@ export function useSettings() {
     root.dataset.motion = settings.animations;
     root.dataset.conversa = settings.conversationBackground;
     // Fork: estilo da interface. Valor desconhecido (de uma versão mais nova) fica no clássico.
-    root.dataset.estilo = settings.estilo === "minimalista" ? "minimalista" : "classico";
+    // Fork: o Vidro liga o Minimalista mais a variante (`estiloDaInterface.ts`).
+    aplicarEstilo(root, settings.estilo);
     // 100% vira alfa .25 da cor do tema: acima disso a linha disputa com o texto.
     root.style.setProperty("--conversa-grade", String(settings.conversationGridOpacity / 400));
     root.style.setProperty("--app-bg-opacity", String(settings.backgroundOpacity / 100));

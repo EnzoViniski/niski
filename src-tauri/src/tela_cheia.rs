@@ -53,6 +53,8 @@ thread_local! {
     static SAINDO: Cell<bool> = const { Cell::new(false) };
     static ULTIMO_PX: Cell<f64> = const { Cell::new(0.0) };
     static ULTIMA_REVELACAO: Cell<f64> = const { Cell::new(0.0) };
+    /// Fork: destino que a barra já recebeu (0 ou 1); `None` antes do primeiro movimento.
+    static DESTINO: Cell<Option<f64>> = const { Cell::new(None) };
     static ULTIMO_REGISTRADO: Cell<f64> = const { Cell::new(0.0) };
     /// Endereço da janela de faixa já tratada (0 = nenhuma).
     static FAIXA_TRATADA: Cell<usize> = const { Cell::new(0) };
@@ -74,10 +76,14 @@ define_class!(
             }
             deixar_faixa_transparente(self);
             let anterior = ULTIMA_REVELACAO.with(|c| c.replace(quanto));
-            let movimento = if anterior > 0.0 && anterior < 1.0 {
-                animacao::Movimento::imediato()
-            } else { animacao::Movimento::atual(quanto) };
-            aplicar_com_movimento(medir(quanto), movimento);
+            // Fork: só o destino, uma vez por sentido; o CSS desliza até lá (`animacao_do_topo.rs`).
+            if let Some(destino) = animacao::planejar(anterior, quanto, DESTINO.with(Cell::get)) {
+                DESTINO.with(|c| c.set(Some(destino)));
+                // Distância a partir de onde a barra estava (a amostra anterior): se o AppKit pular
+                // direto para 1, a barra ainda desliza o caminho todo.
+                let falta = (destino - anterior.clamp(0.0, 1.0)).abs();
+                aplicar_com_movimento(medir(destino), animacao::Movimento::atual(falta));
+            }
             // Ao fim da animação registra no log quanto desceu (uma linha por revelar/esconder).
             unsafe {
                 let _: () = msg_send![
@@ -306,6 +312,7 @@ fn tirar_acessorio() {
     }
     aplicar(0.0);
     ULTIMA_REVELACAO.with(|c| c.set(0.0));
+    DESTINO.with(|c| c.set(None));
     marcar_tela_cheia(false);
 }
 

@@ -16,6 +16,15 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.13.0",
+    date: "2026-10-21",
+    changes: [
+      "Novo estilo Vidro, no computador e no celular: fundo preto, menus e campo de mensagem em vidro translúcido e cores neutras. Escolha em Configurações → Aparência → Estilo da interface.",
+      "No celular, as ferramentas do campo de mensagem agora ficam numa linha só, que desliza para o lado, com o botão de enviar (ou de parar) sempre à mão. Os menus do campo abrem como uma folha logo acima dele.",
+      "Animações mais suaves: abrir e trocar de conversa, menus, botões e a troca de tela no celular. Em tela cheia no Mac, a barra do topo desce junto com a barra de menus num movimento contínuo, sem os trancos de antes.",
+    ],
+  },
+  {
     version: "0.12.0",
     date: "2026-10-21",
     changes: [

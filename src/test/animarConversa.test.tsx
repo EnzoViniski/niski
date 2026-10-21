@@ -38,7 +38,7 @@ describe("animação de entrada da conversa", () => {
     const [quadros, opcoes] = animate.mock.calls[1] as unknown as [Keyframe[], KeyframeAnimationOptions];
     expect(JSON.stringify(quadros)).not.toContain("scale");
     expect(opcoes.fill).toBeUndefined();
-    expect(opcoes.duration).toBeLessThanOrEqual(250);
+    expect(opcoes.duration).toBeLessThanOrEqual(320);
   });
 
   it("respeita animações desligadas e só faz fade nas reduzidas", () => {

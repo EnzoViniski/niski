@@ -1,7 +1,7 @@
 // Fork (Onda 2.0): este arquivo ficou só com a navegação do celular (topo, rotas, início e projeto).
 // Listas em `listas/`, a conversa em `conversa/`. Os nomes que outros arquivos importam daqui
 // continuam exportados por este módulo.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Input } from "../components/ui/Input";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { MarcaDoProduto } from "../components/ui/MarcaDoProduto";
@@ -28,6 +28,7 @@ import { SobreMim } from "./telas/SobreMim"; // Fork (Sobre mim).
 import { RoadmapsNoCelular } from "./telas/RoadmapsTardio"; // Fork (Roadmaps de estudo).
 import { useRecarregarComVersaoNova } from "./versaoNova"; // Fork: pega a página nova depois da atualização.
 import { atualizarAtividade, useAtividadeVista } from "../features/atividade/atividadeService";
+import { useEntradaDaTela } from "./entradaDaTela"; // Fork (Vidro): fade curto ao trocar de tela.
 
 export { haQuanto, filterConversations, Secao, ProjectList, ConversationList, ConversasPorEstado, Ocultas, NovaSessao, ConversationDetail };
 export { juntarPaginas, agruparMensagens } from "./conversa/useTimeline";
@@ -82,6 +83,8 @@ export function MobileApp() {
   useAtividadeVista(rota.tela === "conversa" ? [rota.conversa] : [], !semAcesso);
 
   useEffect(() => { gravarSessao(CHAVE_FILTRO, onlyAttention ? "atencao" : null); }, [onlyAttention]);
+  const conteudoRef = useRef<HTMLElement>(null);
+  useEntradaDaTela(conteudoRef, JSON.stringify(rota));
 
 
   if (semAcesso) return <main className="m-shell"><PairingScreen parear={parear} /></main>;
@@ -211,7 +214,7 @@ export function MobileApp() {
   return <div className="m-shell">
     <TopBar titulo={titulo} subtitulo={subtitulo} onAtualizar={rota.tela === "atividade" ? async () => { await atualizarAtividade(true).catch(() => undefined); } : atualizar}
       onVoltar={rota.tela === "inicio" ? undefined : () => voltar(pai)} />
-    <main className="m-conteudo">
+    <main ref={conteudoRef} className="m-conteudo">
       {error && <p role="alert" className="m-alerta">Não foi possível conectar: {error}</p>}
       {conteudo}
     </main>

@@ -1,4 +1,5 @@
 import { aplicarPaleta } from "../lib/aplicarTema";
+import { aplicarEstilo } from "../lib/estiloDaInterface";
 
 /** Aparência que o PC publicou. Tudo opcional: PC antigo não publica, e o celular cai no padrão. */
 export interface TemaPublicado {
@@ -6,7 +7,7 @@ export interface TemaPublicado {
   theme?: string;
   background?: string;
   glass?: string;
-  /** Fork: "minimalista" troca o visual (`src/styles/minimalista.css`); o resto é clássico. */
+  /** Fork: "minimalista" ou "vidro" troca o visual (`minimalista.css`, `vidro.css`); o resto é clássico. */
   estilo?: string;
 }
 
@@ -42,7 +43,7 @@ export function aplicarTema(tema: TemaPublicado | null): () => void {
   const root = document.documentElement;
   root.dataset.bg = FUNDOS_CSS.has(tema?.background ?? "") ? tema!.background! : "pixel-grid";
   root.dataset.glass = RELEVOS.has(tema?.glass ?? "") ? tema!.glass! : "forte";
-  root.dataset.estilo = tema?.estilo === "minimalista" ? "minimalista" : "classico"; // Fork: segue o PC.
+  aplicarEstilo(root, tema?.estilo); // Fork: segue o PC (Clássico, Minimalista ou Vidro).
 
   const aplicar = (claro: boolean) => {
     aplicarPaleta(root, tema?.accent, claro);

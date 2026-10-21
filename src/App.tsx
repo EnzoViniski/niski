@@ -61,6 +61,7 @@ import { useSettings } from "./hooks/useSettings";
 import { matchesShortcut } from "./lib/shortcuts";
 // Fork: caixa do engine usa a mesma navegação da paleta e registra o que está de fato na tela.
 import { useAberturasDaAtividade } from "./features/atividade/navegacao";
+import { usaFormaMinimalista } from "./lib/estiloDaInterface"; // Fork: Minimalista e Vidro sem fundo animado.
 import { useAtividadeDoDesktop } from "./features/atividade/vistas";
 
 type View = "workspace" | "settings" | "history" | "fluxos" | "conversa" | "roadmaps" | "video";
@@ -243,8 +244,8 @@ function AppComPaleta() {
     <SessionProvidersContext.Provider value={sessionsById}>
     <ProjetosDasAbasContext.Provider value={projetosDasAbas}>
     <div className="flex h-screen flex-col overflow-hidden">
-      {/* Fork: o Minimalista não tem fundo animado (não gasta GPU desenhando por baixo). */}
-      {settings.estilo !== "minimalista" && <AppBackground settings={settings} />}
+      {/* Fork: Minimalista e Vidro não têm fundo animado (não gastam GPU desenhando por baixo). */}
+      {!usaFormaMinimalista(settings.estilo) && <AppBackground settings={settings} />}
       <TitleBar
         trilha={
           view === "settings" ? ["Configurações"]

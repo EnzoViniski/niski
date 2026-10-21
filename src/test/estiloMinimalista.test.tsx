@@ -83,11 +83,11 @@ describe("configuração do estilo", () => {
 });
 
 describe("EscolhaDeEstilo", () => {
-  it("mostra as duas opções com prévia e marca a escolhida", () => {
+  it("mostra as três opções com prévia e marca a escolhida", () => {
     const onChange = vi.fn();
     render(<EscolhaDeEstilo valor="classico" onChange={onChange} />);
     const grupo = screen.getByRole("radiogroup", { name: "Estilo da interface" });
-    expect(grupo.querySelectorAll(".estilo-previa")).toHaveLength(2);
+    expect(grupo.querySelectorAll(".estilo-previa")).toHaveLength(3);
     expect(screen.getByRole("radio", { name: /Clássico/ })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("radio", { name: /Minimalista/ })).toHaveAttribute("aria-checked", "false");
 

@@ -7,6 +7,8 @@ import "./styles/fork.css";
 import "./styles/energia.css";
 // Fork: estilo Minimalista (só vale com data-estilo="minimalista"; por último para reescrever os outros).
 import "./styles/minimalista.css";
+// Fork: estilo Vidro (só vale com data-variante="vidro"; depois do Minimalista, que ele reaproveita).
+import "./styles/vidro.css";
 import { usarTransporte } from "./mobile/api";
 import { transporteDoEngine } from "./features/conversa/transporteDoEngine";
 import { instalarRegistroDeErros } from "./lib/registroDeErros";

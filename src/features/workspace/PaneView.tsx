@@ -209,7 +209,8 @@ export function PaneView({
           <EtiquetaDoProjeto projeto={deFora} />
         </div>
       )}
-      <div ref={conteudoRef} className="flex-1 min-h-0">
+      {/* Fork: `painel-conteudo` evita a animação dupla (esta + a do `.chat-tela`), ver `vidro.css`. */}
+      <div ref={conteudoRef} className="painel-conteudo flex-1 min-h-0">
         <PaneErrorBoundary key={tab?.id ?? pane.id}>
         {!tab ? (
           <PainelVazio onCriar={criarAba} />

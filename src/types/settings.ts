@@ -21,7 +21,8 @@ export type GlassLevel = "sutil" | "medio" | "forte";
 export type MotionLevel = "completas" | "reduzidas" | "desligadas";
 /** Fork: "classico" é o visual pixel/vidro de sempre; "minimalista" troca só o visual
  *  (`src/styles/minimalista.css`, ativado por `data-estilo` no `<html>`). */
-export type EstiloDaInterface = "classico" | "minimalista";
+/** Fork: "vidro" é o Minimalista com fundo preto e vidro (`src/styles/vidro.css`, `src/lib/estiloDaInterface.ts`). */
+export type EstiloDaInterface = "classico" | "minimalista" | "vidro";
 
 /** Preferências visuais do shell. Cada workspace/pane herda daqui. */
 export interface AppSettings {

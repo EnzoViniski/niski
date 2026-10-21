@@ -1,0 +1,333 @@
+/* Fork: estilo "Vidro" (Configurações → Aparência → Estilo da interface), pedido do Enzo em 21/10/2026:
+   o nosso Minimalista com o fundo preto do app do Codex no celular e superfícies de vidro no espírito
+   do Liquid Glass da Apple, com movimento mais macio no PC e no celular.
+
+   Como liga: `src/lib/estiloDaInterface.ts` põe `data-estilo="minimalista"` (toda a forma do
+   `minimalista.css` continua valendo) e `data-variante="vidro"` (este arquivo, carregado depois).
+   Sem a variante nada daqui pinta, salvo as duas seções marcadas "Minimalista e Vidro".
+
+   Prefixo `:root[data-variante="vidro"][data-estilo]` em tudo: especificidade (0,3,0), acima das
+   regras do Minimalista (0,2,0), sem `!important`.
+
+   Vidro só no que flutua (menus, campo de mensagem, barra do celular, diálogos): `backdrop-filter`
+   custa GPU a cada quadro que o conteúdo de trás muda, e fundo preto atrás de painel fixo não ganha
+   nada com desfoque. No campo de mensagem o vidro mora no `::before`, porque `backdrop-filter` no
+   próprio elemento vira bloco de contenção dos menus `position: fixed` lá de dentro. */
+
+/* ── Prévia nas Configurações (`EscolhaDeEstilo.tsx`) — igual em qualquer estilo ───────────────── */
+.estilo-opcoes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 760px) { .estilo-opcoes { grid-template-columns: minmax(0, 1fr); } }
+.estilo-previa-vidro {
+  position: relative; border-radius: 12px; border: 1px solid rgb(255 255 255 / .1);
+  background: radial-gradient(120% 90% at 85% 0%, rgb(99 102 241 / .22), transparent 60%), #000;
+}
+.estilo-previa-vidro .estilo-previa-lateral { background: rgb(255 255 255 / .03); }
+.estilo-previa-vidro .estilo-previa-linha { position: relative; border-radius: 6px; background: rgb(255 255 255 / .05); }
+.estilo-previa-vidro .estilo-previa-linha::before {
+  content: ""; position: absolute; left: 3px; top: 2px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--cor-agente);
+}
+.estilo-previa-vidro .estilo-previa-balao {
+  border-radius: 10px; background: linear-gradient(180deg, rgb(255 255 255 / .12), rgb(255 255 255 / .05));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .18), inset 0 0 0 1px rgb(255 255 255 / .06);
+}
+.estilo-previa-vidro .estilo-previa-balao.is-voce { background: linear-gradient(180deg, rgb(255 255 255 / .2), rgb(255 255 255 / .1)); }
+
+/* ── Tokens ────────────────────────────────────────────────────────────────────────────────── */
+:root[data-variante="vidro"][data-estilo] {
+  --v-curva: cubic-bezier(.22, 1, .36, 1);      /* sai rápido e assenta devagar */
+  --v-curva-folha: cubic-bezier(.32, .72, 0, 1); /* folhas e painéis que deslizam (a do iOS) */
+  --v-desfoque: blur(22px) saturate(170%);
+  --m-r-ctl: 12px;
+  --m-r-cartao: 18px;
+  --m-r-painel: 22px;
+  --m-r-menu: 16px;
+  --m-r-composer: 26px;
+}
+
+/* Escuro: preto do Codex. Neutros puros (sem o tom quente do Papel). */
+:root[data-variante="vidro"][data-estilo],
+:root[data-variante="vidro"][data-estilo][data-theme="escuro"] {
+  --c-bg-primary: 0 0 0;
+  --c-bg-surface: 17 17 19;
+  --c-bg-elevated: 28 28 31;
+  --c-border-subtle: 38 38 42;
+  --c-border: 56 56 62;
+  --c-text-primary: 245 245 247;
+  --c-text-secondary: 170 170 178;
+  --c-text-muted: 128 128 136;
+  --c-overlay: 255 255 255;
+  --c-outline: 38 38 42;
+  --glass-rgb: 17 17 19;
+  --m-lateral: 9 9 10;
+  --m-balao-agente: 20 20 22;
+  --m-sombra-menu: 0 18px 48px rgb(0 0 0 / .6), 0 2px 8px rgb(0 0 0 / .4);
+  --m-sombra-leve: 0 6px 20px rgb(0 0 0 / .45);
+  --app-bg-veil: 0 0 0;
+  --v-vidro: linear-gradient(180deg, rgb(255 255 255 / .1), rgb(255 255 255 / .045));
+  --v-vidro-forte: linear-gradient(180deg, rgb(44 44 48 / .78), rgb(30 30 33 / .72));
+  --v-borda: rgb(255 255 255 / .1);
+  --v-brilho: inset 0 1px 0 rgb(255 255 255 / .14), inset 0 -1px 0 rgb(255 255 255 / .03);
+  --v-sombra: 0 18px 48px rgb(0 0 0 / .6), 0 2px 8px rgb(0 0 0 / .4);
+  --v-fundo-faixa: 0 0 0;
+}
+
+/* Claro: o vidro fosco do iOS em cinza-claro (quem escolhe "Claro" no Vidro não fica no preto). */
+:root[data-variante="vidro"][data-estilo][data-theme="claro"] {
+  --c-bg-primary: 242 242 247;
+  --c-bg-surface: 255 255 255;
+  --c-bg-elevated: 255 255 255;
+  --c-border-subtle: 226 226 232;
+  --c-border: 206 206 214;
+  --c-text-primary: 17 17 19;
+  --c-text-secondary: 88 88 96;
+  --c-text-muted: 112 112 120;
+  --c-overlay: 17 17 19;
+  --c-outline: 226 226 232;
+  --glass-rgb: 255 255 255;
+  --m-lateral: 236 236 241;
+  --m-balao-agente: 255 255 255;
+  --m-sombra-menu: 0 18px 48px rgb(17 17 19 / .16), 0 2px 8px rgb(17 17 19 / .08);
+  --m-sombra-leve: 0 4px 14px rgb(17 17 19 / .08);
+  --app-bg-veil: 242 242 247;
+  --v-vidro: linear-gradient(180deg, rgb(255 255 255 / .82), rgb(255 255 255 / .66));
+  --v-vidro-forte: linear-gradient(180deg, rgb(255 255 255 / .9), rgb(250 250 252 / .82));
+  --v-borda: rgb(17 17 19 / .08);
+  --v-brilho: inset 0 1px 0 rgb(255 255 255 / .9), inset 0 -1px 0 rgb(17 17 19 / .03);
+  --v-sombra: 0 18px 48px rgb(17 17 19 / .14), 0 2px 8px rgb(17 17 19 / .06);
+  --v-fundo-faixa: 242 242 247;
+}
+
+:root[data-variante="vidro"][data-estilo] body { background-color: rgb(var(--c-bg-primary)); }
+:root[data-variante="vidro"][data-estilo] ::selection { background: rgb(var(--c-accent) / .35); }
+
+/* ── Superfícies ───────────────────────────────────────────────────────────────────────────── */
+/* Painéis fixos: chapados, separados por uma borda fina e um brilho de 1 px no topo. */
+:root[data-variante="vidro"][data-estilo] .glass {
+  border-color: rgb(var(--c-border-subtle));
+  background-color: rgb(var(--c-bg-surface));
+  box-shadow: var(--v-brilho);
+}
+:root[data-variante="vidro"][data-estilo] .glass-strong { background-color: rgb(var(--c-bg-primary)); box-shadow: none; }
+:root[data-variante="vidro"][data-estilo] aside.glass-strong { background-color: rgb(var(--m-lateral)); box-shadow: inset -1px 0 0 rgb(var(--c-border-subtle)); }
+:root[data-variante="vidro"][data-estilo] .glass-inset { background-color: rgb(var(--c-bg-primary)); }
+
+/* O que flutua é vidro de verdade. */
+:root[data-variante="vidro"][data-estilo] :is(.glass-float, .popover, .conversa-controles-menu, .seletor-pop, .trocar-agente-painel,
+  .fx-paleta, .fx-menu-rapido, .fx-no-barra, .lateral-fantasma) {
+  border: 1px solid var(--v-borda);
+  background: var(--v-vidro-forte);
+  box-shadow: var(--v-brilho), var(--v-sombra);
+  -webkit-backdrop-filter: var(--v-desfoque);
+  backdrop-filter: var(--v-desfoque);
+}
+:root[data-variante="vidro"][data-estilo] :is(.fx-dialogo, .manual, .drop-externo, .conversa-terminal-painel, .launcher-card) {
+  border: 1px solid var(--v-borda);
+  box-shadow: var(--v-brilho), var(--v-sombra);
+}
+/* Fundo escurecido dos diálogos: desfoca o app atrás, como uma folha do macOS. */
+:root[data-variante="vidro"][data-estilo] .fixed.inset-0:is(.bg-black\/30, .bg-black\/40) {
+  background-color: rgb(0 0 0 / .45);
+  -webkit-backdrop-filter: blur(6px) saturate(140%);
+  backdrop-filter: blur(6px) saturate(140%);
+  animation: vidro-fundo-entra 200ms var(--v-curva) both;
+}
+:root[data-variante="vidro"][data-estilo][data-theme="claro"] .fixed.inset-0:is(.bg-black\/30, .bg-black\/40) { background-color: rgb(17 17 19 / .18); }
+@keyframes vidro-fundo-entra { from { opacity: 0; } }
+
+/* ── Controles ─────────────────────────────────────────────────────────────────────────────── */
+:root[data-variante="vidro"][data-estilo] .btn-glass {
+  background: var(--v-vidro); box-shadow: var(--v-brilho); border-color: var(--v-borda);
+}
+:root[data-variante="vidro"][data-estilo] .btn-glass:hover:not(:disabled):not([aria-pressed="true"]) { background: rgb(var(--c-overlay) / .12); }
+:root[data-variante="vidro"][data-estilo] .btn-glass[aria-pressed="true"] {
+  color: #fff; background: rgb(var(--c-selected)); border-color: transparent; box-shadow: inset 0 1px 0 rgb(255 255 255 / .22);
+}
+:root[data-variante="vidro"][data-estilo] .btn-primary { box-shadow: inset 0 1px 0 rgb(255 255 255 / .22); }
+:root[data-variante="vidro"][data-estilo] .field { background-color: rgb(var(--c-overlay) / .04); border-color: rgb(var(--c-border-subtle)); }
+:root[data-variante="vidro"][data-estilo][data-theme="claro"] .field { background-color: rgb(var(--c-bg-surface)); }
+
+/* Segmentados (Conversa/Terminal, Chat/Work do Codex, modos): trilho de vidro e pílula clara. */
+:root[data-variante="vidro"][data-estilo] :is(.aba-agente-abas, .composer-modos) {
+  background: var(--v-vidro); box-shadow: var(--v-brilho); border: 1px solid var(--v-borda);
+}
+:root[data-variante="vidro"][data-estilo] .aba-agente-topo .w-aba-ativa,
+:root[data-variante="vidro"][data-estilo] .composer-modo.is-ativo {
+  background: rgb(var(--c-overlay) / .14); box-shadow: inset 0 1px 0 rgb(255 255 255 / .12);
+}
+:root[data-variante="vidro"][data-estilo][data-theme="claro"] :is(.aba-agente-topo .w-aba-ativa, .composer-modo.is-ativo) {
+  background: rgb(255 255 255); box-shadow: 0 1px 3px rgb(17 17 19 / .12);
+}
+
+/* ── Barra do topo, lateral e painéis do PC ────────────────────────────────────────────────── */
+:root[data-variante="vidro"][data-estilo] .titlebar { background: rgb(var(--m-lateral)); box-shadow: inset 0 -1px 0 rgb(var(--c-border-subtle)); }
+:root[data-variante="vidro"][data-estilo] .titlebar-atualizar { box-shadow: inset 0 1px 0 rgb(255 255 255 / .12); }
+:root[data-variante="vidro"][data-estilo] .painel-moldura { border-color: rgb(var(--c-border-subtle)); background-color: rgb(var(--c-bg-primary)); }
+:root[data-variante="vidro"][data-estilo] .painel-moldura.border-accent\/80 { border-color: rgb(var(--c-overlay) / .2); }
+:root[data-variante="vidro"][data-estilo] .painel-cabecalho { background: rgb(var(--c-bg-primary)); }
+:root[data-variante="vidro"][data-estilo] .aba-do-painel.is-ativa { background: rgb(var(--c-overlay) / .1); box-shadow: inset 0 1px 0 rgb(255 255 255 / .08); }
+:root[data-variante="vidro"][data-estilo] .conversa-linha.is-ativa { background: rgb(var(--c-overlay) / .1); box-shadow: inset 0 1px 0 rgb(255 255 255 / .06); }
+:root[data-variante="vidro"][data-estilo] .conversa-linha.is-na-tela { background: rgb(var(--c-overlay) / .06); }
+:root[data-variante="vidro"][data-estilo] .conversa-acoes { background: rgb(var(--m-lateral)); }
+:root[data-variante="vidro"][data-estilo] .lateral-item-ativo { background-color: rgb(var(--c-overlay) / .09); }
+:root[data-variante="vidro"][data-estilo] .gaveta-uso { border-left-color: var(--v-borda); }
+
+/* ── Conversa (PC e celular) ───────────────────────────────────────────────────────────────── */
+:root[data-variante="vidro"][data-estilo] :is(.aba-conversa-tela, .aba-agente-topo) { background: rgb(var(--c-bg-primary)); }
+/* Sua mensagem: bolha de vidro neutra, como no app do Codex (a cor de destaque fica para o enviar). */
+:root[data-variante="vidro"][data-estilo] .chat .bubble-user {
+  background: var(--v-vidro); box-shadow: var(--v-brilho), inset 0 0 0 1px rgb(255 255 255 / .04);
+}
+:root[data-variante="vidro"][data-estilo][data-theme="claro"] .chat .bubble-user { background: rgb(var(--c-overlay) / .07); box-shadow: none; }
+:root[data-variante="vidro"][data-estilo] :is(.bubble-markdown pre, .chat .bubble-markdown pre, .chat .codigo) {
+  background: rgb(var(--c-bg-surface)); border-color: rgb(var(--c-border-subtle));
+}
+:root[data-variante="vidro"][data-estilo] .chat .bubble-markdown :not(pre) > code { background: rgb(var(--c-overlay) / .09); }
+:root[data-variante="vidro"][data-estilo] .chat .bubble-aprovacao { background: rgb(var(--c-warning) / .08); }
+:root[data-variante="vidro"][data-estilo] .chat-novidades {
+  border: 1px solid var(--v-borda); background: var(--v-vidro-forte); box-shadow: var(--v-brilho), var(--m-sombra-leve);
+  -webkit-backdrop-filter: var(--v-desfoque); backdrop-filter: var(--v-desfoque);
+}
+
+/* Campo de mensagem: cápsula de vidro solta sobre o preto (o vidro no `::before`, ver o topo). */
+:root[data-variante="vidro"][data-estilo] :is(.composer-faixa, .aba-conversa-tela .composer-faixa) {
+  background: linear-gradient(180deg, rgb(var(--v-fundo-faixa) / 0), rgb(var(--v-fundo-faixa) / .9) 45%);
+}
+:root[data-variante="vidro"][data-estilo] :is(.composer, .aba-conversa-tela .composer) {
+  isolation: isolate; background: transparent; border: 1px solid var(--v-borda);
+  box-shadow: var(--v-brilho), 0 10px 30px rgb(0 0 0 / .45);
+}
+:root[data-variante="vidro"][data-estilo][data-theme="claro"] :is(.composer, .aba-conversa-tela .composer) { border-color: var(--v-borda); box-shadow: var(--v-brilho), var(--m-sombra-leve); }
+:root[data-variante="vidro"][data-estilo] :is(.composer, .aba-conversa-tela .composer):focus-within { border-color: rgb(var(--c-overlay) / .16); }
+:root[data-variante="vidro"][data-estilo][data-theme="claro"] :is(.composer, .aba-conversa-tela .composer):focus-within { border-color: rgb(var(--c-overlay) / .14); box-shadow: var(--v-brilho), var(--m-sombra-leve); }
+:root[data-variante="vidro"][data-estilo] :is(.composer, .aba-conversa-tela .composer)::before {
+  content: ""; display: block; position: absolute; inset: 0; left: 0; right: 0; top: 0; height: auto; z-index: -1;
+  border-radius: inherit; pointer-events: none; opacity: 1; animation: none; transform: none; filter: none;
+  background: var(--v-vidro-forte);
+  -webkit-backdrop-filter: var(--v-desfoque); backdrop-filter: var(--v-desfoque);
+}
+:root[data-variante="vidro"][data-estilo] .aba-conversa-tela .composer::after { display: none; }
+:root[data-variante="vidro"][data-estilo] :is(.composer-enviar, .aba-conversa-tela .composer-enviar) {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .25), 0 4px 14px rgb(var(--c-accent) / .35);
+}
+:root[data-variante="vidro"][data-estilo] :is(.composer-enviar, .aba-conversa-tela .composer-enviar):disabled { box-shadow: none; }
+:root[data-variante="vidro"][data-estilo] .composer-mencoes {
+  border: 1px solid var(--v-borda); border-radius: var(--m-r-menu); background: var(--v-vidro-forte);
+  box-shadow: var(--v-brilho), var(--v-sombra); -webkit-backdrop-filter: var(--v-desfoque); backdrop-filter: var(--v-desfoque);
+}
+
+/* ── Celular: barra de cima transparente com botões redondos de vidro (como o app do Codex) ─────── */
+:root[data-variante="vidro"][data-estilo] .m-topo {
+  box-shadow: none; background: linear-gradient(180deg, rgb(var(--v-fundo-faixa)) 62%, rgb(var(--v-fundo-faixa) / .8) 80%, rgb(var(--v-fundo-faixa) / 0));
+  padding-bottom: .875rem;
+}
+:root[data-variante="vidro"][data-estilo] .m-topo-icone {
+  width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--v-borda);
+  background: var(--v-vidro-forte); box-shadow: var(--v-brilho), 0 4px 14px rgb(0 0 0 / .35);
+  -webkit-backdrop-filter: var(--v-desfoque); backdrop-filter: var(--v-desfoque);
+}
+:root[data-variante="vidro"][data-estilo] .m-topo-icone:active:not(:disabled) { transform: scale(.94); }
+:root[data-variante="vidro"][data-estilo] .m-topo-texto { text-align: center; }
+:root[data-variante="vidro"][data-estilo] .m-topo-sub { justify-content: center; }
+:root[data-variante="vidro"][data-estilo] .m-conteudo { padding-top: .25rem; }
+:root[data-variante="vidro"][data-estilo] :is(.m-card, .m-resumo-item) {
+  border-color: rgb(var(--c-border-subtle)); background-color: rgb(var(--c-bg-surface)); box-shadow: var(--v-brilho);
+}
+:root[data-variante="vidro"][data-estilo] .m-card:active { background-color: rgb(var(--c-overlay) / .08); transform: scale(.985); }
+:root[data-variante="vidro"][data-estilo] .m-card-icone { background: rgb(var(--c-overlay) / .07); color: rgb(var(--c-text-primary)); }
+:root[data-variante="vidro"][data-estilo] .m-atalhos .btn { background: var(--v-vidro); box-shadow: var(--v-brilho); border: 1px solid var(--v-borda); }
+:root[data-variante="vidro"][data-estilo] .m-busca { background: rgb(var(--c-overlay) / .06); border-color: transparent; }
+:root[data-variante="vidro"][data-estilo] .m-badge { background: rgb(var(--c-overlay) / .09); }
+
+/* ── Minimalista e Vidro: campo de mensagem do celular numa linha só ───────────────────────────
+   Antes as ferramentas (anexar, renomear, modo, mais, continuar com, modelo, retomar) quebravam em
+   até quatro linhas embaixo do texto. Agora ficam numa faixa que rola para o lado, como no app do
+   Codex, e o enviar/parar fica preso à direita. Os menus que abriam para cima dentro do campo viram
+   folhas presas ao rodapé da tela (uma faixa que rola cortaria um menu `absolute` lá de dentro). */
+@media (max-width: 600px) {
+  :root[data-estilo="minimalista"] .composer-rodape {
+    flex-wrap: nowrap; gap: .25rem; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  :root[data-estilo="minimalista"] .composer-rodape::-webkit-scrollbar { display: none; }
+  :root[data-estilo="minimalista"] :is(.composer-chips, .composer-direita) { display: contents; }
+  :root[data-estilo="minimalista"] .composer-rodape > *,
+  :root[data-estilo="minimalista"] :is(.composer-chips, .composer-direita) > * { flex-shrink: 0; }
+  :root[data-estilo="minimalista"] .conversa-controles { flex-wrap: nowrap; }
+  :root[data-estilo="minimalista"] :is(.composer-rodape .m-chip-aviso, .composer-rodape .conversa-controles .m-dica) { white-space: nowrap; }
+  /* Enviar/Parar e "Retomar conversa" sempre à vista; com a conversa fechada o enviar (desativado) sai. */
+  :root[data-estilo="minimalista"] :is(.composer-enviar, .composer-parar, .m-chip-retomar) {
+    position: sticky; right: 0; z-index: 1; margin-left: auto;
+    box-shadow: -14px 0 12px -2px rgb(var(--m-balao-agente));
+  }
+  :root[data-estilo="minimalista"] .composer-parar + .composer-enviar { margin-left: 0; }
+  :root[data-estilo="minimalista"] .composer-parar:has(+ .composer-enviar) { right: 2.25rem; }
+  :root[data-estilo="minimalista"] .composer-rodape:has(.m-chip-retomar) .composer-enviar:disabled { display: none; }
+  /* Preso por cima do que rola: desativado fica apagado sem ficar transparente (o texto vazaria). */
+  :root[data-estilo="minimalista"] .m-chip-retomar:disabled {
+    opacity: 1; filter: none; color: rgb(255 255 255 / .6);
+    background: color-mix(in srgb, rgb(var(--c-accent)) 45%, rgb(var(--m-balao-agente)));
+  }
+  :root[data-variante="vidro"][data-estilo] :is(.composer-enviar, .composer-parar, .m-chip-retomar) {
+    box-shadow: -14px 0 12px -2px rgb(30 30 33), inset 0 1px 0 rgb(255 255 255 / .22);
+  }
+  :root[data-variante="vidro"][data-estilo][data-theme="claro"] :is(.composer-enviar, .composer-parar, .m-chip-retomar) {
+    box-shadow: -14px 0 12px -2px rgb(252 252 253);
+  }
+  :root[data-estilo="minimalista"] :is(.seletor-pop, .conversa-controles-menu, .seletor-pop.is-baixo) {
+    position: fixed; left: max(.75rem, env(safe-area-inset-left)); right: max(.75rem, env(safe-area-inset-right));
+    top: auto; bottom: calc(max(.75rem, env(safe-area-inset-bottom)) + 7.5rem); width: auto; min-width: 0;
+    transform-origin: bottom center;
+  }
+  :root[data-estilo="minimalista"] .conversa-controles-menu button { min-height: 44px; }
+}
+
+/* ── Minimalista e Vidro: movimento mais macio ─────────────────────────────────────────────────
+   Os "degraus" (`steps`) do Clássico saem e as molas que passavam do ponto (1.08) assentam sem
+   quicar. Só `opacity` e `transform`, que rodam no compositor. "Animações desligadas" e o
+   "reduzir movimento" do sistema continuam zerando tudo pela regra global do `index.css`. */
+:root[data-estilo="minimalista"] {
+  --v-curva: cubic-bezier(.22, 1, .36, 1);
+  --v-curva-folha: cubic-bezier(.32, .72, 0, 1);
+}
+:root[data-estilo="minimalista"] .popover { animation: vidro-pop-entra 180ms var(--v-curva); }
+:root[data-estilo="minimalista"] .select-pop[data-lado="cima"] { animation-name: vidro-pop-entra-cima; }
+@keyframes vidro-pop-entra { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
+@keyframes vidro-pop-entra-cima { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+:root[data-estilo="minimalista"] :is(.seletor-pop, .trocar-agente-painel) { animation: vidro-folha-entra 260ms var(--v-curva-folha) both; }
+:root[data-estilo="minimalista"] .seletor-pop.is-saindo { animation: vidro-folha-sai 160ms cubic-bezier(.4, 0, 1, 1) both; }
+:root[data-estilo="minimalista"] .conversa-controles-menu { animation: vidro-folha-entra 220ms var(--v-curva-folha) both; }
+@keyframes vidro-folha-entra { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+@keyframes vidro-folha-sai { to { opacity: 0; transform: translateY(6px) scale(.98); } }
+:root[data-estilo="minimalista"] .seletor-vista { animation: vidro-vista 240ms var(--v-curva) both; }
+@keyframes vidro-vista { from { opacity: 0; transform: translateX(8px); } }
+
+:root[data-estilo="minimalista"] .chat-tela { animation: vidro-tela-entra 320ms var(--v-curva) both; }
+:root[data-estilo="minimalista"] :is(.settings-conteudo, .launcher-card) { animation: vidro-tela-entra 320ms var(--v-curva) both; }
+@keyframes vidro-tela-entra { from { opacity: 0; transform: translateY(8px); } }
+:root[data-estilo="minimalista"] .chat-fila { animation: vidro-tela-entra 260ms var(--v-curva) both; }
+
+/* Toque e hover: transição curta e suave em vez do "afundar" em degraus. */
+:root[data-estilo="minimalista"] :is(.btn, .composer-botao, .composer-enviar, .m-card, .m-topo-icone, .conversa-linha, .pasta, .aba-do-painel, .settings-menu-item) {
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 220ms ease,
+    opacity 180ms ease, transform 220ms var(--v-curva);
+}
+:root[data-estilo="minimalista"] .composer-enviar:active:not(:disabled) { transform: scale(.92); }
+:root[data-estilo="minimalista"] .btn:active:not(:disabled) { transform: scale(.97); filter: none; }
+:root[data-estilo="minimalista"] .m-dot-ativo { animation: vidro-respira 1.8s ease-in-out infinite; }
+@keyframes vidro-respira { 50% { opacity: .35; } }
+:root[data-estilo="minimalista"] .anexo-girando { animation: anexo-girar .8s linear infinite; }
+:root[data-estilo="minimalista"] .composer-botao.voz-gravando { animation: none; }
+
+/* Telas do celular entram com um fade curto ao trocar de rota (`entradaDaTela.ts`). */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-estilo="minimalista"] :is(.popover, .seletor-pop, .trocar-agente-painel, .conversa-controles-menu, .seletor-vista,
+    .chat-tela, .settings-conteudo, .launcher-card, .chat-fila, .m-dot-ativo, .fixed.inset-0) { animation: none; }
+  :root[data-estilo="minimalista"] :is(.btn, .composer-enviar, .m-card, .m-topo-icone):active { transform: none; }
+}
+
+/* No painel do PC quem anima a troca de conversa é o `animarConversa.ts` (o painel inteiro); o fade
+   próprio do `.chat-tela` por cima dele somava dois deslocamentos e duas opacidades. */
+:root[data-estilo="minimalista"] .painel-conteudo .chat-tela { animation: none; }
+/* Celular: a troca de tela já anima o `main` inteiro (`entradaDaTela.ts`); o `.chat-tela` não repete. */
+:root[data-estilo="minimalista"] .m-conteudo .chat-tela { animation: none; }

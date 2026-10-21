@@ -31,6 +31,7 @@ import { ModelosDeAgentes } from "../features/agentes/ModelosDeAgentes";
 import { FilaDeContas } from "../features/roteamento/FilaDeContas";
 import { SHORTCUTS, shortcutLabel, comboFromEvent, setRecordingShortcut, shortcutFor, type ShortcutId } from "../lib/shortcuts";
 import { NOME_DO_PRODUTO } from "../lib/identidade";
+import { usaFormaMinimalista } from "../lib/estiloDaInterface"; // Fork: Minimalista e Vidro.
 
 // Fork (Sobre mim): "sobre-mim" no topo do menu.
 export type SectionId = "sobre-mim" | "geral" | "aparencia" | "agentes" | "memoria" | "fila" | "modelos" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
@@ -199,7 +200,7 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
   const custom = settings.background === "custom";
   const semFundo = settings.background === "nenhum";
   const efeito = isBackgroundEffect(settings.background);
-  const minimalista = settings.estilo === "minimalista"; // Fork: relevo e fundo só valem no Clássico.
+  const minimalista = usaFormaMinimalista(settings.estilo); // Fork: relevo e fundo só valem no Clássico.
 
   return (
     <div className="settings-grade settings-grade-par">
@@ -248,7 +249,7 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
       </Card>
 
       <Card title="Painéis e movimento">
-        {minimalista && <p className="text-text-muted text-[11px]">No Minimalista o relevo não muda nada; ele volta a valer no Clássico.</p>}
+        {minimalista && <p className="text-text-muted text-[11px]">No Minimalista e no Vidro o relevo não muda nada; ele volta a valer no Clássico.</p>}
         <Segmented
           label="Relevo"
           description="Espessura da borda e da sombra dos painéis — o quão 'chunky' o app fica."
@@ -269,7 +270,7 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
       </Card>
 
       <Card title="Fundo do app">
-        {minimalista && <p className="text-text-muted text-[11px]">No Minimalista o fundo fica liso; a escolha daqui volta a valer no Clássico.</p>}
+        {minimalista && <p className="text-text-muted text-[11px]">No Minimalista e no Vidro o fundo fica liso; a escolha daqui volta a valer no Clássico.</p>}
         <Segmented
           label="Imagem de fundo"
           description="Pixels é a grade padrão do app. Aurora, Poente e Maré são gradientes suaves. Ondas é um efeito animado em WebGL — mais bonito, mais GPU."

@@ -135,5 +135,5 @@ it("Aparência: escolhe o estilo da interface (Clássico por padrão)", () => {
   fireEvent.click(screen.getByRole("radio", { name: /Minimalista/ }));
   expect(onChange).toHaveBeenCalledWith({ estilo: "minimalista" });
   expect(screen.getByRole("radio", { name: /Minimalista/ })).toHaveAttribute("aria-checked", "true");
-  expect(screen.getByText(/No Minimalista o fundo fica liso/)).toBeInTheDocument();
+  expect(screen.getByText(/No Minimalista e no Vidro o fundo fica liso/)).toBeInTheDocument();
 });
