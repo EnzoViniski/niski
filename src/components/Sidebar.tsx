@@ -11,6 +11,7 @@ import {
   CloseIcon,
   CopyIcon,
   DockerIcon,
+  FlagIcon,
   FolderIcon,
   FolderPlusIcon as FolderPlus,
   GitBranchIcon,
@@ -115,6 +116,9 @@ interface SidebarProps {
   /** Tela de fluxos de agentes (editor estilo n8n e execuções). */
   showFluxos?: boolean;
   onOpenFluxos?: () => void;
+  /** Fork: Roadmaps de estudo (abre onde parou). */
+  showRoadmaps?: boolean;
+  onOpenRoadmaps?: () => void;
   onOpenHistory: () => void;
   /** Antigo clique no logo: o logo mudou para a barra superior (`TitleBar`). */
   onHome?: () => void;
@@ -169,6 +173,8 @@ export function Sidebar({
   showHistory,
   showFluxos = false,
   onOpenFluxos,
+  showRoadmaps = false,
+  onOpenRoadmaps,
   onOpenHistory,
   onHome,
   onAddProject,
@@ -410,6 +416,14 @@ export function Sidebar({
 
       {/* Footer */}
       <div className="px-2 py-3 border-t border-border-subtle/60 space-y-0.5">
+        {onOpenRoadmaps && (
+          <NavItem
+            active={showRoadmaps}
+            onClick={onOpenRoadmaps}
+            icon={<FlagIcon className="w-4 h-4" aria-hidden="true" />}
+            label="Roadmaps"
+          />
+        )}
         {onOpenFluxos && (
           <NavItem
             active={showFluxos}

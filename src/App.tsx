@@ -45,6 +45,8 @@ import {
 import { HistoryView } from "./features/history/HistoryView";
 // Fork: React Flow só ao abrir a tela de Fluxos.
 import { FluxosView } from "./features/fluxos/FluxosViewTardio";
+// Fork: Roadmaps de estudo, carregados só ao abrir a tela.
+import { RoadmapsView } from "./features/roadmaps/RoadmapsViewTardio";
 import type { HistoryEntry } from "./features/history/historyService";
 // Fork (retomar-sempre): retomar do Histórico sem beco sem saída.
 import { retomarDoHistorico } from "./features/retomada/retomarDoHistorico";
@@ -58,7 +60,7 @@ import { matchesShortcut } from "./lib/shortcuts";
 import { useAberturasDaAtividade } from "./features/atividade/navegacao";
 import { useAtividadeDoDesktop } from "./features/atividade/vistas";
 
-type View = "workspace" | "settings" | "history" | "fluxos" | "conversa";
+type View = "workspace" | "settings" | "history" | "fluxos" | "conversa" | "roadmaps";
 
 export function App() { return <AcoesDaPaleta><AppComPaleta /></AcoesDaPaleta>; }
 
@@ -67,6 +69,16 @@ function AppComPaleta() {
   const [lateralOculta, setLateralOculta] = useState(false);
   useAcoesDaPaleta("app", [{ id: "alternar-lateral", titulo: "Alternar barra lateral", executar: () => setLateralOculta((atual) => !atual) }]);
   const [view, setView] = useState<View>("workspace");
+  // Fork (Roadmaps): cada abertura remonta a tela; `continuar` vai direto ao último roadmap.
+  const [aberturaDosRoadmaps, setAberturaDosRoadmaps] = useState({ chave: 0, continuar: true });
+  const abrirRoadmaps = useCallback((continuar: boolean) => {
+    setAberturaDosRoadmaps((atual) => ({ chave: atual.chave + 1, continuar }));
+    setView("roadmaps");
+  }, []);
+  useAcoesDaPaleta("roadmaps", [
+    { id: "roadmaps-continuar", titulo: "Continuar estudo (Roadmaps)", executar: () => abrirRoadmaps(true) },
+    { id: "roadmaps-lista", titulo: "Roadmaps de estudo", executar: () => abrirRoadmaps(false) },
+  ]);
   // Fork: pasta do agente em worktree isolada que acabou de ser encerrado (`DialogoDaWorktree`).
   const [worktreeAoFechar, setWorktreeAoFechar] = useState<string | null>(null);
   const fecharDialogoDaWorktree = useCallback(() => setWorktreeAoFechar(null), []);
@@ -224,6 +236,7 @@ function AppComPaleta() {
           view === "settings" ? ["Configurações"]
             : view === "history" ? ["Histórico"]
             : view === "fluxos" ? ["Fluxos de agentes"]
+            : view === "roadmaps" ? ["Roadmaps"]
             : [workspaces.find((item) => item.id === activeWorkspaceId)?.name, activeProject?.name].filter((parte): parte is string => Boolean(parte))
         }
         dica={view === "workspace" ? activeProject?.path : undefined}
@@ -293,6 +306,8 @@ function AppComPaleta() {
         showSettings={view === "settings"}
         showHistory={view === "history"}
         showFluxos={view === "fluxos"}
+        showRoadmaps={view === "roadmaps"}
+        onOpenRoadmaps={() => abrirRoadmaps(true)}
         onOpenFluxos={() => setView("fluxos")}
         onOpenHistory={openHistory}
         onHome={() => setView("workspace")}
@@ -384,6 +399,8 @@ function AppComPaleta() {
         <main className="flex-1 min-h-0">
           {view === "history" ? (
             <HistoryView onResume={resumeHistory} onClose={closeHistory} />
+          ) : view === "roadmaps" ? (
+            <RoadmapsView key={aberturaDosRoadmaps.chave} continuar={aberturaDosRoadmaps.continuar} onClose={() => setView("workspace")} />
           ) : view === "fluxos" ? (
             <div className="h-full min-h-0 flex flex-col">
               <div className="flex-1 min-h-0">
