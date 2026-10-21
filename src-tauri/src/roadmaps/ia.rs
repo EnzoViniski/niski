@@ -6,6 +6,7 @@
 //!   `web_search="live"`), numa pasta temporária vazia, longe de qualquer projeto.
 //! - Nada vai para o histórico de conversas (`--no-session-persistence` / `--ephemeral`).
 //! - Um pedido por chave; fechar o painel cancela (`roadmaps_ia_cancelar` mata o grupo do processo).
+//! - Fork (Editor de vídeo): `videos/agente.rs` reusa as peças `pub(crate)` daqui.
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -21,12 +22,12 @@ pub const CANCELADO: &str = "Pedido cancelado.";
 
 /// Marcas que o Claude Code põe nos processos que abre (mesma lista de `omni-engine/src/main.rs`):
 /// herdadas, o Claude daqui se veria como sessão filha.
-const MARCAS_DE_SESSAO_DO_CLAUDE: [&str; 11] = [
+pub(crate) const MARCAS_DE_SESSAO_DO_CLAUDE: [&str; 11] = [
     "CLAUDECODE", "CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_SESSION_ATTENDED",
     "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_EXECPATH", "CLAUDE_CODE_MESSAGING_SOCKET",
     "CLAUDE_CODE_MESSAGING_TOKEN", "CLAUDE_CODE_SSE_PORT", "CLAUDE_PID", "CLAUDE_EFFORT",
 ];
-const VARIAVEIS_DO_ENGINE: [&str; 3] = ["OMNI_ENGINE_PORT", "OMNI_DATA_DIR", "OMNI_ENGINE_PATH"];
+pub(crate) const VARIAVEIS_DO_ENGINE: [&str; 3] = ["OMNI_ENGINE_PORT", "OMNI_DATA_DIR", "OMNI_ENGINE_PATH"];
 
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct PedidoDeIa {
@@ -50,7 +51,7 @@ fn em_andamento() -> &'static Mutex<HashMap<String, EmAndamento>> {
 }
 
 /// Modelo vai como argumento: só nomes simples (`opus`, `gpt-5.5`, `claude-sonnet-5-5[1m]`).
-fn modelo_seguro(modelo: &str) -> bool {
+pub(crate) fn modelo_seguro(modelo: &str) -> bool {
     !modelo.is_empty() && modelo.len() <= 80 && !modelo.starts_with('-')
         && modelo.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | ':' | '[' | ']' | '/'))
 }
@@ -114,7 +115,7 @@ pub fn resposta_da_saida(cli: &str, saida: &str) -> Result<String, String> {
     }
 }
 
-fn matar_grupo(pid: u32) {
+pub(crate) fn matar_grupo(pid: u32) {
     #[cfg(unix)] { let _ = Command::new("kill").arg("-TERM").arg(format!("-{pid}")).stdout(Stdio::null()).stderr(Stdio::null()).status(); }
     #[cfg(windows)] {
         let mut c = Command::new("taskkill");
@@ -198,7 +199,7 @@ pub fn rodar(chave: &str, exe: &Path, args: &[String], entrada: &str, env: &[(St
     Ok(saida)
 }
 
-fn executavel(cli: &str) -> Option<PathBuf> {
+pub(crate) fn executavel(cli: &str) -> Option<PathBuf> {
     match cli {
         "claude" => crate::agentes::executavel_do_claude(),
         "codex" => {

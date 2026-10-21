@@ -5,11 +5,14 @@
 //!   `midias.rs` (mídia por hash) e `referencias.rs` (pastas de referências).
 //! - O domínio (briefing, composição, timeline) mora no front, em `src/features/video/`.
 
+pub mod agente;
 pub mod arquivos;
 pub mod midias;
+pub mod processo;
 pub mod projetos;
 pub mod protocolo;
 pub mod referencias;
+pub mod render;
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};

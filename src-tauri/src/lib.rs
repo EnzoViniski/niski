@@ -139,6 +139,13 @@ pub fn run() {
             roadmaps::ia::roadmaps_ia_cancelar,
             videos::videos_listar, // Fork: Editor de vídeo.
             videos::protocolo::videos_endereco_base,
+            videos::agente::videos_agente,
+            videos::agente::videos_agente_cancelar,
+            videos::agente::videos_agente_rodando,
+            videos::render::videos_exportar,
+            videos::render::videos_exportar_cancelar,
+            videos::render::videos_requisitos,
+            videos::render::videos_preparar_navegador,
             videos::videos_criar,
             videos::videos_abrir,
             videos::videos_ler,
