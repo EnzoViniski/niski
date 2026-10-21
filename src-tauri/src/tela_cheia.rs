@@ -9,9 +9,10 @@
 //!    `setRevealAmount:` (privado, 0 a 1) dele durante a animação — o mesmo gancho do Chromium
 //!    (`immersive_mode_controller_cocoa.mm`).
 //! 2. A faixa de título nativa fica transparente (sem fundo nem material): os semáforos nativos
-//!    aparecem por cima da nossa TitleBar, como no Chrome por cima das abas.
+//!    aparecem por cima da nossa TitleBar, como no Chrome por cima das abas. (A 0.9.2 recriava os
+//!    semáforos dentro do conteúdo; saiu na 0.9.3 e não volta: a janela parou de receber cliques.)
 //! 3. A cada mudança, `--medza-barra-revelada` = quanto a barra de menus entra na nossa janela ×
-//!    `revealAmount`. O CSS (`fork.css`) desce só a TitleBar essa altura, por cima do conteúdo.
+//!    `revealAmount`, preservando subpixels. Duração/curva do NSAnimationContext acompanham a barra.
 //!
 //! Fora da tela cheia nada disto existe. Sem o seletor privado, não pendura nada (barra por cima,
 //! como antes).
@@ -31,6 +32,10 @@ use objc2_app_kit::{
 use objc2_foundation::{NSNotification, NSNotificationCenter, NSPoint, NSRect, NSSize};
 use tauri::{Manager, WebviewWindow};
 
+// Fork: ponte de animação (duração/curva do AppKit para a barra) em arquivo próprio.
+#[path = "animacao_do_topo.rs"]
+mod animacao;
+
 /// Barra de menus sem notch, quando o AppKit não informa a altura.
 const MENU_PADRAO_PT: f64 = 24.0;
 /// Acima disto a medida está errada (outra tela, transição): não desloca.
@@ -47,6 +52,7 @@ thread_local! {
     /// Saindo da tela cheia: ignora o que o AppKit ainda mandar até o acessório sair.
     static SAINDO: Cell<bool> = const { Cell::new(false) };
     static ULTIMO_PX: Cell<f64> = const { Cell::new(0.0) };
+    static ULTIMA_REVELACAO: Cell<f64> = const { Cell::new(0.0) };
     static ULTIMO_REGISTRADO: Cell<f64> = const { Cell::new(0.0) };
     /// Endereço da janela de faixa já tratada (0 = nenhuma).
     static FAIXA_TRATADA: Cell<usize> = const { Cell::new(0) };
@@ -67,7 +73,11 @@ define_class!(
                 let _: () = msg_send![super(self), setRevealAmount: quanto];
             }
             deixar_faixa_transparente(self);
-            aplicar(medir(quanto));
+            let anterior = ULTIMA_REVELACAO.with(|c| c.replace(quanto));
+            let movimento = if anterior > 0.0 && anterior < 1.0 {
+                animacao::Movimento::imediato()
+            } else { animacao::Movimento::atual(quanto) };
+            aplicar_com_movimento(medir(quanto), movimento);
             // Ao fim da animação registra no log quanto desceu (uma linha por revelar/esconder).
             unsafe {
                 let _: () = msg_send![
@@ -223,7 +233,7 @@ fn medir(quanto: f64) -> f64 {
         return 0.0;
     }
     let altura = JANELA.with(|j| j.get().map(|j| altura_da_barra_de_menus(&j.ns))).unwrap_or(0.0);
-    let px = (quanto.min(1.0) * altura).round();
+    let px = quanto.min(1.0) * altura;
     if px > 0.0 && px <= MAXIMO_PX { px } else { 0.0 }
 }
 
@@ -236,13 +246,15 @@ fn rodar_js(js: &str) {
 }
 
 fn aplicar(px: f64) {
+    aplicar_com_movimento(px, animacao::Movimento::imediato());
+}
+
+fn aplicar_com_movimento(px: f64, movimento: animacao::Movimento) {
     let anterior = ULTIMO_PX.with(|c| c.replace(px));
-    if (anterior - px).abs() < 0.5 {
+    if (anterior - px).abs() < 0.01 {
         return;
     }
-    rodar_js(&format!(
-        "document.documentElement.style.setProperty('--medza-barra-revelada','{px}px')"
-    ));
+    rodar_js(&movimento.javascript(px));
 }
 
 fn marcar_tela_cheia(ligada: bool) {
@@ -293,6 +305,7 @@ fn tirar_acessorio() {
         controle.removeFromParentViewController();
     }
     aplicar(0.0);
+    ULTIMA_REVELACAO.with(|c| c.set(0.0));
     marcar_tela_cheia(false);
 }
 

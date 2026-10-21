@@ -4,7 +4,7 @@ import { ConversaDoHistorico } from "../paleta/ConversaDoHistorico";
 import { GlifoColunas, GlifoExpandir, GlifoFechar, GlifoLinhas, GlifoRecolher } from "../../components/ui/PixelGlyph";
 import { Button } from "../../components/ui";
 import type { AgentView } from "../../types/settings";
-import { Component, useCallback, useEffect, useState } from "react";
+import { Component, useCallback, useEffect, useRef, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import type { PaneNode, SplitNode, WorkspaceAction } from "../../types/workspace";
 import type { KanbanAction, KanbanState } from "../../types/kanban";
@@ -32,8 +32,8 @@ import { WorkspaceTabBar } from "./WorkspaceTabBar";
 import { PainelVazio } from "./PainelVazio";
 import { ehKindConhecido } from "../../services/consertarWorkspace";
 import { EtiquetaDoProjeto, useProjetoDeFora, useProjetosDasAbas } from "./projetosDasAbas";
-// Fork: o WebKit anima snapshots deste painel quando a conversa muda.
-import { nomeDaTransicao } from "./transicoesDeConversa";
+// Fork (0.9.4): a conversa que aparece no painel entra animada (Web Animations, sem View Transitions).
+import { useAnimarAoTrocar } from "./animarConversa";
 
 interface PaneViewProps {
   pane: PaneNode;
@@ -80,6 +80,9 @@ export function PaneView({
   const [dirtyTabIds, setDirtyTabIds] = useState<Set<string>>(new Set());
   const tab = pane.tabs.find((item) => item.id === pane.activeTabId) ?? pane.tabs[0];
   const tabId = tab?.id;
+  // Fork (0.9.4): entrada animada da conversa ao abrir/trocar/fechar aba (ver animarConversa.ts).
+  const conteudoRef = useRef<HTMLDivElement>(null);
+  useAnimarAoTrocar(conteudoRef, tabId ?? "vazio");
   const deFora = useProjetoDeFora(tab?.kind === "agent" || tab?.kind === "terminal" ? tab.resourceId : null);
   // Fork: de que projeto é este painel. Aba com projeto próprio (criada pelo "+" aqui) ou conversa de
   // outro projeto: o "+" abre agente **nesse** projeto, não no dono do layout.
@@ -158,8 +161,6 @@ export function PaneView({
       ].join(" ")}
       aria-label={`Painel ${tab?.title ?? pane.id}`}
       data-drop-pane={pane.id}
-      data-transicao-painel={`${projectId}/${pane.id}/${tab?.id ?? "vazio"}/${tab?.resourceId ?? "novo"}`}
-      style={{ viewTransitionName: nomeDaTransicao(pane.id) } as React.CSSProperties}
       onPointerDown={() => dispatch({ type: "FOCUS_PANE", paneId: pane.id })}
       onDragEnter={(event) => {
         if (!Array.from(event.dataTransfer.types).includes(PANE_DRAG_TYPE)) return;
@@ -208,7 +209,7 @@ export function PaneView({
           <EtiquetaDoProjeto projeto={deFora} />
         </div>
       )}
-      <div className="flex-1 min-h-0">
+      <div ref={conteudoRef} className="flex-1 min-h-0">
         <PaneErrorBoundary key={tab?.id ?? pane.id}>
         {!tab ? (
           <PainelVazio onCriar={criarAba} />
