@@ -16,6 +16,16 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.8.6",
+    date: "2026-10-20",
+    changes: [
+      "O microfone do chat mudou de lugar: agora fica à direita, na linha onde você escreve, logo acima do botão de enviar.",
+      "Enquanto você fala, o que está sendo entendido aparece direto na caixa de texto, em cinza claro. Ao confirmar, vira o texto final, na cor normal, pronto para revisar e enviar.",
+      "Ao lado do microfone aparecem barrinhas que sobem e descem com a sua voz, e um botão ⏎ para confirmar (o Enter também confirma e o Esc descarta).",
+      "A caixa de texto começa com uma linha só e vai crescendo conforme o texto chega.",
+    ],
+  },
+  {
     version: "0.8.5",
     date: "2026-10-20",
     changes: [
