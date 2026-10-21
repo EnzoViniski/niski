@@ -1,0 +1,15 @@
+/* Fork (trocar agente): "Continuar com…" no campo da conversa. Mesma família do menu dos controles. */
+.trocar-agente { position: relative; display: inline-flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+.trocar-agente-botao { display: inline-flex; align-items: center; gap: .35rem; width: auto; padding: 0 .5rem; font-size: .75rem; white-space: nowrap; }
+.trocar-agente-painel { position: absolute; right: 0; bottom: calc(100% + .5rem); z-index: 40; width: min(20rem, calc(100vw - 2rem)); display: flex; flex-direction: column; gap: .4rem; padding: .5rem; color: rgb(var(--c-text-primary)); background: rgb(var(--c-bg-elevated)); border: 1px solid rgb(var(--c-outline)); box-shadow: 0 4px 16px rgb(0 0 0 / .3); }
+.trocar-agente-titulo { display: flex; align-items: center; gap: .4rem; margin: 0; font-size: .8rem; font-weight: 600; }
+.trocar-agente-lista { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; max-height: 18rem; overflow: auto; }
+.trocar-agente-lista button { display: flex; align-items: center; gap: .5rem; width: 100%; padding: .55rem .5rem; text-align: left; font-size: .8rem; }
+.trocar-agente-lista button:hover:not(:disabled) { background: rgb(var(--c-accent) / .12); }
+.trocar-agente-lista button:disabled { opacity: .5; cursor: not-allowed; }
+.trocar-agente-nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trocar-agente-conta { font-size: .7rem; color: rgb(var(--c-text-muted)); white-space: nowrap; }
+.trocar-agente-confirmar { display: flex; flex-direction: column; gap: .5rem; }
+.trocar-agente-acoes { display: flex; gap: .4rem; justify-content: flex-end; }
+.trocar-agente-aviso { max-width: 22rem; }
+@media (max-width: 600px) { .trocar-agente-painel { position: fixed; left: .5rem; right: .5rem; bottom: 5rem; width: auto; } }
