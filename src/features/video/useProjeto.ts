@@ -48,6 +48,8 @@ export function useProjeto(id: string) {
   const desfazer = useRef<number[]>([]);
   const refazer = useRef<number[]>([]);
   const pastas = useRef<Pick<PastaDeReferencia, "nome" | "descricao">[]>([]);
+  /** Fork: `index.html` como está no disco (o agente pode mudar por fora, pela conversa normal). */
+  const htmlDoDisco = useRef<string | null>(null);
 
   const mudar = useCallback((parcial: Partial<EstadoDoProjeto>) => {
     setEstado((e) => ({ ...e, ...parcial, podeDesfazer: desfazer.current.length > 0, podeRefazer: refazer.current.length > 0 }));
@@ -61,6 +63,7 @@ export function useProjeto(id: string) {
       ]);
       if (!projeto) throw new Error("Esse projeto não existe mais.");
       const p = JSON.parse(projeto) as Projeto;
+      htmlDoDisco.current = html ?? "";
       void disco.listarPastas().then((lista) => { pastas.current = lista.filter((x) => p.pastasDeReferencia?.includes(x.id)); }).catch(() => undefined);
       mudar({
         projeto: p, html: html ?? "", brief: brief ?? "", midias: normalizarMidias(lerJson<Partial<Midias>>(midias, MIDIAS_VAZIAS)), faltando,
@@ -75,24 +78,39 @@ export function useProjeto(id: string) {
     let vivo = true;
     desfazer.current = []; refazer.current = [];
     void disco.abrirProjeto(id).then((pasta) => { if (vivo) mudar({ pasta }); }).catch(() => undefined);
-    void recarregar();
+    void recarregar().then(() => {
+      // Fork: projeto de antes da 0.14 ou pasta de referências editada: confere as pastas que o agente lê.
+      const p = atual.current.projeto;
+      if (!vivo || !p || p.aDois) return;
+      disco.configurarPastas(id, p.pastaDoComputador ?? null, p.pastasDeReferencia ?? []).catch((e) => {
+        if (vivo && p.pastaDoComputador) mudar({ erro: `A pasta do computador deste vídeo não abriu (${texto(e)}). Escolha de novo no topo do editor.` });
+      });
+    });
     return () => { vivo = false; };
   }, [id, recarregar, mudar]);
 
   /** Grava a composição com um motivo (vira versão para desfazer). */
   const editarHtml = useCallback(async (novo: string, motivo: string) => {
     if (novo === atual.current.html) return;
+    // Fork: o agente pode ter mudado o arquivo agora há pouco. Gravar por cima apagaria a edição dele.
+    const noDisco = await disco.lerArquivo(id, "index.html").catch(() => null);
+    if (noDisco !== null && htmlDoDisco.current !== null && noDisco !== htmlDoDisco.current) {
+      await recarregar();
+      mudar({ erro: "O agente mudou o vídeo enquanto você editava. Recarreguei a versão dele; faça a mudança de novo." });
+      return;
+    }
     const anterior = atual.current.html;
     mudar({ html: novo, versaoDoPreview: atual.current.versaoDoPreview + 1 });
     try {
       const n = await disco.gravarArquivo(id, "index.html", novo, motivo);
+      htmlDoDisco.current = novo;
       if (n !== null) desfazer.current.push(n);
       refazer.current = [];
       mudar({ erro: null });
     } catch (e) {
       mudar({ html: anterior, erro: `Não salvei a mudança: ${texto(e)}`, versaoDoPreview: atual.current.versaoDoPreview + 1 });
     }
-  }, [id, mudar]);
+  }, [id, mudar, recarregar]);
 
   const gravarBrief = useCallback(async (novo: string, motivo = "Briefing editado") => {
     if (novo === atual.current.brief) return;
@@ -118,7 +136,7 @@ export function useProjeto(id: string) {
   const gravarMidias = useCallback(async (midias: Midias, motivo?: string) => {
     mudar({ midias });
     await disco.gravarArquivo(id, "midias.json", JSON.stringify(midias, null, 2), motivo);
-    const brief = atualizarReferenciasNoBrief(atual.current.brief, secaoDeReferencias(midias.itens, midias.links, pastas.current));
+    const brief = atualizarReferenciasNoBrief(atual.current.brief, secaoDeReferencias(midias.itens, midias.links, pastas.current, atual.current.projeto?.pastaDoComputador));
     if (brief !== atual.current.brief) { mudar({ brief }); await disco.gravarArquivo(id, "BRIEF.md", brief); }
   }, [id, mudar]);
 
@@ -164,12 +182,36 @@ export function useProjeto(id: string) {
     try {
       await disco.aplicarPasta(pasta.id, id);
       const p = atual.current.projeto;
-      if (p && !p.pastasDeReferencia?.includes(pasta.id)) await mudarProjeto({ pastasDeReferencia: [...(p.pastasDeReferencia ?? []), pasta.id] });
+      if (p && !p.pastasDeReferencia?.includes(pasta.id)) {
+        const refs = [...(p.pastasDeReferencia ?? []), pasta.id];
+        await disco.configurarPastas(id, p.pastaDoComputador ?? null, refs).catch(() => undefined); // Fork: o agente lê a pasta.
+        await mudarProjeto({ pastasDeReferencia: refs });
+      }
       if (!pastas.current.some((x) => x.nome === pasta.nome)) pastas.current = [...pastas.current, { nome: pasta.nome, descricao: pasta.descricao }];
       await depoisDeMudarMidias();
       mudar({ ocupado: null, erro: null });
     } catch (e) { mudar({ ocupado: null, erro: texto(e) }); }
   }, [id, depoisDeMudarMidias, mudarProjeto, mudar]);
+
+  /** Fork: liga/desliga a pasta do computador e as pastas de referências deste vídeo. O Rust confere
+   *  a pasta e grava o que o agente pode ler (CLAUDE.md/AGENTS.md e `.claude/settings.json`). */
+  const configurarPastas = useCallback(async (mudancas: { pastaDoComputador?: string | null; pastasDeReferencia?: string[] }) => {
+    const p = atual.current.projeto;
+    if (!p) return false;
+    const computador = mudancas.pastaDoComputador !== undefined ? mudancas.pastaDoComputador : p.pastaDoComputador ?? null;
+    const refs = mudancas.pastasDeReferencia ?? p.pastasDeReferencia ?? [];
+    try {
+      await disco.configurarPastas(id, computador, refs);
+      const { pastaDoComputador: _, ...resto } = p;
+      const novo: Projeto = { ...resto, pastasDeReferencia: refs, ...(computador ? { pastaDoComputador: computador } : {}) };
+      mudar({ projeto: novo });
+      await disco.gravarArquivo(id, "projeto.json", JSON.stringify(novo, null, 2));
+      pastas.current = (await disco.listarPastas().catch(() => [] as PastaDeReferencia[])).filter((x) => refs.includes(x.id));
+      await gravarMidias(atual.current.midias);
+      mudar({ erro: null });
+      return true;
+    } catch (e) { mudar({ erro: texto(e) }); return false; }
+  }, [id, gravarMidias, mudar]);
 
   /** Antes de o agente editar: guarda uma versão e põe no desfazer. */
   const guardarVersao = useCallback(async (motivo: string) => {
@@ -205,7 +247,7 @@ export function useProjeto(id: string) {
   }, [id, recarregar, mudar]);
 
   return {
-    estado, recarregar, editarHtml, gravarBrief, mudarProjeto, importar, removerMidia, mudarMidia, mudarLinks, aplicarPasta,
+    estado, recarregar, editarHtml, gravarBrief, mudarProjeto, importar, removerMidia, mudarMidia, mudarLinks, aplicarPasta, configurarPastas,
     guardarVersao, desfazer: () => voltar("desfazer"), refazer: () => voltar("refazer"), voltarPara,
     limparErro: () => mudar({ erro: null }),
   };

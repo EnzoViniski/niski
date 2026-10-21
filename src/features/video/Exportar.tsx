@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { Button, SegmentedControl } from "../../components/ui";
 import { CheckIcon, LoaderIcon, WarningIcon } from "../../components/ui/PixelIcon";
+import * as disco from "./armazenamento";
+import { nomeDaPasta } from "./PastaDoComputador";
 
 type Formato = "mp4" | "mov" | "webm" | "gif";
 type Qualidade = "draft" | "standard" | "high";
@@ -12,7 +14,8 @@ interface Requisitos { ok: boolean; checks?: Checagem[] }
 /** O que o render precisa de verdade (o doctor também lista extras opcionais, como TTS e Docker). */
 const ESSENCIAIS = /node|ffmpeg|ffprobe|chrome|browser|disk/i;
 
-export function Exportar({ projeto, nome, onFechar }: { projeto: string; nome: string; onFechar: () => void }) {
+export function Exportar({ projeto, nome, pastaDoComputador = null, onFechar }: { projeto: string; nome: string; pastaDoComputador?: string | null; onFechar: () => void }) {
+  const [copiado, setCopiado] = useState<string | null>(null);
   const [formato, setFormato] = useState<Formato>("mp4");
   const [qualidade, setQualidade] = useState<Qualidade>("standard");
   const [fps, setFps] = useState<"" | "30" | "60">("");
@@ -75,8 +78,15 @@ export function Exportar({ projeto, nome, onFechar }: { projeto: string; nome: s
         )}
         {estado === "pronto" && arquivo && (
           <div className="video-ok" role="status"><CheckIcon size={14} aria-hidden="true" /> Pronto: {arquivo.split(/[\\/]/).pop()}
-            <Button size="sm" variant="glass" onClick={() => void import("@tauri-apps/plugin-opener").then((o) => o.revealItemInDir(arquivo))}>Mostrar no Finder</Button>
-            <Button size="sm" variant="ghost" onClick={() => void import("@tauri-apps/plugin-opener").then((o) => o.openPath(arquivo))}>Abrir</Button>
+            {/* Fork: pelo Rust (o opener do webview recusava a pasta do projeto: "Not allowed to open path"). */}
+            <Button size="sm" variant="glass" onClick={() => void disco.abrirRender(projeto, arquivo, true).catch((e) => setMensagem(String(e)))}>Mostrar no Finder</Button>
+            <Button size="sm" variant="ghost" onClick={() => void disco.abrirRender(projeto, arquivo, false).catch((e) => setMensagem(String(e)))}>Abrir</Button>
+            {pastaDoComputador && (copiado
+              ? <span className="video-dica">Copiado para {nomeDaPasta(pastaDoComputador)}/Vídeos</span>
+              : <Button size="sm" variant="ghost" title={`${pastaDoComputador}/Vídeos`}
+                  onClick={() => void disco.copiarRender(projeto, arquivo, pastaDoComputador).then(setCopiado).catch((e) => setMensagem(String(e)))}>
+                  Salvar em “{nomeDaPasta(pastaDoComputador)}”
+                </Button>)}
           </div>
         )}
         {mensagem && <p className={estado === "erro" ? "video-erro" : "video-aviso"} role="alert">{mensagem}</p>}

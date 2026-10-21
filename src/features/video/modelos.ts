@@ -102,13 +102,15 @@ const NOME_DO_TIPO: Record<string, string> = {
 };
 
 /** Seção de referências do BRIEF.md, regenerada quando a biblioteca muda (entre as marcas). */
-export function secaoDeReferencias(midias: Midia[], links: LinkDeReferencia[], pastas: Pick<PastaDeReferencia, "nome" | "descricao">[] = []) {
+export function secaoDeReferencias(midias: Midia[], links: LinkDeReferencia[], pastas: Pick<PastaDeReferencia, "nome" | "descricao">[] = [], computador?: string) {
   const usar = midias.filter((m) => m.papel === "usar");
   const refs = midias.filter((m) => m.papel === "referencia");
   const item = (m: Midia) => `- \`${m.arquivo}\` (${NOME_DO_TIPO[m.tipo] ?? "arquivo"})${m.nota ? `: ${m.nota}` : ""}\n`;
   let texto = `${INICIO_DAS_REFERENCIAS}\n## Mídias e referências\n\n`;
+  // Fork: a pasta do computador (identidade visual, informações) vem antes de tudo.
+  if (computador) texto += `Pasta do computador deste vídeo: \`${computador}\` (identidade visual e informações; leia antes de criar).\n\n`;
   if (pastas.length) {
-    texto += "Pastas de referências escolhidas:\n\n";
+    texto += "Pastas de referências escolhidas (os caminhos estão no CLAUDE.md/AGENTS.md):\n\n";
     for (const p of pastas) texto += `- **${p.nome}**${p.descricao.trim() ? `: ${p.descricao.trim()}` : ""}\n`;
     texto += "\n";
   }
@@ -119,7 +121,7 @@ export function secaoDeReferencias(midias: Midia[], links: LinkDeReferencia[], p
 }
 
 /** BRIEF.md completo de um projeto novo. */
-export function gerarBrief(nome: string, b: Briefing, midias: Midia[], links: LinkDeReferencia[], pastas: Pick<PastaDeReferencia, "nome" | "descricao">[] = []) {
+export function gerarBrief(nome: string, b: Briefing, midias: Midia[], links: LinkDeReferencia[], pastas: Pick<PastaDeReferencia, "nome" | "descricao">[] = [], computador?: string) {
   const { largura, altura } = FORMATOS[b.formato];
   return `# ${nome.trim() || "Meu vídeo"}
 
@@ -130,7 +132,7 @@ ${b.descricao.trim() || "(sem descrição ainda)"}
 ## Formato
 
 ${linha("Formato", `${b.formato} (${largura}×${altura})`)}${linha("Duração", `${b.duracao} segundos`)}${linha("Estilo", b.estilo)}${linha("Público", b.publico)}${linha("Onde vai passar", b.plataforma)}${linha("Observações", b.observacoes)}
-${secaoDeReferencias(midias, links, pastas)}
+${secaoDeReferencias(midias, links, pastas, computador)}
 `;
 }
 

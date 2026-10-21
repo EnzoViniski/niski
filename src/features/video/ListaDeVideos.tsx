@@ -1,9 +1,10 @@
 // Fork (Editor de vídeo): os vídeos (projetos) e as pastas de referências.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/ui";
 import { ClapperboardIcon, FolderIcon, FolderPlusIcon, TrashIcon } from "../../components/ui/PixelIcon";
 import * as disco from "./armazenamento";
 import { CORES_DAS_PASTAS } from "./PastaDeReferencias";
+import { escolherPastaDoComputador, nomeDaPasta as nomeCurto } from "./PastaDoComputador";
 import { EntrarNaSessao } from "./aDois/EntrarNaSessao";
 import type { ItemDaLista, PastaDeReferencia } from "./tipos";
 
@@ -12,8 +13,15 @@ function quando(ms: number) {
   return new Date(ms).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+// Fork: pastas do computador que a pessoa já usou (só conveniência; cada vídeo guarda a dele).
+const PASTAS_LEMBRADAS = "medza.video.pastas";
+const PASTA_ATIVA = "medza.video.pasta-ativa";
+function lerLista(): string[] { try { const v = JSON.parse(localStorage.getItem(PASTAS_LEMBRADAS) ?? "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; } }
+function gravar(chave: string, valor: string | null) { try { if (valor === null) localStorage.removeItem(chave); else localStorage.setItem(chave, valor); } catch { /* sem armazenamento */ } }
+function lerAtiva() { try { return localStorage.getItem(PASTA_ATIVA); } catch { return null; } }
+
 export function ListaDeVideos({ onAbrir, onNovo, onAbrirPasta, onFechar, extra }: {
-  onAbrir: (id: string) => void; onNovo: () => void; onAbrirPasta: (id: string) => void; onFechar: () => void; extra?: React.ReactNode;
+  onAbrir: (id: string) => void; onNovo: (pastaDoComputador?: string) => void; onAbrirPasta: (id: string) => void; onFechar: () => void; extra?: React.ReactNode;
 }) {
   const [lista, setLista] = useState<ItemDaLista[] | null>(null);
   const [pastas, setPastas] = useState<PastaDeReferencia[]>([]);
@@ -21,6 +29,26 @@ export function ListaDeVideos({ onAbrir, onNovo, onAbrirPasta, onFechar, extra }
   const [confirmar, setConfirmar] = useState<string | null>(null);
   const [nomeDaPasta, setNomeDaPasta] = useState("");
   const [entrando, setEntrando] = useState(false);
+  const [lembradas, setLembradas] = useState<string[]>(lerLista);
+  /** Filtro: `null` = todos os vídeos; caminho = só os desta pasta do computador. */
+  const [ativa, setAtiva] = useState<string | null>(lerAtiva);
+  const pastasDoPc = useMemo(() => [...new Set([...lembradas, ...(lista ?? []).map((i) => i.projeto.pastaDoComputador).filter((c): c is string => !!c)])], [lembradas, lista]);
+  const visiveis = useMemo(() => (ativa ? lista?.filter((i) => i.projeto.pastaDoComputador === ativa) : lista) ?? null, [ativa, lista]);
+  const escolherAtiva = (c: string | null) => { setAtiva(c); gravar(PASTA_ATIVA, c); };
+  const adicionarPasta = async () => {
+    try {
+      const c = await escolherPastaDoComputador();
+      if (!c) return;
+      const nova = [c, ...lembradas.filter((x) => x !== c)].slice(0, 12);
+      setLembradas(nova); gravar(PASTAS_LEMBRADAS, JSON.stringify(nova));
+      escolherAtiva(c);
+    } catch (e) { setErro(String(e)); }
+  };
+  const esquecer = (c: string) => {
+    const nova = lembradas.filter((x) => x !== c);
+    setLembradas(nova); gravar(PASTAS_LEMBRADAS, JSON.stringify(nova));
+    if (ativa === c) escolherAtiva(null);
+  };
 
   const carregar = () => {
     void disco.listarProjetos().then(setLista).catch((e) => setErro(String(e)));
@@ -46,25 +74,45 @@ export function ListaDeVideos({ onAbrir, onNovo, onAbrirPasta, onFechar, extra }
         {extra}
         <Button size="sm" variant="ghost" onClick={onFechar}>Fechar</Button>
         <Button size="sm" variant="glass" onClick={() => setEntrando(true)}>Entrar numa sessão a dois</Button>
-        <Button size="sm" variant="primary" onClick={onNovo}>Novo vídeo</Button>
+        <Button size="sm" variant="primary" onClick={() => onNovo(ativa ?? undefined)} title={ativa ? `Novo vídeo na pasta ${nomeCurto(ativa)}` : undefined}>
+          {ativa ? `Novo vídeo em “${nomeCurto(ativa)}”` : "Novo vídeo"}
+        </Button>
       </header>
       {erro && <p className="video-erro mx-6" role="alert">{erro}</p>}
       {entrando && <EntrarNaSessao onFechar={() => setEntrando(false)} onEntrou={(id) => { setEntrando(false); onAbrir(id); }} />}
       <section className="video-lista-secao">
-        <h2 className="video-subtitulo">Vídeos</h2>
+        <h2 className="video-subtitulo">Pasta do computador</h2>
+        <p className="video-dica">Escolha a pasta da sua marca ou do cliente (identidade visual, logos, informações). Os vídeos dela usam esse material; cada vídeo escolhe as próprias pastas de referências.</p>
+        <div className="video-pastas-escolha" role="group" aria-label="Pasta do computador">
+          <button type="button" aria-pressed={ativa === null} className={`video-pasta-chip${ativa === null ? " is-ativa" : ""}`} onClick={() => escolherAtiva(null)}>Todos os vídeos</button>
+          {pastasDoPc.map((c) => (
+            <span key={c} className="video-pasta-chip-grupo">
+              <button type="button" aria-pressed={ativa === c} title={c} className={`video-pasta-chip${ativa === c ? " is-ativa" : ""}`} onClick={() => escolherAtiva(c)}>
+                <FolderIcon size={12} aria-hidden="true" />{nomeCurto(c)}<small>{lista?.filter((i) => i.projeto.pastaDoComputador === c).length ?? 0}</small>
+              </button>
+              {lembradas.includes(c) && !lista?.some((i) => i.projeto.pastaDoComputador === c) && (
+                <button type="button" className="video-mini-botao" aria-label={`Esquecer ${nomeCurto(c)}`} title="Tirar da lista (a pasta não é apagada)" onClick={() => esquecer(c)}>×</button>
+              )}
+            </span>
+          ))}
+          <button type="button" className="video-pasta-chip" onClick={() => void adicionarPasta()}><FolderPlusIcon size={12} aria-hidden="true" />Escolher pasta…</button>
+        </div>
+      </section>
+      <section className="video-lista-secao">
+        <h2 className="video-subtitulo">{ativa ? `Vídeos de “${nomeCurto(ativa)}”` : "Vídeos"}</h2>
         {lista === null && !erro && <p className="video-dica">Carregando…</p>}
-        {lista?.length === 0 && (
+        {visiveis?.length === 0 && (
           <div className="video-chat-vazio">
-            <p>Nenhum vídeo ainda. Crie um, arraste as referências e peça ao agente a primeira versão.</p>
-            <Button size="sm" variant="primary" onClick={onNovo}>Criar o primeiro vídeo</Button>
+            <p>{ativa ? "Nenhum vídeo nesta pasta ainda." : "Nenhum vídeo ainda. Crie um, arraste as referências e peça ao agente a primeira versão."}</p>
+            <Button size="sm" variant="primary" onClick={() => onNovo(ativa ?? undefined)}>Criar o primeiro vídeo</Button>
           </div>
         )}
         <div className="video-grade">
-          {lista?.map(({ id, projeto }) => (
+          {visiveis?.map(({ id, projeto }) => (
             <div key={id} className="video-cartao glass">
               <button type="button" className="video-cartao-abrir" onClick={() => onAbrir(id)}>
                 <span className="video-cartao-formato" style={{ aspectRatio: `${projeto.largura || 16} / ${projeto.altura || 9}` }} aria-hidden="true" />
-                <span className="video-cartao-texto"><b>{projeto.nome}</b><small>{projeto.aDois ? `a dois com ${projeto.aDois.host}` : projeto.formato} · {quando(projeto.atualizadoEm)}</small></span>
+                <span className="video-cartao-texto"><b>{projeto.nome}</b><small>{projeto.aDois ? `a dois com ${projeto.aDois.host}` : projeto.formato}{!ativa && projeto.pastaDoComputador ? ` · ${nomeCurto(projeto.pastaDoComputador)}` : ""} · {quando(projeto.atualizadoEm)}</small></span>
               </button>
               {confirmar === id ? (
                 <span className="video-cartao-acoes">

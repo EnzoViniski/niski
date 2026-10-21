@@ -78,6 +78,16 @@ export function discoFalso() {
           return { texto: r.texto, sessao: "sessao-falsa", modelo: "modelo-falso", arquivos: r.arquivos };
         }
         case "videos_agente_rodando": return false;
+        // Fork (0.14): chat normal, pastas do computador e exportados.
+        case "videos_assinatura": return String([...arquivos.entries()].filter(([k]) => k.startsWith(`${id}/`) && /(index\.html|BRIEF\.md|midias\.json|compositions\/)/.test(k)).map(([, v]) => v).join("").split("").reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7));
+        case "videos_configurar_pastas": {
+          const c = args.pastaDoComputador as string | null;
+          if (c && !c.startsWith("/")) throw new Error("Escolha uma pasta do computador.");
+          return [...(c ? [c] : []), ...((args.referencias as string[]) ?? []).map((r) => `/dados/videos/referencias/${r}/arquivos`)];
+        }
+        case "videos_conferir_pasta": return args.caminho;
+        case "videos_abrir_render": return null;
+        case "videos_copiar_render": return `${args.pastaDoComputador as string}/Vídeos/x.mp4`;
         case "videos_exportar": return `/dados/videos/projetos/${(args.pedido as { projeto: string }).projeto}/renders/x.mp4`;
         case "videos_sessao_situacao": return { tailscale: { pronto: true, login: "enzo@exemplo.com", dns: "mac.tail.ts.net", ips: ["100.64.0.1"] }, config: { nome: "Enzo", permitidos: ["primo@exemplo.com"] }, papel: sessao.papel, projeto: sessao.projeto, convidados: [] };
         case "videos_sessao_iniciar": sessao.papel = "host"; sessao.projeto = args.projeto as string; return "medza-video:convite-falso";
