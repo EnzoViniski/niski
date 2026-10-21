@@ -1,0 +1,21 @@
+/* Fork: gesto de janela macOS, suave e curto. O browser fotografa as superfícies;
+   nenhuma sessão é duplicada para sustentar o quadro de saída. Só painéis alterados recebem zoom. */
+::view-transition { pointer-events: none; }
+::view-transition-group(*) { animation-duration: 320ms; animation-timing-function: cubic-bezier(.2, .85, .2, 1); }
+::view-transition-old(*), ::view-transition-new(*) { animation: none; mix-blend-mode: normal; }
+::view-transition-old(root) { display: none; }
+::view-transition-group(root), ::view-transition-new(root) { animation: none; }
+
+@keyframes medza-conversa-abrir {
+  from { opacity: 0; transform: translateY(18px) scale(.94); transform-origin: 50% 75%; }
+  72% { opacity: 1; transform: translateY(-1px) scale(1.003); transform-origin: 50% 75%; }
+  to { opacity: 1; transform: none; transform-origin: 50% 75%; }
+}
+@keyframes medza-conversa-fechar {
+  from { opacity: 1; transform: none; transform-origin: 50% 85%; }
+  to { opacity: 0; transform: translateY(24px) scale(.87); transform-origin: 50% 85%; }
+}
+@keyframes medza-conversa-revelar { from { opacity: 0; } to { opacity: 1; } }
+@keyframes medza-conversa-apagar { from { opacity: 1; } to { opacity: 0; } }
+:root[data-motion="reduzidas"]::view-transition-group(*) { animation-duration: 140ms; }
+@media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }

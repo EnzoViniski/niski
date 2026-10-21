@@ -32,6 +32,8 @@ import { WorkspaceTabBar } from "./WorkspaceTabBar";
 import { PainelVazio } from "./PainelVazio";
 import { ehKindConhecido } from "../../services/consertarWorkspace";
 import { EtiquetaDoProjeto, useProjetoDeFora, useProjetosDasAbas } from "./projetosDasAbas";
+// Fork: o WebKit anima snapshots deste painel quando a conversa muda.
+import { nomeDaTransicao } from "./transicoesDeConversa";
 
 interface PaneViewProps {
   pane: PaneNode;
@@ -156,6 +158,8 @@ export function PaneView({
       ].join(" ")}
       aria-label={`Painel ${tab?.title ?? pane.id}`}
       data-drop-pane={pane.id}
+      data-transicao-painel={`${projectId}/${pane.id}/${tab?.id ?? "vazio"}/${tab?.resourceId ?? "novo"}`}
+      style={{ viewTransitionName: nomeDaTransicao(pane.id) } as React.CSSProperties}
       onPointerDown={() => dispatch({ type: "FOCUS_PANE", paneId: pane.id })}
       onDragEnter={(event) => {
         if (!Array.from(event.dataTransfer.types).includes(PANE_DRAG_TYPE)) return;
