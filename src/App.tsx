@@ -1,6 +1,7 @@
 // Fork: paleta e registro dos handlers já usados na interface.
 import { AcoesDaPaleta, useAcoesDaPaleta } from "./features/paleta/acoes";
 import { acoesParaAbrirConversa } from "./features/paleta/abrirConversa";
+import { BotaoDoJarvis } from "./features/jarvis/BotaoDoJarvis";
 import { ConversaDoHistorico } from "./features/paleta/ConversaDoHistorico";
 import { Paleta } from "./features/paleta/Paleta";
 import type { Conversation } from "./mobile/api";
@@ -233,7 +234,7 @@ function AppComPaleta() {
             : [workspaces.find((item) => item.id === activeWorkspaceId)?.name, activeProject?.name].filter((parte): parte is string => Boolean(parte))
         }
         dica={view === "workspace" ? activeProject?.path : undefined}
-        acoes={view === "workspace" && activeProject ? <LayoutPresetPicker dispatch={dispatch} /> : null}
+        acoes={<>{view === "workspace" && activeProject ? <LayoutPresetPicker dispatch={dispatch} /> : null}<BotaoDoJarvis /></>} /* Fork: Jarvis ao lado de Layouts. */
         onHome={() => setView("workspace")}
         onOpenSettings={(section) => {
           setSettingsSection(section);
