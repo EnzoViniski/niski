@@ -29,3 +29,6 @@
 
 /* Atalhos do início: Atividade e Uso das contas lado a lado. */
 .m-atalhos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+
+/* "Atualizar o PC" no pé do início. */
+.m-atualizar-pc { display: flex; flex-direction: column; gap: .5rem; margin-top: .5rem; }

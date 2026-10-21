@@ -31,6 +31,7 @@ import { useAttentionNotifier } from "./features/terminal/useAttentionNotifier";
 import { useJanelaEmFoco } from "./hooks/useJanelaEmFoco";
 // Fork: pausa animações e fundos WebGL com a janela oculta, sem foco ou parada (energia).
 import { useEconomiaDeEnergia } from "./hooks/useEconomiaDeEnergia";
+import { useAtenderPedidoDeAtualizacao } from "./lib/pedidoDeAtualizacao"; // Fork: "Atualizar o PC" pelo celular.
 import {
   closeTerminal,
   duplicateTerminal,
@@ -87,6 +88,7 @@ function AppComPaleta() {
   // está olhando para ela — nos dois casos nada pode ser marcado como visto.
   const janelaEmFoco = useJanelaEmFoco();
   useEconomiaDeEnergia();
+  useAtenderPedidoDeAtualizacao();
   const { items: attention, countByWorkspace, dismiss: dismissAttention } = useAttention(
     sessions,
     workspaces,

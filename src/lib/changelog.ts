@@ -16,6 +16,16 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.8.5",
+    date: "2026-10-20",
+    changes: [
+      "O celular segue o estilo escolhido no PC: com o Minimalista no PC, o celular também fica arredondado e liso.",
+      "Uso das contas no celular: no início, \"Uso das contas\" mostra a janela de 5 horas e a semanal de cada conta, com as mesmas cores do PC, e deixa pedir uma leitura nova.",
+      "Atualizar o PC pelo celular: no fim do início há o botão \"Atualizar o PC\". O PC baixa a versão nova, guarda uma cópia das conversas e reabre sozinho.",
+      "Depois que o PC atualiza, a página do celular recarrega sozinha com a versão nova.",
+    ],
+  },
+  {
     version: "0.8.4",
     date: "2026-10-20",
     changes: [

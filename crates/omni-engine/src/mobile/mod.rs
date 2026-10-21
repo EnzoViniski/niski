@@ -42,6 +42,7 @@ mod extensoes_rotas;
 use extensoes_rotas::*;
 mod contas;
 use contas::*;
+mod atualizar_pc; // Fork: "Atualizar o PC" pelo celular.
 mod anexos;
 use anexos::*;
 mod terminais;
@@ -222,6 +223,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/conversas/{id}/retomar",post(retomar_rota))
         .route("/contas",get(contas))
         .route("/contas/{id}/uso",post(atualizar_uso))
+        .route("/pc/atualizar",post(atualizar_pc::pedir_atualizacao))
         .route("/historico/levar",post(levar_do_historico))
         .route("/historico/buscar",post(busca_historico::rota)) // Fork: busca textual limitada.
         .route("/extensoes",get(extensoes))

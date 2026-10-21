@@ -23,6 +23,8 @@ import { CabecalhoDaConversa } from "./conversa/CabecalhoDaConversa";
 // Fork: Atividade usa eventos e vistos do engine, iguais aos do desktop.
 import { Atividade } from "./telas/Atividade";
 import { Uso } from "./telas/Uso"; // Fork: uso das contas no celular.
+import { AtualizarPc } from "./telas/AtualizarPc"; // Fork: atualizar o app do PC daqui.
+import { useRecarregarComVersaoNova } from "./versaoNova"; // Fork: pega a página nova depois da atualização.
 import { atualizarAtividade, useAtividadeVista } from "../features/atividade/atividadeService";
 
 export { haQuanto, filterConversations, Secao, ProjectList, ConversationList, ConversasPorEstado, Ocultas, NovaSessao, ConversationDetail };
@@ -70,6 +72,7 @@ const CHAVE_FILTRO = "omni-filtro";
 
 export function MobileApp() {
   const { rota, ir, voltar } = useRota();
+  useRecarregarComVersaoNova();
   const { conversations, attention, catalog, carregado, error, semAcesso, refresh, atualizar, parear } = useDados(rota.tela === "conversa" ? rota.conversa : null);
   const naoVistas = useMemo(() => new Set(attention.map((item) => item.id)), [attention]);
   const [onlyAttention, setOnlyAttention] = useState(() => lerSessao(CHAVE_FILTRO) === "atencao");
@@ -188,6 +191,7 @@ export function MobileApp() {
             <Secao titulo="Projetos">
               <ProjectList projects={projetos} conversations={visiveis} abrir={id => ir({ tela: "projeto", projeto: id })} />
             </Secao>
+            <AtualizarPc />
           </>}
     </>;
   }

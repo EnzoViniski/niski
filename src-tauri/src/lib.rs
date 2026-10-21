@@ -37,6 +37,7 @@ mod worktree_isolada;
 mod limite_de_sessoes;
 #[cfg(target_os = "macos")]
 mod tela_cheia;
+mod pedido_de_atualizacao; // Fork: "Atualizar o PC" pedido pelo celular.
 
 pub fn run() {
     // Fork: contas com pasta mas fora do `profiles.json` desta variante voltam a ser reconhecidas.
@@ -97,6 +98,7 @@ pub fn run() {
             atualizacao::reiniciar_para_atualizar,
             // Fork: "Atualizar agora" (updater) na barra.
             atualizacao::agentes_trabalhando,
+            pedido_de_atualizacao::consumir_pedido_de_atualizacao,
             backup_antes_de_atualizar::backup_antes_de_atualizar,
             estado_da_interface::ler_estado_da_interface,
             estado_da_interface::gravar_estado_da_interface,
