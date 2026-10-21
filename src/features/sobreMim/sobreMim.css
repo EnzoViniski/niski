@@ -14,3 +14,7 @@
 }
 :root[data-estilo="minimalista"] .sobre-mim-sugestao { border-style: solid; border-radius: var(--m-r-ctl, 8px); background: rgb(var(--c-overlay) / .03); }
 :root[data-estilo="minimalista"] .sobre-mim-contador { border-radius: 999px; }
+/* No celular: 16 px no campo (o iOS dá zoom abaixo disso) e alvos de toque de 44 px. */
+.m-shell .sobre-mim :is(textarea, select) { font-size: 16px; }
+.m-shell .sobre-mim button { min-height: 44px; }
+.m-shell .sobre-mim input[type="checkbox"] { width: 1.25rem; height: 1.25rem; }
