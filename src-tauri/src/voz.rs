@@ -120,6 +120,7 @@ pub fn voz_gravar() -> Result<(), String> {
     if atual.is_some() {
         return Ok(());
     }
+    precarregar_modelo(); // Fork (memória): carrega enquanto a pessoa fala.
     let amostras = Arc::new(Mutex::new(Vec::<f32>::with_capacity(48_000 * 30)));
     let (parar, esperar) = mpsc::channel::<()>();
     let (pronto, abriu) = mpsc::channel::<Result<u32, String>>();
@@ -277,6 +278,7 @@ pub fn liberar() {
 
 fn contexto() -> Result<Arc<WhisperContext>, String> {
     let mut guardado = CONTEXTO.lock().map_err(|_| "modelo de voz corrompido")?;
+    marcar_uso();
     if let Some(contexto) = guardado.as_ref() { return Ok(contexto.clone()); }
     let caminho = caminho_do_modelo()?;
     if !caminho.is_file() { return Err("Baixe o modelo de voz antes".into()); }
@@ -284,7 +286,41 @@ fn contexto() -> Result<Arc<WhisperContext>, String> {
         .map_err(|e| format!("Não consegui carregar o modelo de voz: {e}"))?;
     let contexto = Arc::new(contexto);
     *guardado = Some(contexto.clone());
+    vigiar_ociosidade();
     Ok(contexto)
+}
+
+// Fork (memória): o modelo (large-v3-turbo, ~570 MB) ficava na RAM do app para sempre depois do
+// primeiro ditado. Agora sai depois de `OCIOSO_ATE_SOLTAR` sem uso e volta a carregar no instante
+// em que a gravação começa (em paralelo com a fala), então o ditado seguinte não espera.
+const OCIOSO_ATE_SOLTAR: std::time::Duration = std::time::Duration::from_secs(5 * 60);
+static ULTIMO_USO: Mutex<Option<Instant>> = Mutex::new(None);
+static VIGIA: std::sync::Once = std::sync::Once::new();
+
+fn marcar_uso() {
+    if let Ok(mut ultimo) = ULTIMO_USO.lock() { *ultimo = Some(Instant::now()); }
+}
+
+fn precarregar_modelo() {
+    if !caminho_do_modelo().is_ok_and(|caminho| caminho.is_file()) { return; }
+    std::thread::spawn(|| { let _ = contexto(); });
+}
+
+fn vigiar_ociosidade() {
+    VIGIA.call_once(|| {
+        std::thread::spawn(|| loop {
+            std::thread::sleep(std::time::Duration::from_secs(30));
+            let ocioso = ULTIMO_USO.lock().ok().and_then(|ultimo| *ultimo).is_some_and(|ultimo| ultimo.elapsed() >= OCIOSO_ATE_SOLTAR);
+            if !ocioso || GRAVACAO.lock().map(|g| g.is_some()).unwrap_or(true) { continue; }
+            if let Ok(mut guardado) = CONTEXTO.lock() {
+                // Transcrição em andamento segura outra referência: só solta quando ninguém usa.
+                if guardado.as_ref().is_some_and(|contexto| Arc::strong_count(contexto) == 1) {
+                    guardado.take();
+                    omni_core::registro::info("voz_modelo_liberado", &[]);
+                }
+            }
+        });
+    });
 }
 
 fn transcrever(audio: &[f32]) -> Result<String, String> {
