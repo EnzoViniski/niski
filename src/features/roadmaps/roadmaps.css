@@ -180,10 +180,11 @@
 
 /* Estudo em tela cheia */
 .roadmap-estudo { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.roadmap-estudo-corpo { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(20rem, 38%) 1fr; }
+.roadmap-estudo-corpo { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(20rem, 38%) auto minmax(0, 1fr); }
+.roadmap-estudo-aba-conteudo { display: flex; flex: 1; min-height: 0; flex-direction: column; }
 .roadmap-estudo-conteudo { min-height: 0; overflow-y: auto; border-right: 1px solid rgb(var(--c-border-subtle) / .7); }
 .roadmap-estudo-conteudo .roadmap-etapa-painel { padding: 1.25rem 1.5rem; }
-.roadmap-etapa-painel.is-tela-cheia .roadmap-markdown { font-size: .9375rem; line-height: 1.7; }
+.roadmap-etapa-painel.is-tela-cheia .roadmap-markdown { font-size: calc(.9375rem * var(--roadmap-escala, 1)); line-height: 1.7; }
 .roadmap-estudo-lado { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
 .roadmap-estudo-fonte { display: flex; flex: 1; min-height: 0; flex-direction: column; }
 .roadmap-estudo-aba { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem; }
@@ -197,9 +198,11 @@
 
 /* Painel lateral */
 .roadmap-lateral {
-  display: flex; flex-direction: column; width: min(46vw, 34rem); min-width: 20rem; min-height: 0;
-  border-left: 1px solid rgb(var(--c-border-subtle) / .7); background: rgb(var(--c-bg-primary) / .6);
+  display: flex; flex: none; flex-direction: column; max-width: 70vw; min-width: 20rem; min-height: 0;
+  background: rgb(var(--c-bg-primary) / .6);
 }
+.roadmap-lateral-conteudo { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+.roadmap-lateral-conteudo > * { flex: 1; min-height: 0; }
 .roadmap-abas { display: flex; gap: .25rem; padding: .5rem .75rem 0; border-bottom: 1px solid rgb(var(--c-border-subtle) / .6); }
 .roadmap-abas button { padding: .375rem .625rem; font-size: .8125rem; color: rgb(var(--c-text-secondary)); border-bottom: 2px solid transparent; }
 .roadmap-abas button[aria-selected="true"] { color: rgb(var(--c-text-primary)); border-bottom-color: rgb(var(--c-accent)); }
@@ -215,7 +218,7 @@
 .roadmap-concluir { display: flex; align-items: center; gap: .5rem; padding-top: .5rem; border-top: 1px solid rgb(var(--c-border-subtle) / .6); }
 .roadmap-proposta { display: flex; flex-direction: column; gap: .5rem; padding: .75rem; }
 
-.roadmap-markdown { font-size: .875rem; line-height: 1.6; color: rgb(var(--c-text-primary)); overflow-wrap: anywhere; }
+.roadmap-markdown { font-size: calc(.875rem * var(--roadmap-escala, 1)); line-height: 1.6; color: rgb(var(--c-text-primary)); overflow-wrap: anywhere; }
 .roadmap-markdown :is(h1, h2, h3) { margin: 1em 0 .4em; font-weight: 600; }
 .roadmap-markdown h2 { font-size: 1rem; }
 .roadmap-markdown h3 { font-size: .9375rem; }
@@ -262,3 +265,32 @@
 .m-shell .roadmaps-m :is(textarea, input) { font-size: 16px; }
 .m-shell .roadmaps-m button { min-height: 40px; }
 .m-shell .roadmap-revisao { padding: .75rem; }
+
+/* Divisor arrastável (Divisor.tsx): fino, mostra a alça ao passar o mouse ou arrastar. */
+.roadmap-divisor {
+  position: relative; flex: none; width: 7px; cursor: col-resize; touch-action: none; z-index: 2;
+  background: linear-gradient(90deg, transparent 3px, rgb(var(--c-border-subtle) / .7) 3px, rgb(var(--c-border-subtle) / .7) 4px, transparent 4px);
+}
+.roadmap-divisor::after {
+  content: ""; position: absolute; top: 50%; left: 2px; width: 3px; height: 2.25rem; margin-top: -1.125rem; border-radius: 999px;
+  background: rgb(var(--c-text-muted) / .35); opacity: 0; transition: opacity .15s ease, background-color .15s ease;
+}
+.roadmap-divisor:hover::after, .roadmap-divisor:focus-visible::after, .roadmap-divisor.is-arrastando::after { opacity: 1; background: var(--roadmap-cor, rgb(var(--c-accent))); }
+.roadmap-divisor:focus-visible { outline: none; }
+body.lateral-arrastando { cursor: col-resize; user-select: none; }
+.roadmap-tamanho-texto { display: inline-flex; gap: 1px; }
+.roadmap-tamanho-texto button { padding: .125rem .375rem; font-size: .6875rem; color: rgb(var(--c-text-secondary)); border-radius: 6px; }
+.roadmap-tamanho-texto button:hover:not(:disabled) { color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .07); }
+.roadmap-tamanho-texto button:disabled { opacity: .35; }
+.roadmap-caderno-campo { font-size: calc(.875rem * var(--roadmap-escala, 1)); }
+.roadmap-balao { font-size: calc(.875rem * var(--roadmap-escala, 1)); }
+
+/* Acabamento: cartões e medalhões reagem ao mouse (transform, sem layout). */
+.roadmap-pasta { transition: transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .18s ease, border-color .18s ease; }
+.roadmap-pasta:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgb(0 0 0 / .18); }
+.roadmap-no .roadmap-no-face { transition: transform .14s cubic-bezier(.2,.8,.2,1), filter .14s ease; }
+.roadmap-no:not(.is-bloqueada):hover .roadmap-no-face { filter: brightness(1.12); }
+.roadmap-regiao { transition: border-color .3s ease; }
+.roadmap-abas button { transition: color .15s ease, border-color .15s ease; }
+:root[data-motion="desligadas"] :is(.roadmap-pasta, .roadmap-no .roadmap-no-face, .roadmap-divisor::after) { transition: none; }
+@media (prefers-reduced-motion: reduce) { :is(.roadmap-pasta, .roadmap-no .roadmap-no-face) { transition: none; } .roadmap-pasta:hover { transform: none; } }

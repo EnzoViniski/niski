@@ -13,6 +13,9 @@ import { estadosDasEtapas, etapaDeHoje } from "../../features/roadmaps/progresso
 import { filaDeAgora } from "../../features/roadmaps/revisao";
 import { TelaDeRevisao } from "../../features/roadmaps/TelaDeRevisao";
 import type { RoadmapAberto } from "../../features/roadmaps/armazenamento";
+import { TamanhoDoTexto, useEscalaDoTexto } from "../../features/roadmaps/Divisor";
+import { animarCascata } from "../../features/roadmaps/animacoes";
+import { useTransicao } from "../../features/roadmaps/useTransicao";
 import "../../features/roadmaps/roadmaps.css";
 
 const SO_NO_PC = "Isso ainda é feito no computador.";
@@ -34,6 +37,8 @@ const abrirFora = (url: string) => { window.open(url, "_blank", "noopener,norefe
 
 export function Roadmaps({ roadmap: id, abrir }: { roadmap: string | null; abrir: (id: string | null) => void }) {
   useLoja();
+  // Abrir um roadmap entra pela direita; voltar à lista, pela esquerda.
+  const tela = useTransicao<HTMLDivElement>(id ?? "lista", id ? "frente" : "tras");
   useEffect(() => { if (!id) void carregarLista(); else void carregar(id).catch(() => undefined); }, [id]);
   // Voltou para o navegador do celular: relê (o PC pode ter mudado algo).
   useEffect(() => {
@@ -47,13 +52,14 @@ export function Roadmaps({ roadmap: id, abrir }: { roadmap: string | null; abrir
     const erro = erroDoRoadmap(id);
     if (!r) return <p className="m-vazio">{erro ? `Não consegui abrir: ${erro}` : "Abrindo roadmap…"}</p>;
     if (r.meta.fase !== "ativo" || !r.plano) return <p className="m-vazio">Este roadmap ainda está na entrevista. Termine a criação no computador.</p>;
-    return <RoadmapNoCelular r={r} />;
+    return <div ref={tela}><RoadmapNoCelular r={r} /></div>;
   }
   const lista = listaAtual();
   if (!lista) return <p className="m-vazio">{erroDaListaAtual() ? `Não consegui ler os roadmaps: ${erroDaListaAtual()}` : "Abrindo roadmaps…"}</p>;
   const ativos = lista.filter((m) => !m.arquivado);
   if (ativos.length === 0) return <p className="m-vazio">Nenhum roadmap ainda. Crie o primeiro no computador (botão Roadmaps na barra lateral).</p>;
   return (
+    <div ref={tela}>
     <ul className="roadmaps-m-lista">
       {ativos.map((m) => {
         const pct = m.resumo.etapas ? Math.round((m.resumo.concluidas / m.resumo.etapas) * 100) : 0;
@@ -80,6 +86,7 @@ export function Roadmaps({ roadmap: id, abrir }: { roadmap: string | null; abrir
         );
       })}
     </ul>
+    </div>
   );
 }
 
@@ -95,10 +102,16 @@ function RoadmapNoCelular({ r }: { r: RoadmapAberto }) {
   const pontos = xp(plano, r.progresso, r.cards, agora);
   const lvl = nivel(pontos.total);
   const fila = filaDeAgora(r.cards, agora).length;
+  const [escala, setEscala] = useEscalaDoTexto();
+  // Etapa entra pela direita; voltar ao mapa, pela esquerda; Mapa ↔ Caderno troca suave.
+  const vista = useTransicao<HTMLDivElement>(`${etapa ?? "mapa"}:${aba}`, etapa ? "frente" : "tras", false);
+  const lista = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    if (etapa || aba !== "mapa" || !hoje) return;
-    nos.current.get(hoje.id)?.scrollIntoView?.({ block: "center" });
+    if (etapa || aba !== "mapa") return;
+    const animacoes = animarCascata([...(lista.current?.querySelectorAll<HTMLElement>(".roadmaps-m-etapa") ?? [])], 22, 12);
+    if (hoje) nos.current.get(hoje.id)?.scrollIntoView?.({ block: "center" });
+    return () => { for (const a of animacoes) a.cancel(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [etapa === null, aba]);
 
@@ -106,8 +119,11 @@ function RoadmapNoCelular({ r }: { r: RoadmapAberto }) {
 
   if (etapa) {
     return (
-      <div className="roadmaps-m" style={{ ["--roadmap-cor" as string]: r.meta.cor }}>
-        <button type="button" className="btn btn-ghost" onClick={() => setEtapa(null)}>← Mapa</button>
+      <div ref={vista} className="roadmaps-m" style={{ ["--roadmap-cor" as string]: r.meta.cor, ["--roadmap-escala" as string]: escala }}>
+        <div className="flex items-center justify-between">
+          <button type="button" className="btn btn-ghost" onClick={() => setEtapa(null)}>← Mapa</button>
+          <TamanhoDoTexto escala={escala} onChange={setEscala} />
+        </div>
         <PainelDaEtapa r={r} etapaId={etapa} estado={estados[etapa] ?? "bloqueada"} semIa onAbrirLink={abrirFora}
           onPerguntar={() => undefined} onAbrirEtapa={setEtapa} />
       </div>
@@ -115,7 +131,7 @@ function RoadmapNoCelular({ r }: { r: RoadmapAberto }) {
   }
 
   return (
-    <div className="roadmaps-m" style={{ ["--roadmap-cor" as string]: r.meta.cor }}>
+    <div ref={vista} className="roadmaps-m" style={{ ["--roadmap-cor" as string]: r.meta.cor, ["--roadmap-escala" as string]: escala }}>
       <div className="roadmaps-m-placar glass">
         <IconeDoRoadmap icone={r.meta.icone} cor={r.meta.cor} tamanho={36} />
         <div className="min-w-0 flex-1">
@@ -133,6 +149,7 @@ function RoadmapNoCelular({ r }: { r: RoadmapAberto }) {
         <button type="button" className={`btn ${aba === "mapa" ? "btn-glass" : "btn-ghost"}`} aria-pressed={aba === "mapa"} onClick={() => setAba("mapa")}>Mapa</button>
         <button type="button" className={`btn ${aba === "caderno" ? "btn-glass" : "btn-ghost"}`} aria-pressed={aba === "caderno"} onClick={() => setAba("caderno")}>Caderno</button>
       </div>
+      <div ref={lista} className="flex flex-col gap-2">
       {aba === "caderno" ? <Caderno r={r} etapa={hoje} semIa compacto onAbrirLink={abrirFora} /> : plano.modulos.map((modulo, mi) => (
         <section key={modulo.id} className="roadmap-regiao roadmaps-m-regiao" aria-label={modulo.titulo}>
           <div className="roadmap-regiao-faixa">
@@ -161,6 +178,7 @@ function RoadmapNoCelular({ r }: { r: RoadmapAberto }) {
           </ol>
         </section>
       ))}
+      </div>
       {revisando && <TelaDeRevisao r={r} onFechar={() => setRevisando(false)} />}
     </div>
   );

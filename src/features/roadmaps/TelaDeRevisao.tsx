@@ -5,7 +5,7 @@ import remarkGfm from "remark-gfm";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/ui";
 import { revisar } from "./acoes";
-import { animarEntrada } from "./animacoes";
+import { animarEntrada, animarTroca } from "./animacoes";
 import { textoDoErro } from "./comuns";
 import { useLoja } from "./loja";
 import { filaDeAgora, NOTAS, previa, proximoDeHoje, type Nota } from "./revisao";
@@ -25,7 +25,15 @@ export function TelaDeRevisao({ r, onFechar }: { r: RoadmapAberto; onFechar: () 
   const caixa = useRef<HTMLDivElement>(null);
   const proximo = card ? undefined : proximoDeHoje(r.cards, agora);
 
-  useEffect(() => { const a = animarEntrada(caixa.current); return () => a?.cancel(); }, [card?.id]);
+  const verso = useRef<HTMLDivElement>(null);
+  const primeiro = useRef(true);
+  // Abrir a revisão: a caixa sobe. Próximo card: desliza da direita.
+  useEffect(() => {
+    const a = primeiro.current ? animarEntrada(caixa.current) : animarTroca(caixa.current, "frente");
+    primeiro.current = false;
+    return () => a?.cancel();
+  }, [card?.id]);
+  useEffect(() => { if (!mostrando) return; const a = animarTroca(verso.current); return () => a?.cancel(); }, [mostrando]);
 
   const responder = (nota: Nota) => {
     if (!card || r.somenteLeitura) return;
@@ -63,7 +71,7 @@ export function TelaDeRevisao({ r, onFechar }: { r: RoadmapAberto; onFechar: () 
             <div className="roadmap-card-frente roadmap-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{card.frente}</ReactMarkdown></div>
             {mostrando ? (
               <>
-                <div className="roadmap-card-verso roadmap-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{card.verso}</ReactMarkdown></div>
+                <div ref={verso} className="roadmap-card-verso roadmap-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{card.verso}</ReactMarkdown></div>
                 <div className="grid grid-cols-4 gap-2">
                   {NOTAS.map(({ nota, rotulo }) => (
                     <Button key={nota} size="sm" variant={nota === 3 ? "primary" : "glass"} disabled={r.somenteLeitura} onClick={() => responder(nota)}>

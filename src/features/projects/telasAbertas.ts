@@ -11,6 +11,26 @@ export interface AbaNaTela {
 export interface PainelNaTela {
   paneId: string; emFoco: boolean; abas: AbaNaTela[];
   workspaceId?: string; projectId?: string; workspace?: string; projeto?: string; posicao?: number;
+  /** Fork: a tela (layout do projeto) deste painel está à vista agora. */
+  telaVisivel?: boolean;
+  /** Fork: onde cada painel da mesma tela fica (frações 0–1), para o mini mapa da lateral. */
+  mapaDaTela?: AreaDoPainel[];
+}
+
+/** Retângulo de um painel no layout, em frações da tela. */
+export interface AreaDoPainel { paneId: string; posicao: number; x: number; y: number; w: number; h: number }
+
+/** Fork: posição de cada painel, seguindo a divisão salva (horizontal = lado a lado). */
+export function mapaDoLayout(node: LayoutNode): AreaDoPainel[] {
+  const areas: AreaDoPainel[] = [];
+  const andar = (n: LayoutNode, x: number, y: number, w: number, h: number) => {
+    if (n.type === "pane") { areas.push({ paneId: n.id, posicao: areas.length + 1, x, y, w, h }); return; }
+    const r = Math.min(0.9, Math.max(0.1, Number.isFinite(n.ratio) ? n.ratio : 0.5));
+    if (n.direction === "horizontal") { andar(n.first, x, y, w * r, h); andar(n.second, x + w * r, y, w * (1 - r), h); }
+    else { andar(n.first, x, y, w, h * r); andar(n.second, x, y + h * r, w, h * (1 - r)); }
+  };
+  andar(node, 0, 0, 1, 1);
+  return areas;
 }
 
 function paineis(node: LayoutNode): PaneNode[] {
@@ -26,12 +46,14 @@ export function todasAsTelasAbertas(workspaces: WorkspaceState[], activeWorkspac
   const sessaoEscolhida = new Map<string, AbaNaTela>();
   for (const workspace of workspaces) for (const projeto of workspace.projects) {
     const layoutVisivel = workspace.id === activeWorkspaceId && projeto.id === workspace.activeProjectId;
+    const mapaDaTela = mapaDoLayout(projeto.layout);
     for (const [indice, pane] of paineis(projeto.layout).entries()) {
       const painelVisivel = layoutVisivel && (!projeto.maximizedPaneId || pane.id === projeto.maximizedPaneId);
       const emFoco = painelVisivel && pane.id === projeto.activePaneId;
       const grupo: PainelNaTela = {
         paneId: pane.id, emFoco, workspaceId: workspace.id, projectId: projeto.id,
         workspace: workspace.name, projeto: projeto.name, posicao: indice + 1, abas: [],
+        telaVisivel: layoutVisivel, mapaDaTela,
       };
       for (const tab of pane.tabs) {
         const sessionId = (tab.kind === "agent" || tab.kind === "terminal") ? tab.resourceId : undefined;
