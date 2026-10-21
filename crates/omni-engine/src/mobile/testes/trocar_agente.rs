@@ -24,7 +24,7 @@ async fn chamar(state: &Arc<EngineState>, metodo: &str, caminho: &str, corpo: Op
 }
 
 /// Conversa do Claude com transcript e sessão viva (`/bin/sh`) na PTY `t1`.
-fn conversa_viva(dir: &Path, state: &Arc<EngineState>) -> (String, PathBuf) {
+fn conversa_viva(dir: &Path, state: &Arc<EngineState>, conversa: &str) -> (String, PathBuf) {
     let (claude, _) = perfis(dir);
     let projeto = dir.join("projeto");
     std::fs::create_dir_all(&projeto).unwrap();
@@ -37,10 +37,10 @@ fn conversa_viva(dir: &Path, state: &Arc<EngineState>) -> (String, PathBuf) {
     ].join("\n") + "\n").unwrap();
     publicar(state, &projeto);
     spawn_terminal_inner(state, "t1".into(), "p".into(), "Login".into(), cwd.clone(), Some("/bin/sh".into()), Some("echo claude-falso".into()), 24, 80, now_ms(),
-        SessionOrigin { provider: Some("claude".into()), profile_id: Some("a".into()), conversation_id: Some("c".into()),
+        SessionOrigin { provider: Some("claude".into()), profile_id: Some("a".into()), conversation_id: Some(conversa.into()),
             external_session_id: Some("sessao-1".into()), env: vec![("CLAUDE_CONFIG_DIR".into(), claude.to_string_lossy().into_owned())], ..Default::default() }).unwrap();
     atomic_write_json(&dir.join("conversations.json"), &json!({"version":1,"conversations":[{
-        "id":"c","project_id":"p","cwd":cwd,"title":"Login","created_at_ms":1,
+        "id":conversa,"project_id":"p","cwd":cwd,"title":"Login","created_at_ms":1,
         "segments":[{"provider":"claude","profile_id":"a","external_session_id":"sessao-1","transcript_path":transcript.to_string_lossy(),
             "terminal_session_id":"t1","started_at_ms":1}]
     }]})).unwrap();
@@ -53,7 +53,7 @@ fn viva(state: &EngineState, id: &str) -> Arc<LiveSession> {
 
 #[tokio::test] async fn claude_para_codex_na_mesma_pty_com_passagem_e_trecho_novo() {
     let (dir, state) = fixture();
-    let (_, projeto) = conversa_viva(dir.path(), &state);
+    let (_, projeto) = conversa_viva(dir.path(), &state, "c");
     let sessao = viva(&state, "t1");
     let pid = sessao.meta.lock().unwrap().pid;
 
@@ -116,9 +116,10 @@ fn viva(state: &EngineState, id: &str) -> Arc<LiveSession> {
 /// Conversa sem sessão aberta: a troca abre uma PTY nova já com o agente novo.
 #[tokio::test] async fn conversa_fechada_abre_sessao_nova_com_o_agente_novo() {
     let (dir, state) = fixture();
-    conversa_viva(dir.path(), &state);
+    // Fork: id próprio para as fixtures paralelas não disputarem a trava global de troca.
+    conversa_viva(dir.path(), &state, "fechada");
     let _ = close_session(&state, "t1");
-    let (status, corpo) = chamar(&state, "POST", "/conversas/c/trocar-agente", Some(json!({"provider":"codex"}))).await;
+    let (status, corpo) = chamar(&state, "POST", "/conversas/fechada/trocar-agente", Some(json!({"provider":"codex"}))).await;
     assert_eq!(status, 200, "{corpo}");
     let terminal = corpo["terminal_session_id"].as_str().unwrap().to_owned();
     assert_ne!(terminal, "t1");
