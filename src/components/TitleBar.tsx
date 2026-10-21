@@ -118,15 +118,15 @@ export function TitleBar({
 
       {acoes}
 
-      {/* Fork: build novo no disco → botão que reabre o app. */}
-      <AvisoDeAtualizacao />
-
       <GavetaDeUso />
       <CentralDeAgendamentos /><CaixaDeAtividade /> {/* Fork: contador e gaveta de atividade de todos os projetos. */}
 
       <span className="titlebar-sino">
         <NotificationBell onOpenSettings={onOpenSettings} />
       </span>
+
+      {/* Fork: versão nova → setinha verde no canto direito, como no Discord (antes ficava antes do Uso). */}
+      <AvisoDeAtualizacao />
 
       {/* No Mac os semáforos são os nativos (tauri.macos.conf.json, canto esquerdo). */}
       {!NO_MAC && <span className="titlebar-controles">

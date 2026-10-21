@@ -218,3 +218,19 @@ body.lateral-arrastando, body.lateral-arrastando * { cursor: grabbing !important
 /* Fork (21/10/2026): o "+" fica sempre à vista em todas as pastas (o fechar segue só no hover). */
 .pasta .pasta-nova { opacity: .75; }
 .pasta:hover .pasta-nova, .pasta .pasta-nova:focus-visible { opacity: 1; }
+
+/* Fork (21/10/2026): "Atualizar agora" como no Discord — setinha verde no canto direito da barra
+   (`AvisoDeAtualizacao.tsx`). Um clique atualiza (com a confirmação de sempre se houver agente trabalhando). */
+.titlebar-atualizar-icone {
+  display: inline-flex; align-items: center; gap: .25rem; align-self: center; height: 28px; min-width: 28px;
+  margin: 0 .25rem; padding: 0 .375rem; color: rgb(var(--c-success)); background: none; border: 0; cursor: pointer;
+  border-radius: 8px; transition: background-color 140ms ease, transform 140ms ease;
+}
+.titlebar-atualizar-icone:hover:not(:disabled), .titlebar-atualizar-icone.is-aberto { background: rgb(var(--c-success) / .14); }
+.titlebar-atualizar-icone:disabled { cursor: default; }
+.titlebar-atualizar-icone:focus-visible { outline: 2px solid rgb(var(--c-success)); outline-offset: -2px; }
+.titlebar-atualizar-icone.is-erro { color: rgb(var(--c-warning)); }
+.titlebar-atualizar-icone > svg { animation: atualizar-chama 2.4s ease-in-out 3; }
+.titlebar-atualizar-pct { font-size: .6875rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+@keyframes atualizar-chama { 0%, 70%, 100% { transform: none; } 80% { transform: translateY(2px); } 90% { transform: translateY(-1px); } }
+@media (prefers-reduced-motion: reduce) { .titlebar-atualizar-icone > svg { animation: none; } }

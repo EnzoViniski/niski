@@ -169,14 +169,20 @@ function AtualizarAgora({ remoto }: { remoto: EstadoRemoto }) {
 
   return (
     <span className="relative flex self-stretch">
-      <button type="button" className={`titlebar-acao titlebar-atualizar relative${confirmacao !== null ? " is-aberto" : ""}`} title={dica}
+      {/* Fork (21/10/2026): como no Discord — uma setinha verde no canto; o rótulo vai para a dica e o
+          leitor de tela. Baixando, mostra a porcentagem; instalada, "Reabrir". */}
+      <button type="button" className={`titlebar-atualizar-icone relative${confirmacao !== null ? " is-aberto" : ""}${fase === "erro" ? " is-erro" : ""}`}
+        title={dica} aria-label={rotulo}
         aria-expanded={fase === "instalada" ? undefined : confirmacao !== null} disabled={parado}
         onClick={() => { if (fase === "instalada") void reiniciarParaAtualizar(); else void abrir(); }}>
-        <ReloadIcon aria-hidden className="h-3.5 w-3.5" />
-        {rotulo}
+        {fase === "instalada" || fase === "reiniciando"
+          ? <ReloadIcon aria-hidden className={`h-4 w-4${fase === "reiniciando" ? " anexo-girando" : ""}`} />
+          : <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 4v11" /><path d="m7 10 5 5 5-5" /><path d="M5 20h14" />
+            </svg>}
+        {fase === "baixando" && <span className="titlebar-atualizar-pct">{progresso}%</span>}
         {fase === "baixando" && (
-          <span className="absolute inset-x-0 bottom-0 h-0.5 bg-accent transition-all duration-300" style={{ width: `${progresso}%` }}
-            role="progressbar" aria-label="Progresso da atualização" aria-valuenow={progresso} aria-valuemin={0} aria-valuemax={100} />
+          <span className="sr-only" role="progressbar" aria-label="Progresso da atualização" aria-valuenow={progresso} aria-valuemin={0} aria-valuemax={100} />
         )}
       </button>
       {confirmacao !== null && (
