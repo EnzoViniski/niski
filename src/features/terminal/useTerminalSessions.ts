@@ -39,13 +39,21 @@ export function useTerminalSessions() {
         conferirEngine = true;
         if (!cancelled) setOnline(false);
       }
-      if (!cancelled) timer = window.setTimeout(refresh, 1_000);
+      // Fork (energia): janela oculta (minimizada, outro Space) lê a cada 5 s; ao voltar, lê na hora.
+      if (!cancelled) timer = window.setTimeout(refresh, document.hidden ? 5_000 : 1_000);
     }
 
+    const aoVoltar = () => {
+      if (cancelled || document.hidden) return;
+      window.clearTimeout(timer);
+      void refresh();
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
     void refresh();
     return () => {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", aoVoltar);
     };
   }, []);
 

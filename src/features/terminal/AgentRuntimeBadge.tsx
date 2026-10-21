@@ -113,13 +113,21 @@ export function AgentRuntimeBadge({
         // pode virar erro na tela de quem só quer usar o terminal.
         if (!cancelado) setRuntime(null);
       }
-      if (!cancelado) timer = window.setTimeout(ler, INTERVALO_MS);
+      // Fork (energia): com a janela oculta ninguém vê a etiqueta; lê ao voltar (visibilitychange).
+      if (!cancelado && !document.hidden) timer = window.setTimeout(ler, INTERVALO_MS);
     }
 
+    const aoVoltar = () => {
+      if (cancelado || document.hidden) return;
+      window.clearTimeout(timer);
+      void ler();
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
     void ler();
     return () => {
       cancelado = true;
       if (timer) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", aoVoltar);
     };
   }, [provider, profileId, cwd, externalSessionId]);
 
