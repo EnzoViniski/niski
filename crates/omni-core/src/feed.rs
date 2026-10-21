@@ -198,6 +198,12 @@ fn comando_digitado(texto: &str) -> Option<String> {
 /// É fala do usuário, não texto injetado: sem desembrulhar, uma mensagem que era só texto colado
 /// começava com `<`, sumia da conversa e a web acusava "não consegui confirmar o envio".
 pub fn sem_colado(texto: &str) -> String {
+    // Fork (trocar agente): a marca da passagem de bastão sai; sobra só o que o usuário escreveu.
+    if texto.contains(crate::passagem::MARCA) { return crate::passagem::sem_preambulo(&sem_colado_cru(texto)); }
+    sem_colado_cru(texto)
+}
+
+fn sem_colado_cru(texto: &str) -> String {
     if !texto.contains("pasted_content") { return texto.to_owned(); }
     let mut saida = String::with_capacity(texto.len());
     let mut resto = texto;
