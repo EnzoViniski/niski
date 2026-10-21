@@ -4,7 +4,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/ui";
 import { ChatIcon, CheckIcon, LockIcon, PlayIcon, StarIcon } from "../../components/ui/PixelIcon";
 import { chaves, gerarCardsDeTudo } from "./acoes";
-import { animarConclusao, rolarAte } from "./animacoes";
+import { animarCascata, animarConclusao, animarPainelLateral, rolarAte } from "./animacoes";
+import { Divisor, TamanhoDoTexto, useEscalaDoTexto, useTamanhoSalvo } from "./Divisor";
+import { useTransicao } from "./useTransicao";
 import { Caderno } from "./Caderno";
 import { BotaoDeFoco, ChipDaIa, IconeDoRoadmap, PedidoEmAndamento, textoDoErro } from "./comuns";
 import { foiCancelado } from "./ia";
@@ -86,8 +88,31 @@ export function Trilha({ r, onVoltar }: { r: RoadmapAberto; onVoltar: () => void
   const pontos = xp(plano, r.progresso, r.cards, agora);
   const lvl = nivel(pontos.total);
   const anteriores = useRef(estados);
+  const [larguraDoLado, setLarguraDoLado] = useTamanhoSalvo("lateral", 520, 320, 980);
+  const [escala, setEscala] = useEscalaDoTexto();
+  const lado = useRef<HTMLElement>(null);
+  // Troca de aba no painel lateral (Etapa → Caderno → IA) e de etapa: o conteúdo entra suave.
+  const conteudoDoLado = useTransicao<HTMLDivElement>(`${lateral}:${etapaAberta}`, "neutra", false);
+  // Voltando do estudo em tela cheia, o mapa entra pelo outro lado.
+  const mapa = useTransicao<HTMLDivElement>(estudo ? "estudo" : "mapa", "tras", false);
 
   useEffect(() => { lembrar(`lugar:${id}`, { etapa: etapaAberta, lateral, estudo }); }, [id, etapaAberta, lateral, estudo]);
+  // Painel lateral que acabou de abrir desliza da direita.
+  const ladoAberto = lateral !== null;
+  useLayoutEffect(() => {
+    if (!ladoAberto) return;
+    const a = animarPainelLateral(lado.current);
+    return () => a?.cancel();
+  }, [ladoAberto]);
+  // Ao abrir o mapa, os medalhões perto da etapa de hoje entram em cascata.
+  useLayoutEffect(() => {
+    if (estudo || !plano) return;
+    const ordem = etapasEmOrdem(plano).map((e) => nos.current.get(e.id)).filter((el): el is HTMLElement => Boolean(el));
+    const i = Math.max(0, ordem.findIndex((el) => el === nos.current.get(hoje?.id ?? "")) - 3);
+    const animacoes = animarCascata(ordem.slice(i));
+    return () => { for (const a of animacoes) a.cancel(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estudo === null]);
 
   // Ao abrir: rola até a etapa de hoje (ou a que estava aberta ao lado, voltando de outra tela).
   useLayoutEffect(() => {
@@ -139,7 +164,7 @@ export function Trilha({ r, onVoltar }: { r: RoadmapAberto; onVoltar: () => void
   };
 
   return (
-    <div className="roadmap-tela" style={{ ["--roadmap-cor" as string]: r.meta.cor }}>
+    <div ref={mapa} className="roadmap-tela" style={{ ["--roadmap-cor" as string]: r.meta.cor, ["--roadmap-escala" as string]: escala }}>
       <div className="roadmap-principal">
         <header className="roadmap-topo roadmap-placar">
           <Button size="sm" variant="ghost" onClick={onVoltar}>← Roadmaps</Button>
@@ -245,20 +270,25 @@ export function Trilha({ r, onVoltar }: { r: RoadmapAberto; onVoltar: () => void
         </div>
       </div>
 
+      {lateral && <Divisor valor={larguraDoLado} min={320} max={980} onChange={setLarguraDoLado} cresce="esquerda" rotulo="Largura do painel ao lado" />}
       {lateral && (
-        <aside className="roadmap-lateral" aria-label={lateral === "ia" ? "IA ao lado" : lateral === "caderno" ? "Caderno" : "Etapa"}>
+        <aside ref={lado} className="roadmap-lateral" style={{ width: larguraDoLado }} aria-label={lateral === "ia" ? "IA ao lado" : lateral === "caderno" ? "Caderno" : "Etapa"}>
           <div className="roadmap-abas" role="tablist">
             <button role="tab" aria-selected={lateral === "etapa"} disabled={!etapaAberta} onClick={() => setLateral("etapa")}>Etapa</button>
             <button role="tab" aria-selected={lateral === "caderno"} onClick={() => setLateral("caderno")}>Caderno</button>
             <button role="tab" aria-selected={lateral === "ia"} onClick={() => setLateral("ia")}>IA ao lado</button>
-            <button className="ml-auto" aria-label="Fechar painel" onClick={() => setLateral(null)}>×</button>
+            <span className="ml-auto" />
+            <TamanhoDoTexto escala={escala} onChange={setEscala} />
+            <button aria-label="Fechar painel" onClick={() => setLateral(null)}>×</button>
           </div>
+          <div ref={conteudoDoLado} className="roadmap-lateral-conteudo">
           {lateral === "etapa" && etapaAberta
             ? <PainelDaEtapa key={etapaAberta} r={r} etapaId={etapaAberta} estado={estados[etapaAberta] ?? "bloqueada"} onPerguntar={() => setLateral("ia")}
                 onAbrirEtapa={abrirEtapa} onAbrirLink={(url) => setEstudo({ etapa: etapaAberta, url })} onTelaCheia={() => setEstudo({ etapa: etapaAberta, url: null })} />
             : lateral === "caderno"
               ? <div className="roadmap-estudo-aba"><Caderno r={r} etapa={etapaAberta && plano ? etapasEmOrdem(plano).find((e) => e.id === etapaAberta) : hoje} onAbrirLink={abrirLink} /></div>
               : <PainelDaIa r={r} etapaId={etapaAberta ?? undefined} onAbrirLink={abrirLink} />}
+          </div>
         </aside>
       )}
 

@@ -1,11 +1,12 @@
 // Fork (Roadmaps de estudo): a tela — lista de roadmaps, entrevista ou trilha do roadmap aberto.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "../../components/ui";
 import { lembrarUltimo, ultimoAberto } from "./armazenamento";
 import { Entrevista } from "./Entrevista";
 import { ListaDeRoadmaps } from "./ListaDeRoadmaps";
 import { carregar, carregarLista, erroDaListaAtual, erroDoRoadmap, lembranca, lembrar, listaAtual, recarregar, roadmap, useLoja } from "./loja";
 import { Trilha } from "./Trilha";
+import { useTransicao } from "./useTransicao";
 import "./roadmaps.css";
 
 /** Roadmap aberto na última vez que a tela esteve aberta (nesta execução do app). */
@@ -39,6 +40,10 @@ export function RoadmapsView({ onClose, continuar = false }: { onClose: () => vo
   }, [aberto, lista]);
 
   const voltar = () => { setAberto(null); void carregarLista(); };
+  // Abrir um roadmap entra pela direita; voltar à lista, pela esquerda. A entrevista que vira trilha também anima.
+  const fase = aberto ? roadmap(aberto)?.meta.fase ?? "abrindo" : "lista";
+  const tela = useTransicao<HTMLDivElement>(`${aberto ?? "lista"}:${fase}`, aberto ? "frente" : "tras");
+  const embrulhar = (conteudo: ReactNode) => <div ref={tela} className="h-full min-h-0">{conteudo}</div>;
 
   if (aberto) {
     const r = roadmap(aberto);
@@ -50,7 +55,7 @@ export function RoadmapsView({ onClose, continuar = false }: { onClose: () => vo
       </div>
     );
     if (!r) return <div className="p-6 font-mono text-xs text-text-muted">Abrindo roadmap…</div>;
-    return r.meta.fase === "ativo" && r.plano ? <Trilha r={r} onVoltar={voltar} /> : <Entrevista r={r} onVoltar={voltar} />;
+    return embrulhar(r.meta.fase === "ativo" && r.plano ? <Trilha r={r} onVoltar={voltar} /> : <Entrevista r={r} onVoltar={voltar} />);
   }
   if (!lista) {
     const erro = erroDaListaAtual();
@@ -58,5 +63,5 @@ export function RoadmapsView({ onClose, continuar = false }: { onClose: () => vo
       ? <div className="p-6"><p role="alert" className="roadmap-erro">Não consegui ler os roadmaps: {erro}</p></div>
       : <div className="p-6 font-mono text-xs text-text-muted">Abrindo roadmaps…</div>;
   }
-  return <ListaDeRoadmaps lista={lista} onAbrir={setAberto} onFechar={onClose} />;
+  return embrulhar(<ListaDeRoadmaps lista={lista} onAbrir={setAberto} onFechar={onClose} />);
 }

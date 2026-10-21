@@ -52,3 +52,34 @@ export function animarEntrada(el: HTMLElement | null): Animation | null {
 export function rolarAte(el: HTMLElement | null) {
   el?.scrollIntoView?.({ block: "center", behavior: pode() ? "smooth" : "auto" });
 }
+
+export type Direcao = "frente" | "tras" | "neutra";
+
+/**
+ * Troca de tela (lista → trilha → estudo, aba do painel, card da revisão): entra deslizando do lado
+ * para onde se vai. Só a entrada anima (a tela antiga some na hora): nunca há duas telas segurando clique.
+ */
+export function animarTroca(el: HTMLElement | null, direcao: Direcao = "neutra"): Animation | null {
+  if (!el || !pode() || typeof el.animate !== "function") return null;
+  const dx = direcao === "frente" ? 18 : direcao === "tras" ? -18 : 0;
+  return el.animate(
+    [{ opacity: 0, transform: `translate(${dx}px, ${dx ? 0 : 6}px) scale(.992)` }, { opacity: 1, transform: "none" }],
+    { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" },
+  );
+}
+
+/** Painel que abre de um lado (lateral da trilha). */
+export function animarPainelLateral(el: HTMLElement | null): Animation | null {
+  if (!el || !pode() || typeof el.animate !== "function") return null;
+  return el.animate([{ opacity: 0, transform: "translateX(24px)" }, { opacity: 1, transform: "none" }], { duration: 240, easing: "cubic-bezier(.2,.8,.2,1)" });
+}
+
+/** Itens entrando em cascata (medalhões ao abrir o mapa): no máximo `limite`, o resto já aparece pronto. */
+export function animarCascata(itens: HTMLElement[], passoMs = 28, limite = 14): Animation[] {
+  if (!pode()) return [];
+  return itens.slice(0, limite).filter((el) => typeof el.animate === "function").map((el, i) => el.animate(
+    [{ opacity: 0, transform: "translateY(10px) scale(.94)" }, { opacity: 1, transform: "none" }],
+    // `backwards`: espera a vez já no estado inicial, mas termina sem `fill` (volta ao CSS).
+    { duration: 320, delay: i * passoMs, easing: "cubic-bezier(.2,.9,.25,1.15)", fill: "backwards" },
+  ));
+}
