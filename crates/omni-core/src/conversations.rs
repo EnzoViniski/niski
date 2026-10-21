@@ -88,7 +88,11 @@ pub fn display_title(conversation: &Conversation) -> String {
     if conversation.title_source == TitleSource::Manual {
         return conversation.title.clone();
     }
-    auto_title(conversation).unwrap_or_else(|| conversation.title.clone())
+    // Fork: o nome que o próprio agente deu (Claude `ai-title`, Codex `thread_name`) vem antes do
+    // começo do primeiro prompt (`titulo_do_agente.rs`).
+    crate::titulo_do_agente::titulo_do_agente(conversation)
+        .or_else(|| auto_title(conversation))
+        .unwrap_or_else(|| conversation.title.clone())
 }
 
 /// Limite do nome escrito à mão. Mesma regra que o spawn pelo celular já aplicava.

@@ -5,6 +5,7 @@ pub mod agendamentos; // Fork: calendário e destinos dos agendamentos.
 pub mod comandos_oficiais;
 pub mod usage;
 pub mod conversations;
+pub mod titulo_do_agente; // Fork: nome da conversa dado pelo próprio agente.
 pub mod feed;
 pub mod history;
 // Fork: busca textual limitada nos transcripts do índice.
