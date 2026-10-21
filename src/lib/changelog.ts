@@ -16,6 +16,17 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.9.0",
+    date: "2026-10-21",
+    changes: [
+      "Quando o agente termina, todo o trabalho daquele pedido fica recolhido em \"Trabalhou por …\", acima da resposta final. Um clique mostra o passo a passo e outro esconde.",
+      "O horário e o botão Copiar da resposta do agente aparecem ao passar o mouse sobre ela.",
+      "Modelo e esforço ficam num botão só, no canto direito do campo de mensagem. Ele abre um painel com uma barra para arrastar o esforço (o nível máximo brilha) e, clicando no modelo, a lista de modelos.",
+      "O + ao lado de cada pasta fica sempre à vista e já começa uma conversa nova naquela pasta, num painel próprio, com o último agente e a última conta que você usou.",
+      "Na lateral, \"Na tela\" mostra o que está aberto à direita, agrupado por painel: conversas que dividem o mesmo painel aparecem juntas, uma em cima da outra, mesmo sendo de pastas diferentes.",
+    ],
+  },
+  {
     version: "0.8.9",
     date: "2026-10-21",
     changes: [
