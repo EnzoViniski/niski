@@ -38,6 +38,8 @@ mod limite_de_sessoes;
 #[cfg(target_os = "macos")]
 mod tela_cheia;
 mod pedido_de_atualizacao; // Fork: "Atualizar o PC" pedido pelo celular.
+// Fork: Jarvis, copiloto por voz (janela flutuante, voz da Apple, Claude Code pensando).
+mod jarvis;
 
 pub fn run() {
     // Fork: contas com pasta mas fora do `profiles.json` desta variante voltam a ser reconhecidas.
@@ -70,8 +72,10 @@ pub fn run() {
         .setup(|_app| {
             #[cfg(target_os = "macos")]
             tela_cheia::instalar(_app);
+            jarvis::janela::instalar(_app); // Fork: atalho global do Jarvis.
             Ok(())
         })
+        .on_window_event(jarvis::janela::ao_evento_da_janela) // Fork: Jarvis guarda posição e fecha junto.
         .invoke_handler(tauri::generate_handler![
             engine_client::engine_status,
             abrir_entregavel::abrir_entregavel,
@@ -95,6 +99,16 @@ pub fn run() {
             voz::voz_previa,
             voz::voz_niveis,
             voz::voz_cancelar,
+            // Fork: Jarvis.
+            jarvis::jarvis_iniciar,
+            jarvis::jarvis_encerrar,
+            jarvis::jarvis_ouvir,
+            jarvis::jarvis_calar,
+            jarvis::jarvis_escrever,
+            jarvis::janela::jarvis_alternar,
+            jarvis::janela::jarvis_fechar,
+            jarvis::janela::jarvis_bolinha,
+            jarvis::janela::jarvis_janela_aberta,
             atualizacao::versao_nova_no_disco,
             atualizacao::reiniciar_para_atualizar,
             // Fork: "Atualizar agora" (updater) na barra.
@@ -187,7 +201,7 @@ pub fn run() {
         // Fork: solta o modelo de voz antes de sair. Com ele carregado na GPU, a limpeza do Metal do
         // whisper.cpp no `exit` aborta (`GGML_ASSERT` em ggml-metal-device.m) e o macOS mostra
         // "encerrou inesperadamente" na próxima abertura.
-        .run(|_, evento| if let tauri::RunEvent::Exit = evento { voz::liberar() });
+        .run(|_, evento| if let tauri::RunEvent::Exit = evento { voz::liberar(); jarvis::jarvis_encerrar() });
 }
 
 /// Metadados da subida: o que costuma faltar quando o app é aberto pelo Finder (PATH, TERM, LANG) e

@@ -13,8 +13,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# Fork: `unstable` = webview filho (aba Navegador, `src/navegador.rs`).
-tauri = { version = "2", features = ["protocol-asset", "unstable"] }
+# Fork: `unstable` = webview filho (aba Navegador, `src/navegador.rs`); `macos-private-api` = janela
+# transparente do Jarvis (`src/jarvis/janela.rs`, `app.macOSPrivateApi` no tauri.conf.json).
+tauri = { version = "2", features = ["protocol-asset", "unstable", "macos-private-api"] }
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
@@ -40,6 +41,8 @@ tauri-plugin-updater = "2"
 # Fork: voz no chat. Microfone (cpal) e transcrição local com whisper.cpp; Metal no Mac.
 cpal = "0.18"
 whisper-rs = "0.16"
+# Fork: Jarvis. Atalho global ⌃⌥J (`src/jarvis/janela.rs`).
+tauri-plugin-global-shortcut = "=2.3.1" # 2.4 exige Tauri 2.12; fica na do app.
 
 
 [target.'cfg(target_os = "macos")'.dependencies]
