@@ -74,6 +74,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(navegador::plugin())
         .plugin(tauri_plugin_notification::init())
+        // Fork (Editor de vídeo): arquivos do projeto para o preview, com CSP fechada (videos/protocolo.rs).
+        .register_asynchronous_uri_scheme_protocol(videos::protocolo::ESQUEMA, videos::protocolo::atender)
         // Fork: em tela cheia no Mac, o conteúdo desce junto da barra revelada (tela_cheia.rs).
         .setup(|_app| {
             #[cfg(target_os = "macos")]
@@ -136,6 +138,7 @@ pub fn run() {
             roadmaps::ia::roadmaps_ia,
             roadmaps::ia::roadmaps_ia_cancelar,
             videos::videos_listar, // Fork: Editor de vídeo.
+            videos::protocolo::videos_endereco_base,
             videos::videos_criar,
             videos::videos_abrir,
             videos::videos_ler,

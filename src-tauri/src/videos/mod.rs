@@ -8,6 +8,7 @@
 pub mod arquivos;
 pub mod midias;
 pub mod projetos;
+pub mod protocolo;
 pub mod referencias;
 
 use std::path::{Path, PathBuf};
