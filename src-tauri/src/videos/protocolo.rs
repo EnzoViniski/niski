@@ -4,7 +4,11 @@
 //! - Endereço: `medzavideo://localhost/<token>/p/<projeto>/<caminho>` (macOS/Linux) ou
 //!   `http://medzavideo.localhost/...` (Windows). `r/<pasta>` serve uma pasta de referências.
 //! - O token muda a cada execução do app: uma página aberta no navegador embutido não adivinha o
-//!   endereço. Não há `Access-Control-Allow-Origin`: ninguém de fora lê o conteúdo.
+//!   endereço. Os arquivos de projeto vão com `Access-Control-Allow-Origin: *` porque o runtime busca
+//!   as sub-composições com `fetch` de dentro do iframe de origem opaca; o segredo é o token.
+//! - No HTML do projeto entra, antes de tudo, o runtime do HyperFrames na versão fixada (a mesma URL
+//!   que o player usaria): os scripts da composição contam com `window.__timelines` já criado, como no
+//!   render do CLI. O arquivo no disco não muda.
 //! - Só arquivo comum dentro da pasta (sem `..`, sem link simbólico para fora). O chat
 //!   (`conversa.jsonl`), o `projeto.json` e o `historico/` não são servidos.
 //! - HTML vai com CSP fechada: scripts só da pasta e das CDNs que a composição usa, `connect-src`
@@ -43,6 +47,21 @@ img-src medzavideo: http://medzavideo.localhost data: blob: https:; \
 media-src medzavideo: http://medzavideo.localhost data: blob: https:; \
 connect-src medzavideo: http://medzavideo.localhost data: blob:; \
 worker-src blob:; frame-src 'none'; form-action 'none'; base-uri medzavideo: http://medzavideo.localhost";
+
+/// Runtime que o `<hyperframes-player>` 0.8.183 injeta (`runtime-url.ts`); a mesma URL evita injetar duas vezes.
+pub const RUNTIME: &str = "https://cdn.jsdelivr.net/npm/@hyperframes/core@0.8.183/dist/hyperframe.runtime.iife.js";
+
+/// Põe o runtime no começo do `<head>` (ou do documento), se ainda não tiver.
+pub fn com_runtime(html: &str) -> String {
+    if html.contains("hyperframe.runtime") || html.contains("__hyperframes =") { return html.to_owned(); }
+    let tag = format!("<script src=\"{RUNTIME}\"></script>");
+    let baixo = html.to_ascii_lowercase();
+    let depois_do_head = baixo.find("<head").and_then(|i| baixo[i..].find('>').map(|j| i + j + 1));
+    match depois_do_head {
+        Some(i) => format!("{}{tag}{}", &html[..i], &html[i..]),
+        None => format!("{tag}{html}"),
+    }
+}
 
 fn tipo(caminho: &Path) -> &'static str {
     match caminho.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).as_deref() {
@@ -137,6 +156,7 @@ fn intervalo(cabecalho: &str, tamanho: u64) -> Option<(u64, u64)> {
 pub fn responder(raiz: &Path, token_esperado: &str, metodo: &str, caminho_da_url: &str, range: Option<&str>) -> Resposta {
     if metodo != "GET" && metodo != "HEAD" { return erro(405, "Método não permitido"); }
     let Some((pasta, rel)) = resolver(raiz, token_esperado, caminho_da_url) else { return erro(404, "Não encontrado") };
+    let do_projeto = caminho_da_url.trim_start_matches('/').split('/').nth(1) == Some("p");
     let alvo = pasta.join(&rel);
     // Sem link simbólico em nenhum ponto do caminho (podia apontar para fora da pasta).
     let mut atual = pasta.clone();
@@ -154,6 +174,14 @@ pub fn responder(raiz: &Path, token_esperado: &str, metodo: &str, caminho_da_url
         ("Accept-Ranges", "bytes".into()),
     ];
     if tipo.starts_with("text/html") { cabecalhos.push(("Content-Security-Policy", CSP_DA_COMPOSICAO.into())); }
+    if do_projeto { cabecalhos.push(("Access-Control-Allow-Origin", "*".into())); }
+    if do_projeto && tipo.starts_with("text/html") && tamanho <= super::projetos::TAMANHO_MAXIMO as u64 {
+        let Ok(texto) = fs::read_to_string(&alvo) else { return erro(500, "Não consegui ler o arquivo") };
+        let corpo = com_runtime(&texto).into_bytes();
+        cabecalhos.retain(|(n, _)| *n != "Accept-Ranges");
+        cabecalhos.push(("Content-Length", corpo.len().to_string()));
+        return Resposta { status: 200, cabecalhos, corpo: if metodo == "HEAD" { Vec::new() } else { corpo } };
+    }
     let Ok(mut arquivo) = fs::File::open(&alvo) else { return erro(404, "Não encontrado") };
     let pedido = range.and_then(|r| intervalo(r, tamanho));
     if range.is_some() && pedido.is_none() {
@@ -220,9 +248,19 @@ mod testes {
         let (dir, id) = projeto();
         let r = responder(dir.path(), "tok", "GET", &format!("/tok/p/{id}/"), None);
         assert_eq!(r.status, 200);
-        assert_eq!(r.corpo, b"<div></div>");
+        let corpo = String::from_utf8(r.corpo).unwrap();
+        assert_eq!(corpo, format!("<script src=\"{RUNTIME}\"></script><div></div>"));
         assert!(r.cabecalhos.iter().any(|(n, v)| *n == "Content-Security-Policy" && v.contains("connect-src medzavideo:")));
-        assert!(!r.cabecalhos.iter().any(|(n, _)| n.starts_with("Access-Control")));
+        assert!(r.cabecalhos.iter().any(|(n, v)| *n == "Content-Length" && *v == corpo.len().to_string()));
+    }
+
+    #[test]
+    fn runtime_entra_no_comeco_do_head_uma_vez_so() {
+        let html = "<!doctype html><html><HEAD lang=x><script>window.__timelines['main']=1</script></head></html>";
+        let com = com_runtime(html);
+        assert!(com.starts_with("<!doctype html><html><HEAD lang=x><script src=\"https://cdn.jsdelivr.net/npm/@hyperframes/core@0.8.183/"));
+        assert!(com.find("hyperframe.runtime").unwrap() < com.find("__timelines").unwrap());
+        assert_eq!(com_runtime(&com), com);
     }
 
     #[test]

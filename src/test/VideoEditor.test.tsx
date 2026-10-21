@@ -78,7 +78,7 @@ describe("Edição de vídeo", () => {
     const pid = await criarProjeto();
     localStorage.setItem("medza.video.ultimo", pid);
     render(<VideoView onClose={() => undefined} continuar />);
-    const clipe = await screen.findByRole("button", { name: /Bloco Lançamento/ });
+    const clipe = await screen.findByRole("button", { name: /Texto Lançamento/ });
     // jsdom não tem PointerEvent com `button`: seleciona pelo teclado (mesmo caminho do Enter).
     fireEvent.keyDown(clipe, { key: "Enter" });
     const duracao = await screen.findByRole("textbox", { name: "Duração" });

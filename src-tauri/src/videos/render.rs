@@ -67,7 +67,16 @@ pub fn progresso(linha: &str) -> Option<Progresso> {
     if let Some(json) = t.strip_prefix("@hf-progress ") {
         let v: serde_json::Value = serde_json::from_str(json).ok()?;
         let pct = v["pct"].as_f64()?;
-        let etapa = v["label"].as_str().or(v["stage"].as_str()).or(v["name"].as_str()).unwrap_or_default().to_owned();
+        // Na v0.8.183 a etapa vem em `code` (conferido num render real); `done`/`total` são quadros.
+        let etapa = match v["code"].as_str().or(v["label"].as_str()).unwrap_or_default() {
+            "compile" => "Preparando a composição", "start_browsers" => "Abrindo o navegador do render",
+            "extract_video" => "Lendo os vídeos", "process_audio" => "Mixando o áudio", "capture" => "Capturando os quadros",
+            "encode" => "Codificando", "assemble" => "Montando o arquivo", outro => outro,
+        }.to_owned();
+        let etapa = match (v["done"].as_u64(), v["total"].as_u64()) {
+            (Some(f), Some(t)) if t > 0 && !etapa.is_empty() => format!("{etapa} ({f} de {t})"),
+            _ => etapa,
+        };
         return Some(Progresso { pct: pct.clamp(0.0, 100.0), etapa });
     }
     let (antes, depois) = t.split_once('%')?;
@@ -178,7 +187,8 @@ mod testes {
 
     #[test]
     fn le_o_progresso_das_duas_formas() {
-        assert_eq!(progresso(r#"@hf-progress {"label":"Capturando quadros","pct":42}"#), Some(Progresso { pct: 42.0, etapa: "Capturando quadros".into() }));
+        assert_eq!(progresso(r#"@hf-progress {"code":"capture","done":12,"total":180,"pct":42}"#), Some(Progresso { pct: 42.0, etapa: "Capturando os quadros (12 de 180)".into() }));
+        assert_eq!(progresso(r#"@hf-progress {"code":"compile","pct":5}"#).unwrap().etapa, "Preparando a composição");
         assert_eq!(progresso("  \u{1b}[32m█████\u{1b}[0m░░░  \u{1b}[1m55%\u{1b}[0m  \u{1b}[2mEncoding\u{1b}[0m").map(|p| p.pct), Some(55.0));
         assert_eq!(progresso("Rendering composition index.html"), None);
     }
@@ -190,7 +200,7 @@ mod testes {
         let dir = tempfile::tempdir().unwrap();
         let npx = dir.path().join("npx-falso");
         // Confere a telemetria desligada e cria o arquivo pedido em --output.
-        std::fs::write(&npx, "#!/bin/sh\n[ \"$HYPERFRAMES_NO_TELEMETRY\" = 1 ] || exit 3\nwhile [ \"$1\" != \"--output\" ]; do shift; done\necho '@hf-progress {\"label\":\"quadros\",\"pct\":50}'\necho '  100%  pronto'\necho video > \"$2\"\n").unwrap();
+        std::fs::write(&npx, "#!/bin/sh\n[ \"$HYPERFRAMES_NO_TELEMETRY\" = 1 ] || exit 3\nwhile [ \"$1\" != \"--output\" ]; do shift; done\necho '@hf-progress {\"code\":\"capture\",\"pct\":50}'\necho '  100%  pronto'\necho video > \"$2\"\n").unwrap();
         std::fs::set_permissions(&npx, std::fs::Permissions::from_mode(0o755)).unwrap();
         let mut vistos = Vec::new();
         let saida = exportar_com(&pedido("mp4"), &npx, dir.path(), "20261021-120000", |p| vistos.push(p.pct)).unwrap();

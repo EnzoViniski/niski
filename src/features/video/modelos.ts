@@ -40,14 +40,12 @@ export function indexInicial({ nome, formato, duracao, fps = 30, cor = "#0b0f14"
       body { margin: 0; background: ${cor}; color: white; font-family: system-ui, sans-serif; }
       #root { position: relative; width: 100%; height: 100%; overflow: hidden; }
       .clip { position: absolute; inset: 0; display: grid; place-items: center; }
-      #titulo { margin: 0; font-size: ${fonte}px; font-weight: 700; letter-spacing: -0.02em; text-align: center; padding: 0 8%; }
+      #titulo { margin: 0; box-sizing: border-box; font-size: ${fonte}px; font-weight: 700; letter-spacing: -0.02em; text-align: center; padding: 0 8%; }
     </style>
   </head>
   <body>
     <div id="root" data-composition-id="main" data-start="0" data-width="${largura}" data-height="${altura}" data-duration="${segundos}" data-fps="${fps}">
-      <section id="cartao-titulo" class="clip" data-start="0" data-duration="${segundos}" data-track-index="0">
-        <h1 id="titulo">${titulo}</h1>
-      </section>
+      <h1 id="titulo" class="clip" data-start="0" data-duration="${segundos}" data-track-index="0">${titulo}</h1>
     </div>
     <script>
       const tl = gsap.timeline({ paused: true });

@@ -131,7 +131,6 @@ export function Editor({ id, onVoltar }: { id: string; onVoltar: () => void }) {
 
   // Atalhos de teclado (fora dos campos de texto).
   useEffect(() => {
-    const fps = comp.raiz?.fps ?? 30;
     const aoTeclar = (e: KeyboardEvent) => {
       if (emCampoDeTexto(e) || exportando) return;
       const cmd = e.metaKey || e.ctrlKey;
@@ -146,11 +145,10 @@ export function Editor({ id, onVoltar }: { id: string; onVoltar: () => void }) {
       else if (e.key.toLowerCase() === "s" && clipe) { e.preventDefault(); dividirNaAgulha(); }
       else if ((e.key === "Backspace" || e.key === "Delete") && clipe) { e.preventDefault(); apagarSelecionado(); }
       else if (e.key === "Escape") setSelecionado(null);
-      void fps;
     };
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
-  }, [acoes, apagarSelecionado, bloqueado, clipe, comp.raiz?.fps, dividirNaAgulha, duracoes, editar, exportando, relogio]);
+  }, [acoes, apagarSelecionado, bloqueado, clipe, dividirNaAgulha, duracoes, editar, exportando, relogio]);
 
   const contexto = useCallback(() => {
     const t = formatarTempo(relogio.ler().tempo);

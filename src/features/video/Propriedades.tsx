@@ -49,7 +49,7 @@ export function Propriedades({ comp, clipe, duracoes, bloqueado, onMudar, onDura
         <h3 className="video-prop-titulo">Vídeo</h3>
         {comp.raiz ? (
           <>
-            <CampoDeNumero rotulo="Duração total" valor={comp.raiz.duracao ?? total} onGravar={onDuracaoTotal} min={0.5} desligado={bloqueado} />
+            <div className="video-prop-grade"><CampoDeNumero rotulo="Duração total" valor={comp.raiz.duracao ?? total} onGravar={onDuracaoTotal} min={0.5} desligado={bloqueado} /></div>
             <p className="video-prop-info">{comp.raiz.largura}×{comp.raiz.altura} · {comp.raiz.fps} quadros por segundo · {comp.clipes.length} clipe{comp.clipes.length === 1 ? "" : "s"}</p>
           </>
         ) : <p className="video-prop-info">A composição não tem root. Peça ao agente para arrumar.</p>}

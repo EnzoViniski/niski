@@ -453,7 +453,8 @@ export function inserirTexto(html: string, texto: string, inicio: number, duraca
   if (!comp.raiz) throw new Error("A composição não tem root (`data-composition-id`).");
   const id = novoId(html, `texto-${texto}`);
   const tamanho = Math.round(Math.min(comp.raiz.largura, comp.raiz.altura) * 0.05);
-  const elemento = `<div id="${id}" class="clip" data-start="${seg(inicio)}" data-duration="${seg(duracao)}" data-track-index="${faixa}" style="display:flex;align-items:flex-end;justify-content:center;padding-bottom:8%"><p id="${id}-texto" style="margin:0;padding:0.25em 0.6em;border-radius:0.3em;background:rgba(0,0,0,0.55);color:#fff;font:600 ${tamanho}px/1.2 system-ui,sans-serif;text-align:center;max-width:84%">${codificar(texto)}</p></div>`;
+  // Um elemento só (sem filhos): o lint do HyperFrames pede sub-composição para clipe com filhos.
+  const elemento = `<p id="${id}" class="clip" data-start="${seg(inicio)}" data-duration="${seg(duracao)}" data-track-index="${faixa}" style="box-sizing:border-box;margin:0;display:flex;align-items:flex-end;justify-content:center;padding:0 8% 8%;color:#fff;font:600 ${tamanho}px/1.2 system-ui,sans-serif;text-align:center;text-shadow:0 2px 14px rgba(0,0,0,0.85)">${codificar(texto)}</p>`;
   return pendurarNaRaiz(html, comp, elemento, inicio + duracao);
 }
 

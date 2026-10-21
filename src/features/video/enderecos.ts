@@ -13,7 +13,10 @@ export function carregarEndereco() {
 /** O Windows serve esquemas próprios como `http://<esquema>.localhost` (mesma regra do `asset:`). */
 const NO_WINDOWS = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
 
+let baseDeTeste: string | null = null;
+
 function base(t: string) {
+  if (baseDeTeste) return `${baseDeTeste}/${t}`;
   return NO_WINDOWS ? `http://medzavideo.localhost/${t}` : `medzavideo://localhost/${t}`;
 }
 
@@ -33,5 +36,5 @@ export function urlDaPasta(pasta: string, rel: string) {
   return `${base(tokenPronto)}/r/${pasta}/${caminho(rel)}`;
 }
 
-/** Só para os testes. */
-export function definirTokenParaTeste(t: string | null) { tokenPronto = t; token = t ? Promise.resolve(t) : null; }
+/** Só para os testes e a página de conferência visual (fora do app). */
+export function definirTokenParaTeste(t: string | null, base: string | null = null) { tokenPronto = t; token = t ? Promise.resolve(t) : null; baseDeTeste = base; }
