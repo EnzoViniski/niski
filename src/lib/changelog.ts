@@ -16,6 +16,14 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.27.0",
+    date: "2026-10-22",
+    changes: [
+      "Digitar / no começo da mensagem abre a lista do que dá para usar na conversa: comandos do agente (como /compact), suas skills e seus comandos personalizados, da conta e do projeto, cada um com uma descrição curta. Setas escolhem, Enter ou Tab completam e Esc fecha.",
+      "No Claude, enviar /nome-da-skill roda a skill direto. No Codex, a skill entra no texto como $nome. Nos outros agentes, entra como um pedido para usar a skill.",
+    ],
+  },
+  {
     version: "0.26.0",
     date: "2026-10-22",
     changes: [
