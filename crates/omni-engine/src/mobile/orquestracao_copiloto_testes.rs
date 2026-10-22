@@ -77,7 +77,7 @@ async fn copiloto_na_tela_sem_tarefa_nao_manda_briefing_e_o_fluxo_avisa_a_tela()
     assert_eq!(meta.name, "Codex · gpt-6.1-sol");
     assert!(state.mobile.orquestracao.pendentes.lock().unwrap().get(&agente).is_none(), "sem tarefa, nada na fila");
 
-    let EngineResponse::Api { status, body } = local(state.clone(), "GET", "/orquestracao/cop", None, None, vec![]).await else { panic!() };
+    let EngineResponse::Api { status, body, .. } = local(state.clone(), "GET", "/orquestracao/cop", None, None, vec![]).await else { panic!() };
     assert_eq!(status, 200);
     let fluxo: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(fluxo["agentes"][0]["na_tela"], true, "{body}");
