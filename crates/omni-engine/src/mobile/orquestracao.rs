@@ -24,6 +24,9 @@ use std::sync::atomic::AtomicU16;
 
 #[path = "orquestracao_ferramentas.rs"]
 mod ferramentas;
+// Fork (Copiloto): ferramentas de tarefas (as mesmas da tela Tarefas).
+#[path = "orquestracao_tarefas.rs"]
+mod tarefas_mcp;
 // Fork: Jarvis usa as mesmas ferramentas e os mesmos limites dos orquestradores do chat.
 #[path = "orquestracao_jarvis.rs"]
 pub(crate) mod jarvis;
@@ -86,6 +89,21 @@ pub(crate) fn preparar(state: &EngineState, conversa: Option<&str>, provider: Op
     }
     registro::info("orquestracao_token_novo", &[("orquestrador", conversa), ("provider", provider)]);
     (Some(comando), vec![(regra::VARIAVEL_DO_TOKEN.to_owned(), token)])
+}
+
+/// Fork (Copiloto): projeto das sessões do copiloto do app (janela flutuante do Niski).
+pub(crate) const PROJETO_DO_COPILOTO: &str = "copiloto";
+
+/// Fork (Copiloto): a conversa do copiloto já nasce orquestradora (ferramentas de agentes e de
+/// tarefas desde o primeiro comando), sem o "Tornar orquestradora" que reabriria a CLI.
+pub(crate) fn marcar_copiloto(state: &EngineState, projeto: &str, conversa: Option<&str>, provider: Option<&str>) {
+    let (Some(conversa), Some(provider)) = (conversa, provider) else { return };
+    if projeto != PROJETO_DO_COPILOTO || !regra::pode_orquestrar(provider) { return; }
+    let registro = ler_registro(state);
+    if registro.ativo(conversa) || registro.dono_de(conversa).is_some() { return; }
+    if mudar_registro(state, |r| r.definir_ativo(conversa, true)).is_ok() {
+        registro::info("copiloto_orquestrador", &[("provider", provider)]);
+    }
 }
 
 /// Sobe o servidor MCP. Porta ocupada: as ferramentas ficam indisponíveis (fica no log), o resto do

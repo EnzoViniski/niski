@@ -130,7 +130,9 @@ async fn token_errado_401_get_405_origem_estranha_403_e_handshake() {
     assert_eq!(status, StatusCode::ACCEPTED);
     let (_, lista) = enviar_mcp(&state, pedido(Some(&token), json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}))).await;
     let nomes: Vec<&str> = lista["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-    assert_eq!(nomes, ["listar_plataformas_e_contas", "criar_agente", "conferir_arquivos", "mandar_prompt", "ler_conversa", "esperar", "listar_agentes", "responder_pedido", "parar_agente"]);
+    assert_eq!(nomes, ["listar_plataformas_e_contas", "criar_agente", "conferir_arquivos", "mandar_prompt", "ler_conversa", "esperar", "listar_agentes", "responder_pedido", "parar_agente",
+        // Fork (Copiloto): ferramentas de tarefas.
+        "listar_tarefas", "criar_tarefa", "editar_tarefa", "concluir_tarefa", "apagar_tarefa"]);
     let (_, desconhecido) = enviar_mcp(&state, pedido(Some(&token), json!({"jsonrpc": "2.0", "id": 3, "method": "resources/list"}))).await;
     assert_eq!(desconhecido["error"]["code"], -32601);
 }
@@ -579,4 +581,19 @@ async fn criacoes_simultaneas_com_conta_automatica_respeitam_o_teto() {
         let (erro, texto) = ferramenta(&state, &token, "parar_agente", json!({"agente": criado["agente"]})).await;
         assert!(!erro, "{texto}");
     }
+}
+
+// Fork (Copiloto): a conversa do copiloto nasce orquestradora; as outras não mudam.
+#[test]
+fn copiloto_nasce_orquestrador_e_os_outros_projetos_nao() {
+    let (_dir, state, _) = fixture();
+    marcar_copiloto(&state, "p", Some("orq-a"), Some("claude"));
+    assert!(!ler_registro(&state).ativo("orq-a"));
+    marcar_copiloto(&state, PROJETO_DO_COPILOTO, Some("agy"), Some("antigravity"));
+    assert!(!ler_registro(&state).ativo("agy"));
+    marcar_copiloto(&state, PROJETO_DO_COPILOTO, Some("orq-b"), Some("codex"));
+    assert!(ler_registro(&state).ativo("orq-b"));
+    let (comando, ambiente) = preparar(&state, Some("orq-b"), Some("codex"), Some("codex".into()));
+    assert!(comando.unwrap().contains("mcp"));
+    assert_eq!(ambiente.len(), 1);
 }
