@@ -16,6 +16,17 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.19.0",
+    date: "2026-10-22",
+    changes: [
+      "Copiloto: a logo do Niski no canto inferior direito agora abre um copiloto, uma conversa de verdade com o Claude ou o Codex, com tudo da conversa normal: áudio, arquivos, troca de modelo, conta e esforço. Ele fica numa janela que você arrasta e redimensiona, ou preso à direita (⇥).",
+      "O copiloto já nasce com as ferramentas do app: cria e comanda agentes de qualquer conta e provedor, que aparecem no painel em um fluxo ao vivo, cria e organiza suas tarefas e trabalha na pasta que você escolher (📁). \"＋\" começa outra conversa; a anterior fica no Histórico.",
+      "Tarefas ganhou um botão próprio, logo acima da logo, com o número de tarefas de hoje. O 📌 ao lado dele fixa a lista do dia.",
+      "Corrigido: tarefas criadas pela IA não apareciam quando um filtro (por exemplo \"Trabalho\") estava ligado. Agora o filtro sai, a tarefa nova brilha por alguns segundos e o \"✓ Criada\" abre a tarefa. Quando um filtro esconde tarefas, aparece um aviso com \"Mostrar todas\".",
+      "Qualquer conversa que você tornar orquestradora (e o Jarvis) também pode listar, criar, mudar e concluir suas tarefas. A tela de tarefas mostra essas mudanças em poucos segundos.",
+    ],
+  },
+  {
     version: "0.18.0",
     date: "2026-10-22",
     changes: [
