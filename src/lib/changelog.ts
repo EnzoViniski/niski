@@ -16,6 +16,15 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.24.0",
+    date: "2026-10-22",
+    changes: [
+      "O símbolo do Jarvis agora mostra quem está falando: enquanto você fala ele se contrai e o contorno acende em ciano; quando o Jarvis responde, ele se expande em ondas no ritmo da voz.",
+      "Mesmo sem som ele não fica parado: conectando, duas faixas de luz azul giram em volta; com problema, ele pulsa devagar como uma batida.",
+      "O Jarvis ficou mais leve: o símbolo anima mais devagar quando está calmo e só acelera enquanto o Jarvis fala. Com a janela escondida, a animação para por completo.",
+    ],
+  },
+  {
     version: "0.23.0",
     date: "2026-10-22",
     changes: [
