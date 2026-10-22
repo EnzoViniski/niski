@@ -48,6 +48,17 @@ describe("SuavizadorDeVoz", () => {
     expect(voz.historico[0]).toBeLessThan(0.1);
   });
 
+  it("as ondas vêm da voz do Jarvis; a do Enzo entra fraca (ela contrai a logo)", () => {
+    const jarvis = new SuavizadorDeVoz();
+    const enzo = new SuavizadorDeVoz();
+    simular(enzo, { mic: 0.25, fala: 0 }, 3);
+    simular(jarvis, { mic: 0, fala: 0.9 }, 0.5);
+    simular(enzo, { mic: 0.9, fala: 0 }, 0.5);
+    expect(enzo.mic).toBeGreaterThan(0.8);
+    expect(Math.max(...enzo.historico)).toBeLessThan(0.4);
+    expect(Math.max(...jarvis.historico)).toBeGreaterThan(0.9);
+  });
+
   it("valor inválido e passo enorme não quebram", () => {
     const voz = new SuavizadorDeVoz();
     voz.passo({ mic: Number.NaN, fala: Number.POSITIVE_INFINITY }, 10);

@@ -12,6 +12,10 @@ import { criarDesenhista, type DesenhistaDoOrbe } from "./orbeDeParticulasGL";
 
 /** Tempo (s) que as partículas levam para formar a logo ao abrir. */
 const DURACAO_DA_FORMACAO = 1.6;
+/** Intervalo mínimo entre quadros no modo econômico (~30 fps; a folga absorve a variação do vsync). */
+const INTERVALO_CALMO_MS = 1000 / 30 - 4;
+/** Teto de ~60 fps no modo rápido: em tela de 120 Hz o WebKit chamaria o dobro sem ganho visível. */
+const INTERVALO_RAPIDO_MS = 1000 / 60 - 3;
 
 export function OrbeDeParticulas({ estado, niveis, tamanho, compacto = false }: {
   estado: EstadoDaVoz | "erro";
@@ -52,20 +56,26 @@ export function OrbeDeParticulas({ estado, niveis, tamanho, compacto = false }: 
       if (!desenhista) { cairNaReserva(); return; }
 
       const voz = new SuavizadorDeVoz();
-      const tons = { pensar: 0, pausa: 0, erro: 0 };
+      const tons = { pensar: 0, pausa: 0, erro: 0, iniciar: 1 };
       const inicio = performance.now();
       let anterior = inicio;
       const passo = (agora: number) => {
         // Janela escondida: o laço para de vez (nem agenda o próximo quadro) até voltar a aparecer.
         if (document.hidden || !desenhista) { quadro = 0; return; }
         quadro = requestAnimationFrame(passo);
+        // 60 quadros por segundo só com o Jarvis falando (as ondas rápidas) e na formação; o resto
+        // (ouvindo, pensando, conectando, parado) fica em 30. Medido no WebKit: a taxa de quadros manda
+        // no custo (60 fps ≈ 3,5× o de 30), o número de partículas quase não pesa.
+        const rapido = voz.fala > 0.02 || agora - inicio < DURACAO_DA_FORMACAO * 1000;
+        if (agora - anterior < (rapido ? INTERVALO_RAPIDO_MS : INTERVALO_CALMO_MS)) return;
+        const e = estadoAtual.current;
         const dt = Math.min(0.1, Math.max(0, (agora - anterior) / 1000));
         anterior = agora;
-        const e = estadoAtual.current;
         voz.passo(niveis.current, dt);
         tons.pensar = aproximar(tons.pensar, e === "pensando" ? 1 : 0, dt);
         tons.pausa = aproximar(tons.pausa, e === "pausado" ? 1 : 0, dt);
         tons.erro = aproximar(tons.erro, e === "erro" ? 1 : 0, dt);
+        tons.iniciar = aproximar(tons.iniciar, e === "iniciando" ? 1 : 0, dt);
         const t = (agora - inicio) / 1000;
         desenhista.desenhar({
           tempo: t,
@@ -75,6 +85,7 @@ export function OrbeDeParticulas({ estado, niveis, tamanho, compacto = false }: 
           pensar: tons.pensar,
           pausa: tons.pausa,
           erro: tons.erro,
+          iniciar: tons.iniciar,
           historico: voz.historico,
         });
       };

@@ -14,6 +14,8 @@ export interface QuadroDoOrbe {
   pensar: number;
   pausa: number;
   erro: number;
+  /** "Conectando" (estado iniciando), 0..1. */
+  iniciar: number;
   historico: Float32Array;
 }
 
@@ -23,7 +25,7 @@ in vec3 aCor;
 in float aSemente;
 in float aTipo;
 in float aBrilho;
-uniform float uTempo, uForma, uFala, uMic, uPensar, uPausa, uErro, uPonto, uEscala, uMovimento;
+uniform float uTempo, uForma, uFala, uMic, uPensar, uPausa, uErro, uIniciar, uPonto, uEscala, uMovimento;
 uniform float uHist[${TAMANHO_DO_HISTORICO}];
 out vec3 vCor;
 out float vAlfa;
@@ -48,10 +50,16 @@ void main() {
 
   // Respira devagar (menos em pausa) e incha com a onda que passa.
   float respiro = sin(uTempo * 1.1) * 0.014 * (1.0 - uPausa * 0.7) * uMovimento;
-  p *= 1.0 + respiro + onda * 0.16;
+  // Dois lados da conversa com gestos diferentes: a voz do Enzo contrai e aperta a logo (escutando),
+  // a voz do Jarvis expande em ondas (falando).
+  float contrai = uMic * 0.075 * (1.0 - uFala);
+  // Sem som também há vida: "conectando" pulsa de leve, o erro bate devagar como um coração.
+  float conectando = uIniciar * 0.03 * sin(uTempo * 2.4 - d * 3.0);
+  float batida = uErro * 0.035 * pow(max(0.0, sin(uTempo * 2.2)), 6.0);
+  p *= 1.0 + respiro + onda * 0.16 - contrai + conectando + batida;
 
   // Vibração própria de cada partícula: mais rápida e mais larga com a voz.
-  float f = 1.2 + s * 2.2 + energia * 9.0;
+  float f = 1.2 + s * 2.2 + energia * 9.0 + uMic * 5.0;
   vec2 tremor = vec2(sin(uTempo * f + s * 31.0), cos(uTempo * f * 0.87 + s * 17.0));
   p += tremor * (0.005 + energia * 0.045 + onda * 0.03) * uMovimento * (1.0 - halo * 0.7);
 
@@ -88,6 +96,11 @@ void main() {
   cor = mix(cor, vec3(cinza * 0.75), uPausa * 0.85);
   cor = mix(cor, vec3(1.0, 0.32, 0.36), uErro * 0.75);
   cor += vec3(onda * 0.45 + uFala * 0.12);
+  // Escutando: um toque ciano no contorno enquanto o Enzo fala.
+  cor += vec3(0.1, 0.35, 0.45) * uMic * (1.0 - uFala) * step(0.5, aTipo) * (1.0 - step(1.5, aTipo));
+  // Conectando: duas faixas azuis girando; erro: brilho que acompanha a batida.
+  cor += vec3(0.45, 0.7, 1.0) * uIniciar * 0.5 * pow(max(0.0, sin(ang * 2.0 - uTempo * 2.2)), 12.0);
+  cor *= 1.0 + uErro * 0.5 * pow(max(0.0, sin(uTempo * 2.2)), 6.0);
 
   float cintila = 0.72 + 0.28 * sin(uTempo * (1.8 + s * 3.0) + s * 40.0);
   float alfaPoeira = mix(1.0, 0.25 + energia * 0.6 + uPensar * 0.2, poeira);
@@ -166,7 +179,7 @@ export function criarDesenhista(canvas: HTMLCanvasElement, particulas: Float32Ar
   const u = (nome: string) => gl.getUniformLocation(programa, nome);
   const locais = {
     tempo: u("uTempo"), forma: u("uForma"), fala: u("uFala"), mic: u("uMic"), pensar: u("uPensar"),
-    pausa: u("uPausa"), erro: u("uErro"), ponto: u("uPonto"), escala: u("uEscala"), movimento: u("uMovimento"),
+    pausa: u("uPausa"), erro: u("uErro"), iniciar: u("uIniciar"), ponto: u("uPonto"), escala: u("uEscala"), movimento: u("uMovimento"),
     historico: u("uHist"), intensidade: u("uIntensidade"),
   };
   const total = particulas.length / FLOATS_POR_PARTICULA;
@@ -180,7 +193,9 @@ export function criarDesenhista(canvas: HTMLCanvasElement, particulas: Float32Ar
     // Ponto proporcional ao lado (a bolinha usa pontos relativamente maiores, com menos partículas).
     ponto = opcoes.pontoBase * (ladoCss / 200) * escala;
   };
-  redimensionar(opcoes.lado, window.devicePixelRatio || 1);
+  // Até 1,5× de densidade: as partículas são pontos suaves, a diferença para 2× não aparece e o canvas
+  // fica com ~44% menos pixels para pintar e compor a cada quadro.
+  redimensionar(opcoes.lado, Math.min(1.5, window.devicePixelRatio || 1));
 
   return {
     redimensionar,
@@ -198,6 +213,7 @@ export function criarDesenhista(canvas: HTMLCanvasElement, particulas: Float32Ar
       gl.uniform1f(locais.pensar, q.pensar);
       gl.uniform1f(locais.pausa, q.pausa);
       gl.uniform1f(locais.erro, q.erro);
+      gl.uniform1f(locais.iniciar, q.iniciar);
       gl.uniform1f(locais.ponto, ponto);
       gl.uniform1f(locais.escala, opcoes.escala);
       gl.uniform1f(locais.movimento, devagar ? 0.3 : 1);
