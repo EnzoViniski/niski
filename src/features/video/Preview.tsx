@@ -71,6 +71,8 @@ type Modo = "opaco" | "compativel";
 let carregarPlayer: Promise<unknown> | null = null;
 
 function registrar(detalhe: string) { void invoke("registrar_evento_da_ui", { evento: "video_preview", detalhe }).catch(() => undefined); }
+/** Só com OMNI_LOG_DEBUG=1 (cada recarga do preview). */
+function depurar(detalhe: string) { void invoke("videos_registrar_depuracao", { detalhe }).catch(() => undefined); }
 
 export const Preview = forwardRef<ControleDoPreview, Props>(function Preview({ projeto, versao, largura, altura, fps, relogio, onErro, onPonte, sobreposicao }, ref) {
   const area = useRef<HTMLDivElement>(null);
@@ -78,6 +80,11 @@ export const Preview = forwardRef<ControleDoPreview, Props>(function Preview({ p
   const player = useRef<Player | null>(null);
   const [pronto, setPronto] = useState(false);
   const [carregado, setCarregado] = useState(false);
+  const carregadoRef = useRef(false);
+  carregadoRef.current = carregado;
+  /** Fork (0.22): troca de player depois de uma recarga por trás (os ouvintes passam para o novo). */
+  const [geracao, setGeracao] = useState(0);
+  const retomar = useRef(false);
   const [modo, setModo] = useState<Modo>("opaco");
   const [problema, setProblema] = useState<string | null>(null);
   const [tentativa, setTentativa] = useState(0);
@@ -123,30 +130,78 @@ export const Preview = forwardRef<ControleDoPreview, Props>(function Preview({ p
     return () => { vivo = false; };
   }, [projeto, versao]);
 
-  // Cria o elemento uma vez e só troca o `src` (recarregar não pisca o quadro inteiro).
+  // Primeira carga: cria o player e põe o `src`. Recarga com o vídeo já na tela (o agente ou a
+  // pessoa mudou a composição): Fork (0.22) carrega um segundo player por trás e só troca quando ele
+  // fica pronto, no mesmo ponto do tempo — sem tela preta nem pulo para o começo.
   useEffect(() => {
     const alvo = caixa.current;
     if (!pronto || !alvo || !url) return;
-    let el = player.current;
-    if (!el) {
-      el = document.createElement("hyperframes-player") as Player;
-      el.setAttribute("disable-click-to-play", "");
-      el.setAttribute("low-power-idle", "");
-      el.style.width = "100%";
-      el.style.height = "100%";
-      el.style.display = "block";
-      alvo.appendChild(el);
-      player.current = el;
+    const src = tentativa ? `${url}${url.includes("?") ? "&" : "?"}r=${tentativa}` : url;
+    const criar = () => {
+      const novo = document.createElement("hyperframes-player") as Player;
+      novo.setAttribute("disable-click-to-play", "");
+      novo.setAttribute("low-power-idle", "");
+      novo.style.width = "100%";
+      novo.style.height = "100%";
+      novo.style.display = "block";
+      if (modo === "opaco") novo.setAttribute("sandbox-origin", "opaque");
+      novo.setAttribute("width", String(largura));
+      novo.setAttribute("height", String(altura));
+      return novo;
+    };
+    const atual = player.current;
+    if (!atual || !carregadoRef.current) {
+      let el = atual;
+      if (!el) { el = criar(); alvo.appendChild(el); player.current = el; }
+      if (modo === "opaco") el.setAttribute("sandbox-origin", "opaque"); else el.removeAttribute("sandbox-origin");
+      el.setAttribute("width", String(largura));
+      el.setAttribute("height", String(altura));
+      tempoGuardado.current = relogio.ler().tempo;
+      relogio.mudar({ pronto: false, tocando: false });
+      setCarregado(false);
+      el.setAttribute("src", src);
+      return;
     }
-    if (modo === "opaco") el.setAttribute("sandbox-origin", "opaque"); else el.removeAttribute("sandbox-origin");
-    el.setAttribute("width", String(largura));
-    el.setAttribute("height", String(altura));
-    tempoGuardado.current = relogio.ler().tempo;
-    relogio.mudar({ pronto: false, tocando: false });
-    setCarregado(false);
-    // "Tentar de novo" muda o endereço (o protocolo ignora a consulta): o player recarrega de verdade.
-    el.setAttribute("src", tentativa ? `${url}${url.includes("?") ? "&" : "?"}r=${tentativa}` : url);
-  }, [pronto, url, largura, altura, relogio, modo, tentativa]);
+    const novo = criar();
+    novo.classList.add("is-por-tras");
+    alvo.appendChild(novo);
+    const inicio = performance.now();
+    let feito = false;
+    const limite = window.setTimeout(() => {
+      if (feito) return;
+      feito = true;
+      novo.remove();
+      registrar("recarga_sem_ready");
+      // Não abriu por trás: recarrega o da tela (mostra o aviso de sempre se também falhar).
+      tempoGuardado.current = relogio.ler().tempo;
+      relogio.mudar({ pronto: false, tocando: false });
+      setCarregado(false);
+      atual.setAttribute("src", src);
+    }, ESPERA_MS);
+    novo.addEventListener("ready", (e) => {
+      if (feito) return;
+      feito = true;
+      window.clearTimeout(limite);
+      const d = (e as CustomEvent<{ duration?: number }>).detail?.duration ?? novo.duration;
+      const duracao = Number.isFinite(d) ? d : 0;
+      const t = Math.min(relogio.ler().tempo, Math.max(0, duracao - 1 / fps));
+      if (t > 0) novo.seek(t);
+      retomar.current = !atual.paused;
+      atual.pause();
+      // Dois quadros para o seek pintar antes de mostrar.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (player.current !== atual) { novo.remove(); return; }
+        atual.remove();
+        novo.classList.remove("is-por-tras");
+        player.current = novo;
+        relogio.mudar({ pronto: true, duracao, tempo: t });
+        setGeracao((g) => g + 1);
+        depurar(`trocou ms=${Math.round(performance.now() - inicio)}`);
+      }));
+    }, { once: true });
+    novo.setAttribute("src", src);
+    return () => { if (!feito) { feito = true; window.clearTimeout(limite); novo.remove(); } };
+  }, [pronto, url, largura, altura, relogio, modo, tentativa, fps]);
 
   // Diagnóstico: sem `ready` em 12 s, tenta o modo compatível uma vez; depois, avisa com o motivo.
   useEffect(() => {
@@ -176,6 +231,13 @@ export const Preview = forwardRef<ControleDoPreview, Props>(function Preview({ p
       const d = e.data as { medza?: string; tipo?: unknown } | null;
       if (!d || d.medza !== "ponte" || typeof d.tipo !== "string") return;
       // Diagnóstico (0.19): o que a composição conseguiu carregar, no log do app (só tipos e contagens).
+      if (d.tipo === "tecla") {
+        const k = d as { key?: unknown; shift?: unknown; meta?: unknown; ctrl?: unknown; alt?: unknown };
+        if (typeof k.key === "string" && k.key.length <= 12) {
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: k.key, shiftKey: !!k.shift, metaKey: !!k.meta, ctrlKey: !!k.ctrl, altKey: !!k.alt, bubbles: true, cancelable: true }));
+        }
+        return;
+      }
       if (d.tipo === "pronta") registrar("ponte_carregou");
       if (d.tipo === "diagnostico") {
         const x = (d as { quando?: number; info?: Record<string, unknown> });
@@ -229,6 +291,8 @@ export const Preview = forwardRef<ControleDoPreview, Props>(function Preview({ p
     };
     el.addEventListener("ready", aoPronto);
     el.addEventListener("timeupdate", aoTempo);
+    // Trocou por trás com o vídeo tocando: continua tocando no player novo.
+    if (retomar.current) { retomar.current = false; el.play(); }
     el.addEventListener("play", aoTocar);
     el.addEventListener("pause", aoParar);
     el.addEventListener("ended", aoParar);
@@ -244,7 +308,7 @@ export const Preview = forwardRef<ControleDoPreview, Props>(function Preview({ p
       el.removeEventListener("durationchange", aoDuracao);
       el.removeEventListener("error", aoErro);
     };
-  }, [pronto, relogio, fps]);
+  }, [pronto, relogio, fps, geracao]);
 
   // Janela escondida ou sem foco na pausa de energia: pausa (o vídeo não toca para ninguém).
   useEffect(() => {

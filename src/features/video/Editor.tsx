@@ -24,7 +24,7 @@ import { Preview, type ControleDoPreview, type ElementoNoPreview, type MensagemD
 import { Propriedades } from "./Propriedades";
 import { criarRelogio, formatarTempo, useRelogio, type RelogioDoPreview } from "./relogio";
 import { Timeline, type Colega } from "./Timeline";
-import { useProjeto } from "./useProjeto";
+import { useProjeto, type AcoesDoProjeto } from "./useProjeto";
 import { SessaoADoisDialogo } from "./aDois/SessaoADois";
 import { useSessaoADois } from "./aDois/useSessaoADois";
 import type { Midia, VersaoDoHistorico } from "./tipos";
@@ -59,9 +59,9 @@ export interface ColaboracaoNoEditor {
 }
 
 export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; onVoltar: () => void; agentView?: AgentView }) {
-  const acoes = useProjeto(id);
-  const { estado } = acoes;
-  const sessao = useSessaoADois(id, acoes);
+  const acoesDoDisco = useProjeto(id);
+  const { estado } = acoesDoDisco;
+  const sessao = useSessaoADois(id, acoesDoDisco);
   const colaboracao: ColaboracaoNoEditor | undefined = sessao.colaboracao;
   const [dialogoADois, setDialogoADois] = useState(false);
   const relogio = useMemo<RelogioDoPreview>(() => criarRelogio(), []);
@@ -93,11 +93,24 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
   // Fork: o agente trabalhando não trava mais o editor (antes só o agente conseguia editar).
   const bloqueado = !!estado.ocupado;
   const agente = useAgenteNoProjeto(id, estado.projeto?.chat?.sessao, {
-    aoComecar: () => { void acoes.guardarVersao("Antes do pedido ao agente"); colaboracao?.pegarAgente?.(); },
-    aoMudar: () => void acoes.recarregar(),
+    aoComecar: () => { void acoesDoDisco.guardarVersao("Antes do pedido ao agente"); colaboracao?.pegarAgente?.(); },
+    aoMudar: ({ preview }) => void acoesDoDisco.recarregar({ preview }),
   });
   const soltar = colaboracao?.soltarAgente;
   useEffect(() => { if (!agente.ativo) soltar?.(); }, [agente.ativo, soltar]);
+  // Fork (0.22): o que o próprio editor grava não conta como "mudança de fora" (senão o preview
+  // recarregaria depois de cada edição na mão). Desfazer/refazer já recarregam sozinhos.
+  const acoes = useMemo<AcoesDoProjeto>(() => {
+    const g = agente.gravando;
+    const embrulhar = <A extends unknown[], R>(f: (...a: A) => Promise<R>) => (...a: A) => g(f(...a));
+    const a = acoesDoDisco;
+    return {
+      ...a, editarHtml: embrulhar(a.editarHtml), editarArquivo: embrulhar(a.editarArquivo), gravarBrief: embrulhar(a.gravarBrief),
+      importar: embrulhar(a.importar), removerMidia: embrulhar(a.removerMidia), mudarMidia: embrulhar(a.mudarMidia), mudarLinks: embrulhar(a.mudarLinks),
+      aplicarPasta: embrulhar(a.aplicarPasta), configurarPastas: embrulhar(a.configurarPastas), desfazer: embrulhar(a.desfazer),
+      refazer: embrulhar(a.refazer), voltarPara: embrulhar(a.voltarPara), guardarVersao: embrulhar(a.guardarVersao),
+    };
+  }, [acoesDoDisco, agente.gravando]);
 
   // Duração das mídias sem `data-duration` (lida só dos metadados).
   useEffect(() => {
@@ -127,10 +140,10 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
   const editar = useCallback((op: (html: string) => string, motivo: string) => {
     if (bloqueado || estado.html === null) return;
     try {
-      void acoes.editarHtml(op(estado.html), motivo).then(agente.rebase);
+      void acoes.editarHtml(op(estado.html), motivo);
       setAviso(null);
     } catch (e) { setAviso(e instanceof Error ? e.message : String(e)); }
-  }, [acoes, agente.rebase, bloqueado, estado.html]);
+  }, [acoes, bloqueado, estado.html]);
 
   // ——— Fork (0.16): edição na mão no vídeo ———
   const aoVivo = useCallback((ref: string, props: Record<string, string | null>) => {
@@ -140,8 +153,8 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
     const r = lerRef(ref);
     if (!r || bloqueado) return;
     aoVivo(ref, props);
-    void acoes.editarArquivo(r.arquivo, (h) => definirEstilo(h, r.ordem, props), motivo, { recarregarPreview: false }).then(agente.rebase).catch((e) => setAviso(String(e)));
-  }, [acoes, agente.rebase, aoVivo, bloqueado]);
+    void acoes.editarArquivo(r.arquivo, (h) => definirEstilo(h, r.ordem, props), motivo, { recarregarPreview: false }).catch((e) => setAviso(String(e)));
+  }, [acoes, aoVivo, bloqueado]);
   const gravarTexto = useCallback((ref: string, texto: string) => {
     const r = lerRef(ref);
     if (!r || bloqueado) return;
@@ -149,9 +162,9 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
       // Confere antes (só texto dentro) para não mostrar no vídeo algo que não vai gravar.
       if (r.arquivo === "index.html" && estado.html !== null) definirTexto(estado.html, r.ordem, texto);
       preview.current?.paraPonte({ tipo: "texto", ref, texto });
-      void acoes.editarArquivo(r.arquivo, (h) => definirTexto(h, r.ordem, texto), `Texto: “${texto.slice(0, 30)}”`, { recarregarPreview: false }).then(agente.rebase);
+      void acoes.editarArquivo(r.arquivo, (h) => definirTexto(h, r.ordem, texto), `Texto: “${texto.slice(0, 30)}”`, { recarregarPreview: false });
     } catch (e) { setAviso(e instanceof Error ? e.message : String(e)); }
-  }, [acoes, agente.rebase, bloqueado, estado.html]);
+  }, [acoes, bloqueado, estado.html]);
   const refDoSelecionado = useCallback((chave: string | null) => {
     const c = chave ? comp.clipes.find((x) => x.chave === chave) : null;
     return c && estado.html ? refDoClipe(estado.html, c) : null;

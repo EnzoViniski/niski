@@ -135,8 +135,41 @@ describe("Edição de vídeo", () => {
 
     // O agente edita o arquivo por fora: o editor percebe pela assinatura e recarrega.
     disco.arquivos.set(`${pid}/index.html`, disco.arquivos.get(`${pid}/index.html`)!.replace('data-duration="15" data-track-index="0"', 'data-duration="12" data-track-index="0"'));
-    await waitFor(() => expect(player.getAttribute("src")).not.toBe(srcAntes), { timeout: 3000 });
+    // Recarga por trás (0.22): um player novo carrega a versão nova e troca com o da tela.
+    await waitFor(() => {
+      const players = document.querySelectorAll("hyperframes-player");
+      expect(players).toHaveLength(1);
+      expect(players[0]).not.toBe(player);
+      expect(players[0].getAttribute("src")).not.toBe(srcAntes);
+      expect(players[0].classList.contains("is-por-tras")).toBe(false);
+    }, { timeout: 4000 });
     rerender(<SessionProvidersContext.Provider value={sessaoFalsa("answered")}><VideoView onClose={() => undefined} continuar /></SessionProvidersContext.Provider>);
+  });
+
+  it("mudança feita por fora, sem agente trabalhando, atualiza o vídeo; briefing não recarrega o vídeo", async () => {
+    const pid = await criarProjeto();
+    localStorage.setItem("medza.video.ultimo", pid);
+    render(<VideoView onClose={() => undefined} continuar />);
+    await screen.findByLabelText("Timeline");
+    const primeiro = await waitFor(() => { const p = document.querySelector("hyperframes-player"); expect(p).toBeTruthy(); return p!; });
+    await act(async () => { await new Promise((r) => setTimeout(r, 1700)); }); // base da assinatura
+    disco.arquivos.set(`${pid}/BRIEF.md`, "# Outro pedido\n");
+    await act(async () => { await new Promise((r) => setTimeout(r, 1700)); });
+    expect(document.querySelector("hyperframes-player")).toBe(primeiro);
+    disco.arquivos.set(`${pid}/index.html`, disco.arquivos.get(`${pid}/index.html`)!.replace("Lançamento</h1>", "Lançamento 2</h1>"));
+    await waitFor(() => expect(document.querySelector("hyperframes-player")).not.toBe(primeiro), { timeout: 4000 });
+    await waitFor(() => expect(screen.getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? "").join("|")).toMatch(/Lançamento 2/));
+  });
+
+  it("tecla apertada com o foco dentro do vídeo chega ao editor (espaço toca)", async () => {
+    const pid = await criarProjeto();
+    localStorage.setItem("medza.video.ultimo", pid);
+    render(<VideoView onClose={() => undefined} continuar />);
+    await screen.findByLabelText("Timeline");
+    const player = await waitFor(() => { const p = document.querySelector("hyperframes-player") as HTMLElement & { iframeElement: HTMLIFrameElement; paused: boolean }; expect(p?.iframeElement?.contentWindow).toBeTruthy(); return p; });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tocar" })).not.toBeDisabled());
+    await act(async () => { window.dispatchEvent(new MessageEvent("message", { source: player.iframeElement.contentWindow, data: { medza: "ponte", tipo: "tecla", key: " " } })); });
+    expect(player.paused).toBe(false);
   });
 
   it("não grava por cima de uma edição do agente feita enquanto a pessoa editava", async () => {

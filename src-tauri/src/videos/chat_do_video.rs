@@ -135,24 +135,36 @@ pub fn configurar(raiz: &Path, id: &str, computador: Option<&str>, refs: &[Strin
     Ok(pastas)
 }
 
-/// Assinatura do que o preview e a timeline mostram: muda quando o agente edita a composição, o
-/// briefing ou as mídias. Só metadados (nada é lido).
-pub fn assinatura(pasta: &Path) -> u64 {
-    let mut h = DefaultHasher::new();
-    let mut arquivos: Vec<PathBuf> = [projetos::INDEX, projetos::BRIEF, projetos::MIDIAS].iter().map(|n| pasta.join(n)).collect();
-    if let Ok(itens) = fs::read_dir(pasta.join("compositions")) {
-        let mut comps: Vec<PathBuf> = itens.flatten().map(|i| i.path()).filter(|p| p.extension().is_some_and(|e| e == "html")).collect();
-        comps.sort();
-        arquivos.extend(comps);
-    }
-    for a in arquivos {
-        a.file_name().hash(&mut h);
-        if let Ok(m) = fs::symlink_metadata(&a) {
-            m.len().hash(&mut h);
-            m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_nanos()).hash(&mut h);
+/// Assinatura do que o preview e a timeline mostram, em duas partes `"<composição>:<resto>"`:
+/// a composição (`index.html`, `compositions/` e `assets/`, inclusive CSS/JS/fontes que o agente
+/// criar) recarrega o preview; o resto (`BRIEF.md`, `midias.json`) só os painéis. Só metadados
+/// (nada é lido); até 4000 arquivos.
+pub fn assinatura(pasta: &Path) -> String {
+    fn marcar(h: &mut DefaultHasher, a: &Path) {
+        a.file_name().hash(h);
+        if let Ok(m) = fs::symlink_metadata(a) {
+            m.len().hash(h);
+            m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_nanos()).hash(h);
         }
     }
-    h.finish()
+    fn andar(dir: &Path, saida: &mut Vec<PathBuf>, profundidade: usize) {
+        if profundidade > 6 || saida.len() > 4000 { return; }
+        let Ok(itens) = fs::read_dir(dir) else { return };
+        let mut itens: Vec<_> = itens.flatten().collect();
+        itens.sort_by_key(|i| i.file_name());
+        for i in itens {
+            let Ok(tipo) = i.file_type() else { continue };
+            if tipo.is_dir() { andar(&i.path(), saida, profundidade + 1); } else if tipo.is_file() { saida.push(i.path()); }
+        }
+    }
+    let mut composicao = DefaultHasher::new();
+    let mut arquivos = vec![pasta.join(projetos::INDEX)];
+    andar(&pasta.join("compositions"), &mut arquivos, 0);
+    andar(&pasta.join("assets"), &mut arquivos, 0);
+    for a in &arquivos { a.strip_prefix(pasta).unwrap_or(a).hash(&mut composicao); marcar(&mut composicao, a); }
+    let mut resto = DefaultHasher::new();
+    for n in [projetos::BRIEF, projetos::MIDIAS] { marcar(&mut resto, &pasta.join(n)); }
+    format!("{:x}:{:x}", composicao.finish(), resto.finish())
 }
 
 #[cfg(test)]
@@ -220,12 +232,23 @@ mod testes {
         let raiz = dir.path().join("videos");
         let id = projeto(&raiz);
         let pasta = raiz.join("projetos").join(&id);
+        let parte = |a: &str, i: usize| a.split(':').nth(i).unwrap().to_owned();
         let antes = assinatura(&pasta);
         assert_eq!(antes, assinatura(&pasta));
         fs::write(pasta.join("index.html"), "<div data-composition-id=\"main\">mudou</div>").unwrap();
         let depois = assinatura(&pasta);
-        assert_ne!(antes, depois);
+        assert_ne!(parte(&antes, 0), parte(&depois, 0));
+        assert_eq!(parte(&antes, 1), parte(&depois, 1), "composição não mexe na parte do resto");
         fs::write(pasta.join("compositions/cena.html"), "<div></div>").unwrap();
-        assert_ne!(depois, assinatura(&pasta));
+        let com_cena = assinatura(&pasta);
+        assert_ne!(depois, com_cena);
+        fs::create_dir_all(pasta.join("assets/css")).unwrap();
+        fs::write(pasta.join("assets/css/estilo.css"), "p{}").unwrap();
+        assert_ne!(parte(&com_cena, 0), parte(&assinatura(&pasta), 0), "CSS novo em assets recarrega o preview");
+        let antes_do_brief = assinatura(&pasta);
+        fs::write(pasta.join("BRIEF.md"), "# outro pedido").unwrap();
+        let depois_do_brief = assinatura(&pasta);
+        assert_eq!(parte(&antes_do_brief, 0), parte(&depois_do_brief, 0), "briefing não recarrega o preview");
+        assert_ne!(parte(&antes_do_brief, 1), parte(&depois_do_brief, 1));
     }
 }

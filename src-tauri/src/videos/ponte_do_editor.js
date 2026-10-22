@@ -45,6 +45,16 @@
     quadro = requestAnimationFrame(function () { quadro = 0; enviar({ tipo: "passar", el: info(alvo(t)) }); });
   }, true);
   document.addEventListener("pointerleave", function () { if (ativo) enviar({ tipo: "passar", el: null }); }, true);
+  // Fork (0.22): depois de clicar no vídeo o foco fica aqui dentro; os atalhos do editor (espaço,
+  // setas, ⌘Z, S, apagar, Esc) seguem para o app.
+  var TECLAS = { " ": 1, ArrowLeft: 1, ArrowRight: 1, ArrowUp: 1, ArrowDown: 1, Home: 1, End: 1, Backspace: 1, Delete: 1, Escape: 1, s: 1, S: 1, z: 1, Z: 1, d: 1, D: 1 };
+  document.addEventListener("keydown", function (e) {
+    var t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if (!TECLAS[e.key]) return;
+    e.preventDefault();
+    enviar({ tipo: "tecla", key: e.key, shift: e.shiftKey, meta: e.metaKey, ctrl: e.ctrlKey, alt: e.altKey });
+  }, true);
   window.addEventListener("message", function (e) {
     if (e.source !== parent) return;
     var d = e.data;
