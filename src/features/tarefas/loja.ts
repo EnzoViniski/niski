@@ -101,9 +101,20 @@ function naFila(chave: string, tarefa: () => Promise<unknown>) {
 
 function textoDoErro(erro: unknown) { return erro instanceof Error ? erro.message : String(erro); }
 
+// Fork (desempenho): o que a última releitura leu e publicou. O lançador de Tarefas fica na tela o
+// tempo todo, então a releitura de 5 s não pode publicar estado novo (e redesenhar quem assina) quando
+// a pasta não mudou.
+let ultimaLeitura: { assinatura: string; tarefas: Tarefa[]; pasta: string | null } | null = null;
+
 export async function recarregar(): Promise<void> {
   try {
-    const [brutasT, brutasP] = await Promise.all([transporte.listar(pasta(), "tarefas"), transporte.listar(pasta(), "pessoas")]);
+    const pastaLida = pasta();
+    const [brutasT, brutasP] = await Promise.all([transporte.listar(pastaLida, "tarefas"), transporte.listar(pastaLida, "pessoas")]);
+    const assinatura = JSON.stringify([brutasT, brutasP]);
+    const agora = Date.now();
+    if (ultimaLeitura && estado.carregado && !estado.erro && filas.size === 0 && ultimaLeitura.pasta === pastaLida
+      && ultimaLeitura.assinatura === assinatura && ultimaLeitura.tarefas === estado.tarefas
+      && Object.values(estado.destaques).every((ate) => ate > agora)) return;
     const lidas = new Map<string, Tarefa>();
     for (const bruta of brutasT) {
       try {
@@ -122,6 +133,7 @@ export async function recarregar(): Promise<void> {
     const antes = new Map(estado.tarefas.map((t) => [t.id, t.atualizadaEm]));
     const mudaram = estado.carregado ? [...lidas.values()].filter((t) => !filas.has(t.id) && antes.get(t.id) !== t.atualizadaEm).map((t) => t.id) : [];
     mudar({ tarefas: [...lidas.values()], pessoas, carregado: true, erro: "", sincronizadoEm: Date.now(), destaques: comDestaque(mudaram) });
+    ultimaLeitura = { assinatura, tarefas: estado.tarefas, pasta: pastaLida };
   } catch (erro) {
     mudar({ carregado: true, erro: textoDoErro(erro) });
   }
@@ -233,5 +245,6 @@ export function pessoasConhecidas(e: Estado): Pessoa[] {
 export function reiniciarParaTeste() {
   desligar();
   filas.clear();
+  ultimaLeitura = null;
   estado = { ajustes: lerAjustes(), tarefas: [], pessoas: [], carregado: false, erro: "", sincronizadoEm: 0, destaques: {}, abrir: null };
 }
