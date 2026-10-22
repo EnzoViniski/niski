@@ -16,6 +16,17 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.17.0",
+    date: "2026-10-21",
+    changes: [
+      "Aquecimento da manhã: todo dia, a partir das 6h (ou assim que você abrir o app, se ligar o computador mais tarde), aparecem 5 questões rápidas de múltipla escolha para acordar o cérebro, em cartões grandes. Você vê na hora se acertou e a explicação, e no fim o placar, os dias seguidos e as suas tarefas de hoje.",
+      "Em Configurações → Manhã você escolhe o horário, quantas questões, a dificuldade (ou deixa que ela se adapte a você) e o que cai: cálculo mental, porcentagem, frações, equações, sequências, lógica, potências, problemas, revisão dos seus Roadmaps de estudo ou um tema livre escrito pela IA. Dá para fazer agora pelo botão \"Fazer agora\" ou pelo ⌘K.",
+      "Tarefas, novo na barra lateral: crie digitando uma frase como \"Consulta dentista amanhã 14h #saude !alta\" e o app entende data, hora, categoria e prioridade. Veja o seu dia (com agenda e atrasadas), arraste no quadro entre A fazer, Fazendo, Esperando e Feito, planeje a semana arrastando para outro dia ou veja tudo em lista.",
+      "Cada tarefa tem descrição, data e hora, duração, local, repetição (todo dia, dias úteis, semana, mês), prioridade, categoria (trabalho, faculdade, saúde e médicos, casa, finanças, pessoal), etiquetas, checklist, tarefas relacionadas e comentários.",
+      "Divida as tarefas com outra pessoa: em Configurações → Tarefas, escolha uma pasta que vocês dois sincronizam (Google Drive, iCloud, Dropbox). Vocês veem as tarefas um do outro, criam tarefas um para o outro e filtram por pessoa.",
+    ],
+  },
+  {
     version: "0.16.0",
     date: "2026-10-21",
     changes: [
