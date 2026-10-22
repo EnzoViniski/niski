@@ -630,8 +630,11 @@ fn queda_do_servidor_reabre_pty_sem_repetir_prompt() {
     let rev = c.revision(&c.estado.lock().unwrap());
     enviar_prompt(&id, "cair", &rev, false).unwrap();
     esperar(|| !ativo(&id));
+    // Fork: o reinício zera o pid (`None`) antes de preparar a PTY nova e consumir a marca do
+    // fallback; esperar só "pid diferente" via o `None` no meio do caminho e, sob carga, conferia a
+    // marca cedo demais. Espera o pid novo de verdade.
     esperar(
-        || matches!(state.sessions.lock().unwrap().get(&id),Some(SessionEntry::Live(s)) if s.meta.lock().unwrap().pid!=meta.pid),
+        || matches!(state.sessions.lock().unwrap().get(&id),Some(SessionEntry::Live(s)) if s.meta.lock().unwrap().pid.is_some_and(|p| Some(p)!=meta.pid)),
     );
     let enviados = log(dir.path());
     assert_eq!(
