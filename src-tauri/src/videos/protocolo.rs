@@ -204,7 +204,14 @@ pub fn responder(raiz: &Path, token_esperado: &str, metodo: &str, caminho_da_url
 }
 
 /// Liga o protocolo no app. A leitura roda fora da thread da janela.
-pub fn atender<R: tauri::Runtime>(_ctx: tauri::UriSchemeContext<'_, R>, pedido: tauri::http::Request<Vec<u8>>, resposta: tauri::UriSchemeResponder) {
+///
+/// Fork (0.24): a leitura roda numa thread, mas a **entrega** da resposta volta para a thread
+/// principal. O WebKit cancela pedidos de pedaço do vídeo na thread principal o tempo todo (pular,
+/// tocar, arrastar a agulha); responder de outra thread deixava uma janela entre a checagem do wry e o
+/// `didReceiveResponse`, e a exceção "tarefa já parada" derrubava o app (abort). Na thread principal
+/// cancelar e responder não se cruzam.
+pub fn atender<R: tauri::Runtime>(ctx: tauri::UriSchemeContext<'_, R>, pedido: tauri::http::Request<Vec<u8>>, resposta: tauri::UriSchemeResponder) {
+    let app = ctx.app_handle().clone();
     let metodo = pedido.method().as_str().to_owned();
     let caminho = pedido.uri().path().to_owned();
     let range = pedido.headers().get("range").and_then(|v| v.to_str().ok()).map(str::to_owned);
@@ -218,10 +225,9 @@ pub fn atender<R: tauri::Runtime>(_ctx: tauri::UriSchemeContext<'_, R>, pedido: 
         omni_core::registro::depurar("video_protocolo", &[("tipo", &extensao), ("status", &r.status.to_string()), ("range", if range.is_some() { "sim" } else { "nao" })]);
         let mut construtor = tauri::http::Response::builder().status(r.status);
         for (nome, valor) in r.cabecalhos { construtor = construtor.header(nome, valor); }
-        match construtor.body(r.corpo) {
-            Ok(corpo) => resposta.respond(corpo),
-            Err(_) => resposta.respond(tauri::http::Response::builder().status(500).body(Vec::new()).unwrap_or_default()),
-        }
+        let corpo = construtor.body(r.corpo).unwrap_or_else(|_| tauri::http::Response::builder().status(500).body(Vec::new()).unwrap_or_default());
+        // Sem thread principal (app fechando): a tarefa já não existe; não há o que responder.
+        let _ = app.run_on_main_thread(move || resposta.respond(corpo));
     });
 }
 
