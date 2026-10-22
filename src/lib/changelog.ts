@@ -16,6 +16,15 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.23.0",
+    date: "2026-10-22",
+    changes: [
+      "Edição de vídeo: o vídeo ficou maior na tela. A timeline agora ocupa só o espaço das faixas, sem a área vazia embaixo.",
+      "Edição de vídeo: os clipes da timeline mostram o que tem neles (o texto da cena ou o nome do arquivo) em vez de \"Bloco…\", e os clipes de vídeo ganharam uma miniatura.",
+      "Edição de vídeo: a escolha da pasta do computador aparece logo no começo do Novo vídeo, e o topo do editor e as abas da esquerda não ficam mais cortados ou um em cima do outro.",
+    ],
+  },
+  {
     version: "0.22.0",
     date: "2026-10-22",
     changes: [
