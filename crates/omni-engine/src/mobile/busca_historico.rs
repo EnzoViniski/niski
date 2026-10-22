@@ -74,7 +74,7 @@ mod tests {
         };
         omni_core::conversations::write_index(dir.path(), &[conversa]).unwrap();
         let r = local(state.clone(), "POST", "/historico/buscar", Some(r#"{"texto":"navegação","limite":1}"#.into()), None, vec![]).await;
-        let EngineResponse::Api { status, body } = r else { panic!("resposta inesperada") };
+        let EngineResponse::Api { status, body, .. } = r else { panic!("resposta inesperada") };
         assert_eq!(status, 200);
         let valor: Value = serde_json::from_str(&body).unwrap();
         assert_eq!(valor["achados"][0]["conversa_id"], "conv-busca");

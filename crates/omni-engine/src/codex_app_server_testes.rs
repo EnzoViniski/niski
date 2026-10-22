@@ -209,7 +209,7 @@ async fn regressao_12_compactar_usa_rpc_oficial_sem_prompt() {
         "segments":[{"provider":"codex","terminal_session_id":id,"started_at_ms":1}]
     }]})).unwrap();
     let rev = c.revision(&c.estado.lock().unwrap());
-    let EngineResponse::Api { status, body } = mobile::local(state.clone(), "POST", &format!("/conversas/{id}/comando"),
+    let EngineResponse::Api { status, body, .. } = mobile::local(state.clone(), "POST", &format!("/conversas/{id}/comando"),
         Some(json!({"comando":"compact"}).to_string()), None, vec![("if-match".into(), rev), ("idempotency-key".into(), id.clone())]).await else { panic!() };
     assert_eq!(status, 202, "{body}");
     esperar(|| log(dir.path()).iter().any(|m| m["method"] == "turn/start" || m["method"] == "thread/compact/start"));
@@ -367,7 +367,7 @@ async fn mesma_rota_aprovar_e_ajustes_por_agente() {
         }],
     )
     .unwrap();
-    let EngineResponse::Api { status, body } = mobile::local(
+    let EngineResponse::Api { status, body, .. } = mobile::local(
         state.clone(),
         "GET",
         "/codex/app-server/ajustes",
@@ -433,7 +433,7 @@ async fn mesma_rota_aprovar_e_ajustes_por_agente() {
             panic!()
         };
         assert_eq!(status, 412);
-        let EngineResponse::Api { status, body } = mobile::local(
+        let EngineResponse::Api { status, body, .. } = mobile::local(
             state.clone(),
             "POST",
             &rota,

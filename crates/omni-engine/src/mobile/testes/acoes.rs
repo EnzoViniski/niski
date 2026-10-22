@@ -180,7 +180,7 @@ fn fake_session(state:&Arc<EngineState>,text:&str) -> (Arc<LiveSession>,Arc<Mute
     let chamar = |metodo: &'static str, caminho: String, corpo: Option<&'static str>| {
         let state = state.clone();
         async move {
-            let EngineResponse::Api { status, body } = local(state,metodo,&caminho,corpo.map(String::from),None,vec![]).await else { panic!("não é Api") };
+            let EngineResponse::Api { status, body, .. } = local(state,metodo,&caminho,corpo.map(String::from),None,vec![]).await else { panic!("não é Api") };
             (status, serde_json::from_str::<Value>(&body).unwrap_or(Value::Null))
         }
     };
@@ -237,7 +237,7 @@ fn fake_session(state:&Arc<EngineState>,text:&str) -> (Arc<LiveSession>,Arc<Mute
         {"id":"outra","provider":"claude","name":"Trabalho","config_dir":dir.path().join("b").to_string_lossy(),"builtin":false,"created_at_ms":1},
         {"id":"cdx","provider":"codex","name":"Codex","config_dir":dir.path().join("c").to_string_lossy(),"builtin":false,"created_at_ms":1}
     ]})).unwrap();
-    let EngineResponse::Api { status, body } = local(state,"GET","/conversas/c/opcoes",None,None,vec![]).await else { panic!("não é Api") };
+    let EngineResponse::Api { status, body, .. } = local(state,"GET","/conversas/c/opcoes",None,None,vec![]).await else { panic!("não é Api") };
     assert_eq!(status,200,"{body}");
     let opcoes: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(opcoes["provider"],"claude");
@@ -257,7 +257,7 @@ fn fake_session(state:&Arc<EngineState>,text:&str) -> (Arc<LiveSession>,Arc<Mute
         "segments":[{"provider":"claude","profile_id":null,"external_session_id":"abc","transcript_path":null,"terminal_session_id":null,"started_at_ms":1}]
     }]})).unwrap();
     let pedir = |state: Arc<EngineState>, chave: &'static str| async move {
-        let EngineResponse::Api { status, body } = local(state,"POST","/conversas/c/retomar",
+        let EngineResponse::Api { status, body, .. } = local(state,"POST","/conversas/c/retomar",
             Some(r#"{"profile_id":null,"model":"opus","effort":"high"}"#.into()),None,
             vec![("Idempotency-Key".into(),chave.into())]).await else { panic!("não é Api") };
         (status, serde_json::from_str::<Value>(&body).unwrap_or(Value::Null))
@@ -294,7 +294,7 @@ fn fake_session(state:&Arc<EngineState>,text:&str) -> (Arc<LiveSession>,Arc<Mute
         {"id":"x","provider":"codex","name":"Codex","config_dir":dir.path().join("x").to_string_lossy(),"builtin":false,"created_at_ms":1}
     ]})).unwrap();
     let pedir = |state: Arc<EngineState>, corpo: &'static str| async move {
-        let EngineResponse::Api { status, body } = local(state,"POST","/historico/levar",Some(corpo.into()),None,vec![]).await else { panic!() };
+        let EngineResponse::Api { status, body, .. } = local(state,"POST","/historico/levar",Some(corpo.into()),None,vec![]).await else { panic!() };
         (status, body)
     };
     let (status, corpo) = pedir(state.clone(),r#"{"provider":"claude","profile_id":"a","session_id":"sessao-1","destino":"b"}"#).await;
@@ -326,7 +326,7 @@ fn fake_session(state:&Arc<EngineState>,text:&str) -> (Arc<LiveSession>,Arc<Mute
     atomic_write_json(&dir.path().join("conversations.json"),&json!({"version":1,"conversations":[{
         "id":"c","project_id":"p","cwd":projeto.to_string_lossy(),"title":"Teste","created_at_ms":1,"segments":[]
     }]})).unwrap();
-    let EngineResponse::Api { status, body } = local(state,"GET","/conversas/c/arquivos?q=landing",None,None,vec![]).await else { panic!("não é Api") };
+    let EngineResponse::Api { status, body, .. } = local(state,"GET","/conversas/c/arquivos?q=landing",None,None,vec![]).await else { panic!("não é Api") };
     assert_eq!(status,200,"{body}");
     assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["arquivos"], json!(["src/landing-page.ts"]));
 }

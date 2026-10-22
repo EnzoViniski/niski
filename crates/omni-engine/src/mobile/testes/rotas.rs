@@ -7,7 +7,7 @@ use super::*;
 #[tokio::test] async fn desktop_chama_a_api_pelo_protocolo_local() {
     let (_dir,state) = fixture();
     state.mobile.config.lock().unwrap().token = "token-do-celular".into();
-    let EngineResponse::Api { status, body } = local(state.clone(),"GET","/conversas/c/timeline",None,None,vec![]).await else { panic!("não é Api") };
+    let EngineResponse::Api { status, body, .. } = local(state.clone(),"GET","/conversas/c/timeline",None,None,vec![]).await else { panic!("não é Api") };
     assert_eq!(status,200);
     assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["conversation"]["id"],"c");
     let EngineResponse::Api { status, .. } = local(state,"POST","/conversas/c/nome",Some(r#"{"nome":"Novo"}"#.into()),None,vec![]).await else { panic!("não é Api") };
@@ -49,11 +49,11 @@ use super::*;
     ];
     for (metodo, caminho) in rotas {
         let corpo = (*metodo == "POST").then(|| "{}".to_string());
-        let EngineResponse::Api { status, body } = local(state.clone(),metodo,caminho,corpo,None,vec![]).await else { panic!("não é Api") };
+        let EngineResponse::Api { status, body, .. } = local(state.clone(),metodo,caminho,corpo,None,vec![]).await else { panic!("não é Api") };
         assert_ne!(status, 405, "{metodo} {caminho}: método não registrado");
         assert!(!(status == 404 && body.trim().is_empty()), "{metodo} {caminho}: rota não registrada no rotas()");
     }
     // O controle: uma rota que não existe dá exatamente o 404 vazio que a tabela acima não pode dar.
-    let EngineResponse::Api { status, body } = local(state,"GET","/nao-existe",None,None,vec![]).await else { panic!("não é Api") };
+    let EngineResponse::Api { status, body, .. } = local(state,"GET","/nao-existe",None,None,vec![]).await else { panic!("não é Api") };
     assert_eq!((status, body.trim().is_empty()), (404, true));
 }

@@ -338,7 +338,14 @@ pub enum EngineResponse {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         estado: Option<String>,
     },
-    Api { status: u16, body: String },
+    Api {
+        status: u16,
+        body: String,
+        /// Fork (desempenho): `ETag` da rota. Sem ele o chat do PC nunca recebia `304` e relia e
+        /// redesenhava a conversa inteira a cada 1,2–3 s. Ausente = engine antigo (tudo vem inteiro).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        etag: Option<String>,
+    },
     Ok,
     Error { code: String, message: String },
 }
