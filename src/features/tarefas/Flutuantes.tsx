@@ -12,6 +12,7 @@ import { categoria } from "./tipos";
 // Fork (revisão do copiloto): o lançador desvia do campo de mensagem e da conversa do editor de vídeo.
 import { desviarLancador, OBSTACULOS_DO_LANCADOR, type Recuo } from "./desvioDoLancador";
 import "./painel.css";
+import { energiaPausada } from "../../lib/energia";
 
 /**
  * Arrastar com o ponteiro: devolve o handler do `onPointerDown` e avisa se houve movimento (para o
@@ -96,7 +97,8 @@ export function BotaoDasTarefas() {
       setDesvio((atual) => (atual?.right === novo.right && atual?.bottom === novo.bottom ? atual : novo));
     };
     conferir();
-    const relogio = window.setInterval(conferir, 700);
+    // Fork (desempenho): na pausa de energia (sem foco ou parado) não força layout a cada 700 ms.
+    const relogio = window.setInterval(() => { if (!energiaPausada()) conferir(); }, 700);
     window.addEventListener("resize", conferir);
     return () => { window.clearInterval(relogio); window.removeEventListener("resize", conferir); };
   }, [visivel, arrasto, painel.posBotao.x, painel.posBotao.y, ladoDoCopiloto]);
