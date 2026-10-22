@@ -1,6 +1,7 @@
 // Fork (Tarefas): as quatro visões — Meu dia, Quadro (kanban), Semana e Lista.
-import { useState, type DragEvent, type ReactNode } from "react";
-import { aberta, coluna, diaDe, montarDia, paraData, posicaoEntre, rotuloDoDia, somarDias } from "./dominio";
+import { useState, type ReactNode } from "react";
+import { useArrastoDeCartoes } from "./arrastar";
+import { aberta, coluna, diaDe, lerCriacaoRapida, montarDia, paraData, posicaoEntre, rotuloDoDia, somarDias } from "./dominio";
 import { Avatar, CartaoDaTarefa, FichaDeData, FichaDePrioridade } from "./CartaoDaTarefa";
 import { categoria, DICA_DO_STATUS, ROTULO_DO_STATUS, STATUS, type Pessoa, type Status, type Tarefa } from "./tipos";
 
@@ -15,6 +16,8 @@ export interface PropsDasVisoes {
   onAlternar: (t: Tarefa) => void;
   onMover: (id: string, mudanca: Partial<Tarefa>) => void;
   onNovaEm: (campos: Partial<Tarefa>) => void;
+  /** Cria direto (sem abrir os detalhes): "+ Adicionar" das colunas e dias. */
+  onCriar: (campos: Partial<Tarefa> & { titulo: string }) => void;
 }
 
 const COR_DO_STATUS: Record<Status, string> = { a_fazer: "rgb(var(--c-text-muted))", fazendo: "rgb(var(--c-accent))", revisao: "rgb(var(--c-warning))", feito: "rgb(var(--c-success))" };
@@ -119,71 +122,83 @@ function ResumoDasPessoas({ tarefas, pessoas, hoje }: PropsDasVisoes) {
   );
 }
 
-/** Onde soltar numa lista vertical: índice antes do cartão cujo meio está abaixo do ponteiro. */
-function indiceDeSoltar(e: DragEvent, lista: HTMLElement | null): number {
-  if (!lista) return 0;
-  const cartoes = [...lista.querySelectorAll<HTMLElement>("[data-tarefa]")];
-  const i = cartoes.findIndex((c) => { const r = c.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
-  return i < 0 ? cartoes.length : i;
+/** "+ Adicionar" no pé da coluna/dia: vira campo; Enter cria pela frase (mesma da criação rápida). */
+function AdicionarAqui({ p, campos, rotulo }: { p: PropsDasVisoes; campos: Partial<Tarefa>; rotulo: string }) {
+  const [aberto, setAberto] = useState(false);
+  const [texto, setTexto] = useState("");
+  if (!aberto) return <button type="button" className="tarefa-adicionar" onClick={() => setAberto(true)}>+ {rotulo}</button>;
+  const criar = () => {
+    if (!texto.trim()) { setAberto(false); return; }
+    const r = lerCriacaoRapida(texto, p.hoje, p.pessoas, p.eu.id);
+    if (r.titulo) p.onCriar({ ...r, ...campos, ...(campos.data && !r.data ? {} : r.data ? { data: r.data } : {}) });
+    setTexto("");
+  };
+  return (
+    <input autoFocus className="field px-2.5 py-2 text-sm" value={texto} placeholder="Título… (Enter cria, Esc fecha)" aria-label={rotulo}
+      onChange={(e) => setTexto(e.target.value)} onBlur={() => { if (!texto.trim()) setAberto(false); }}
+      onKeyDown={(e) => { if (e.key === "Enter") criar(); if (e.key === "Escape") { setTexto(""); setAberto(false); } }} />
+  );
 }
 
 export function Quadro(p: PropsDasVisoes) {
-  const [arrastando, setArrastando] = useState<string | null>(null);
-  const [alvo, setAlvo] = useState<{ status: Status; indice: number } | null>(null);
-  const soltar = (status: Status, e: DragEvent<HTMLElement>, itens: Tarefa[]) => {
-    e.preventDefault();
-    const id = e.dataTransfer.getData("text/x-tarefa") || arrastando;
-    setAlvo(null); setArrastando(null);
-    if (!id) return;
-    const resto = itens.filter((t) => t.id !== id);
-    const indice = Math.min(alvo?.status === status ? alvo.indice : resto.length, resto.length);
-    const posicao = posicaoEntre(resto[indice - 1]?.posicao, resto[indice]?.posicao);
+  const colunas = Object.fromEntries(STATUS.map((s) => [s, coluna(p.tarefas, s, p.hoje, p.ocultarFeitasAntigas)])) as Record<Status, Tarefa[]>;
+  const moverPara = (id: string, status: Status, indice: number) => {
     const atual = p.tarefas.find((t) => t.id === id);
     if (!atual) return;
     if (status === "feito" && atual.status !== "feito") { p.onAlternar(atual); return; }
+    const resto = colunas[status].filter((t) => t.id !== id);
+    const i = Math.min(indice, resto.length);
+    const posicao = posicaoEntre(resto[i - 1]?.posicao, resto[i]?.posicao);
     p.onMover(id, { status, posicao, ...(atual.status === "feito" && status !== "feito" ? { concluidaEm: "" } : {}) });
+  };
+  const { arrastando, alvo, iniciar, cliqueValido } = useArrastoDeCartoes((id, a) => { if (a.tipo === "status") moverPara(id, a.valor as Status, a.indice); });
+  // ⌥← / ⌥→ leva o cartão para a coluna vizinha (sem mouse).
+  const tecla = (e: { altKey: boolean; key: string; preventDefault: () => void }, t: Tarefa) => {
+    if (!e.altKey || (e.key !== "ArrowRight" && e.key !== "ArrowLeft")) return;
+    e.preventDefault();
+    const i = STATUS.indexOf(t.status) + (e.key === "ArrowRight" ? 1 : -1);
+    if (i >= 0 && i < STATUS.length) moverPara(t.id, STATUS[i], colunas[STATUS[i]].length);
   };
   return (
     <div className="quadro">
       {STATUS.map((status) => {
-        const itens = coluna(p.tarefas, status, p.hoje, p.ocultarFeitasAntigas);
-        const marcar = alvo?.status === status ? alvo.indice : -1;
+        const itens = colunas[status];
+        const marcar = alvo?.tipo === "status" && alvo.valor === status ? alvo.indice : -1;
+        const visiveis = itens.filter((t) => t.id !== arrastando);
         return (
-          <section key={status} className={`quadro-coluna${alvo?.status === status ? " is-alvo" : ""}`} aria-label={ROTULO_DO_STATUS[status]}
-            onDragOver={(e) => { e.preventDefault(); const lista = e.currentTarget.querySelector<HTMLElement>(".quadro-coluna-lista"); setAlvo({ status, indice: indiceDeSoltar(e, lista) }); }}
-            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setAlvo(null); }}
-            onDrop={(e) => soltar(status, e, itens)}>
+          <section key={status} className={`quadro-coluna${marcar >= 0 ? " is-alvo" : ""}`} aria-label={ROTULO_DO_STATUS[status]} data-soltar="status" data-valor={status}>
             <header className="quadro-coluna-topo" title={DICA_DO_STATUS[status]}>
               <span className="bolinha" style={{ background: COR_DO_STATUS[status] }} />
               <strong>{ROTULO_DO_STATUS[status]}</strong>
               <span className="text-xs text-text-muted">{itens.length}</span>
               <span className="flex-1" />
               {status !== "feito" && (
-                <button type="button" className="tarefa-mini" title={`Nova tarefa em ${ROTULO_DO_STATUS[status]}`} aria-label={`Nova tarefa em ${ROTULO_DO_STATUS[status]}`}
+                <button type="button" className="tarefa-mini" title={`Nova tarefa em ${ROTULO_DO_STATUS[status]} (abre os detalhes)`} aria-label={`Nova tarefa em ${ROTULO_DO_STATUS[status]}`}
                   onClick={() => p.onNovaEm({ status })}>+</button>
               )}
             </header>
             <div className="quadro-coluna-lista">
-              {itens.map((t, i) => (
-                <div key={t.id} className="flex flex-col gap-2">
-                  {marcar === i && arrastando !== t.id && <div className="quadro-marca" />}
+              {visiveis.map((t, i) => (
+                <div key={t.id} className="contents">
+                  {marcar === i && <div className="quadro-vaga" />}
                   <CartaoDaTarefa t={t} hoje={p.hoje} pessoas={p.pessoas} aberta={p.abertaId === t.id} onAbrir={p.onAbrir} onAlternar={p.onAlternar}
-                    arrastavel arrastando={arrastando === t.id} onArrastar={setArrastando} />
+                    onIniciarArrasto={iniciar} cliqueValido={cliqueValido} onTecla={tecla} />
                 </div>
               ))}
-              {marcar === itens.length && <div className="quadro-marca" />}
-              {!itens.length && <p className="grupo-vazio">{status === "feito" ? "Arraste aqui para concluir" : "Solte uma tarefa aqui"}</p>}
+              {marcar >= visiveis.length && <div className="quadro-vaga" />}
+              {!visiveis.length && marcar < 0 && <p className="grupo-vazio">{status === "feito" ? "Arraste aqui para concluir" : "Arraste uma tarefa para cá"}</p>}
+              {status !== "feito" && <AdicionarAqui p={p} campos={{ status }} rotulo="Adicionar tarefa" />}
             </div>
           </section>
         );
       })}
+      {arrastando && <span className="sr-only" role="status">Arrastando. Solte numa coluna; Esc cancela.</span>}
     </div>
   );
 }
 
 export function Semana(p: PropsDasVisoes & { inicio: string }) {
-  const [alvo, setAlvo] = useState<string | null>(null);
-  const [arrastando, setArrastando] = useState<string | null>(null);
+  const { arrastando, alvo, iniciar, cliqueValido } = useArrastoDeCartoes((id, a) => { if (a.tipo === "dia") p.onMover(id, { data: a.valor }); });
   const dias = Array.from({ length: 7 }, (_, i) => somarDias(p.inicio, i));
   return (
     <div className="semana">
@@ -191,20 +206,20 @@ export function Semana(p: PropsDasVisoes & { inicio: string }) {
         const itens = p.tarefas.filter((t) => !t.apagada && t.data === dia && (t.status !== "feito" || !p.ocultarFeitasAntigas || dia >= somarDias(p.hoje, -7)))
           .sort((a, b) => (a.status === "feito" ? 1 : 0) - (b.status === "feito" ? 1 : 0) || (a.hora || "99").localeCompare(b.hora || "99"));
         const d = paraData(dia);
+        const ehAlvo = alvo?.tipo === "dia" && alvo.valor === dia;
         return (
-          <section key={dia} className={`semana-dia${dia === p.hoje ? " is-hoje" : ""}${alvo === dia ? " is-alvo" : ""}`}
-            onDragOver={(e) => { e.preventDefault(); setAlvo(dia); }}
-            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setAlvo(null); }}
-            onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData("text/x-tarefa") || arrastando; setAlvo(null); setArrastando(null); if (id) p.onMover(id, { data: dia }); }}>
+          <section key={dia} className={`semana-dia${dia === p.hoje ? " is-hoje" : ""}${ehAlvo ? " is-alvo" : ""}`} data-soltar="dia" data-valor={dia}>
             <header className="semana-dia-topo">
               <strong>{d.getDate()}</strong>{d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
               <span className="flex-1" />
               <button type="button" className="tarefa-mini" aria-label={`Nova tarefa em ${rotuloDoDia(dia, p.hoje)}`} onClick={() => p.onNovaEm({ data: dia })}>+</button>
             </header>
-            {itens.map((t) => (
+            {itens.filter((t) => t.id !== arrastando).map((t) => (
               <CartaoDaTarefa key={t.id} t={t} hoje={p.hoje} pessoas={p.pessoas} esconderData aberta={p.abertaId === t.id} onAbrir={p.onAbrir} onAlternar={p.onAlternar}
-                arrastavel arrastando={arrastando === t.id} onArrastar={setArrastando} />
+                onIniciarArrasto={iniciar} cliqueValido={cliqueValido} />
             ))}
+            {ehAlvo && <div className="quadro-vaga" />}
+            <AdicionarAqui p={p} campos={{ data: dia }} rotulo="Adicionar" />
           </section>
         );
       })}

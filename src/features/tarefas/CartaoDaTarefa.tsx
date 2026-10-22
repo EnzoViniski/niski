@@ -1,5 +1,5 @@
 // Fork (Tarefas): cartão de uma tarefa (quadro, meu dia, semana) e peças pequenas reaproveitadas.
-import type { CSSProperties, DragEvent } from "react";
+import type { CSSProperties, KeyboardEvent, PointerEvent } from "react";
 import { CheckIcon, ChatIcon, ClockIcon } from "../../components/ui/PixelIcon";
 import { atrasada, progressoDoChecklist, rotuloDoDia } from "./dominio";
 import { categoria, ROTULO_DA_PRIORIDADE, type Pessoa, type Tarefa } from "./tipos";
@@ -44,28 +44,27 @@ interface Props {
   esconderData?: boolean;
   onAbrir: (id: string) => void;
   onAlternar: (t: Tarefa) => void;
-  arrastavel?: boolean;
   arrastando?: boolean;
-  onArrastar?: (id: string | null) => void;
+  /** Começa o arrasto com o ponteiro (`arrastar.ts`). */
+  onIniciarArrasto?: (e: PointerEvent<HTMLElement>, id: string) => void;
+  /** Falso logo depois de soltar: o clique do fim do arrasto não abre o cartão. */
+  cliqueValido?: () => boolean;
+  /** Teclas extras (⌥← / ⌥→ no quadro). */
+  onTecla?: (e: KeyboardEvent<HTMLElement>, t: Tarefa) => void;
 }
 
-export function CartaoDaTarefa({ t, hoje, pessoas, aberta, esconderData, onAbrir, onAlternar, arrastavel, arrastando, onArrastar }: Props) {
+export function CartaoDaTarefa({ t, hoje, pessoas, aberta, esconderData, onAbrir, onAlternar, arrastando, onIniciarArrasto, cliqueValido, onTecla }: Props) {
   const cat = categoria(t.categoria);
   const { feitos, total } = progressoDoChecklist(t);
   const responsavel = pessoas.find((p) => p.id === t.responsavel);
   const feita = t.status === "feito";
-  const aoComecar = (e: DragEvent) => {
-    e.dataTransfer.setData("text/x-tarefa", t.id);
-    e.dataTransfer.effectAllowed = "move";
-    onArrastar?.(t.id);
-  };
   return (
     <div role="button" tabIndex={0}
-      className={`tarefa-cartao${feita ? " is-feita" : ""}${arrastando ? " is-arrastando" : ""}${aberta ? " is-aberta" : ""}`}
+      className={`tarefa-cartao${onIniciarArrasto ? " is-arrastavel" : ""}${feita ? " is-feita" : ""}${arrastando ? " is-arrastando" : ""}${aberta ? " is-aberta" : ""}`}
       style={{ "--cor-cat": cat.cor } as CSSProperties}
-      draggable={arrastavel} onDragStart={arrastavel ? aoComecar : undefined} onDragEnd={() => onArrastar?.(null)}
-      onClick={() => onAbrir(t.id)}
-      onKeyDown={(e) => { if (e.key === "Enter") onAbrir(t.id); if (e.key === " ") { e.preventDefault(); onAlternar(t); } }}
+      onPointerDown={onIniciarArrasto ? (e) => onIniciarArrasto(e, t.id) : undefined}
+      onClick={() => { if (!cliqueValido || cliqueValido()) onAbrir(t.id); }}
+      onKeyDown={(e) => { if (e.key === "Enter") onAbrir(t.id); else if (e.key === " ") { e.preventDefault(); onAlternar(t); } else onTecla?.(e, t); }}
       data-tarefa={t.id}>
       <BotaoDeConcluir feita={feita} titulo={t.titulo} onClick={() => onAlternar(t)} />
       <div className="min-w-0 flex-1">

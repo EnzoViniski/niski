@@ -86,7 +86,7 @@
 .agenda-item.is-passou { opacity: .55; }
 
 /* Quadro */
-.quadro { display: grid; gap: .875rem; height: 100%; grid-template-columns: repeat(4, minmax(15rem, 1fr)); min-width: 62rem; }
+.quadro { display: grid; gap: .75rem; height: 100%; grid-template-columns: repeat(4, minmax(12.5rem, 1fr)); min-width: calc(4 * 12.5rem + 3 * .75rem); }
 .quadro-coluna { display: flex; flex-direction: column; min-height: 0; gap: .5rem; padding: .625rem; border-radius: var(--t-r-grande);
   background: rgb(var(--c-overlay) / .03); border: 1px solid rgb(var(--c-border-subtle) / .6); transition: background .15s, border-color .15s; }
 .quadro-coluna.is-alvo { background: rgb(var(--c-accent) / .07); border-color: rgb(var(--c-accent) / .5); }
