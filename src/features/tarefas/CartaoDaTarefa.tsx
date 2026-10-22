@@ -1,5 +1,8 @@
 // Fork (Tarefas): cartão de uma tarefa (quadro, meu dia, semana) e peças pequenas reaproveitadas.
-import type { CSSProperties, KeyboardEvent, PointerEvent } from "react";
+import { createContext, useContext, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+
+/** Fork (Copiloto): ids que mudaram há pouco por fora (IA, copiloto, outra pessoa) — o cartão brilha. */
+export const DestaquesContext = createContext<Record<string, number>>({});
 import { CheckIcon, ChatIcon, ClockIcon } from "../../components/ui/PixelIcon";
 import { atrasada, progressoDoChecklist, rotuloDoDia } from "./dominio";
 import { categoria, ROTULO_DA_PRIORIDADE, type Pessoa, type Tarefa } from "./tipos";
@@ -58,9 +61,10 @@ export function CartaoDaTarefa({ t, hoje, pessoas, aberta, esconderData, onAbrir
   const { feitos, total } = progressoDoChecklist(t);
   const responsavel = pessoas.find((p) => p.id === t.responsavel);
   const feita = t.status === "feito";
+  const destacada = (useContext(DestaquesContext)[t.id] ?? 0) > Date.now();
   return (
     <div role="button" tabIndex={0}
-      className={`tarefa-cartao${onIniciarArrasto ? " is-arrastavel" : ""}${feita ? " is-feita" : ""}${arrastando ? " is-arrastando" : ""}${aberta ? " is-aberta" : ""}`}
+      className={`tarefa-cartao${destacada ? " is-destacada" : ""}${onIniciarArrasto ? " is-arrastavel" : ""}${feita ? " is-feita" : ""}${arrastando ? " is-arrastando" : ""}${aberta ? " is-aberta" : ""}`}
       style={{ "--cor-cat": cat.cor } as CSSProperties}
       onPointerDown={onIniciarArrasto ? (e) => onIniciarArrasto(e, t.id) : undefined}
       onClick={() => { if (!cliqueValido || cliqueValido()) onAbrir(t.id); }}

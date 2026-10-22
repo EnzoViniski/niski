@@ -9,7 +9,9 @@ import { criarTarefa, mesclar, normalizarPessoa, normalizarTarefa, slug } from "
 import { CORES_DE_PESSOA, type AjustesDasTarefas, type Pessoa, type Tarefa } from "./tipos";
 
 export const CHAVE_DOS_AJUSTES = "medza-tarefas-ajustes";
-const INTERVALO_MS = 15_000;
+// Fork (Copiloto): 5 s — a IA e outras conversas gravam direto nos arquivos e a tela tem de mostrar logo.
+const INTERVALO_MS = 5_000;
+const DESTAQUE_MS = 6_000;
 
 /** Como os arquivos chegam ao disco. No app, pelos comandos do Tauri; nos testes e no `dev:vite`, em memória. */
 export interface TransporteDasTarefas {
@@ -75,9 +77,13 @@ interface Estado {
   carregado: boolean;
   erro: string;
   sincronizadoEm: number;
+  /** Tarefas que mudaram por fora (IA, copiloto, outra pessoa) há pouco: brilham na tela. */
+  destaques: Record<string, number>;
+  /** Pedido para a tela abrir os detalhes de uma tarefa (o `n` muda a cada pedido). */
+  abrir: { id: string; n: number } | null;
 }
 
-let estado: Estado = { ajustes: lerAjustes(), tarefas: [], pessoas: [], carregado: false, erro: "", sincronizadoEm: 0 };
+let estado: Estado = { ajustes: lerAjustes(), tarefas: [], pessoas: [], carregado: false, erro: "", sincronizadoEm: 0, destaques: {}, abrir: null };
 const ouvintes = new Set<() => void>();
 function mudar(parcial: Partial<Estado>) {
   estado = { ...estado, ...parcial };
@@ -112,11 +118,27 @@ export async function recarregar(): Promise<void> {
     }
     const pessoas = brutasP.map((b) => { try { return normalizarPessoa(JSON.parse(b)); } catch { return null; } })
       .filter((p): p is Pessoa => p !== null);
-    mudar({ tarefas: [...lidas.values()], pessoas, carregado: true, erro: "", sincronizadoEm: Date.now() });
+    // O que chegou diferente do que a tela já tinha (e não foi esta tela que gravou) ganha destaque.
+    const antes = new Map(estado.tarefas.map((t) => [t.id, t.atualizadaEm]));
+    const mudaram = estado.carregado ? [...lidas.values()].filter((t) => !filas.has(t.id) && antes.get(t.id) !== t.atualizadaEm).map((t) => t.id) : [];
+    mudar({ tarefas: [...lidas.values()], pessoas, carregado: true, erro: "", sincronizadoEm: Date.now(), destaques: comDestaque(mudaram) });
   } catch (erro) {
     mudar({ carregado: true, erro: textoDoErro(erro) });
   }
 }
+
+function comDestaque(ids: string[]): Record<string, number> {
+  const agora = Date.now();
+  const vivos = Object.fromEntries(Object.entries(estado.destaques).filter(([, ate]) => ate > agora));
+  for (const id of ids) vivos[id] = agora + DESTAQUE_MS;
+  return vivos;
+}
+
+/** A tarefa brilha na tela por alguns segundos (mudança feita pela IA). */
+export function destacar(ids: string[]) { if (ids.length) mudar({ destaques: comDestaque(ids) }); }
+
+/** Pede para a tela abrir os detalhes de uma tarefa. */
+export function pedirAbrirTarefa(id: string) { mudar({ abrir: { id, n: (estado.abrir?.n ?? 0) + 1 } }); }
 
 export function salvar(t: Tarefa): Promise<unknown> {
   const atualizada = { ...t, atualizadaEm: new Date(Math.max(Date.now(), Date.parse(t.atualizadaEm) + 1 || 0)).toISOString() };
@@ -209,5 +231,5 @@ export function pessoasConhecidas(e: Estado): Pessoa[] {
 export function reiniciarParaTeste() {
   desligar();
   filas.clear();
-  estado = { ajustes: lerAjustes(), tarefas: [], pessoas: [], carregado: false, erro: "", sincronizadoEm: 0 };
+  estado = { ajustes: lerAjustes(), tarefas: [], pessoas: [], carregado: false, erro: "", sincronizadoEm: 0, destaques: {}, abrir: null };
 }
