@@ -9,6 +9,8 @@ import { aberta, concluir, diaDe, lerCriacaoRapida, montarDia, reabrir } from ".
 import { adicionar, pessoasConhecidas, salvar, useTarefas } from "./loja";
 import { abrirPainelDeTarefas, alternarListaDoDia, alternarPainelDeTarefas, dentroDaJanela, mudarPainel, usePainel, type Posicao } from "./painel";
 import { categoria } from "./tipos";
+// Fork (revisão do copiloto): o lançador desvia do campo de mensagem e da conversa do editor de vídeo.
+import { desviarLancador, OBSTACULOS_DO_LANCADOR, type Recuo } from "./desvioDoLancador";
 import "./painel.css";
 
 /**
@@ -67,6 +69,8 @@ export function BotaoDasTarefas() {
   const copiloto = useCopiloto();
   const n = useContagemDeHoje();
   const [arrasto, setArrasto] = useState<Posicao | null>(null);
+  const [desvio, setDesvio] = useState<Recuo | null>(null);
+  const caixa = useRef<HTMLDivElement>(null);
   const base = useRef(painel.posBotao);
   const { iniciar, moveu } = useArrastar(
     (dx, dy) => {
@@ -75,12 +79,33 @@ export function BotaoDasTarefas() {
     },
     () => setArrasto((p) => { if (p) mudarPainel({ posBotao: p }); return null; }),
   );
-  if (!painel.botaoVisivel || painel.aberto) return null;
-  const pos = arrasto ?? painel.posBotao;
-  const desvio = copiloto.aberto && copiloto.modo === "direita" ? copiloto.larguraDireita : 0;
-  const pegar = (e: PointerReact<HTMLElement>) => { base.current = painel.posBotao; iniciar(e); };
+  const ladoDoCopiloto = copiloto.aberto && copiloto.modo === "direita" ? copiloto.larguraDireita : 0;
+  const visivel = painel.botaoVisivel && !painel.aberto;
+  // Confere de tempos em tempos (telas trocam, o composer cresce, a janela muda de tamanho). Barato:
+  // um punhado de caixas; parado com a janela escondida e durante o arrasto.
+  useEffect(() => {
+    if (!visivel || arrasto) return;
+    const conferir = () => {
+      const el = caixa.current;
+      if (!el || document.hidden) return;
+      const { width, height } = el.getBoundingClientRect();
+      const obstaculos = [...document.querySelectorAll(OBSTACULOS_DO_LANCADOR)]
+        .filter((o) => !el.contains(o)).map((o) => o.getBoundingClientRect());
+      const base = { right: painel.posBotao.x + ladoDoCopiloto, bottom: painel.posBotao.y };
+      const novo = desviarLancador(base, width || LADO_DO_BOTAO, height || LADO_DO_BOTAO * 2, obstaculos, { w: window.innerWidth, h: window.innerHeight });
+      setDesvio((atual) => (atual?.right === novo.right && atual?.bottom === novo.bottom ? atual : novo));
+    };
+    conferir();
+    const relogio = window.setInterval(conferir, 700);
+    window.addEventListener("resize", conferir);
+    return () => { window.clearInterval(relogio); window.removeEventListener("resize", conferir); };
+  }, [visivel, arrasto, painel.posBotao.x, painel.posBotao.y, ladoDoCopiloto]);
+  if (!visivel) return null;
+  const recuo = arrasto ? { right: arrasto.x + ladoDoCopiloto, bottom: arrasto.y } : desvio ?? { right: painel.posBotao.x + ladoDoCopiloto, bottom: painel.posBotao.y };
+  // O arrasto parte de onde o lançador está na tela (já com o desvio), não da posição salva.
+  const pegar = (e: PointerReact<HTMLElement>) => { base.current = { x: recuo.right - ladoDoCopiloto, y: recuo.bottom }; iniciar(e); };
   return (
-    <div className="tarefas-lancador" style={{ right: pos.x + desvio, bottom: pos.y }}>
+    <div ref={caixa} className="tarefas-lancador" style={{ right: recuo.right, bottom: recuo.bottom }}>
       <div className="tarefas-lancador-linha">
         <button type="button" className="tarefas-lancador-lista" title={painel.listaFixada ? "Esconder a lista do dia" : "Lista do dia flutuante"}
           aria-pressed={painel.listaFixada} onClick={alternarListaDoDia}>📌</button>

@@ -16,6 +16,15 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.26.0",
+    date: "2026-10-22",
+    changes: [
+      "Copiloto: começar uma conversa nova (pelo ＋, trocando a pasta ou pelo ⌘K) agora encerra a anterior, que continua no Histórico. Antes ela ficava rodando escondida e gastando o computador.",
+      "Tarefas criadas ou mudadas pelo Jarvis aparecem na tela de Tarefas em poucos segundos, sem precisar clicar de volta no app.",
+      "Os botões do canto (Tarefas e a logo do copiloto) não ficam mais por cima do campo de mensagem e do Enviar: eles sobem acima do campo e, no editor de vídeo, vão para o lado da conversa do vídeo. Continuam arrastáveis.",
+    ],
+  },
+  {
     version: "0.25.0",
     date: "2026-10-22",
     changes: [
