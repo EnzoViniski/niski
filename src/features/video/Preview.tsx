@@ -175,6 +175,14 @@ export const Preview = forwardRef<ControleDoPreview, Props>(function Preview({ p
       if (!janela || e.source !== janela) return;
       const d = e.data as { medza?: string; tipo?: unknown } | null;
       if (!d || d.medza !== "ponte" || typeof d.tipo !== "string") return;
+      // Diagnóstico (0.19): o que a composição conseguiu carregar, no log do app (só tipos e contagens).
+      if (d.tipo === "pronta") registrar("ponte_carregou");
+      if (d.tipo === "diagnostico") {
+        const x = (d as { quando?: number; info?: Record<string, unknown> });
+        const i = x.info ?? {};
+        const erros = Array.isArray(i.erros) ? (i.erros as unknown[]).map(String).join(" | ").slice(0, 300) : "";
+        registrar(`diag t=${x.quando} estado=${String(i.estado)} runtime=${String(i.runtime)} timelines=${String(i.timelines)} gsap=${String(i.gsap)} raiz=${String(i.raiz)}${erros ? ` erros=${erros}` : ""}`);
+      }
       ponteRef.current?.(d as MensagemDaPonte);
     };
     window.addEventListener("message", aoMensagem);

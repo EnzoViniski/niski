@@ -23,9 +23,25 @@ struct Titulo { rotulo: String, titulo: String }
 fn eh_do_app(url: &Url) -> bool {
     match url.scheme() {
         "tauri" | "asset" | "ipc" | "about" | "data" | "blob" => true,
-        "http" | "https" => matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "tauri.localhost" | "asset.localhost" | "ipc.localhost")),
+        "http" | "https" => matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "tauri.localhost" | "asset.localhost" | "ipc.localhost"))
+            || preview_de_video(url),
+        // Fork (Editor de vídeo): o iframe do preview. Esta trava vale também para iframes; sem isto o
+        // Tauri cancelava em silêncio a navegação para `medzavideo://` e o preview nunca abria
+        // (só o app real tem a trava; no navegador e nos testes ele abria).
+        crate::videos::protocolo::ESQUEMA => preview_de_video(url),
         _ => false,
     }
+}
+
+/// Endereço do preview com o token desta execução (macOS/Linux `medzavideo://localhost/<token>/…`,
+/// Windows `http://medzavideo.localhost/<token>/…`). Outro token ou host não passa.
+fn preview_de_video(url: &Url) -> bool {
+    let host_certo = match url.scheme() {
+        "http" => url.host_str() == Some("medzavideo.localhost"),
+        s if s == crate::videos::protocolo::ESQUEMA => url.host_str() == Some("localhost"),
+        _ => false,
+    };
+    host_certo && url.path().trim_start_matches('/').split('/').next() == Some(crate::videos::protocolo::token())
 }
 
 fn externo(url: &Url) -> bool { matches!(url.scheme(), "http" | "https") }
@@ -146,5 +162,15 @@ mod tests {
         assert!(rotulo_valido("nav-tab-abc_1").is_ok());
         assert!(rotulo_valido("main").is_err());
         assert!(rotulo_valido("nav-../x").is_err());
+    }
+
+    #[test]
+    fn preview_de_video_passa_so_com_o_token_desta_execucao() {
+        let tok = crate::videos::protocolo::token();
+        assert!(eh_do_app(&Url::parse(&format!("medzavideo://localhost/{tok}/p/v-1/index.html?v=3")).unwrap()));
+        assert!(eh_do_app(&Url::parse(&format!("http://medzavideo.localhost/{tok}/p/v-1/index.html")).unwrap()));
+        assert!(!eh_do_app(&Url::parse("medzavideo://localhost/outro/p/v-1/index.html").unwrap()));
+        assert!(!eh_do_app(&Url::parse(&format!("medzavideo://evil/{tok}/p/v-1/index.html")).unwrap()));
+        assert!(!eh_do_app(&Url::parse(&format!("https://medzavideo.localhost/{tok}/x")).unwrap()));
     }
 }

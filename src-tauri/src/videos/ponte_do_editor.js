@@ -58,5 +58,24 @@
     }
     enviar({ tipo: "medida", ref: d.ref || null, el: info(el) });
   });
+  // Diagnóstico (0.19): o app registra no log só isto (tipos e contagens, nada da composição).
+  var erros = [];
+  function anotar(t) { if (erros.length < 5) erros.push(String(t).slice(0, 160)); }
+  window.addEventListener("error", function (e) {
+    var alvo = e.target && e.target !== window && (e.target.src || e.target.href);
+    anotar(alvo ? "recurso " + String(alvo).split("?")[0].slice(-80) : (e.message || "erro"));
+  }, true);
+  window.addEventListener("unhandledrejection", function (e) { anotar("promessa " + (e.reason && e.reason.message || e.reason)); });
+  document.addEventListener("securitypolicyviolation", function (e) { anotar("csp " + e.violatedDirective + " " + String(e.blockedURI).slice(0, 80)); });
+  function diagnostico(quando) {
+    var t = window.__timelines;
+    enviar({ tipo: "diagnostico", quando: quando, info: {
+      estado: document.readyState, runtime: typeof window.__player !== "undefined" || typeof window.__hf !== "undefined",
+      timelines: t && typeof t === "object" ? Object.keys(t).length : -1, gsap: typeof window.gsap,
+      raiz: !!document.querySelector("[data-composition-id]"), erros: erros.slice(),
+    } });
+  }
+  setTimeout(function () { diagnostico(3); }, 3000);
+  setTimeout(function () { diagnostico(10); }, 10000);
   enviar({ tipo: "pronta" });
 })();
