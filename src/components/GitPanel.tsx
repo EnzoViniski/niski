@@ -6,13 +6,13 @@ import {
   gitCommit,
   gitPush,
   gitStage,
-  gitStatus,
   gitUnstage,
   isStaged,
   isUnstaged,
   type GitStatus,
   type GitStatusEntry,
 } from "../features/git/gitService";
+import { gitStatusCompartilhado } from "../features/git/statusCompartilhado";
 
 interface GitPanelProps {
   projectPath: string | null;
@@ -30,7 +30,7 @@ export function GitPanel({ projectPath, onOpenDiff, onOpenGraph }: GitPanelProps
   const [busy, setBusy] = useState(false);
 
   /** `silent`: atualização de fundo — sem "Carregando…" piscando e sem trocar o erro da tela. */
-  const refresh = useCallback((silent = false) => {
+  const refresh = useCallback((silent = false, fresco = !silent) => {
     if (!projectPath) return;
     if (!silent) {
       setStatus(undefined);
@@ -39,7 +39,9 @@ export function GitPanel({ projectPath, onOpenDiff, onOpenGraph }: GitPanelProps
       // apagada quando o status voltasse.
       setError(null);
     }
-    gitStatus(projectPath)
+    // Fork (desempenho): a releitura de fundo divide o `git status` com o rodapé e as abas de agente;
+    // a que vem de uma ação (stage, commit) lê na hora e serve a todos.
+    gitStatusCompartilhado(projectPath, { fresco })
       .then(setStatus)
       .catch((reason) => {
         if (!silent) setError(reason instanceof Error ? reason.message : String(reason));
@@ -54,7 +56,7 @@ export function GitPanel({ projectPath, onOpenDiff, onOpenGraph }: GitPanelProps
     // Projeto remoto: cada leitura é um `wsl`/`ssh`, então o ritmo cai.
     // Fork: janela oculta (minimizada/coberta) não roda `git status`; o `focus` abaixo relê ao voltar.
     const timer = window.setInterval(() => { if (!document.hidden) refresh(true); }, isRemoteProject(projectPath) ? 10_000 : 3_000);
-    const onFocus = () => refresh(true);
+    const onFocus = () => refresh(true, true); // Fork (desempenho): voltar à janela lê na hora.
     window.addEventListener("focus", onFocus);
     return () => {
       window.clearInterval(timer);
