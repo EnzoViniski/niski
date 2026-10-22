@@ -16,6 +16,16 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.27.0",
+    date: "2026-10-22",
+    changes: [
+      "Copiloto: quando você pede para abrir uma conversa na tela (por exemplo, \"abre uma conversa com o Codex no gpt-6.1-sol médio\"), ela abre numa aba do seu workspace já com a plataforma, a conta, o modelo e o esforço escolhidos, e fica salva na lateral e no Histórico. Antes ele dava erro de \"projeto desconhecido\" e pedia para abrir o app de novo.",
+      "O app ficou mais leve com várias conversas abertas: a conversa só se redesenha quando chega algo novo, e não mais a cada segundo, e a faixa de conta e modelo de cada agente pesa bem menos.",
+      "O Git da pasta agora é consultado uma vez só para todas as telas, e voltar para a janela do app não relê mais todo o histórico de conversas.",
+      "Tarefas e copiloto pararam de se atualizar sem necessidade, e a lista de agentes do copiloto não é lida com a janela escondida.",
+    ],
+  },
+  {
     version: "0.26.0",
     date: "2026-10-22",
     changes: [
