@@ -3,7 +3,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
-import { OrbeDoJarvis, type Niveis } from "./OrbeDoJarvis";
+import type { Niveis } from "./OrbeDoJarvis";
+// Fork: orbe de partículas com o símbolo do Niski (cai no orbe 2D sem WebGL2).
+import { OrbeDeParticulas } from "./OrbeDeParticulas";
 import { aplicarEvento, estadoInicial, ROTULO_DO_ESTADO, type EventoDoJarvis } from "./estadoDoJarvis";
 import { AjustesDoJarvis, type ConfiguracaoDoJarvis } from "./AjustesDoJarvis";
 import { prepararAnexos, paraOJarvis, TIPOS_DO_JARVIS, type AnexoNaJanela } from "./anexosDoJarvis";
@@ -91,7 +93,7 @@ export function JanelaDoJarvis() {
     return (
       <div className="jarvis-bolinha" data-tauri-drag-region data-estado={tom} onDoubleClick={() => trocarBolinha(false)}
         title={`Jarvis — ${estado.erro ?? ROTULO_DO_ESTADO[estado.estado]} (dois cliques para abrir)`}>
-        <OrbeDoJarvis estado={tom} niveis={niveis} tamanho={76} compacto />
+        <OrbeDeParticulas estado={tom} niveis={niveis} tamanho={76} compacto />
         <button type="button" className="jarvis-bolinha-abrir" aria-label="Abrir o Jarvis" onClick={() => trocarBolinha(false)}>⤢</button>
       </div>
     );
@@ -113,7 +115,7 @@ export function JanelaDoJarvis() {
       {ajustesAbertos && <AjustesDoJarvis ocupado={ocupado} onFechar={() => setAjustesAbertos(false)} onSalvo={setConfiguracao} />}
 
       <div className="jarvis-palco" data-tauri-drag-region>
-        <OrbeDoJarvis estado={tom} niveis={niveis} tamanho={200} />
+        <OrbeDeParticulas estado={tom} niveis={niveis} tamanho={200} />
       </div>
 
       {estado.erro && (
