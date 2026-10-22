@@ -24,7 +24,7 @@ fn transcript(conta: &Path, cwd: &str, id: &str) -> PathBuf {
 
 async fn post(state: &Arc<EngineState>, caminho: &str, corpo: Value, chave: Option<&str>) -> (u16, Value) {
     let headers = chave.map(|k| vec![("Idempotency-Key".to_owned(), k.to_owned())]).unwrap_or_default();
-    let EngineResponse::Api { status, body } = local(state.clone(), "POST", caminho, Some(corpo.to_string()), None, headers).await else { panic!("não é Api") };
+    let EngineResponse::Api { status, body, .. } = local(state.clone(), "POST", caminho, Some(corpo.to_string()), None, headers).await else { panic!("não é Api") };
     (status, serde_json::from_str(&body).unwrap_or(Value::Null))
 }
 

@@ -2,7 +2,7 @@
 use super::*;
 
 async fn api(state: &Arc<EngineState>, metodo: &str, caminho: &str, corpo: Option<Value>) -> (u16, Value) {
-    let EngineResponse::Api { status, body } = local(state.clone(), metodo, caminho, corpo.map(|c| c.to_string()), None, vec![]).await
+    let EngineResponse::Api { status, body, .. } = local(state.clone(), metodo, caminho, corpo.map(|c| c.to_string()), None, vec![]).await
         else { panic!("resposta inesperada") };
     (status, serde_json::from_str(&body).unwrap_or(Value::Null))
 }

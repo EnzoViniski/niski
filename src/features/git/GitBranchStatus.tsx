@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { matchesShortcut } from "../../lib/shortcuts";
 import { GitBranchIcon, GithubIcon } from "../../components/ui/PixelIcon";
 import { isRemoteProject } from "../projects/targetState";
-import { gitBranches, gitCheckoutBranch, gitConta, gitPull, gitStatus, type GitBranch, type GitConta } from "./gitService";
+import { gitBranches, gitCheckoutBranch, gitConta, gitPull, type GitBranch, type GitConta } from "./gitService";
+import { gitStatusCompartilhado } from "./statusCompartilhado";
 
 /** Releitura da conta: muda quase nunca (login/logout), e o `gh auth status` vai à rede. */
 const CONTA_RITMO_MS = 120_000;
@@ -65,22 +66,23 @@ export function GitBranchStatus({ projectPath, abrirPara = "cima", atalho = true
    *  `absolute` nasce dentro dele e é recortado até sumir — `fixed` escapa do recorte. */
   const [ancora, setAncora] = useState<{ left: number; bottom?: number; top?: number }>({ left: 0, bottom: 0 });
 
-  const refresh = useCallback(() => {
+  // Fork (desempenho): o tique de fundo divide o `git status` com o rodapé, o painel e as outras abas.
+  const refresh = useCallback((fresco = true) => {
     if (!projectPath) {
       setBranch(null);
       return;
     }
-    gitStatus(projectPath)
+    gitStatusCompartilhado(projectPath, { fresco })
       .then((status) => setBranch(status?.branch ?? null))
       .catch(() => setBranch(null));
   }, [projectPath]);
 
   useEffect(() => {
-    refresh();
+    refresh(false);
     // Em projeto remoto cada leitura é um `wsl`/`ssh` — 3s viraria tráfego constante à toa.
     const ritmo = isRemoteProject(projectPath) ? 10_000 : 3_000;
     // Fork: com a janela oculta não roda `git status` (o próximo tique depois de voltar relê).
-    const timer = window.setInterval(() => { if (!document.hidden) refresh(); }, ritmo);
+    const timer = window.setInterval(() => { if (!document.hidden) refresh(false); }, ritmo);
     return () => window.clearInterval(timer);
   }, [refresh, projectPath]);
 

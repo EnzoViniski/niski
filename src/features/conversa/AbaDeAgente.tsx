@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ChipDeTokens } from "../../mobile/conversa/TokensDaSessao"; // Fork: total de tokens da conversa.
 import { ApiError, actionKey, request, type Timeline, type Conversation } from "../../mobile/api";
 import { AjustesDaConversa, type Ajustes } from "../../mobile/AjustesDaConversa";
-import { usePoll } from "../../mobile/usePoll";
 import { ChatIcon, TerminalIcon } from "../../components/ui/PixelIcon";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { EtiquetaDoStatus, statusDaConversa } from "../../components/ConversaStatus";
 import type { TerminalSession } from "../terminal/terminalService";
 import { EVENTO_ANEXAR, EVENTO_ARRASTANDO, tipoPelaExtensao } from "../../mobile/anexos";
 import { ConversationDetail } from "../../mobile/MobileApp";
+// Fork (desempenho): o topo da aba muda com o estado do agente; a conversa (lista longa) só redesenha
+// quando as props dela mudam.
+const DetalheDaConversa = memo(ConversationDetail);
 import { listTerminalSessions } from "../terminal/terminalService";
+import { useResumoDaConversa } from "./resumoDaConversa";
 import { useSession, useSessionProvider } from "../terminal/sessionProviders";
 import { temConversa } from "../../mobile/api";
 import type { AgentView } from "../../types/settings";
@@ -73,14 +76,20 @@ export function AbaDeAgente({
 /** Conversa (id e estado) da sessão desta aba. Relida a cada poucos segundos: o "pronto" (agente
  *  parado) decide se dá para trocar agora. */
 function useConversaDaSessao(sessionId: string) {
-  const [conversa, setConversa] = useState<Conversation | null>(null);
-  usePoll(async () => {
-    const sessao = (await listTerminalSessions()).find((item) => item.id === sessionId);
-    if (!sessao?.conversation_id) return;
-    const dados = await request<Timeline>(`/conversas/${encodeURIComponent(sessao.conversation_id)}/timeline`);
-    if (dados.conversation) setConversa(dados.conversation);
-  }, () => undefined, [sessionId], 3_000);
-  return conversa;
+  // Fork (desempenho): a conversa vem da lista de sessões que o App já relê (sem outro IPC) e o
+  // resumo de `/resumo` com ETag (antes: a timeline inteira a cada 3 s, e um objeto novo a cada
+  // vez redesenhava a conversa toda). Engine antigo sem a rota: cai na timeline.
+  const daLista = useSession(sessionId)?.conversation_id ?? null;
+  // Fora do App (sem a lista de sessões no contexto) pergunta uma vez ao engine.
+  const [lida, setLida] = useState<string | null>(null);
+  useEffect(() => {
+    if (daLista) return;
+    let vivo = true;
+    listTerminalSessions().then((lista) => { if (vivo) setLida(lista.find((item) => item.id === sessionId)?.conversation_id ?? null); })
+      .catch(() => undefined);
+    return () => { vivo = false; };
+  }, [sessionId, daLista]);
+  return useResumoDaConversa(daLista ?? lida);
 }
 
 /**
@@ -270,7 +279,7 @@ function ChatDaSessao({ sessionId, onVerTerminal, onRevisao }: { sessionId: stri
         // Fork: caminho relativo citado na conversa abre relativo à pasta dela (`CaminhoClicavel.tsx`).
         <PastaDaConversaContext.Provider value={pasta}>
         <div className="w-painel-central">
-          <ConversationDetail key={conversa.id} conversation={conversa} refresh={carregar} />
+          <DetalheDaConversa key={conversa.id} conversation={conversa} refresh={carregar} />
         </div>
         </PastaDaConversaContext.Provider>
       ) : (

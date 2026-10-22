@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { esquecerStatusCompartilhado } from "../features/git/statusCompartilhado";
 import { GitBranchStatus } from "../features/git/GitBranchStatus";
 
 vi.mock("../features/git/gitService", async (importOriginal) => ({
@@ -15,6 +16,7 @@ const { gitStatus, gitPull, gitBranches, gitCheckoutBranch } = vi.mocked(await i
 
 beforeEach(() => {
   vi.clearAllMocks();
+  esquecerStatusCompartilhado(); // Fork (desempenho): o status é dividido entre telas.
   gitStatus.mockResolvedValue({ branch: "main", entries: [] });
   gitPull.mockResolvedValue("Already up to date.");
   gitBranches.mockResolvedValue([

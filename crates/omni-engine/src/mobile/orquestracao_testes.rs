@@ -182,7 +182,7 @@ async fn so_claude_e_codex_orquestram_e_subagente_nao_ganha_token() {
     let EngineResponse::Api { status, .. } = ativar("agy").await else { panic!() };
     assert_eq!(status, 409, "antigravity: ainda não suportado como orquestrador");
     // Sem sessão aberta: só marca; a flag entra na próxima abertura.
-    let EngineResponse::Api { status, body } = ativar("orq-b").await else { panic!() };
+    let EngineResponse::Api { status, body, .. } = ativar("orq-b").await else { panic!() };
     assert_eq!(status, 200, "{body}");
     assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["reaberta"], false);
     assert!(ler_registro(&state).ativo("orq-b"));
@@ -196,7 +196,7 @@ async fn so_claude_e_codex_orquestram_e_subagente_nao_ganha_token() {
     let EngineResponse::Api { status, .. } = ativar("orq-a").await else { panic!() };
     assert_eq!(status, 409, "sem recursão");
 
-    let EngineResponse::Api { status, body } = local(state.clone(), "GET", "/orquestracao/orq-b", None, None, vec![]).await else { panic!() };
+    let EngineResponse::Api { status, body, .. } = local(state.clone(), "GET", "/orquestracao/orq-b", None, None, vec![]).await else { panic!() };
     assert_eq!(status, 200);
     let fluxo: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(fluxo["ativo"], true);
@@ -282,7 +282,7 @@ async fn cli_falsa_cria_recebe_tarefa_respeita_limite_espera_e_para() {
     let (erro, texto) = ferramenta(&state, &token, "ler_conversa", json!({"agente": agente})).await;
     assert!(!erro && texto.contains("\"trabalhando\""), "{texto}");
 
-    let EngineResponse::Api { status, body } = local(state.clone(), "GET", "/orquestracao/orq-a", None, None, vec![]).await else { panic!() };
+    let EngineResponse::Api { status, body, .. } = local(state.clone(), "GET", "/orquestracao/orq-a", None, None, vec![]).await else { panic!() };
     assert_eq!(status, 200);
     let fluxo: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(fluxo["agentes"][0]["modelo"], "haiku");

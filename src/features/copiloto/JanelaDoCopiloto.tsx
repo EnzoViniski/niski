@@ -31,7 +31,17 @@ function useAgentesDoCopiloto(conversa: string | null) {
   useEffect(() => {
     if (!conversa) { setAgentes([]); return; }
     let vivo = true;
-    const ler = () => void obterFluxo(conversa).then((f) => { if (vivo) setAgentes(f.agentes ?? []); }).catch(() => undefined);
+    // Fork (desempenho): lista igual não troca o estado (a janela tem a conversa inteira dentro e
+    // redesenhava a cada 4 s) e, com a janela escondida, não pergunta.
+    let anterior = "";
+    const ler = () => {
+      if (document.hidden) return;
+      void obterFluxo(conversa).then((f) => {
+        const lidos = f.agentes ?? [];
+        const assinatura = JSON.stringify(lidos);
+        if (vivo && assinatura !== anterior) { anterior = assinatura; setAgentes(lidos); }
+      }).catch(() => undefined);
+    };
     ler();
     const timer = window.setInterval(ler, 4_000);
     return () => { vivo = false; window.clearInterval(timer); };

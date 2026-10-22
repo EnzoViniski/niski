@@ -86,6 +86,7 @@ mod memoria;
 mod sobre_mim; // Fork (Sobre mim).
 mod roadmaps; // Fork (Roadmaps de estudo).
 mod terminais;
+mod desempenho; // Fork (desempenho): resumo da conversa e ETag pelo IPC.
 // Fork (retomar-sempre): rotas /retomada/* e Retomar sem beco sem saída.
 #[cfg(unix)]
 mod retomada;

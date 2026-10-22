@@ -9,7 +9,7 @@ use super::*;
     atomic_write_json(&dir.path().join("conversations.json"),&json!({"version":1,"conversations":[{
         "id":"c","project_id":"p","cwd":projeto.to_string_lossy(),"title":"Teste","created_at_ms":1,"segments":[]
     }]})).unwrap();
-    let EngineResponse::Api { status, body } = local(state,"POST","/conversas/c/anexos",None,Some("iVBORw0KGgo=".into()),
+    let EngineResponse::Api { status, body, .. } = local(state,"POST","/conversas/c/anexos",None,Some("iVBORw0KGgo=".into()),
         vec![("x-omni-nome".into(),"print.png".into()),("content-type".into(),"image/png".into())]).await else { panic!("não é Api") };
     assert_eq!(status,200,"{body}");
     let caminho = serde_json::from_str::<Value>(&body).unwrap()["caminho"].as_str().unwrap().to_string();
