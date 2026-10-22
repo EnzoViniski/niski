@@ -31,7 +31,8 @@
 .video-editor-area {
   flex: 1; min-width: 0; display: grid; height: 100%; min-height: 0;
   grid-template-columns: minmax(14rem, 19rem) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) minmax(10rem, 34%);
+  /* Fork (0.23): a timeline fica do tamanho das faixas (até um teto); o resto vai para o vídeo. */
+  grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "topo topo" "esq centro" "rodape rodape";
 }
 .video-editor > .roadmap-divisor { height: 100%; }
@@ -53,13 +54,15 @@
 .video-editor-area { container-type: inline-size; container-name: editor; }
 @container editor (max-width: 900px) { .video-editor-topo .video-etiqueta:not(.is-ocupado) { display: none; } }
 .video-centro { grid-area: centro; min-height: 0; min-width: 0; overflow: hidden; display: flex; flex-direction: column; gap: .5rem; padding: .75rem; align-items: stretch; }
-.video-rodape { grid-area: rodape; min-height: 0; border-top: 1px solid rgb(var(--c-border-subtle) / .6); display: flex; flex-direction: column; }
+.video-rodape { grid-area: rodape; min-height: 8.5rem; max-height: min(40vh, 24rem); border-top: 1px solid rgb(var(--c-border-subtle) / .6); display: flex; flex-direction: column; }
 
 /* Preview */
 /* Fork (0.16): o preview ocupa o meio todo; a caixa no formato do vídeo é medida no Preview.tsx. */
 .video-preview-area { flex: 1; min-height: 8rem; min-width: 0; display: flex; align-items: center; justify-content: center; position: relative; }
 .video-preview-palco { position: relative; flex: none; width: 100%; height: 100%; background: #000; overflow: hidden; box-shadow: 0 0 0 1px rgb(var(--c-border-subtle) / .6); }
 .video-preview-player { position: absolute; inset: 0; }
+/* Fork (0.22): player carregando a versão nova por trás do que está na tela (troca quando fica pronto). */
+.video-preview-player > hyperframes-player.is-por-tras { position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: -1; }
 .video-preview-carregando { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: .6rem; padding: 1rem; text-align: center; font-size: .75rem; color: rgb(255 255 255 / .65); }
 .video-preview-carregando.is-problema { background: rgb(0 0 0 / .72); color: rgb(255 255 255 / .9); z-index: 4; }
 .video-preview-de-novo { width: auto; padding: .2rem .7rem; border: 1px solid rgb(255 255 255 / .35); color: #fff; }
@@ -116,7 +119,7 @@
 .video-prop-aviso { font-size: .72rem; color: rgb(var(--c-warning)); }
 
 /* Abas e biblioteca */
-.video-abas { display: flex; gap: .1rem; padding: .5rem .4rem 0; border-bottom: 1px solid rgb(var(--c-border-subtle) / .6); overflow-x: auto; scrollbar-width: none; }
+.video-abas { display: flex; flex-wrap: wrap; gap: .1rem; padding: .5rem .4rem 0; border-bottom: 1px solid rgb(var(--c-border-subtle) / .6); }
 .video-abas::-webkit-scrollbar { display: none; }
 .video-aba { flex: none; white-space: nowrap; font-size: .72rem; padding: .35rem .45rem; color: rgb(var(--c-text-secondary)); border-bottom: 2px solid transparent; }
 .video-aba.is-ativa { color: rgb(var(--c-text-primary)); border-bottom-color: rgb(var(--c-accent)); }
@@ -228,6 +231,9 @@
 :root[data-estilo="minimalista"] .video-tl-clipe { border-radius: 6px; }
 .video-tl-clipe-texto { flex: 1; min-width: 0; padding: 0 .45rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
 .video-tl-clipe-texto b { font-weight: 600; color: rgb(var(--cor)); margin-right: .2rem; }
+.video-tl-miniatura { flex: none; align-self: stretch; width: 3.2rem; object-fit: cover; pointer-events: none; opacity: 0; background: #000; border-right: 1px solid rgb(var(--cor) / .5); transition: opacity .2s; }
+.video-tl-miniatura.is-pronta { opacity: .9; }
+video.video-mini.is-carregando { opacity: 0; }
 .video-tl-ponta { flex: none; width: 7px; align-self: stretch; cursor: ew-resize; background: rgb(var(--cor) / .5); }
 .video-tl-ponta:hover { background: rgb(var(--cor)); }
 .video-tl-colega { flex: none; font-size: .58rem; padding: 0 .3rem; margin-right: 2px; color: #fff; border-radius: 3px; }
@@ -323,12 +329,13 @@ body.lateral-arrastando :is(.video-preview-player, .video-chat-normal-corpo) { p
 .video-chat-nova { width: auto; padding: 0 .5rem; font-size: .72rem; }
 .video-chat-normal-corpo { flex: 1; min-height: 0; position: relative; }
 .video-chat-normal > .video-trava { margin: .5rem .75rem 0; }
-.video-pasta-pc { display: inline-flex; align-items: center; gap: .1rem; min-width: 0; }
+.video-pasta-pc { display: inline-flex; align-items: center; gap: .1rem; min-width: 0; overflow: hidden; }
 .video-pasta-pc-botao {
   display: inline-flex; align-items: center; gap: .35rem; max-width: 14rem; padding: .2rem .55rem; font-size: .72rem;
   color: rgb(var(--c-text-secondary)); border: 1px dashed rgb(var(--c-border)); background: transparent;
 }
 .video-pasta-pc-botao span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.video-pasta-pc-botao { min-width: 0; }
 .video-pasta-pc-botao.is-ligada { border-style: solid; color: rgb(var(--c-text-primary)); border-color: rgb(var(--c-accent) / .45); background: rgb(var(--c-accent) / .08); }
 .video-pasta-pc-botao.is-erro { border-color: rgb(var(--c-danger) / .6); }
 .video-pasta-pc-botao:hover:not(:disabled) { background: rgb(var(--c-overlay) / .06); }

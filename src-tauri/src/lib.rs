@@ -188,6 +188,7 @@ pub fn run() {
             videos::videos_configurar_pastas,
             videos::videos_conferir_pasta,
             videos::videos_assinatura,
+            videos::videos_registrar_depuracao,
             videos::videos_abrir_render,
             videos::videos_copiar_render,
             estado_da_interface::ler_estado_da_interface,

@@ -79,7 +79,11 @@ export function discoFalso() {
         }
         case "videos_agente_rodando": return false;
         // Fork (0.14): chat normal, pastas do computador e exportados.
-        case "videos_assinatura": return String([...arquivos.entries()].filter(([k]) => k.startsWith(`${id}/`) && /(index\.html|BRIEF\.md|midias\.json|compositions\/)/.test(k)).map(([, v]) => v).join("").split("").reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7));
+        case "videos_assinatura": {
+          // Como o Rust: "<composição>:<briefing e mídias>".
+          const h = (re: RegExp) => [...arquivos.entries()].filter(([k]) => k.startsWith(`${id}/`) && re.test(k.slice(id.length + 1))).map(([, v]) => v).join("").split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7);
+          return `${h(/^(index\.html|compositions\/|assets\/)/)}:${h(/^(BRIEF\.md|midias\.json)$/)}`;
+        }
         case "videos_configurar_pastas": {
           const c = args.pastaDoComputador as string | null;
           if (c && !c.startsWith("/")) throw new Error("Escolha uma pasta do computador.");

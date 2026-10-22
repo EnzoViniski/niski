@@ -213,6 +213,9 @@ pub fn atender<R: tauri::Runtime>(_ctx: tauri::UriSchemeContext<'_, R>, pedido: 
             Ok(raiz) => responder(&raiz, token(), &metodo, &caminho, range.as_deref()),
             Err(_) => erro(500, "Pasta de dados indisponível"),
         };
+        // Fork (diagnóstico do preview): só com OMNI_LOG_DEBUG=1; tipo do arquivo e status, sem caminho.
+        let extensao = caminho.rsplit('.').next().filter(|e| e.len() <= 5 && !e.contains('/')).unwrap_or("-").to_ascii_lowercase();
+        omni_core::registro::depurar("video_protocolo", &[("tipo", &extensao), ("status", &r.status.to_string()), ("range", if range.is_some() { "sim" } else { "nao" })]);
         let mut construtor = tauri::http::Response::builder().status(r.status);
         for (nome, valor) in r.cabecalhos { construtor = construtor.header(nome, valor); }
         match construtor.body(r.corpo) {

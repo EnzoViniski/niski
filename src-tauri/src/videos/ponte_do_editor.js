@@ -45,6 +45,16 @@
     quadro = requestAnimationFrame(function () { quadro = 0; enviar({ tipo: "passar", el: info(alvo(t)) }); });
   }, true);
   document.addEventListener("pointerleave", function () { if (ativo) enviar({ tipo: "passar", el: null }); }, true);
+  // Fork (0.22): depois de clicar no vídeo o foco fica aqui dentro; os atalhos do editor (espaço,
+  // setas, ⌘Z, S, apagar, Esc) seguem para o app.
+  var TECLAS = { " ": 1, ArrowLeft: 1, ArrowRight: 1, ArrowUp: 1, ArrowDown: 1, Home: 1, End: 1, Backspace: 1, Delete: 1, Escape: 1, s: 1, S: 1, z: 1, Z: 1, d: 1, D: 1 };
+  document.addEventListener("keydown", function (e) {
+    var t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if (!TECLAS[e.key]) return;
+    e.preventDefault();
+    enviar({ tipo: "tecla", key: e.key, shift: e.shiftKey, meta: e.metaKey, ctrl: e.ctrlKey, alt: e.altKey });
+  }, true);
   window.addEventListener("message", function (e) {
     if (e.source !== parent) return;
     var d = e.data;
@@ -58,5 +68,24 @@
     }
     enviar({ tipo: "medida", ref: d.ref || null, el: info(el) });
   });
+  // Diagnóstico (0.19): o app registra no log só isto (tipos e contagens, nada da composição).
+  var erros = [];
+  function anotar(t) { if (erros.length < 5) erros.push(String(t).slice(0, 160)); }
+  window.addEventListener("error", function (e) {
+    var alvo = e.target && e.target !== window && (e.target.src || e.target.href);
+    anotar(alvo ? "recurso " + String(alvo).split("?")[0].slice(-80) : (e.message || "erro"));
+  }, true);
+  window.addEventListener("unhandledrejection", function (e) { anotar("promessa " + (e.reason && e.reason.message || e.reason)); });
+  document.addEventListener("securitypolicyviolation", function (e) { anotar("csp " + e.violatedDirective + " " + String(e.blockedURI).slice(0, 80)); });
+  function diagnostico(quando) {
+    var t = window.__timelines;
+    enviar({ tipo: "diagnostico", quando: quando, info: {
+      estado: document.readyState, runtime: typeof window.__player !== "undefined" || typeof window.__hf !== "undefined",
+      timelines: t && typeof t === "object" ? Object.keys(t).length : -1, gsap: typeof window.gsap,
+      raiz: !!document.querySelector("[data-composition-id]"), erros: erros.slice(),
+    } });
+  }
+  setTimeout(function () { diagnostico(3); }, 3000);
+  setTimeout(function () { diagnostico(10); }, 10000);
   enviar({ tipo: "pronta" });
 })();

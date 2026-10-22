@@ -16,6 +16,32 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.23.0",
+    date: "2026-10-22",
+    changes: [
+      "Edição de vídeo: o vídeo ficou maior na tela. A timeline agora ocupa só o espaço das faixas, sem a área vazia embaixo.",
+      "Edição de vídeo: os clipes da timeline mostram o que tem neles (o texto da cena ou o nome do arquivo) em vez de \"Bloco…\", e os clipes de vídeo ganharam uma miniatura.",
+      "Edição de vídeo: a escolha da pasta do computador aparece logo no começo do Novo vídeo, e o topo do editor e as abas da esquerda não ficam mais cortados ou um em cima do outro.",
+    ],
+  },
+  {
+    version: "0.22.0",
+    date: "2026-10-22",
+    changes: [
+      "Edição de vídeo: quando o agente (ou qualquer programa) muda o vídeo, o preview se atualiza sozinho em cerca de um segundo, sem ficar preto e sem voltar para o começo. Se estava tocando, continua tocando.",
+      "Edição de vídeo: mudar só o briefing ou a biblioteca não recarrega mais o vídeo.",
+      "Edição de vídeo: espaço, setas, desfazer (⌘Z), dividir (S) e apagar funcionam também depois de clicar dentro do vídeo.",
+    ],
+  },
+  {
+    version: "0.21.0",
+    date: "2026-10-22",
+    changes: [
+      "Edição de vídeo: o vídeo finalmente aparece no editor. Uma proteção do app que impede a janela de abrir endereços de fora estava bloqueando em silêncio o preview do vídeo; agora ele abre na hora, toca e mostra cada mudança sem precisar exportar.",
+      "Edição de vídeo: com o preview funcionando, a edição na mão passa a valer: clique no texto ou na imagem dentro do vídeo para mover, aumentar, trocar cor e texto.",
+    ],
+  },
+  {
     version: "0.20.0",
     date: "2026-10-22",
     changes: [

@@ -22,8 +22,10 @@ export function IconeDaMidia({ tipo, tamanho = 16 }: { tipo: string; tamanho?: n
 /** Miniatura: imagem de verdade, primeiro quadro do vídeo, ou o ícone. */
 export function Miniatura({ midia, url }: { midia: Pick<Midia, "tipo" | "nome">; url: string | null }) {
   const [falhou, setFalhou] = useState(false);
+  const [pronta, setPronta] = useState(false);
   if (url && !falhou && midia.tipo === "imagem") return <img className="video-mini" src={url} alt="" loading="lazy" onError={() => setFalhou(true)} />;
-  if (url && !falhou && midia.tipo === "video") return <video className="video-mini" src={`${url}#t=0.1`} muted preload="metadata" playsInline onError={() => setFalhou(true)} />;
+  // Fork (0.23): quadro só quando decodificado (antes aparecia um retângulo branco).
+  if (url && !falhou && midia.tipo === "video") return <video className={`video-mini${pronta ? "" : " is-carregando"}`} src={`${url}#t=0.1`} muted preload="auto" playsInline onLoadedData={() => setPronta(true)} onError={() => setFalhou(true)} />;
   return <span className="video-mini is-icone"><IconeDaMidia tipo={midia.tipo} tamanho={20} /></span>;
 }
 
@@ -43,7 +45,7 @@ export function Biblioteca({ projeto, acoes, bloqueado, onPorNaTimeline, aba: ab
   return (
     <div className="video-bib">
       <div className="video-abas" role="tablist" aria-label="Biblioteca">
-        {([...(propriedades ? [["propriedades", "Propriedades"]] as const : []), ["midia", "Mídia"], ["referencias", "Referências"], ["briefing", "Briefing"]] as const).map(([v, r]) => (
+        {([...(propriedades ? [["propriedades", "Ajustes"]] as const : []), ["midia", "Mídia"], ["referencias", "Referências"], ["briefing", "Briefing"]] as const).map(([v, r]) => (
           <button key={v} type="button" role="tab" aria-selected={aba === v} className={`video-aba${aba === v ? " is-ativa" : ""}`} onClick={() => setAba(v)}>{r}</button>
         ))}
       </div>

@@ -206,7 +206,14 @@ pub fn videos_conferir_pasta(caminho: String) -> Result<String, String> {
 /// Assinatura (data e tamanho) da composição, do briefing e das mídias: muda quando o agente edita.
 /// Vai como texto (u64 não cabe num número do JS).
 #[tauri::command(async)]
-pub fn videos_assinatura(id: String) -> Result<String, String> { Ok(chat_do_video::assinatura(&pasta(&id)?).to_string()) }
+pub fn videos_assinatura(id: String) -> Result<String, String> { Ok(chat_do_video::assinatura(&pasta(&id)?)) }
+
+/// Fork (0.22): eventos do preview só com `OMNI_LOG_DEBUG=1` (ex.: cada recarga por trás e quanto levou).
+#[tauri::command]
+pub fn videos_registrar_depuracao(detalhe: String) {
+    let detalhe: String = detalhe.chars().take(120).collect();
+    omni_core::registro::depurar("video_preview", &[("detalhe", &detalhe)]);
+}
 
 /// Arquivo exportado deste projeto (só `renders/`, arquivo comum).
 fn render_do_projeto(id: &str, arquivo: &str) -> Result<PathBuf, String> {
