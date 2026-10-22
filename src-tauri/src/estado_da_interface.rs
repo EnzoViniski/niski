@@ -29,6 +29,8 @@ pub const CHAVES: &[&str] = &[
     "omni-todo",
     "medza-escolhas",
     "medza-orquestradoras-recolhidas",
+    "medza-manha", // Fork: rotina da manhã (ajustes e sessão do dia).
+    "medza-tarefas-ajustes", // Fork: tarefas (nome, pasta compartilhada, filtros).
 ];
 
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]

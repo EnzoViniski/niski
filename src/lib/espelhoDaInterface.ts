@@ -24,6 +24,8 @@ export const CHAVES_ESPELHADAS = [
   "omni-todo",
   "medza-escolhas",
   "medza-orquestradoras-recolhidas",
+  "medza-manha", // Fork: rotina da manhã.
+  "medza-tarefas-ajustes", // Fork: tarefas.
 ] as const;
 
 export const CHAVE_DO_CARIMBO = "medza-interface-salva-em";

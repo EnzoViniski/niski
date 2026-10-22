@@ -18,13 +18,15 @@ import { AgentConnections } from "../features/terminal/AgentConnections";
 import { SkillsManager } from "../features/skills/SkillsManager";
 import { MemoriaCompartilhada } from "../features/memoria/MemoriaCompartilhada";
 import { SobreMimDoDesktop } from "../features/sobreMim/SobreMimDoDesktop"; // Fork (Sobre mim).
+import { AjustesDaManha } from "../features/manha/AjustesDaManha"; // Fork: aquecimento da manhã.
+import { AjustesDasTarefas } from "../features/tarefas/AjustesDasTarefas"; // Fork: tarefas.
 import { ExtensoesSettings } from "../features/extensoes/ExtensoesSettings";
 import { MobileSettings } from "../features/mobile/MobileSettings";
 import { LimiteDeSessoes } from "../features/terminal/LimiteDeSessoes";
 import { testarAviso } from "../features/terminal/useAttentionNotifier";
 import { ConfiguracaoDeAvisos } from "../features/atividade/ConfiguracaoDeAvisos";
 import { TelegramSettings } from "../features/telegram/TelegramSettings"; // Fork: bot de avisos.
-import { BlocksIcon, BookIcon, BrushIcon, CardTextIcon, ChartIcon, CloseIcon, SparkleIcon, GearIcon, GlobeIcon, KeyboardIcon, ListIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
+import { BlocksIcon, BookIcon, BrushIcon, CalendarIcon, ClipboardNoteIcon, CardTextIcon, ChartIcon, CloseIcon, SparkleIcon, GearIcon, GlobeIcon, KeyboardIcon, ListIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
 import { RelatoriosIa } from "../features/relatorios/RelatoriosIa";
 import { ModelosDeAgentes } from "../features/agentes/ModelosDeAgentes";
 // Fork (3B): ordem das contas, modo fila/automático, orçamento e "por que esta conta".
@@ -34,7 +36,7 @@ import { NOME_DO_PRODUTO } from "../lib/identidade";
 import { usaFormaMinimalista } from "../lib/estiloDaInterface"; // Fork: Minimalista e Vidro.
 
 // Fork (Sobre mim): "sobre-mim" no topo do menu.
-export type SectionId = "sobre-mim" | "geral" | "aparencia" | "agentes" | "memoria" | "fila" | "modelos" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
+export type SectionId = "sobre-mim" | "manha" | "tarefas" | "geral" | "aparencia" | "agentes" | "memoria" | "fila" | "modelos" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
 
 type Icone = React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 
@@ -42,6 +44,8 @@ type Icone = React.ComponentType<{ className?: string; "aria-hidden"?: boolean }
  *  abrir uma por uma. "Geral" saiu de "Aparência", que juntava sete cartões de assuntos diferentes. */
 const SECTIONS: { id: SectionId; label: string; desc: string; icon: Icone }[] = [
   { id: "sobre-mim", label: "Sobre mim", desc: "O que seus agentes sabem de você", icon: CardTextIcon },
+  { id: "manha", label: "Manhã", desc: "Questões para acordar o cérebro", icon: CalendarIcon }, // Fork.
+  { id: "tarefas", label: "Tarefas", desc: "Seu nome e pasta compartilhada", icon: ClipboardNoteIcon }, // Fork.
   { id: "geral", label: "Geral", desc: "Conversa ou terminal, arquivos, avisos e sessões", icon: GearIcon },
   { id: "aparencia", label: "Aparência", desc: "Tema, cor, fundo e animações", icon: BrushIcon },
   { id: "agentes", label: "Agentes", desc: "CLIs instaladas e contas", icon: RobotIcon },
@@ -169,6 +173,8 @@ export function SettingsView({ settings, onChange, onReset, initialSection, proj
           {section === "skills" && <SkillsManager projectPath={projectPath} />}
           {section === "memoria" && <MemoriaCompartilhada />}
           {section === "sobre-mim" && <SobreMimDoDesktop />}
+          {section === "manha" && <AjustesDaManha />}
+          {section === "tarefas" && <AjustesDasTarefas />}
           {section === "mobile" && <MobileSettings accent={settings.accent} />}
           {section === "relatorios" && <RelatoriosIa projectPaths={projectPaths} />}
           {section === "atalhos" && <AtalhosSection settings={settings} onChange={onChange} />}

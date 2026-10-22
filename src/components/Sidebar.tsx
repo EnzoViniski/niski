@@ -13,6 +13,7 @@ import {
   DockerIcon,
   FlagIcon,
   ClapperboardIcon,
+  ClipboardNoteIcon,
   FolderIcon,
   FolderPlusIcon as FolderPlus,
   GitBranchIcon,
@@ -22,6 +23,7 @@ import {
   SlidersIcon as Sliders,
   TerminalIcon,
 } from "./ui/PixelIcon";
+import { ContadorDeHoje } from "../features/tarefas/ContadorDeHoje"; // Fork: tarefas de hoje.
 import { destaqueDaLinha, EtiquetaDoStatus, IconeDoStatus, rotuloDoStatus, statusDaConversa } from "./ConversaStatus";
 import { conversationKey } from "../features/terminal/useAttention";
 import { useEffect, useRef, useState } from "react";
@@ -117,6 +119,9 @@ interface SidebarProps {
   /** Tela de fluxos de agentes (editor estilo n8n e execuções). */
   showFluxos?: boolean;
   onOpenFluxos?: () => void;
+  /** Fork: Tarefas (Meu dia, quadro, semana). */
+  showTarefas?: boolean;
+  onOpenTarefas?: () => void;
   /** Fork: Roadmaps de estudo (abre onde parou). */
   showRoadmaps?: boolean;
   onOpenRoadmaps?: () => void;
@@ -177,6 +182,8 @@ export function Sidebar({
   showHistory,
   showFluxos = false,
   onOpenFluxos,
+  showTarefas = false,
+  onOpenTarefas,
   showRoadmaps = false,
   onOpenRoadmaps,
   showVideo = false,
@@ -422,6 +429,15 @@ export function Sidebar({
 
       {/* Footer */}
       <div className="px-2 py-3 border-t border-border-subtle/60 space-y-0.5">
+        {onOpenTarefas && (
+          <NavItem
+            active={showTarefas}
+            onClick={onOpenTarefas}
+            icon={<ClipboardNoteIcon className="w-4 h-4" aria-hidden="true" />}
+            label="Tarefas"
+            extra={<ContadorDeHoje />}
+          />
+        )}
         {onOpenRoadmaps && (
           <NavItem
             active={showRoadmaps}
@@ -612,11 +628,14 @@ function NavItem({
   onClick,
   icon,
   label,
+  extra,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
+  /** Fork: selo à direita (contador das tarefas de hoje). */
+  extra?: React.ReactNode;
 }) {
   const barRef = useRef<HTMLSpanElement>(null);
 
@@ -653,6 +672,7 @@ function NavItem({
       />
       <span className={active ? "neon" : ""}>{icon}</span>
       <span className="truncate">{label}</span>
+      {extra}
     </button>
   );
 }
