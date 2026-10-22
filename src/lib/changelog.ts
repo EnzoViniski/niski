@@ -16,6 +16,15 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.22.0",
+    date: "2026-10-22",
+    changes: [
+      "Edição de vídeo: quando o agente (ou qualquer programa) muda o vídeo, o preview se atualiza sozinho em cerca de um segundo, sem ficar preto e sem voltar para o começo. Se estava tocando, continua tocando.",
+      "Edição de vídeo: mudar só o briefing ou a biblioteca não recarrega mais o vídeo.",
+      "Edição de vídeo: espaço, setas, desfazer (⌘Z), dividir (S) e apagar funcionam também depois de clicar dentro do vídeo.",
+    ],
+  },
+  {
     version: "0.21.0",
     date: "2026-10-22",
     changes: [
