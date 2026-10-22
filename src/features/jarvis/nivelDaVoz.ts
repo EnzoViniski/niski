@@ -40,7 +40,8 @@ export class SuavizadorDeVoz {
 
     this.acumulado += dt;
     const periodo = 1 / AMOSTRAS_POR_SEGUNDO;
-    const energia = Math.max(this.fala, this.mic * 0.7);
+    // As ondas que saem do centro são da voz do Jarvis; a do Enzo entra fraca (ela contrai a logo no shader).
+    const energia = Math.max(this.fala, this.mic * 0.35);
     // Atraso grande (janela escondida e voltando) não precisa empurrar mais que o histórico todo.
     let empurrar = Math.min(TAMANHO_DO_HISTORICO, Math.floor(this.acumulado / periodo));
     this.acumulado -= Math.floor(this.acumulado / periodo) * periodo;
