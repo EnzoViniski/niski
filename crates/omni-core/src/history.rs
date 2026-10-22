@@ -46,7 +46,10 @@ pub struct HistoryTranscript {
 }
 
 /// Caminho → (mtime, tamanho, resultado). Transcript que não mudou não é relido.
-pub type ScanCache = HashMap<PathBuf, (u64, u64, Option<HistoryEntry>)>;
+/// Fork (desempenho): + até onde o transcript do Claude foi lido (`leitura_incremental`).
+pub type ScanCache = HashMap<PathBuf, (u64, u64, Option<HistoryEntry>, Option<leitura_incremental::LeituraDoClaude>)>;
+// Fork (desempenho): transcript do Claude que cresceu é lido só do ponto em que parou.
+mod leitura_incremental;
 
 /// Texto que o CLI grava como se fosse do usuário: lembrete de sistema, saída de comando `/x`,
 /// contexto de ambiente e AGENTS.md do Codex.
@@ -173,12 +176,15 @@ pub fn scan(provider: &str, profiles: &[Profile], cache: &mut ScanCache) -> Vec<
         };
         for path in paths {
             let (modified, size) = file_stamp(&path);
-            let cached = cache.get(&path).filter(|(m, s, _)| *m == modified && *s == size).map(|(_, _, entry)| entry.clone());
+            let cached = cache.get(&path).filter(|(m, s, _, _)| *m == modified && *s == size).map(|(_, _, entry, _)| entry.clone());
             let entry = match cached {
                 Some(entry) => entry,
                 None => {
-                    let entry = if provider == "claude" { claude_entry(&path, profile) } else { codex_entry(&path, profile, &titles) };
-                    cache.insert(path.clone(), (modified, size, entry.clone()));
+                    // Fork (desempenho): Claude continua de onde a leitura anterior parou.
+                    let (entry, leitura) = if provider == "claude" {
+                        leitura_incremental::ler_claude(&path, profile, cache.get(&path).and_then(|(_, _, _, l)| l.as_ref()))
+                    } else { (codex_entry(&path, profile, &titles), None) };
+                    cache.insert(path.clone(), (modified, size, entry.clone(), leitura));
                     entry
                 }
             };
