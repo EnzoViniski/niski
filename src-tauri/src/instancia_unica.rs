@@ -103,7 +103,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (_, arquivo) = travar(dir.path(), Duration::ZERO).unwrap();
         drop(arquivo);
-        let (depois, _) = travar(dir.path(), Duration::ZERO).unwrap();
+        // Fork: o flock vive na "open file description". Outro teste deste binário que faz `spawn` em
+        // paralelo herda o descritor até o `exec` (O_CLOEXEC só fecha no exec), e a trava pode seguir
+        // presa por alguns ms depois do drop. Esperar um pouco (o laço tenta a cada 200 ms) tira a
+        // corrida do teste; em produção a segunda cópia já espera 6 s.
+        let (depois, _) = travar(dir.path(), Duration::from_millis(1000)).unwrap();
         assert!(matches!(depois, Resultado::Unica));
     }
 

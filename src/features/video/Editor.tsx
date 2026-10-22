@@ -145,6 +145,8 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
     } catch (e) { setAviso(e instanceof Error ? e.message : String(e)); }
   }, [acoes, bloqueado, estado.html]);
 
+  const ondaDoProjeto = useCallback((src: string) => disco.ondaDaMidia(id, src.replace(/^\.\//, "")), [id]);
+
   // ——— Fork (0.16): edição na mão no vídeo ———
   const aoVivo = useCallback((ref: string, props: Record<string, string | null>) => {
     preview.current?.paraPonte({ tipo: "estilo", ref, props });
@@ -337,6 +339,7 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
         <Timeline comp={comp} duracoes={duracoes} relogio={relogio} selecionado={selecionado} onSelecionar={selecionarClipe}
           onIrPara={(t) => preview.current?.irPara(t)} somenteLeitura={bloqueado} colegas={colaboracao?.colegas}
           urlDaMidia={(src) => (/^https?:/i.test(src) ? null : urlDoProjeto(id, src.replace(/^\.\//, "")))}
+          ondaDaMidia={ondaDoProjeto}
           onMover={(chave, inicio, faixa) => editar((h) => moverClipe(h, chave, inicio, faixa, duracoes), `Movi “${comp.clipes.find((c) => c.chave === chave)?.rotulo ?? chave}” para ${formatarTempo(inicio)}`)}
           onAparar={(chave, lado, t) => editar((h) => aparar(h, chave, lado, t, duracoes), `Cortei ${lado === "inicio" ? "o começo" : "o fim"} de “${comp.clipes.find((c) => c.chave === chave)?.rotulo ?? chave}”`)}
           onSoltarMidia={(midiaId, inicio, faixa) => { const m = estado.midias.itens.find((x) => x.id === midiaId); if (m) void porNaTimeline(m, inicio, faixa); }} />

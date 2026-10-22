@@ -9,6 +9,7 @@ pub mod agente;
 pub mod arquivos;
 pub mod chat_do_video;
 pub mod midias;
+pub mod onda;
 pub mod ponte_do_editor;
 pub mod processo;
 pub mod projetos;
@@ -213,6 +214,16 @@ pub fn videos_assinatura(id: String) -> Result<String, String> { Ok(chat_do_vide
 pub fn videos_registrar_depuracao(detalhe: String) {
     let detalhe: String = detalhe.chars().take(120).collect();
     omni_core::registro::depurar("video_preview", &[("detalhe", &detalhe)]);
+}
+
+/// Fork (0.24): picos do áudio de uma mídia do projeto para a forma de onda na timeline (0–255,
+/// `onda::POR_SEGUNDO` por segundo). `None` sem ffmpeg ou sem áudio: a timeline fica sem onda.
+#[tauri::command(async)]
+pub fn videos_onda(id: String, arquivo: String) -> Result<Option<Vec<u8>>, String> {
+    let p = pasta(&id)?;
+    let alvo = onda::arquivo_do_projeto(&p, &arquivo).map_err(texto_do_erro)?;
+    let cache = raiz()?.join("cache").join("ondas");
+    onda::obter(&cache, &alvo, onda::ffmpeg().as_deref()).map_err(|e| e.to_string())
 }
 
 /// Arquivo exportado deste projeto (só `renders/`, arquivo comum).

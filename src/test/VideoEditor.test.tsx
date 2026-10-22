@@ -162,6 +162,17 @@ describe("Edição de vídeo", () => {
     await waitFor(() => expect(screen.getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? "").join("|")).toMatch(/Lançamento 2/));
   });
 
+  it("forma de onda nos clipes de áudio (pedida ao Rust uma vez por arquivo)", async () => {
+    const pid = await criarProjeto();
+    const html = disco.arquivos.get(`${pid}/index.html`)!.replace("</h1>", '</h1>\n      <audio id="musica" class="clip" src="assets/musica.mp3" data-start="0" data-duration="10" data-track-index="2"></audio>');
+    disco.arquivos.set(`${pid}/index.html`, html);
+    localStorage.setItem("medza.video.ultimo", pid);
+    render(<VideoView onClose={() => undefined} continuar />);
+    const clipe = await screen.findByRole("button", { name: /Áudio musica/ });
+    await waitFor(() => expect(clipe.querySelector(".video-tl-onda path")?.getAttribute("d")).toMatch(/^M0 /));
+    expect(disco.chamadas.filter((c) => c.cmd === "videos_onda").map((c) => c.args.arquivo)).toEqual(["assets/musica.mp3"]);
+  });
+
   it("tecla apertada com o foco dentro do vídeo chega ao editor (espaço toca)", async () => {
     const pid = await criarProjeto();
     localStorage.setItem("medza.video.ultimo", pid);

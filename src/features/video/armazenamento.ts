@@ -45,3 +45,17 @@ export const conferirPasta = (caminho: string) => invoke<string>("videos_conferi
 export const abrirRender = (id: string, arquivo: string, mostrar: boolean) => invoke<void>("videos_abrir_render", { id, arquivo, mostrar });
 export const copiarRender = (id: string, arquivo: string, pastaDoComputador: string) =>
   invoke<string>("videos_copiar_render", { id, arquivo, pastaDoComputador });
+
+// Fork (0.24): picos do áudio para a forma de onda (0–255, 20 por segundo; `null` sem ffmpeg/áudio).
+// Uma vez por arquivo enquanto o app está aberto (o Rust também guarda em disco).
+export const PICOS_POR_SEGUNDO = 20;
+const ondas = new Map<string, Promise<number[] | null>>();
+export function ondaDaMidia(id: string, arquivo: string) {
+  const chave = `${id}|${arquivo}`;
+  let p = ondas.get(chave);
+  if (!p) {
+    p = invoke<number[] | null>("videos_onda", { id, arquivo }).catch(() => null);
+    ondas.set(chave, p);
+  }
+  return p;
+}

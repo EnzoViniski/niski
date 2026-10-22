@@ -16,6 +16,14 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.25.0",
+    date: "2026-10-22",
+    changes: [
+      "Edição de vídeo: corrigido um fechamento repentino do app ao tocar ou pular num vídeo grande (por exemplo, um vídeo de alguns minutos em 1080p). Agora tocar e arrastar a agulha num vídeo de 2 minutos e meio em 1080p é fluido.",
+      "Edição de vídeo: os clipes de áudio e de vídeo com som mostram a forma de onda na timeline, para achar batidas e falas sem precisar ouvir tudo.",
+    ],
+  },
+  {
     version: "0.24.0",
     date: "2026-10-22",
     changes: [
