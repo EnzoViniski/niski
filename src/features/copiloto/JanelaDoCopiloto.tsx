@@ -13,6 +13,7 @@ import type { WorkspaceTab } from "../../types/workspace";
 import {
   PROJETO_DO_COPILOTO, janelaPadrao, mudarCopiloto, novaConversaDoCopiloto, useCopiloto, type Retangulo,
 } from "./copiloto";
+import { useAbrirNaTela } from "./abrirNaTela";
 import "./copiloto.css";
 
 async function pastaDoUsuario(): Promise<string> {
@@ -53,11 +54,14 @@ export function JanelaDoCopiloto() {
   useEffect(() => { if (!c.pasta) void pastaDoUsuario().then(setPastaPadrao); }, [c.pasta]);
 
   // Agente novo do copiloto: o fluxo ao vivo abre no painel (uma vez por conversa).
+  // Fork (Copiloto abre conversa na tela): conversa pedida "na tela" abre como aba, sem o fluxo.
+  const deTrabalho = agentes.filter((a) => !a.na_tela).length;
+  useAbrirNaTela(agentes);
   useEffect(() => {
-    if (!conversa || !agentes.length || !c.abrirAgentesNoPainel || vistos.current.has(conversa)) return;
+    if (!conversa || !deTrabalho || !c.abrirAgentesNoPainel || vistos.current.has(conversa)) return;
     vistos.current.add(conversa);
     pedirAbrirFluxo(conversa, "Fluxo · Copiloto");
-  }, [agentes.length, c.abrirAgentesNoPainel, conversa]);
+  }, [deTrabalho, c.abrirAgentesNoPainel, conversa]);
 
   // Arrastar a janela, o canto (tamanho) ou a borda (largura presa à direita).
   useEffect(() => {

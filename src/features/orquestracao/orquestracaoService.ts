@@ -24,6 +24,8 @@ export interface NoAoVivo {
   /** Harness: o que o subagente pode editar e criar (relativo à pasta do orquestrador). */
   editar?: string[];
   criar?: string[];
+  /** Fork (Copiloto abre conversa na tela): o usuário pediu para ver; a janela do copiloto abre numa aba. */
+  na_tela?: boolean;
   estado: EstadoDoNo;
   estado_texto: string;
   /** A tarefa inicial ainda não foi digitada (a CLI está abrindo), ou o motivo de não ter ido. */
