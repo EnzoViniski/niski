@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BotaoDasTarefas } from "../tarefas/Flutuantes";
 import { reiniciarPainelParaTeste } from "../tarefas/painel";
-import { CHAVE_DO_COPILOTO, ehConversaDoCopiloto, mudarCopiloto, reiniciarCopilotoParaTeste, useCopiloto } from "./copiloto";
+import { CHAVE_DO_COPILOTO, ehConversaDoCopiloto, mudarCopiloto, novaConversaDoCopiloto, reiniciarCopilotoParaTeste, useCopiloto } from "./copiloto";
 import { JanelaDoCopiloto } from "./JanelaDoCopiloto";
 import { encontrarSessoesOrfas } from "../workspace/recuperarWorkspace";
 import type { TerminalSession } from "../terminal/terminalService";
@@ -31,12 +32,28 @@ describe("copiloto", () => {
     expect(JSON.parse(localStorage.getItem(CHAVE_DO_COPILOTO) ?? "{}").modo).toBe("direita");
   });
 
-  it("'Nova conversa' só com uma conversa aberta e volta para o lançador", async () => {
+  it("'Nova conversa' só com uma conversa aberta, encerra a anterior e volta para o lançador", async () => {
+    vi.mocked(invoke).mockClear();
+    const sessoes = (estado: string) => vi.mocked(invoke).mockImplementation(async (cmd) =>
+      cmd === "terminal_sessions" ? { type: "sessions", sessions: [{ id: "s-1", state: estado }] } : { type: "ok" });
+    sessoes("idle");
     mudarCopiloto({ aberto: true, sessao: "s-1", provider: "claude", pasta: "/tmp" });
     render(<><JanelaDoCopiloto /></>);
     const nova = screen.getByTitle(/nova conversa/i);
     expect(nova).toBeEnabled();
     await userEvent.click(nova);
+    expect(JSON.parse(localStorage.getItem(CHAVE_DO_COPILOTO) ?? "{}").sessao).toBe("");
+    // A conversa anterior não fica rodando escondida (ela continua no Histórico).
+    await vi.waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith("stop_terminal", { sessionId: "s-1" }));
+  });
+
+  it("nova conversa pela paleta não interrompe o copiloto trabalhando", async () => {
+    vi.mocked(invoke).mockClear().mockImplementation(async (cmd) =>
+      cmd === "terminal_sessions" ? { type: "sessions", sessions: [{ id: "s-2", state: "working" }] } : { type: "ok" });
+    mudarCopiloto({ aberto: true, sessao: "s-2", provider: "claude" });
+    await novaConversaDoCopiloto();
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith("terminal_sessions");
+    expect(vi.mocked(invoke)).not.toHaveBeenCalledWith("stop_terminal", expect.anything());
     expect(JSON.parse(localStorage.getItem(CHAVE_DO_COPILOTO) ?? "{}").sessao).toBe("");
   });
 

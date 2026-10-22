@@ -105,7 +105,7 @@ export function JanelaDoCopiloto() {
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
       const escolhida = await open({ directory: true, multiple: false, title: "Pasta em que o copiloto trabalha" });
-      if (typeof escolhida === "string") { mudarCopiloto({ pasta: escolhida, sessao: "", provider: "" }); setRodada((r) => r + 1); }
+      if (typeof escolhida === "string") { void novaConversaDoCopiloto({ pasta: escolhida }); setRodada((r) => r + 1); }
     } catch { /* sem diálogo (fora do app) */ }
   };
   const abrirAgente = async (no: NoAoVivo) => {
@@ -127,7 +127,7 @@ export function JanelaDoCopiloto() {
         <button type="button" className="copiloto-mini" title={`Pasta: ${pasta || "…"} (trocar)`} onClick={() => void escolherPasta()}>📁</button>
         <button type="button" className="copiloto-mini" disabled={trabalhando || !c.sessao}
           title={trabalhando ? "Espere o copiloto terminar" : "Nova conversa (a atual fica no Histórico)"}
-          onClick={() => { novaConversaDoCopiloto(); setRodada((r) => r + 1); }}>＋</button>
+          onClick={() => { void novaConversaDoCopiloto(); setRodada((r) => r + 1); }}>＋</button>
         <button type="button" className="copiloto-mini" title={c.modo === "direita" ? "Soltar como janela flutuante" : "Prender à direita"}
           onClick={() => mudarCopiloto({ modo: c.modo === "direita" ? "flutuante" : "direita" })}>{c.modo === "direita" ? "⧉" : "⇥"}</button>
         <button type="button" className="copiloto-mini" aria-label="Fechar o copiloto (a conversa continua)" onClick={() => mudarCopiloto({ aberto: false })}>×</button>

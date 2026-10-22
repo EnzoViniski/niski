@@ -1,6 +1,6 @@
 /**
- * Fork (Tarefas): estado em memória + disco (`src-tauri/src/tarefas.rs`). Relê a pasta a cada 15 s
- * com a janela em foco e ao voltar para ela — é assim que as tarefas do primo aparecem quando a
+ * Fork (Tarefas): estado em memória + disco (`src-tauri/src/tarefas.rs`). Relê a pasta a cada 5 s
+ * com a janela visível e ao voltar para ela — é assim que as tarefas do primo aparecem quando a
  * pasta é compartilhada. Gravações da mesma tarefa entram numa fila (nunca chegam fora de ordem).
  */
 import { useSyncExternalStore } from "react";
@@ -197,7 +197,9 @@ let relogio: ReturnType<typeof setInterval> | null = null;
 function ligar() {
   if (relogio) return;
   void recarregar().then(() => publicarEu());
-  relogio = setInterval(() => { if (!document.hidden && document.hasFocus()) void recarregar(); }, INTERVALO_MS);
+  // Fork (revisão do copiloto): basta a janela estar visível. Com "em foco", a tarefa criada pelo
+  // Jarvis (janela própria, que fica com o foco) só aparecia depois de clicar de volta no app.
+  relogio = setInterval(() => { if (!document.hidden) void recarregar(); }, INTERVALO_MS);
   window.addEventListener("focus", aoVoltar);
 }
 function desligar() {

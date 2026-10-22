@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TarefasView } from "./TarefasView";
@@ -20,6 +20,24 @@ function comNome(nome = "Enzo") {
 }
 
 describe("Tarefas", () => {
+  it("tarefa gravada por fora (Jarvis, copiloto) aparece sozinha mesmo com o foco em outra janela", async () => {
+    comNome();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const foco = vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    try {
+      render(<TarefasView onClose={() => {}} onAbrirAjustes={() => {}} />);
+      await screen.findByText(/nenhuma tarefa aberta para hoje/i);
+      // O engine grava direto no arquivo, sem passar pela tela.
+      const t = criarTarefa({ titulo: "Ligar para o dentista", data: diaDe(new Date()) }, "enzo");
+      await pasta.gravar(null, "tarefas", t.id, JSON.stringify(t));
+      await act(async () => { await vi.advanceTimersByTimeAsync(5_100); });
+      expect(await screen.findByText("Ligar para o dentista")).toBeInTheDocument();
+    } finally {
+      foco.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it("primeiro uso pede o nome e publica a pessoa na pasta", async () => {
     render(<TarefasView onClose={() => {}} onAbrirAjustes={() => {}} />);
     await userEvent.type(screen.getByLabelText(/como você se chama/i), "Enzo{Enter}");

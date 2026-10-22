@@ -8,6 +8,7 @@
  * criar e comandar agentes de qualquer conta e provedor, e criar/editar/concluir tarefas.
  */
 import { useSyncExternalStore } from "react";
+import { listTerminalSessions, stopTerminal } from "../terminal/terminalService";
 
 export const CHAVE_DO_COPILOTO = "medza-copiloto";
 /** Mesmo valor de `PROJETO_DO_COPILOTO` no engine (`mobile/orquestracao.rs`). */
@@ -73,8 +74,22 @@ export function useCopiloto(): EstadoDoCopiloto {
 
 export const alternarCopiloto = () => mudarCopiloto({ aberto: !estado.aberto });
 export const abrirCopiloto = () => mudarCopiloto({ aberto: true });
-/** Começa outra conversa (a atual continua no Histórico). */
-export const novaConversaDoCopiloto = () => mudarCopiloto({ sessao: "", provider: "" });
+/**
+ * Começa outra conversa (a atual continua no Histórico). `mudanca` vai junto (ex.: pasta nova).
+ *
+ * Fork (revisão do copiloto): a conversa anterior é encerrada — antes ela seguia rodando escondida,
+ * já que o copiloto fica fora do aviso de "agentes fora do workspace". Se ela estiver trabalhando
+ * (a paleta não bloqueia como o botão), não é interrompida.
+ */
+export function novaConversaDoCopiloto(mudanca: Partial<EstadoDoCopiloto> = {}) {
+  const anterior = estado.sessao;
+  mudarCopiloto({ ...mudanca, sessao: "", provider: "" });
+  if (!anterior) return Promise.resolve();
+  return listTerminalSessions()
+    .then((sessoes) => sessoes.find((s) => s.id === anterior))
+    .then((s) => (s && s.state !== "working" ? stopTerminal(anterior) : undefined))
+    .catch(() => undefined);
+}
 
 export const ehConversaDoCopiloto = (projectId: string | null | undefined) => projectId === PROJETO_DO_COPILOTO;
 

@@ -110,7 +110,7 @@ function AppComPaleta() {
     { id: "tarefas-abrir", titulo: "Tarefas: abrir o painel", executar: abrirPainelDeTarefas },
     { id: "tarefas-lista", titulo: "Tarefas: lista do dia flutuante", executar: alternarListaDoDia },
     { id: "copiloto-abrir", titulo: "Copiloto: abrir", executar: abrirCopiloto },
-    { id: "copiloto-nova", titulo: "Copiloto: nova conversa", executar: () => { novaConversaDoCopiloto(); abrirCopiloto(); } },
+    { id: "copiloto-nova", titulo: "Copiloto: nova conversa", executar: () => { void novaConversaDoCopiloto(); abrirCopiloto(); } },
     { id: "manha-agora", titulo: "Aquecimento da manhã: fazer agora", executar: abrirRotinaAgora },
   ]);
   // Fork: pasta do agente em worktree isolada que acabou de ser encerrado (`DialogoDaWorktree`).
