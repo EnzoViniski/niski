@@ -55,13 +55,22 @@ export function relerConversasAnteriores(): Promise<void> {
       listHistory("codex").catch(() => [] as HistoryEntry[]),
       listConversations().catch(() => [] as Conversation[]),
     ]);
-    estado = { entradas: [...claude, ...codex], titulos: titulosDoIndice(indice) };
+    const novo = { entradas: [...claude, ...codex], titulos: titulosDoIndice(indice) };
+    lidoEm = Date.now();
+    // Fork (desempenho): lista igual não redesenha a lateral.
+    if (JSON.stringify(novo) === JSON.stringify(estado)) return;
+    estado = novo;
     avisar();
   })().finally(() => { lendo = null; });
   return lendo;
 }
 
+/** Fork (desempenho): trocar de janela várias vezes seguidas não revarre os transcripts a cada volta. */
+export const FOCO_RELE_DEPOIS_DE_MS = 15_000;
+let lidoEm = 0;
+
 function aoFocar() {
+  if (Date.now() - lidoEm < FOCO_RELE_DEPOIS_DE_MS) return;
   void relerConversasAnteriores();
 }
 
@@ -85,6 +94,7 @@ function usar(): () => void {
 
 /** Só para testes. */
 export function redefinirConversasAnteriores(novo: Estado = { entradas: [], titulos: {} }) {
+  lidoEm = 0;
   estado = novo;
   avisar();
 }
