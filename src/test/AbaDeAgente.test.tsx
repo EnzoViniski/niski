@@ -31,7 +31,7 @@ beforeEach(() => {
   usarTransporte(transporteDoEngine);
   engine.listTerminalSessions.mockResolvedValue([{ id: "s1", conversation_id: "conv-1" }]);
   engine.engineApi.mockImplementation(async (_method: string, path: string) =>
-    ({ type: "api", status: 200, body: JSON.stringify(path.includes("/timeline") ? TIMELINE : {}) }));
+    ({ type: "api", status: 200, body: JSON.stringify(path.includes("/timeline") ? TIMELINE : path.endsWith("/resumo") ? CONVERSA : {}) }));
   window.HTMLElement.prototype.scrollTo = vi.fn() as never;
 });
 afterEach(() => usarTransporte((path, init) => fetch(path, init)));
@@ -114,7 +114,8 @@ describe("AbaDeAgente", () => {
     };
     engine.engineApi.mockImplementation(async (_method: string, path: string) => ({
       type: "api", status: path.includes("/ajustes") ? 202 : 200,
-      body: JSON.stringify(path.includes("/opcoes") ? OPCOES : path.includes("/ajustes") ? { id: "a" } : TIMELINE),
+      // Fork (desempenho): a faixa lê só o resumo da conversa.
+      body: JSON.stringify(path.includes("/opcoes") ? OPCOES : path.includes("/ajustes") ? { id: "a" } : path.endsWith("/resumo") ? CONVERSA : TIMELINE),
     }));
     render(<AbaDeAgente agentView="terminal" sessionId="s1"><p>TERMINAL</p></AbaDeAgente>);
 

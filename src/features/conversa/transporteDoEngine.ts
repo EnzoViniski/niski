@@ -31,8 +31,10 @@ export async function transporteDoEngine(path: string, init: RequestInit): Promi
   );
   // 204/304 não podem ter corpo no construtor do `Response`.
   const semCorpo = resposta.status === 204 || resposta.status === 304;
+  // Fork (desempenho): com o `ETag` da rota, o `requestSeMudou` manda `If-None-Match` na próxima e
+  // recebe `304` quando nada mudou — sem reler a conversa inteira nem redesenhar o chat.
   return new Response(semCorpo ? null : resposta.body, {
     status: resposta.status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(resposta.etag ? { etag: resposta.etag } : {}) },
   });
 }
