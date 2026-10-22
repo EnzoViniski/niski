@@ -91,6 +91,7 @@ export function discoFalso() {
         }
         case "videos_conferir_pasta": return args.caminho;
         case "videos_abrir_render": return null;
+        case "videos_onda": return /\.(mp3|wav|m4a|mp4)$/.test(args.arquivo as string) ? Array.from({ length: 200 }, (_, i) => (i * 37) % 255) : null;
         case "videos_copiar_render": return `${args.pastaDoComputador as string}/Vídeos/x.mp4`;
         case "videos_exportar": return `/dados/videos/projetos/${(args.pedido as { projeto: string }).projeto}/renders/x.mp4`;
         case "videos_sessao_situacao": return { tailscale: { pronto: true, login: "enzo@exemplo.com", dns: "mac.tail.ts.net", ips: ["100.64.0.1"] }, config: { nome: "Enzo", permitidos: ["primo@exemplo.com"] }, papel: sessao.papel, projeto: sessao.projeto, convidados: [] };

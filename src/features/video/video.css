@@ -229,10 +229,13 @@
 .video-tl-clipe.is-arrastando { z-index: 4; cursor: grabbing; box-shadow: 0 6px 18px rgb(0 0 0 / .35); }
 .video-tl-clipe[style*="outline-color"] { outline-style: solid; }
 :root[data-estilo="minimalista"] .video-tl-clipe { border-radius: 6px; }
-.video-tl-clipe-texto { flex: 1; min-width: 0; padding: 0 .45rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.video-tl-clipe-texto { position: relative; flex: 1; min-width: 0; padding: 0 .45rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
 .video-tl-clipe-texto b { font-weight: 600; color: rgb(var(--cor)); margin-right: .2rem; }
 .video-tl-miniatura { flex: none; align-self: stretch; width: 3.2rem; object-fit: cover; pointer-events: none; opacity: 0; background: #000; border-right: 1px solid rgb(var(--cor) / .5); transition: opacity .2s; }
 .video-tl-miniatura.is-pronta { opacity: .9; }
+/* Fork (0.24): forma de onda atrás do texto do clipe. */
+.video-tl-onda { position: absolute; inset: 2px 0; width: 100%; height: calc(100% - 4px); pointer-events: none; }
+.video-tl-onda path { stroke: rgb(var(--cor) / .55); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
 video.video-mini.is-carregando { opacity: 0; }
 .video-tl-ponta { flex: none; width: 7px; align-self: stretch; cursor: ew-resize; background: rgb(var(--cor) / .5); }
 .video-tl-ponta:hover { background: rgb(var(--cor)); }

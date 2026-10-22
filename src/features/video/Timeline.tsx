@@ -4,6 +4,7 @@
 // vazia leva a agulha. Durante o arraste nada é gravado: só ao soltar vira uma edição (uma versão
 // no histórico). Ímã nas bordas dos outros clipes, na agulha e no zero.
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as EventoDePonteiro } from "react";
+import { PICOS_POR_SEGUNDO } from "./armazenamento";
 import { duracaoTotal, duracaoVisivel, type Clipe, type Composicao } from "./composicao";
 import { formatarTempo, useRelogio, type RelogioDoPreview } from "./relogio";
 
@@ -25,6 +26,8 @@ interface Props {
   somenteLeitura?: boolean;
   /** Fork (0.23): endereço de uma mídia do projeto (miniatura do vídeo no clipe). */
   urlDaMidia?: (src: string) => string | null;
+  /** Fork (0.24): picos do áudio (forma de onda); `null` sem ffmpeg ou sem áudio. */
+  ondaDaMidia?: (src: string) => Promise<number[] | null>;
 }
 
 const ALTURA_DA_FAIXA = 40;
@@ -45,7 +48,7 @@ function passoDaRegua(pxPorSeg: number) {
   return 120;
 }
 
-export function Timeline({ comp, duracoes, relogio, selecionado, onSelecionar, onIrPara, onMover, onAparar, onSoltarMidia, colegas = [], somenteLeitura, urlDaMidia }: Props) {
+export function Timeline({ comp, duracoes, relogio, selecionado, onSelecionar, onIrPara, onMover, onAparar, onSoltarMidia, colegas = [], somenteLeitura, urlDaMidia, ondaDaMidia }: Props) {
   const area = useRef<HTMLDivElement>(null);
   const [largura, setLargura] = useState(800);
   const [zoom, setZoom] = useState(1);
@@ -215,6 +218,9 @@ export function Timeline({ comp, duracoes, relogio, selecionado, onSelecionar, o
                   {/* Fork (0.23): miniatura do vídeo e o conteúdo do clipe na frente (o tipo vai na cor, no
                       título e no leitor de tela; "Bloco …" escondia de que cena se tratava). */}
                   {c.tipo === "video" && c.src && dur * pxPorSeg > 48 && <MiniaturaDoClipe url={urlDaMidia?.(c.src) ?? null} inicio={c.midiaInicio} />}
+                  {(c.tipo === "audio" || (c.tipo === "video" && !c.mudo)) && c.src && ondaDaMidia && !/^https?:/i.test(c.src) && (
+                    <OndaDoClipe carregar={ondaDaMidia} src={c.src} inicio={c.midiaInicio} duracao={dur} largura={Math.max(6, dur * pxPorSeg)} />
+                  )}
                   <span className="video-tl-clipe-texto">{c.rotulo || ROTULO_DO_TIPO[c.tipo]}</span>
                   {deColegas.map((g) => <span key={g.nome} className="video-tl-colega" style={{ background: g.cor }}>{g.nome}</span>)}
                   {!somenteLeitura && c.editavel && <span className="video-tl-ponta is-fim" onPointerDown={(e) => comecarArraste(e, c, "fim")} aria-hidden="true" />}
@@ -230,6 +236,30 @@ export function Timeline({ comp, duracoes, relogio, selecionado, onSelecionar, o
         </div>
       </div>
     </div>
+  );
+}
+
+/** Forma de onda do trecho do clipe (do `inicio` da mídia por `duracao` segundos), uma barra a cada 2 px. */
+function OndaDoClipe({ carregar, src, inicio, duracao, largura }: { carregar: (src: string) => Promise<number[] | null>; src: string; inicio: number; duracao: number; largura: number }) {
+  const [picos, setPicos] = useState<number[] | null>(null);
+  useEffect(() => { let vivo = true; void carregar(src).then((p) => { if (vivo) setPicos(p); }); return () => { vivo = false; }; }, [carregar, src]);
+  const caminho = useMemo(() => {
+    if (!picos?.length) return "";
+    const partes: string[] = [];
+    const largo = Math.min(largura, 4000);
+    for (let x = 0; x < largo; x += 2) {
+      const i = Math.floor((inicio + (x / largo) * duracao) * PICOS_POR_SEGUNDO);
+      const v = (picos[Math.min(picos.length - 1, Math.max(0, i))] ?? 0) / 255;
+      const h = Math.max(0.5, v * 14);
+      partes.push(`M${x} ${16 - h}V${16 + h}`);
+    }
+    return partes.join("");
+  }, [picos, inicio, duracao, largura]);
+  if (!caminho) return null;
+  return (
+    <svg className="video-tl-onda" viewBox={`0 0 ${Math.min(largura, 4000)} 32`} preserveAspectRatio="none" aria-hidden="true">
+      <path d={caminho} />
+    </svg>
   );
 }
 
