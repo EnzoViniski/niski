@@ -16,6 +16,14 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.21.0",
+    date: "2026-10-22",
+    changes: [
+      "Edição de vídeo: o vídeo finalmente aparece no editor. Uma proteção do app que impede a janela de abrir endereços de fora estava bloqueando em silêncio o preview do vídeo; agora ele abre na hora, toca e mostra cada mudança sem precisar exportar.",
+      "Edição de vídeo: com o preview funcionando, a edição na mão passa a valer: clique no texto ou na imagem dentro do vídeo para mover, aumentar, trocar cor e texto.",
+    ],
+  },
+  {
     version: "0.20.0",
     date: "2026-10-22",
     changes: [
