@@ -2,6 +2,8 @@
 // do dia flutuante (fixada pelo 📌, arrastável pelo topo, recolhível).
 import { useEffect, useRef, useState, type PointerEvent as PointerReact } from "react";
 import { MarcaDoProduto } from "../../components/ui/MarcaDoProduto";
+import { ClipboardNoteIcon } from "../../components/ui/PixelIcon";
+import { alternarCopiloto, useCopiloto } from "../copiloto/copiloto";
 import { BotaoDeConcluir } from "./CartaoDaTarefa";
 import { aberta, concluir, diaDe, lerCriacaoRapida, montarDia, reabrir } from "./dominio";
 import { adicionar, pessoasConhecidas, salvar, useTarefas } from "./loja";
@@ -54,31 +56,45 @@ function useContagemDeHoje() {
 
 const LADO_DO_BOTAO = 48;
 
+/**
+ * Fork (Copiloto): os botões do canto inferior direito, arrastáveis juntos. Embaixo, a logo do Niski
+ * abre o copiloto; em cima, o botão de Tarefas (com o número de hoje) abre o painel de tarefas; o 📌
+ * aparece ao lado dele e fixa a lista do dia. Com o copiloto preso à direita, os botões andam para o
+ * lado dele.
+ */
 export function BotaoDasTarefas() {
   const painel = usePainel();
+  const copiloto = useCopiloto();
   const n = useContagemDeHoje();
   const [arrasto, setArrasto] = useState<Posicao | null>(null);
   const base = useRef(painel.posBotao);
   const { iniciar, moveu } = useArrastar(
     (dx, dy) => {
-      const p = dentroDaJanela({ x: window.innerWidth - base.current.x - LADO_DO_BOTAO + dx, y: window.innerHeight - base.current.y - LADO_DO_BOTAO + dy }, LADO_DO_BOTAO, LADO_DO_BOTAO);
+      const p = dentroDaJanela({ x: window.innerWidth - base.current.x - LADO_DO_BOTAO + dx, y: window.innerHeight - base.current.y - LADO_DO_BOTAO + dy }, LADO_DO_BOTAO, LADO_DO_BOTAO * 2);
       setArrasto({ x: window.innerWidth - p.x - LADO_DO_BOTAO, y: window.innerHeight - p.y - LADO_DO_BOTAO });
     },
     () => setArrasto((p) => { if (p) mudarPainel({ posBotao: p }); return null; }),
   );
-  // Com o painel aberto o botão some (o painel tem o próprio ×; o botão cairia em cima do "Enviar").
   if (!painel.botaoVisivel || painel.aberto) return null;
   const pos = arrasto ?? painel.posBotao;
+  const desvio = copiloto.aberto && copiloto.modo === "direita" ? copiloto.larguraDireita : 0;
+  const pegar = (e: PointerReact<HTMLElement>) => { base.current = painel.posBotao; iniciar(e); };
   return (
-    <div className="tarefas-lancador" style={{ right: pos.x, bottom: pos.y }}>
-      <button type="button" className="tarefas-lancador-lista" title={painel.listaFixada ? "Esconder a lista do dia" : "Lista do dia flutuante"}
-        aria-pressed={painel.listaFixada} onClick={alternarListaDoDia}>📌</button>
-      <button type="button" data-alca className={`tarefas-lancador-botao${painel.aberto ? " is-aberto" : ""}`}
-        aria-label={`Tarefas${n ? ` (${n} para hoje)` : ""}`} title="Tarefas e assistente (arraste para mudar de lugar)"
-        onPointerDown={(e) => { base.current = painel.posBotao; iniciar(e); }}
-        onClick={() => { if (!moveu.current) alternarPainelDeTarefas(); }}>
+    <div className="tarefas-lancador" style={{ right: pos.x + desvio, bottom: pos.y }}>
+      <div className="tarefas-lancador-linha">
+        <button type="button" className="tarefas-lancador-lista" title={painel.listaFixada ? "Esconder a lista do dia" : "Lista do dia flutuante"}
+          aria-pressed={painel.listaFixada} onClick={alternarListaDoDia}>📌</button>
+        <button type="button" data-alca className="tarefas-lancador-tarefas"
+          aria-label={`Tarefas${n ? ` (${n} para hoje)` : ""}`} title="Tarefas: meu dia, quadro e assistente"
+          onPointerDown={pegar} onClick={() => { if (!moveu.current) alternarPainelDeTarefas(); }}>
+          <ClipboardNoteIcon className="h-[18px] w-[18px]" aria-hidden />
+          {n > 0 && <span className="tarefas-lancador-selo">{n > 99 ? "99+" : n}</span>}
+        </button>
+      </div>
+      <button type="button" data-alca className={`tarefas-lancador-botao${copiloto.aberto ? " is-aberto" : ""}`}
+        aria-label="Copiloto" title="Copiloto do Niski: converse e ele faz no app e no PC (arraste para mudar de lugar)"
+        onPointerDown={pegar} onClick={() => { if (!moveu.current) alternarCopiloto(); }}>
         <MarcaDoProduto size={26} aria-hidden />
-        {n > 0 && <span className="tarefas-lancador-selo">{n > 99 ? "99+" : n}</span>}
       </button>
     </div>
   );

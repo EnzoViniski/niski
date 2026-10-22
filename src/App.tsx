@@ -51,6 +51,9 @@ import { RoadmapsView } from "./features/roadmaps/RoadmapsViewTardio";
 import { PainelDeTarefas } from "./features/tarefas/PainelDeTarefas";
 import { BotaoDasTarefas, ListaDoDia } from "./features/tarefas/Flutuantes";
 import { abrirPainelDeTarefas, alternarListaDoDia, usePainel } from "./features/tarefas/painel";
+// Fork (Copiloto): conversa do app numa janela flutuante ou presa à direita, com as ferramentas do app.
+import { JanelaDoCopiloto } from "./features/copiloto/JanelaDoCopiloto";
+import { abrirCopiloto, novaConversaDoCopiloto } from "./features/copiloto/copiloto";
 import { RotinaDaManha } from "./features/manha/RotinaDaManha";
 import { abrirRotinaAgora, useRotinaDaManha } from "./features/manha/useRotinaDaManha";
 // Fork: Edição de vídeo (HyperFrames), carregada só ao abrir a tela.
@@ -106,6 +109,8 @@ function AppComPaleta() {
   useAcoesDaPaleta("tarefas", [
     { id: "tarefas-abrir", titulo: "Tarefas: abrir o painel", executar: abrirPainelDeTarefas },
     { id: "tarefas-lista", titulo: "Tarefas: lista do dia flutuante", executar: alternarListaDoDia },
+    { id: "copiloto-abrir", titulo: "Copiloto: abrir", executar: abrirCopiloto },
+    { id: "copiloto-nova", titulo: "Copiloto: nova conversa", executar: () => { novaConversaDoCopiloto(); abrirCopiloto(); } },
     { id: "manha-agora", titulo: "Aquecimento da manhã: fazer agora", executar: abrirRotinaAgora },
   ]);
   // Fork: pasta do agente em worktree isolada que acabou de ser encerrado (`DialogoDaWorktree`).
@@ -479,6 +484,7 @@ function AppComPaleta() {
           )}
         </main>
       </div>
+      <JanelaDoCopiloto /> {/* Fork (Copiloto): coluna à direita ou janela flutuante. */}
       </div>
       <BotaoDasTarefas />
       <ListaDoDia />
