@@ -3,6 +3,7 @@ pub mod cli_path;
 pub mod agendamentos; // Fork: calendário e destinos dos agendamentos.
 // Fork: comandos interativos permitidos nos controles da Conversa.
 pub mod comandos_oficiais;
+pub mod comandos_da_barra; // Fork: o que aparece ao digitar `/` na Conversa.
 pub mod usage;
 pub mod conversations;
 #[cfg(test)]

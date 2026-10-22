@@ -8,6 +8,7 @@ import { ListaDeTarefas } from "../ListaDeTarefas";
 import { modoVigente, SeloDoModo } from "../SeloDoModo";
 import { AjustesDaConversa, type Ajustes } from "../AjustesDaConversa";
 import type { Anexo } from "../anexos";
+import type { ItemDaBarra } from "./comandosDaBarra"; // Fork: lista do `/`.
 import { ControlesDaConversa, type ComandoDaConversa, type ModoDePermissao } from "./ControlesDaConversa";
 import { TelaDeAgendamentos } from "../../features/agendamentos/TelaDeAgendamentos"; // Fork: agenda da conversa (3D).
 import { RenomearConversa } from "./RenomearConversa";
@@ -45,11 +46,13 @@ export interface RodapeDaConversaProps {
   onParar?: () => void;
   parando: boolean;
   buscarArquivos: (busca: string) => Promise<string[]>;
+  /** Fork: lista do `/` no campo. */
+  buscarComandos?: () => Promise<ItemDaBarra[]>;
 }
 
 export function RodapeDaConversa({ conversation, timeline, falhaEnvio, error, anexoGrande, ativo, trabalhando, destravavel,
   texto, onTexto, anexos, onAdicionar, onRemover, onEnviar, podeEnviar, busy, onRenomear, onAjustar, onRetomar, onModo, onComando,
-  bifurcando, onBifurcar, onOcultar, abrirConversa, onParar, parando, buscarArquivos }: RodapeDaConversaProps) {
+  bifurcando, onBifurcar, onOcultar, abrirConversa, onParar, parando, buscarArquivos, buscarComandos }: RodapeDaConversaProps) {
   const [editandoNome, setEditandoNome] = useState(false);
   const [agendando, setAgendando] = useState(false);
   const fecharAgenda = useCallback(() => setAgendando(false), []);
@@ -120,6 +123,6 @@ export function RodapeDaConversa({ conversation, timeline, falhaEnvio, error, an
       </>}
       onParar={onParar}
       parando={parando}
-      buscarArquivos={buscarArquivos} />
+      buscarArquivos={buscarArquivos} buscarComandos={buscarComandos} />
   </>;
 }

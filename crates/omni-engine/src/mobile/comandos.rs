@@ -7,7 +7,9 @@ use omni_core::comandos_oficiais as oficiais;
 pub(super) struct Comando { comando: String, argumento: Option<String> }
 
 #[derive(Clone, PartialEq)]
-pub(super) enum Pedido { Slash(Comando), Modo(String) }
+pub(super) enum Pedido { Slash(Comando), Modo(String),
+    /// Fork: `/skill argumento` do Claude, já conferido contra a lista da conversa (`barra.rs`).
+    Barra(String) }
 
 pub(super) fn rotas() -> Router<Arc<EngineState>> {
     Router::new().route("/conversas/{id}/comando",post(comando))
@@ -117,6 +119,16 @@ fn executar_com(state: &Arc<EngineState>, action: &Action, pedido: &Pedido, roda
             execute_checked(state,&prompt,rodando)?;
             if let Some(antes) = antes { acompanhar_branch(state.clone(),action.conversation_id.clone(),session,antes); }
             Ok(())
+        }
+        // Fork: skill/comando personalizado do Claude. O texto já passou por `texto_para_cli` na rota;
+        // aqui só confere que a CLI viva ainda é o Claude e usa a mesma porta do prompt.
+        Pedido::Barra(texto) => {
+            let (_,session) = current(state,&action.conversation_id).map_err(|_|anyhow!("Conversa removida"))?;
+            let session = session.ok_or_else(||anyhow!("Sessão encerrada"))?;
+            let provider = session.meta.lock().map_err(|_|anyhow!("metadata poisoned"))?.provider.clone().unwrap_or_default();
+            if provider != "claude" { return Err(anyhow!("Skills por / só no Claude Code")); }
+            let prompt = Action { kind: ActionKind::Prompt(texto.clone()), ..action.clone() };
+            execute_checked(state,&prompt,rodando)
         }
         Pedido::Modo(alvo) => {
             if !oficiais::modo_valido(alvo) { return Err(anyhow!("Modo inválido")); }

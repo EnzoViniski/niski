@@ -3,6 +3,10 @@ import { AttachmentIcon, CloseIcon, LoaderIcon, SendIcon, StopIcon, WarningIcon 
 import { iconForPath } from "../features/files/fileIcons";
 import { tamanhoLegivel, type Anexo } from "./anexos";
 import { BotaoDeVoz, juntarDitado, VOZ_DISPONIVEL, type PreviaDaVoz } from "./BotaoDeVoz";
+// Fork: lista do `/` (comandos, skills e comandos personalizados da conversa).
+import type { ItemDaBarra } from "./conversa/comandosDaBarra";
+import { useBarraDoComposer } from "./conversa/useBarraDoComposer";
+import { ListaDeComandos } from "./conversa/ListaDeComandos";
 
 interface ComposerProps {
   texto: string;
@@ -25,6 +29,8 @@ interface ComposerProps {
   parando?: boolean;
   /** Arquivos do projeto para o `@` (como no terminal). Sem isto, `@` é só texto. */
   buscarArquivos?: (busca: string) => Promise<string[]>;
+  /** Fork: o que o `/` no começo da mensagem lista. Sem isto, `/` é só texto. */
+  buscarComandos?: () => Promise<ItemDaBarra[]>;
 }
 
 /** O `@algo` que está sendo digitado logo antes do cursor (precisa vir no começo ou após espaço). */
@@ -82,8 +88,11 @@ function ChipAnexo({ anexo, onRemover, travado }: { anexo: Anexo; onRemover: () 
  * é o único jeito que abre o seletor em todo navegador de celular, inclusive o Safari antigo, que
  * ignora clique programático em input escondido. Sem `accept`: qualquer tipo de arquivo vale.
  */
-export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnviar, podeEnviar, ocupado, placeholder, toolbar, chips, direita, onParar, parando, buscarArquivos }: ComposerProps) {
+export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnviar, podeEnviar, ocupado, placeholder, toolbar, chips, direita, onParar, parando, buscarArquivos, buscarComandos }: ComposerProps) {
   const campo = useRef<HTMLTextAreaElement>(null);
+  // Fork: lista do `/`.
+  const barra = useBarraDoComposer({ texto, onTexto, buscarComandos, enviar: () => { if (podeEnviar) onEnviar(); },
+    focar: (cursor) => requestAnimationFrame(() => { campo.current?.focus(); campo.current?.setSelectionRange(cursor, cursor); }) });
   // Menção aberta: onde começa o `@`, o que foi digitado depois dele e o que achou.
   const [mencao, setMencao] = useState<{ inicio: number; busca: string } | null>(null);
   const [sugestoes, setSugestoes] = useState<string[]>([]);
@@ -161,6 +170,7 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
   }
 
   function tecla(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (barra.tecla(event)) return; // Fork: lista do `/` aberta.
     // Lista de arquivos aberta: setas escolhem, Enter/Tab inserem, Esc fecha — nada disso envia.
     if (mencao && sugestoes.length > 0) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -216,10 +226,10 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
           <textarea id="reply" ref={campo} rows={1} value={texto} maxLength={16000} placeholder={placeholder}
             hidden={Boolean(previaDaVoz)}
             className="composer-campo" onPaste={colar} onKeyDown={tecla}
-            onChange={(event) => { onTexto(event.target.value); acompanharMencao(event.target.value, event.target.selectionStart ?? event.target.value.length); }}
-            onClick={(event) => acompanharMencao(event.currentTarget.value, event.currentTarget.selectionStart ?? 0)}
-            onBlur={() => window.setTimeout(() => setMencao(null), 150)}
-            aria-autocomplete="list" aria-expanded={Boolean(mencao && sugestoes.length)} aria-controls="mencoes" />
+            onChange={(event) => { onTexto(event.target.value); acompanharMencao(event.target.value, event.target.selectionStart ?? event.target.value.length); barra.acompanhar(event.target.value, event.target.selectionStart ?? event.target.value.length); }}
+            onClick={(event) => { acompanharMencao(event.currentTarget.value, event.currentTarget.selectionStart ?? 0); barra.acompanhar(event.currentTarget.value, event.currentTarget.selectionStart ?? 0); }}
+            onBlur={() => window.setTimeout(() => { setMencao(null); barra.fechar(); }, 150)}
+            aria-autocomplete="list" aria-expanded={Boolean((mencao && sugestoes.length) || barra.aberta)} aria-controls={barra.aberta ? "comandos-da-barra" : "mencoes"} />
           {VOZ_DISPONIVEL && <BotaoDeVoz travado={ocupado} onPrevia={setPreviaDaVoz} onDitado={(ditado) => {
             setPreviaDaVoz(null);
             onTexto(juntarDitado(textoAtual.current, ditado));
@@ -244,6 +254,8 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
             })}
           </ul>
         )}
+        {/* Fork: lista do `/`. */}
+        {barra.aberta && <ListaDeComandos itens={barra.itens} escolhida={barra.escolhida} onEscolher={barra.escolher} onApontar={barra.setEscolhida} />}
         <div className="composer-rodape">
           <label className={`composer-botao${ocupado ? " is-disabled" : ""}`} title="Anexar arquivo">
             <AttachmentIcon aria-hidden className="h-4 w-4" />

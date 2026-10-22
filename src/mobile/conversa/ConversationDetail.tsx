@@ -29,6 +29,7 @@ import { Vazio } from "../listas/Secao";
 import { indiceDaMensagem, POLL_ATIVO_MS, POLL_PARADO_MS, useBlocos, useMensagensAntigas, useRolagem, type Bloco } from "./useTimeline";
 import { useAcoesDaConversa, useConfirmacaoDoEnvio, type Enviado } from "./useEnvio";
 import { useMencoes } from "./useMencoes";
+import { interpretarEnvio, useComandosDaBarra, type EnvioDaBarra } from "./comandosDaBarra"; // Fork: lista do `/`.
 import { CartaoDePermissao } from "./CartaoDePermissao";
 // Fork (pergunta-da-cli): diálogo da CLI que a conversa não interpreta, e o terminal para responder.
 import { CartaoDeEspera } from "./CartaoDeEspera";
@@ -256,6 +257,27 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
 
   // `@` no campo: arquivos da pasta do projeto, filtrados pelo engine.
   const buscarArquivos = useMencoes(conversation.id);
+  // Fork: `/` no campo: comandos, skills e comandos personalizados desta conversa.
+  const buscarComandos = useComandosDaBarra(conversation.id);
+
+  /** Fork: mensagem começando com `/`. Comando da lista fechada vai por `/comando`; skill ou
+   *  comando personalizado do Claude, por `/barra` (o engine confere o nome). Só com o agente pronto. */
+  async function enviarComandoDaBarra(envio: EnvioDaBarra) {
+    if (envio.tipo === "oficial") {
+      try { await comandar(envio.comando, envio.argumento); setText(""); } catch { /* `comandar` já mostrou o erro */ }
+      return;
+    }
+    if (!conversation.capabilities?.prompt || busy) { setError("Espere o agente ficar pronto para rodar um comando."); return; }
+    setBusy(true); setError(null); setFalhaEnvio(null);
+    try {
+      const acao = await post("barra", { texto: envio.texto });
+      await aguardarAcao(conversation.id, acao.id);
+      setText("");
+      grudado.current = true;
+      await Promise.all([ler(), refresh()]);
+    } catch (reason) { falhou(reason); }
+    finally { setBusy(false); }
+  }
 
   /** O Esc do terminal: para o agente no meio do turno, como no PC. */
   async function interromper() {
@@ -299,6 +321,9 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
 
   async function enviarPrompt() {
     if (!conversation.capabilities || busy) return;
+    // Fork: `/comando` não é mensagem comum (a rota de prompt recusa `/`).
+    const daBarra = anexosVivos.current.length === 0 ? interpretarEnvio(text) : null;
+    if (daBarra) { await enviarComandoDaBarra(daBarra); return; }
     // Agente no meio do turno: a mensagem vai para a fila da CLI, como digitar no terminal.
     const paraFila = !conversation.capabilities.prompt && Boolean(conversation.capabilities.enfileirar);
     setBusy(true); setError(null); setFalhaEnvio(null);
@@ -496,7 +521,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
       bifurcando={bifurcando} onBifurcar={bifurcar} onOcultar={ocultar} abrirConversa={abrirConversa}
       onParar={trabalhando && conversation.live ? () => { setParando(true); void interromper().finally(() => setParando(false)); } : undefined}
       parando={parando}
-      buscarArquivos={buscarArquivos} />
+      buscarArquivos={buscarArquivos} buscarComandos={buscarComandos} />
   </section>;
 }
 

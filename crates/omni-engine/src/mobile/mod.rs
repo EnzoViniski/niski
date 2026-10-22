@@ -64,6 +64,7 @@ mod sobre_mim_rotas; // Fork (Sobre mim): áreas, ajustes e sugestões dos agent
 mod roadmaps_rotas; // Fork (Roadmaps de estudo): os mesmos arquivos do app, para o celular.
 // Fork: comandos oficiais e modo de permissão da Conversa (frente 2C).
 mod comandos;
+mod barra; // Fork: lista e envio do `/` no campo da Conversa.
 mod fila;
 use fila::*;
 // Fork (Onda 2): "Responder no terminal" e os ajustes dos ganchos do Claude.
@@ -227,6 +228,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/fluxos/execucoes/{id}/nos/{no}/conversa",post(fluxos_conversa))
         .route("/conversas/{id}/bifurcar",post(bifurcar_rota))
         .merge(comandos::rotas()) // Fork: /comando e os quatro modos oficiais (2C).
+        .merge(barra::rotas()) // Fork: `/` no campo — skills e comandos da conversa.
         .route("/conversas/{id}/opcoes",get(opcoes))
         .route("/conversas/{id}/ajustes",post(ajustar))
         .route("/conversas/{id}/retomar",post(retomar_rota))

@@ -19,7 +19,7 @@ export interface Enviado {
 const LIMITE_DE_CONFIRMACAO_MS = 120_000;
 
 /** As rotas de ação da conversa que passam pela fila do engine (`POST /conversas/<id>/<tipo>`). */
-export type TipoDeAcao = "prompt" | "aprovar" | "escolher" | "modo" | "ajustes" | "comando";
+export type TipoDeAcao = "prompt" | "aprovar" | "escolher" | "modo" | "ajustes" | "comando" | "barra"; // Fork: `barra` = `/skill` (lista do `/`).
 
 /** `post` manda uma ação com a chave de idempotência e a versão da tela; `falhou` mostra o erro e
  *  decide se a chave pode ser reaproveitada no próximo clique. */
