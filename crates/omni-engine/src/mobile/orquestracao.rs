@@ -30,6 +30,9 @@ mod tarefas_mcp;
 // Fork: Jarvis usa as mesmas ferramentas e os mesmos limites dos orquestradores do chat.
 #[path = "orquestracao_jarvis.rs"]
 pub(crate) mod jarvis;
+// Fork (Copiloto abre conversa na tela): projeto do subagente, `na_tela` e `listar_projetos`.
+#[path = "orquestracao_copiloto.rs"]
+mod copiloto;
 
 /// Estado em memória. Nada daqui vai para disco.
 #[derive(Default)]
@@ -213,6 +216,12 @@ credenciais) fica para o usuário: avise-o.\n\
 do que era dele; corrija com mandar_prompt.\n\
 7. parar_agente quando cada um terminar (libera vaga no limite) e responda ao usuário com o resumo.";
 
+/// Fork (Copiloto abre conversa na tela): lê o índice fora do runtime assíncrono.
+async fn do_copiloto(state: &Arc<EngineState>, orquestrador: &str) -> bool {
+    let (state, orquestrador) = (state.clone(), orquestrador.to_owned());
+    tokio::task::spawn_blocking(move || copiloto::e_do_copiloto(&state, &orquestrador)).await.unwrap_or(false)
+}
+
 async fn responder(state: &Arc<EngineState>, orquestrador: &str, mensagem: Value) -> Option<Value> {
     let metodo = mensagem["method"].as_str().unwrap_or("").to_owned();
     let id = mensagem.get("id").cloned()?; // notificação: nada a responder
@@ -224,11 +233,14 @@ async fn responder(state: &Arc<EngineState>, orquestrador: &str, mensagem: Value
                 "serverInfo": {"name": "medza-agents", "version": env!("CARGO_PKG_VERSION")}, "instructions": INSTRUCOES}))
         }
         "ping" => Ok(json!({})),
-        "tools/list" => Ok(json!({"tools": if orquestrador == jarvis::DONO { jarvis::lista() } else { ferramentas::lista() }})),
+        // Fork (Copiloto abre conversa na tela): o copiloto ganha `listar_projetos` e `na_tela`.
+        "tools/list" => Ok(json!({"tools": if orquestrador == jarvis::DONO { jarvis::lista() }
+            else if do_copiloto(state, orquestrador).await { copiloto::lista() } else { ferramentas::lista() }})),
         "tools/call" => {
             let nome = mensagem["params"]["name"].as_str().unwrap_or("").to_owned();
             let argumentos = mensagem["params"]["arguments"].clone();
             let saida = if orquestrador == jarvis::DONO { jarvis::chamar(state, &nome, &argumentos).await }
+                else if do_copiloto(state, orquestrador).await { copiloto::chamar(state, orquestrador, &nome, &argumentos).await }
                 else { ferramentas::chamar(state, orquestrador, &nome, &argumentos).await };
             registro::info("orquestracao_ferramenta", &[("orquestrador", orquestrador), ("ferramenta", &nome),
                 ("resultado", if saida.is_ok() { "ok" } else { "erro" })]);
@@ -310,6 +322,8 @@ fn no(state: &EngineState, conversa: &str, perfis: &[omni_core::Profile], agente
         "criar": agente.map(|a| a.criar.clone()).unwrap_or_default(),
         // Fork: worktree isolada do subagente (`criar_agente` com `worktree`).
         "branch": agente.and_then(|a| a.branch.clone()),
+        // Fork (Copiloto abre conversa na tela): a janela do copiloto abre esta conversa numa aba.
+        "na_tela": agente.is_some_and(|a| a.na_tela),
         "criado_em": agente.map(|a| a.criado_em),
         "estado": estado,
         "estado_texto": if conversa==jarvis::DONO{if estado==regra::Estado::Pronto{"Por voz"}else{"Desconectado"}}else{estado.texto()},

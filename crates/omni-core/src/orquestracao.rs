@@ -76,6 +76,10 @@ pub struct Agente {
     pub worktree: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
+    /// Fork (Copiloto abre conversa na tela): conversa que o usuário pediu para ver; a janela do
+    /// copiloto abre numa aba do workspace atual. Sem o campo (registros antigos), `false`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub na_tela: bool,
 }
 
 impl Agente {

@@ -91,10 +91,16 @@ pub(super) struct SpawnBody { pub(super) project_id: String, pub(super) provider
 /// Resolve o pedido do celular contra o que o servidor já conhece. Nada aqui sai do corpo do
 /// request além de escolhas dentro de listas fechadas.
 pub(super) fn resolve_spawn(state: &Arc<EngineState>, body: &SpawnBody) -> Result<SpawnPlan, ApiError> {
-    let dir = state.state_file.parent().unwrap();
-
     let project = known_projects(state).into_iter().find(|p| p.id == body.project_id)
         .ok_or_else(||error(StatusCode::CONFLICT,"Projeto desconhecido; abra o app no PC uma vez para publicar a lista"))?;
+    resolve_spawn_no_projeto(state, body, project)
+}
+
+/// Fork (Copiloto abre conversa na tela): o resto do plano com o projeto já resolvido **no servidor**.
+/// O orquestrador usa isto com um projeto conhecido ou a pasta da própria sessão dele
+/// (`orquestracao_copiloto.rs`); o `project_id` do corpo é ignorado aqui.
+pub(super) fn resolve_spawn_no_projeto(state: &Arc<EngineState>, body: &SpawnBody, project: PublishedProject) -> Result<SpawnPlan, ApiError> {
+    let dir = state.state_file.parent().unwrap();
     if !Path::new(&project.path).is_dir() {
         return Err(error(StatusCode::CONFLICT,"A pasta do projeto não existe mais neste PC"));
     }

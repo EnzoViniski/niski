@@ -176,11 +176,11 @@ fn nome_do_agente(a: &regra::Agente) -> String {
 }
 
 /// `(nome, caminhos)` dos subagentes vivos deste orquestrador que têm arquivos.
-fn arquivos_dos_vivos(state: &EngineState, orquestrador: &str, pasta: &str) -> Vec<(String, Vec<String>)> {
+fn arquivos_dos_vivos(state: &EngineState, orquestrador: &str, pasta: &str, varias_pastas: bool) -> Vec<(String, Vec<String>)> {
     ler_registro(state).orquestrador(orquestrador).map(|o| o.agentes.iter()
         .filter(|a| a.worktree.is_none() && a.arquivos().next().is_some() && estado_de(state, &a.conversation_key).0.vivo())
-        // Fork: o Jarvis trabalha em vários projetos; nomes relativos só disputam a mesma pasta.
-        .filter(|a| orquestrador != super::jarvis::DONO || current(state,&a.conversation_key).ok()
+        // Fork: o Jarvis (e o copiloto) trabalham em vários projetos; nomes relativos só disputam a mesma pasta.
+        .filter(|a| !varias_pastas || current(state,&a.conversation_key).ok()
             .is_some_and(|(c,_)| super::jarvis::mesma_pasta(&c.cwd,pasta)))
         .map(|a| (nome_do_agente(a), a.arquivos().cloned().collect())).collect()).unwrap_or_default()
 }
@@ -192,7 +192,16 @@ fn vivos(state: &EngineState, orquestrador: &str) -> usize {
 
 fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<String, String> {
     let plataforma = obrigatorio(args, "plataforma")?.to_owned();
-    let objetivo = obrigatorio(args, "tarefa")?.to_owned();
+    // Fork (Copiloto abre conversa na tela): no copiloto, `na_tela` abre a conversa numa aba e a tarefa
+    // fica opcional (sem ela, nada é digitado: a conversa espera o usuário).
+    let do_copiloto = orquestrador != super::jarvis::DONO && super::copiloto::e_do_copiloto(state, orquestrador);
+    let na_tela = do_copiloto && args.get("na_tela").and_then(Value::as_bool).unwrap_or(false);
+    let objetivo = match texto_do_campo(args, "tarefa") {
+        Some(tarefa) => Some(tarefa.to_owned()),
+        None if na_tela => None,
+        None if do_copiloto => return Err("Falta o campo `tarefa` (para só abrir a conversa para o usuário, use na_tela: true)".into()),
+        None => return Err("Falta o campo `tarefa`".into()),
+    };
     let modelo = texto_do_campo(args, "modelo").map(str::to_owned);
     let esforco = texto_do_campo(args, "esforco").map(str::to_owned);
     let extras = regra::argumentos_de_modelo(&plataforma, modelo.as_deref(), esforco.as_deref())?;
@@ -200,14 +209,19 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
     // Fork: `worktree` = true (nome da tarefa) ou um nome.
     let nome_da_worktree = match args.get("worktree") {
         None | Some(Value::Null) | Some(Value::Bool(false)) => None,
-        Some(Value::Bool(true)) => Some(worktree_isolada::nome_a_partir_de(titulo.as_deref().unwrap_or(&objetivo))),
+        Some(Value::Bool(true)) => Some(worktree_isolada::nome_a_partir_de(titulo.as_deref().or(objetivo.as_deref()).unwrap_or("conversa"))),
         Some(Value::String(nome)) if nome.trim().is_empty() => None,
         Some(Value::String(nome)) => Some(worktree_isolada::nome_valido(nome)?),
         Some(_) => return Err("`worktree` é true/false ou um nome".into()),
     };
     // Fork: Jarvis só cria no projeto publicado explicitamente escolhido na chamada.
-    let mae = if orquestrador == super::jarvis::DONO { super::jarvis::contexto(state, args)? }
+    let mut mae = if orquestrador == super::jarvis::DONO { super::jarvis::contexto(state, args)? }
         else { current(state, orquestrador).map_err(mensagem_do_erro)?.0 };
+    // Fork (Copiloto abre conversa na tela): projeto resolvido no servidor, nunca o especial `copiloto`.
+    // `projeto_id` só no copiloto (o Jarvis já escolheu o dele em `contexto`).
+    let pedido = if do_copiloto { texto_do_campo(args, "projeto_id") } else { None };
+    let projeto = super::copiloto::projeto_do_subagente(state, &mae, pedido)?;
+    if pedido.is_some() { mae.cwd = projeto.path.clone(); }
     // Harness: o que ele pode mexer, relativo à pasta do orquestrador.
     let editar = briefing::normalizar_lista(&textos(args, "editar"), &mae.cwd)?;
     let criar_ = briefing::normalizar_lista(&textos(args, "criar"), &mae.cwd)?;
@@ -246,7 +260,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
 
     regra::pode_criar(vivos(state, orquestrador), ler_registro(state).limite())?;
     // Dois subagentes vivos nunca dividem um caminho; o que é dos outros entra no briefing como "não mexa".
-    let outros = arquivos_dos_vivos(state, orquestrador, &mae.cwd);
+    let outros = arquivos_dos_vivos(state, orquestrador, &mae.cwd, orquestrador == super::jarvis::DONO || do_copiloto);
     let pedidos: Vec<String> = editar.iter().chain(criar_.iter()).cloned().collect();
     // Em worktree própria ele não toca a pasta dos outros: a disputa vira merge, não arquivo pisado.
     let choques = if nome_da_worktree.is_some() { Vec::new() } else { briefing::conflitos(&pedidos, &outros) };
@@ -255,16 +269,21 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
         return Err(format!("Arquivos de outro subagente vivo: {}. Divida o trabalho em arquivos disjuntos, espere o outro terminar \
             (parar_agente) ou faça essa parte você.", lista.join("; ")));
     }
-    let tarefa = briefing::montar(&briefing::Pedido {
-        objetivo: objetivo.clone(), contexto: texto_do_campo(args, "contexto").map(str::to_owned), ler, editar: editar.clone(),
-        criar: criar_.clone(), criterios: textos(args, "criterios"),
-        somente_leitura: args.get("somente_leitura").and_then(Value::as_bool).unwrap_or(false),
-        de_outros: outros.iter().flat_map(|(dono, caminhos)| caminhos.iter().map(move |c| (c.clone(), dono.clone()))).collect(),
-    })?;
+    let tarefa = match &objetivo {
+        Some(objetivo) => Some(briefing::montar(&briefing::Pedido {
+            objetivo: objetivo.clone(), contexto: texto_do_campo(args, "contexto").map(str::to_owned), ler, editar: editar.clone(),
+            criar: criar_.clone(), criterios: textos(args, "criterios"),
+            somente_leitura: args.get("somente_leitura").and_then(Value::as_bool).unwrap_or(false),
+            de_outros: outros.iter().flat_map(|(dono, caminhos)| caminhos.iter().map(move |c| (c.clone(), dono.clone()))).collect(),
+        })?),
+        None => None,
+    };
 
-    let corpo = SpawnBody { project_id: mae.project_id.clone(), provider: plataforma.clone(), profile_id: conta,
-        titulo: Some(titulo.clone().unwrap_or_else(|| format!("{} · subagente", publicado.label))) };
-    let mut plano = resolve_spawn(state, &corpo).map_err(mensagem_do_erro)?;
+    let padrao = if na_tela { format!("{} · {}", publicado.label, modelo.as_deref().unwrap_or("conversa")) }
+        else { format!("{} · subagente", publicado.label) };
+    let corpo = SpawnBody { project_id: projeto.id.clone(), provider: plataforma.clone(), profile_id: conta,
+        titulo: Some(titulo.clone().unwrap_or(padrao)) };
+    let mut plano = resolve_spawn_no_projeto(state, &corpo, projeto).map_err(mensagem_do_erro)?;
     plano.titulo_do_usuario = titulo.is_some();
     // Pasta = a do orquestrador (pode ser uma worktree, não a raiz do projeto).
     if Path::new(&mae.cwd).is_dir() && mae.cwd != plano.cwd {
@@ -287,7 +306,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
                 .to_string_lossy().into_owned());
         }
     }
-    let tarefa = match &worktree { Some(wt) => tarefa + &secao_da_worktree(wt), None => tarefa };
+    let tarefa = tarefa.map(|tarefa| match &worktree { Some(wt) => tarefa + &secao_da_worktree(wt), None => tarefa });
     plano.command += &extras;
     let conversa = format!("conv-{}", uuid::Uuid::new_v4());
     plano.conversation_id = Some(conversa.clone());
@@ -300,21 +319,29 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
     drop(escolhendo); // Fork (fix-orquestracao): a sessão aberta já ocupa a vaga da conta.
 
     let agente = regra::Agente { conversation_key: conversa.clone(), plataforma: plataforma.clone(), conta: plano.profile_id.clone(),
-        modelo: modelo.clone(), esforco: esforco.clone(), tarefa: objetivo.clone(), criado_em: now_ms(), editar, criar: criar_,
+        modelo: modelo.clone(), esforco: esforco.clone(), criado_em: now_ms(), editar, criar: criar_,
+        tarefa: objetivo.clone().unwrap_or_else(|| "Conversa na tela (o usuário conduz)".into()), na_tela,
         worktree: worktree.as_ref().map(|wt| wt.caminho.clone()), branch: worktree.as_ref().map(|wt| wt.branch.clone()) };
     mudar_registro(state, |r| r.adicionar(orquestrador, agente)).map_err(|_| "Abri o subagente, mas não consegui gravar o registro".to_owned())?;
     drop(_criando);
     registro::info("orquestracao_agente_criado", &[("orquestrador", orquestrador), ("agente", &conversa), ("provider", &plataforma),
         ("perfil", plano.profile_id.as_deref().unwrap_or("-")), ("modelo", modelo.as_deref().unwrap_or("-"))]);
 
-    state.mobile.orquestracao.pendentes.lock().expect("pendentes poisoned").insert(conversa.clone(), "esperando a CLI ficar pronta".into());
-    let (estado, id) = (state.clone(), conversa.clone());
-    std::thread::spawn(move || mandar_tarefa_quando_pronta(&estado, &id, &tarefa, std::time::Duration::from_secs(180)));
+    if let Some(tarefa) = tarefa {
+        state.mobile.orquestracao.pendentes.lock().expect("pendentes poisoned").insert(conversa.clone(), "esperando a CLI ficar pronta".into());
+        let (estado, id) = (state.clone(), conversa.clone());
+        std::thread::spawn(move || mandar_tarefa_quando_pronta(&estado, &id, &tarefa, std::time::Duration::from_secs(180)));
+    }
+    let nota = match (na_tela, objetivo.is_some()) {
+        (true, false) => "A conversa abre numa aba na tela do usuário e espera ele digitar. Se ele pediu algo para ela, use esperar(agente) e mandar_prompt.",
+        (true, true) => "A conversa abre numa aba na tela do usuário; a tarefa vai assim que a CLI ficar pronta. Chame esperar(agente) e depois ler_conversa(agente).",
+        _ => "A tarefa vai assim que a CLI ficar pronta. Chame esperar(agente) e depois ler_conversa(agente).",
+    };
     Ok(em_json(json!({
         "agente": conversa, "plataforma": plataforma, "conta": nome_da_conta(&perfis, plano.profile_id.as_deref()),
         "modelo": modelo, "esforco": esforco, "estado": "abrindo", "por_que_esta_conta": por_que,
         "worktree": worktree.as_ref().map(|wt| wt.caminho.clone()), "branch": worktree.as_ref().map(|wt| wt.branch.clone()),
-        "nota": "A tarefa vai assim que a CLI ficar pronta. Chame esperar(agente) e depois ler_conversa(agente).",
+        "na_tela": na_tela, "pasta": plano.cwd, "nota": nota,
     })))
 }
 

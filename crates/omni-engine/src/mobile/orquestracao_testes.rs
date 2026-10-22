@@ -7,6 +7,9 @@ use tower::ServiceExt;
 // Fork: cobertura do acesso do Jarvis, com as mesmas fixtures e CLIs falsas.
 #[path = "orquestracao_jarvis_testes.rs"]
 mod jarvis_testes;
+// Fork (Copiloto abre conversa na tela): o copiloto cria conversas fora do projeto especial dele.
+#[path = "orquestracao_copiloto_testes.rs"]
+mod copiloto_testes;
 
 const PORTA: u16 = 47_999;
 
