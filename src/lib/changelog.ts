@@ -16,6 +16,17 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.18.0",
+    date: "2026-10-22",
+    changes: [
+      "Tarefas sempre à mão: um botão com a logo do Niski no canto inferior direito abre as tarefas por cima do que você está fazendo, com o fundo escurecido. Esc ou um clique fora fecham. Dá para arrastar o botão para outro lugar.",
+      "Assistente de tarefas: converse com a IA dentro do painel (\"amanhã tenho dentista às 10h e preciso estudar 2h\") e ela cria, muda, conclui e reagenda as tarefas para você. Cada resposta mostra o que mudou e tem \"Desfazer\". Usa a sua conta do Claude ou do Codex.",
+      "Lista do dia flutuante: clique no 📌 (ao lado do botão ou no painel) e as tarefas de hoje ficam numa janelinha por cima do app, que você arrasta para onde quiser, recolhe e usa para marcar como feito ou anotar algo para hoje.",
+      "Quadro melhor: arrastar os cartões ficou suave em qualquer lugar do app, com o cartão seguindo o mouse e um espaço mostrando onde ele vai cair. Cada coluna e cada dia da semana tem \"+ Adicionar\" para criar ali mesmo, e ⌥← / ⌥→ mudam o cartão de coluna pelo teclado.",
+      "Configurações → Tarefas agora explica passo a passo como dividir as tarefas pelo Google Drive com outra pessoa.",
+    ],
+  },
+  {
     version: "0.17.0",
     date: "2026-10-21",
     changes: [
