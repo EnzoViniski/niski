@@ -156,3 +156,8 @@
 .tarefa-mini:hover { color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .08); }
 .tarefa-cor { flex: none; width: 1.5rem; height: 1.5rem; border-radius: 999px; outline: 2px solid transparent; outline-offset: 2px; }
 .semana-dia .tarefa-cartao-desc { display: none; }
+
+/* Fork (Copiloto): tarefa que a IA ou outra conversa acabou de mudar brilha por alguns segundos. */
+@keyframes tarefa-destaque { 0% { box-shadow: 0 0 0 0 rgb(var(--c-accent) / .7); } 70% { box-shadow: 0 0 0 10px rgb(var(--c-accent) / 0); } 100% { box-shadow: 0 0 0 0 rgb(var(--c-accent) / 0); } }
+.tarefa-cartao.is-destacada { border-color: rgb(var(--c-accent)); background: rgb(var(--c-accent) / .1); animation: tarefa-destaque 1.2s ease-out 3; }
+@media (prefers-reduced-motion: reduce) { .tarefa-cartao.is-destacada { animation: none; } }

@@ -786,6 +786,8 @@ pub(crate) fn spawn_terminal_inner(
     compartilhar_extensoes(state, origin.provider.as_deref(), origin.profile_id.as_deref());
     // Fork: flags de MCP (orquestradora) e `--settings` dos ganchos (Claude) só no que é digitado; os
     // tokens vão só no ambiente da PTY.
+    // Fork (Copiloto): a conversa do copiloto nasce orquestradora (antes de montar as flags).
+    mobile::orquestracao::marcar_copiloto(state, &project_id, origin.conversation_id.as_deref(), origin.provider.as_deref());
     let (digitado, env_do_orquestrador) = preparo_da_sessao::preparar(state, &id, &origin, &cwd, initial_command.clone());
     let (pid, writer, master, child, reader) =
         open_pty_and_spawn(&cwd, &shell, rows, cols, &[origin.env.clone(), env_do_orquestrador].concat(), origin.provider.is_some())?;

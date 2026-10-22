@@ -27,6 +27,7 @@ export const CHAVES_ESPELHADAS = [
   "medza-manha", // Fork: rotina da manhã.
   "medza-tarefas-ajustes", // Fork: tarefas.
   "medza-tarefas-painel", // Fork: painel, botão e lista do dia flutuantes.
+  "medza-copiloto", // Fork: janela do copiloto (conversa, pasta, modo, posição).
 ] as const;
 
 export const CHAVE_DO_CARIMBO = "medza-interface-salva-em";

@@ -14,6 +14,13 @@ fn caminhos(descricao: &str) -> Value {
 }
 
 pub(super) fn lista() -> Value {
+    // Fork (Copiloto): as de tarefas vêm junto, para qualquer orquestrador e para o Jarvis.
+    let mut todas = lista_de_agentes();
+    if let Value::Array(itens) = &mut todas { itens.extend(super::tarefas_mcp::lista()); }
+    todas
+}
+
+fn lista_de_agentes() -> Value {
     let agente = json!({"type": "string", "description": "Id do subagente (o campo `agente` devolvido por criar_agente ou listar_agentes)"});
     json!([
         {"name": "listar_plataformas_e_contas",
@@ -88,6 +95,11 @@ fn do_orquestrador(state: &EngineState, orquestrador: &str, agente: &str) -> Res
 pub(super) async fn chamar(state: &Arc<EngineState>, orquestrador: &str, nome: &str, args: &Value) -> Result<String, String> {
     let args = if args.is_object() { args.clone() } else { json!({}) };
     let (state, orquestrador) = (state.clone(), orquestrador.to_owned());
+    // Fork (Copiloto): tarefas não dependem de subagentes; gravam na pasta das tarefas do app.
+    if super::tarefas_mcp::e_de_tarefas(nome) {
+        let (pasta, nome) = (dir(&state).to_path_buf(), nome.to_owned());
+        return bloqueante(move || super::tarefas_mcp::chamar(&pasta, &nome, &args)).await;
+    }
     match nome {
         "esperar" => esperar(&state, &orquestrador, &args).await,
         "mandar_prompt" => {
