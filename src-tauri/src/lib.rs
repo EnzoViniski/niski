@@ -44,6 +44,7 @@ mod pedido_de_atualizacao; // Fork: "Atualizar o PC" pedido pelo celular.
 mod jarvis;
 // Fork: Roadmaps de estudo (trilhas, cards de revisão e IA ao lado).
 mod roadmaps;
+mod tarefas; // Fork: tarefas (uma por arquivo, pasta local ou compartilhada).
 // Fork: Editor de vídeo (projetos HyperFrames, biblioteca, chat do agente, exportar, edição a dois).
 mod videos;
 
@@ -128,6 +129,9 @@ pub fn run() {
             atualizacao::agentes_trabalhando,
             pedido_de_atualizacao::consumir_pedido_de_atualizacao,
             backup_antes_de_atualizar::backup_antes_de_atualizar,
+            tarefas::tarefas_listar, // Fork: Tarefas.
+            tarefas::tarefas_gravar,
+            tarefas::tarefas_levar_para,
             roadmaps::roadmaps_listar, // Fork: Roadmaps de estudo.
             roadmaps::roadmaps_criar,
             roadmaps::roadmaps_ler,
