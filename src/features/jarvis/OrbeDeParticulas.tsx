@@ -2,7 +2,7 @@
 // do Enzo, ondulam do centro para fora com a voz do Jarvis e giram num redemoinho enquanto ele pensa.
 // Mesma interface do `OrbeDoJarvis`, que continua como reserva: sem WebGL2, logo que não carrega ou
 // contexto perdido, o orbe 2D antigo aparece no lugar. Custo: um buffer estático e uma chamada de
-// desenho por quadro; nada desenha com a janela escondida.
+// desenho por quadro; com a janela escondida o laço de animação para por completo.
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { EstadoDaVoz } from "./estadoDoJarvis";
 import { OrbeDoJarvis, type Niveis } from "./OrbeDoJarvis";
@@ -30,6 +30,7 @@ export function OrbeDeParticulas({ estado, niveis, tamanho, compacto = false }: 
     let desenhista: DesenhistaDoOrbe | null = null;
     let quadro = 0;
     let cancelado = false;
+    let retomar: (() => void) | null = null;
     const cairNaReserva = () => { if (!cancelado) setReserva(true); };
 
     // Testa o WebGL2 antes de carregar a logo: no jsdom e em máquina sem GPU cai direto no 2D.
@@ -55,8 +56,9 @@ export function OrbeDeParticulas({ estado, niveis, tamanho, compacto = false }: 
       const inicio = performance.now();
       let anterior = inicio;
       const passo = (agora: number) => {
+        // Janela escondida: o laço para de vez (nem agenda o próximo quadro) até voltar a aparecer.
+        if (document.hidden || !desenhista) { quadro = 0; return; }
         quadro = requestAnimationFrame(passo);
-        if (document.hidden || !desenhista) { anterior = agora; return; }
         const dt = Math.min(0.1, Math.max(0, (agora - anterior) / 1000));
         anterior = agora;
         const e = estadoAtual.current;
@@ -76,12 +78,19 @@ export function OrbeDeParticulas({ estado, niveis, tamanho, compacto = false }: 
           historico: voz.historico,
         });
       };
-      quadro = requestAnimationFrame(passo);
+      retomar = () => {
+        if (document.hidden || quadro || cancelado) return;
+        anterior = performance.now();
+        quadro = requestAnimationFrame(passo);
+      };
+      document.addEventListener("visibilitychange", retomar);
+      retomar();
     }).catch(cairNaReserva);
 
     return () => {
       cancelado = true;
       cancelAnimationFrame(quadro);
+      if (retomar) document.removeEventListener("visibilitychange", retomar);
       canvas.removeEventListener("webglcontextlost", aoPerderContexto);
       desenhista?.destruir();
     };

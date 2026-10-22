@@ -16,6 +16,15 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.19.0",
+    date: "2026-10-22",
+    changes: [
+      "O Jarvis ganhou um visual novo: o símbolo do Niski feito de milhares de partículas de luz. Ele respira quando está quieto, vibra de leve enquanto você fala e, quando o Jarvis responde, as partículas pulsam em ondas do centro para fora acompanhando a voz.",
+      "Enquanto o Jarvis pensa, o símbolo gira num redemoinho violeta com uma faixa de luz passando; em pausa ele fica cinza e calmo, e com problema fica avermelhado. Ao abrir, as partículas se juntam para formar a logo. A bolinha encolhida usa o mesmo efeito.",
+      "O ruído de fundo do microfone é ignorado, então o símbolo só mexe com voz de verdade. A animação para quando a janela não está visível e é leve para o computador.",
+    ],
+  },
+  {
     version: "0.18.0",
     date: "2026-10-22",
     changes: [
