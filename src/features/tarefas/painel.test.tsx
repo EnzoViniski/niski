@@ -112,7 +112,7 @@ describe("arrastar no quadro (ponteiro)", () => {
 function Estado() { const p = usePainel(); return <span data-testid="estado">{p.aberto ? "aberto" : "fechado"}/{p.listaFixada ? "fixada" : "solta"}</span>; }
 
 describe("painel e flutuantes", () => {
-  it("o botão com a logo abre o painel; Esc e clique fora fecham", async () => {
+  it("o botão de Tarefas abre o painel; Esc e clique fora fecham", async () => {
     render(<><BotaoDasTarefas /><PainelDeTarefas onAbrirAjustes={vi.fn()} /><Estado /></>);
     await userEvent.click(screen.getByRole("button", { name: /^tarefas/i }));
     expect(screen.getByRole("dialog", { name: "Tarefas" })).toBeInTheDocument();
@@ -158,5 +158,36 @@ describe("conversa com o assistente (CLI falsa)", () => {
     expect((await criada())?.apagada).toBe(true);
     vi.mocked(invoke).mockReset();
     vi.mocked(invoke).mockResolvedValue("{}");
+  });
+});
+
+describe("o que a IA cria aparece (bug do filtro)", () => {
+  it("tarefa de saúde criada com o filtro Trabalho ligado: o filtro sai e o cartão brilha", async () => {
+    localStorage.setItem(CHAVE_DOS_AJUSTES, JSON.stringify({ eu, filtroCategoria: "trabalho", visao: "dia" }));
+    reiniciarParaTeste();
+    const { invoke } = await import("@tauri-apps/api/core");
+    vi.mocked(invoke).mockImplementation(async (comando: string) => comando === "roadmaps_ia"
+      ? JSON.stringify({ resposta: "Marquei.", acoes: [{ tipo: "criar", tarefa: { titulo: "Consulta médica", data: HOJE, hora: "15:00", categoria: "saude" } }] })
+      : "{}");
+    act(() => abrirPainelDeTarefas());
+    render(<PainelDeTarefas onAbrirAjustes={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Mensagem para o assistente"), "consulta médica hoje 15h{Enter}");
+    await screen.findByText("Marquei.");
+    const cartao = (await screen.findByText("Consulta médica")).closest("[data-tarefa]") as HTMLElement;
+    expect(cartao.className).toContain("is-destacada");
+    expect(JSON.parse(localStorage.getItem(CHAVE_DOS_AJUSTES) ?? "{}").filtroCategoria).toBe("");
+    vi.mocked(invoke).mockReset();
+    vi.mocked(invoke).mockResolvedValue("{}");
+  });
+
+  it("filtro ligado escondendo tarefas mostra o aviso com 'Mostrar todas'", async () => {
+    localStorage.setItem(CHAVE_DOS_AJUSTES, JSON.stringify({ eu, filtroCategoria: "casa", visao: "lista" }));
+    reiniciarParaTeste();
+    await salvar(criarTarefa({ titulo: "Estudar", categoria: "faculdade" }, "enzo"));
+    act(() => abrirPainelDeTarefas());
+    render(<PainelDeTarefas onAbrirAjustes={vi.fn()} />);
+    expect(await screen.findByText(/1 tarefa escondida pelos filtros/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Mostrar todas" }));
+    expect(await screen.findByText("Estudar")).toBeInTheDocument();
   });
 });

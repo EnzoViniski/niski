@@ -2,10 +2,11 @@
 // Mora no painel por cima do app (`PainelDeTarefas.tsx`); `acoes` e `lateral` são do painel (IA, lista flutuante).
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button, Input, SegmentedControl } from "../../components/ui";
-import { Avatar } from "./CartaoDaTarefa";
+import { Avatar, DestaquesContext } from "./CartaoDaTarefa";
 import { concluir, diaDe, filtrar, lerCriacaoRapida, paraData, reabrir, rotuloDoDia, somarDias } from "./dominio";
 import { DetalheDaTarefa } from "./DetalheDaTarefa";
 import { adicionar, apagar, desfazerApagar, editar, pessoasConhecidas, salvar, salvarAjustes, useTarefas } from "./loja";
+import { filtrosAtivos, limparFiltros } from "./filtros";
 import { CATEGORIAS, CORES_DE_PESSOA, ROTULO_DA_PRIORIDADE, ROTULO_DA_RECORRENCIA, categoria, type AjustesDasTarefas, type Tarefa } from "./tipos";
 import { Lista, MeuDia, Quadro, Semana } from "./Visoes";
 import "./tarefas.css";
@@ -39,6 +40,9 @@ export function TarefasView({ onClose, onAbrirAjustes, acoes, lateral }: { onClo
 
   const visiveis = useMemo(() => filtrar(e.tarefas, { pessoa: ajustes.filtroPessoa, eu: ajustes.eu.id, categoria: ajustes.filtroCategoria, busca }),
     [e.tarefas, ajustes.filtroPessoa, ajustes.eu.id, ajustes.filtroCategoria, busca]);
+  // Fork (Copiloto): a IA ou o copiloto pedem para abrir uma tarefa (o "✓ Criada" é clicável).
+  useEffect(() => { if (e.abrir) setAbertaId(e.abrir.id); }, [e.abrir]);
+  const escondidas = e.tarefas.filter((t) => !t.apagada).length - visiveis.length;
   const aberta = abertaId ? e.tarefas.find((t) => t.id === abertaId && !t.apagada) : undefined;
   const previa = rapida.trim() ? lerCriacaoRapida(rapida, hoje, pessoas, ajustes.eu.id) : null;
 
@@ -83,6 +87,7 @@ export function TarefasView({ onClose, onAbrirAjustes, acoes, lateral }: { onClo
   const compartilhada = !!ajustes.pastaCompartilhada;
 
   return (
+    <DestaquesContext.Provider value={e.destaques}>
     <div className="tarefas">
       <div className="tarefas-principal">
         <header className="tarefas-topo">
@@ -149,6 +154,12 @@ export function TarefasView({ onClose, onAbrirAjustes, acoes, lateral }: { onClo
             <Input size="sm" type="search" value={busca} onChange={(ev) => setBusca(ev.target.value)} placeholder="Buscar…" aria-label="Buscar tarefas" className="w-44" />
           </div>
           {e.erro && <p role="alert" className="tarefas-aviso is-erro">{e.erro}</p>}
+          {escondidas > 0 && filtrosAtivos(ajustes, busca) && (
+            <p className="tarefas-aviso" role="status">
+              <span className="flex-1">{escondidas} {escondidas === 1 ? "tarefa escondida" : "tarefas escondidas"} pelos filtros.</span>
+              <Button size="sm" variant="ghost" onClick={() => { limparFiltros(); setBusca(""); }}>Mostrar todas</Button>
+            </p>
+          )}
           {desfazer && (
             <p className="tarefas-aviso" role="status">
               <span className="flex-1">"{desfazer.titulo}" apagada.</span>
@@ -170,6 +181,7 @@ export function TarefasView({ onClose, onAbrirAjustes, acoes, lateral }: { onClo
           onMudar={(t) => void salvar(t).catch(() => undefined)} onApagar={tirar} onAbrir={setAbertaId} onFechar={() => setAbertaId(null)} />
       ) : lateral}
     </div>
+    </DestaquesContext.Provider>
   );
 }
 

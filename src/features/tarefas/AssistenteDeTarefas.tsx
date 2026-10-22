@@ -7,7 +7,8 @@ import { cancelar, foiCancelado } from "../roadmaps/ia";
 import {
   aplicarAcoes, CHAVE_DO_PEDIDO, desfazerFeitos, gravarChat, lerChat, montarPedido, perguntarAoAssistente, type ChatSalvo, type MensagemDoChat,
 } from "./assistente";
-import { pessoasConhecidas, salvar, useTarefas } from "./loja";
+import { destacar, pedirAbrirTarefa, pessoasConhecidas, salvar, useTarefas } from "./loja";
+import { escondidaPelosFiltros, limparFiltros } from "./filtros";
 
 const SUGESTOES = [
   "Organiza o meu dia de hoje por prioridade",
@@ -43,6 +44,9 @@ export function AssistenteDeTarefas({ onFechar }: { onFechar: () => void }) {
       const { resposta, acoes } = await perguntarAoAssistente(chat.ia, pedido);
       const { gravar, feitos } = aplicarAcoes(acoes, e.tarefas, e.ajustes.eu.id);
       await Promise.all(gravar.map((t) => salvar(t).catch(() => undefined)));
+      // O que a IA mudou aparece: brilha na tela e, se um filtro esconderia, os filtros saem.
+      destacar(gravar.map((t) => t.id));
+      if (gravar.some((t) => !t.apagada && escondidaPelosFiltros(t, e.ajustes))) limparFiltros();
       setChat((c) => ({ ...c, mensagens: [...c.mensagens, { de: "ia", texto: resposta || "Feito.", em: new Date().toISOString(), feitos }] }));
     } catch (err) {
       if (!foiCancelado(err)) setErro(err instanceof Error ? err.message : String(err));
@@ -83,7 +87,10 @@ export function AssistenteDeTarefas({ onFechar }: { onFechar: () => void }) {
             <p>{m.texto}</p>
             {m.feitos && m.feitos.length > 0 && (
               <div className="mt-2 space-y-1">
-                {m.feitos.map((f, j) => <div key={j} className={`tarefas-ia-feito${m.desfeito ? " line-through opacity-60" : ""}`}>✓ {f.descricao}</div>)}
+                {m.feitos.map((f, j) => (
+                  <button key={j} type="button" disabled={m.desfeito || f.descricao.startsWith("Apagada")} title="Abrir a tarefa" onClick={() => pedirAbrirTarefa(f.id)}
+                    className={`tarefas-ia-feito block text-left hover:underline${m.desfeito ? " line-through opacity-60" : ""}`}>✓ {f.descricao}</button>
+                ))}
                 {!m.desfeito && <button type="button" className="text-xs text-accent hover:underline" onClick={() => desfazer(i)}>Desfazer</button>}
               </div>
             )}
