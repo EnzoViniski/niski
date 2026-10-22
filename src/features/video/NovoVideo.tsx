@@ -99,6 +99,17 @@ export function NovoVideo({ onCriado, onCancelar, pastaInicial, computadorInicia
           <label className="video-campo"><span>Nome</span>
             <input className="field px-3 py-2 text-sm" value={nome} autoFocus placeholder="Ex.: Lançamento do app" onChange={(e) => setNome(e.target.value)} />
           </label>
+          {/* Fork (0.23): a pasta vem logo no começo — é dela que a produção parte (antes ficava no fim). */}
+          <div className="video-campo"><span>Pasta do computador</span>
+            <p className="video-dica">Ex.: a pasta da sua marca, com identidade visual, logos, fontes e informações. O agente lê essa pasta para criar o vídeo; nada dela é apagado.</p>
+            <div className="video-link-novo is-linha">
+              <Button size="sm" variant="glass" onClick={() => void escolherPastaDoComputador().then((c) => { if (c) { setComputador(c); setErro(null); } }).catch((e) => setErro(String(e)))}>
+                {computador ? `Trocar (${nomeDaPasta(computador)})` : "Escolher pasta…"}
+              </Button>
+              {computador && <Button size="sm" variant="ghost" onClick={() => setComputador(null)}>Sem pasta</Button>}
+            </div>
+            {computador && <p className="video-dica" title={computador}>{computador}</p>}
+          </div>
           <div className="video-campo"><span>Formato</span>
             <div className="video-formatos" role="radiogroup" aria-label="Formato">
               {(Object.keys(FORMATOS) as Formato[]).map((f) => {
@@ -132,16 +143,6 @@ export function NovoVideo({ onCriado, onCancelar, pastaInicial, computadorInicia
           <label className="video-campo"><span>Observações</span>
             <textarea className="field px-3 py-2 text-sm" rows={2} value={b.observacoes} placeholder="Ex.: sem narração; logo no fim por 2 s" onChange={(e) => mudar({ observacoes: e.target.value })} />
           </label>
-          <div className="video-campo"><span>Pasta do computador</span>
-            <p className="video-dica">Ex.: a pasta da sua marca, com identidade visual, logos, fontes e informações. O agente lê essa pasta para criar o vídeo; nada dela é apagado.</p>
-            <div className="video-link-novo is-linha">
-              <Button size="sm" variant="glass" onClick={() => void escolherPastaDoComputador().then((c) => { if (c) { setComputador(c); setErro(null); } }).catch((e) => setErro(String(e)))}>
-                {computador ? `Trocar (${nomeDaPasta(computador)})` : "Escolher pasta…"}
-              </Button>
-              {computador && <Button size="sm" variant="ghost" onClick={() => setComputador(null)}>Sem pasta</Button>}
-            </div>
-            {computador && <p className="video-dica" title={computador}>{computador}</p>}
-          </div>
         </section>
 
         <section className="video-novo-coluna">

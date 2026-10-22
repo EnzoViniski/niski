@@ -99,6 +99,7 @@ describe("Edição de vídeo", () => {
     localStorage.setItem("medza.video.ultimo", pid);
     render(<VideoView onClose={() => undefined} continuar />);
     const clipe = await screen.findByRole("button", { name: /Texto Lançamento/ });
+    expect(clipe.textContent).toBe("Lançamento"); // Fork (0.23): o conteúdo na frente; o tipo vai na cor e no nome acessível.
     // jsdom não tem PointerEvent com `button`: seleciona pelo teclado (mesmo caminho do Enter).
     fireEvent.keyDown(clipe, { key: "Enter" });
     const duracao = await screen.findByRole("textbox", { name: "Duração" });

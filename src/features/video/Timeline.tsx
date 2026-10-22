@@ -23,6 +23,8 @@ interface Props {
   onSoltarMidia: (midia: string, inicio: number, faixa: number) => void;
   colegas?: Colega[];
   somenteLeitura?: boolean;
+  /** Fork (0.23): endereço de uma mídia do projeto (miniatura do vídeo no clipe). */
+  urlDaMidia?: (src: string) => string | null;
 }
 
 const ALTURA_DA_FAIXA = 40;
@@ -43,7 +45,7 @@ function passoDaRegua(pxPorSeg: number) {
   return 120;
 }
 
-export function Timeline({ comp, duracoes, relogio, selecionado, onSelecionar, onIrPara, onMover, onAparar, onSoltarMidia, colegas = [], somenteLeitura }: Props) {
+export function Timeline({ comp, duracoes, relogio, selecionado, onSelecionar, onIrPara, onMover, onAparar, onSoltarMidia, colegas = [], somenteLeitura, urlDaMidia }: Props) {
   const area = useRef<HTMLDivElement>(null);
   const [largura, setLargura] = useState(800);
   const [zoom, setZoom] = useState(1);
@@ -210,7 +212,10 @@ export function Timeline({ comp, duracoes, relogio, selecionado, onSelecionar, o
                   onPointerDown={(e) => comecarArraste(e, c)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelecionar(c.chave); } }}>
                   {!somenteLeitura && c.editavel && <span className="video-tl-ponta is-inicio" onPointerDown={(e) => comecarArraste(e, c, "inicio")} aria-hidden="true" />}
-                  <span className="video-tl-clipe-texto"><b>{ROTULO_DO_TIPO[c.tipo]}</b> {c.rotulo}</span>
+                  {/* Fork (0.23): miniatura do vídeo e o conteúdo do clipe na frente (o tipo vai na cor, no
+                      título e no leitor de tela; "Bloco …" escondia de que cena se tratava). */}
+                  {c.tipo === "video" && c.src && dur * pxPorSeg > 48 && <MiniaturaDoClipe url={urlDaMidia?.(c.src) ?? null} inicio={c.midiaInicio} />}
+                  <span className="video-tl-clipe-texto">{c.rotulo || ROTULO_DO_TIPO[c.tipo]}</span>
                   {deColegas.map((g) => <span key={g.nome} className="video-tl-colega" style={{ background: g.cor }}>{g.nome}</span>)}
                   {!somenteLeitura && c.editavel && <span className="video-tl-ponta is-fim" onPointerDown={(e) => comecarArraste(e, c, "fim")} aria-hidden="true" />}
                 </div>
@@ -226,6 +231,16 @@ export function Timeline({ comp, duracoes, relogio, selecionado, onSelecionar, o
       </div>
     </div>
   );
+}
+
+/** Um quadro do vídeo no começo do clipe (só metadados e um pedaço; nada toca). */
+function MiniaturaDoClipe({ url, inicio }: { url: string | null; inicio: number }) {
+  const [falhou, setFalhou] = useState(false);
+  const [pronta, setPronta] = useState(false);
+  if (!url || falhou) return null;
+  // Escondida até ter o quadro: o WebKit desenha a caixa em branco antes de decodificar.
+  return <video className={`video-tl-miniatura${pronta ? " is-pronta" : ""}`} src={`${url}#t=${Math.max(0.05, inicio)}`} muted preload="auto" playsInline aria-hidden="true"
+    onLoadedData={() => setPronta(true)} onError={() => setFalhou(true)} />;
 }
 
 /** Só a agulha assina o relógio: o resto da timeline não re-renderiza enquanto o vídeo toca. */
