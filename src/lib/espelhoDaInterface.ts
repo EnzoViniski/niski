@@ -26,6 +26,7 @@ export const CHAVES_ESPELHADAS = [
   "medza-orquestradoras-recolhidas",
   "medza-manha", // Fork: rotina da manhã.
   "medza-tarefas-ajustes", // Fork: tarefas.
+  "medza-tarefas-painel", // Fork: painel, botão e lista do dia flutuantes.
 ] as const;
 
 export const CHAVE_DO_CARIMBO = "medza-interface-salva-em";

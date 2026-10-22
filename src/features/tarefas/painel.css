@@ -1,0 +1,91 @@
+/* Fork (Tarefas): painel por cima do app, assistente, botão flutuante e lista do dia. */
+
+/* Painel: fundo escurecido, o app continua visível atrás. */
+.tarefas-painel-fundo { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center;
+  padding: clamp(1rem, 5vh, 3.5rem) clamp(1rem, 4.5vw, 4.5rem); background: rgb(0 0 0 / .5); backdrop-filter: blur(3px);
+  animation: painel-fundo .18s ease both; }
+@keyframes painel-fundo { from { opacity: 0; } to { opacity: 1; } }
+.tarefas-painel { width: 100%; max-width: 1640px; height: 100%; overflow: hidden; border-radius: 4px;
+  border: 1px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-bg-primary) / .97);
+  box-shadow: 0 40px 120px -30px rgb(0 0 0 / .7); animation: painel-entra .22s cubic-bezier(.2, .8, .2, 1) both; }
+:root[data-estilo="minimalista"] .tarefas-painel { border-radius: 22px; }
+@keyframes painel-entra { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: none; } }
+.tarefas-painel .tarefas-topo { padding-top: .875rem; }
+
+/* Assistente */
+.tarefas-ia { display: flex; flex-direction: column; width: min(24rem, 32vw); min-width: 18rem; border-left: 1px solid rgb(var(--c-border-subtle));
+  background: rgb(var(--c-overlay) / .025); }
+.tarefas-ia-topo { display: flex; align-items: center; gap: .375rem; padding: .75rem .875rem; border-bottom: 1px solid rgb(var(--c-border-subtle) / .6); }
+.tarefas-ia-mensagens { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; padding: .875rem; }
+.tarefas-ia-balao { max-width: 92%; padding: .5rem .75rem; font-size: .8125rem; line-height: 1.5; white-space: pre-wrap; border-radius: var(--t-r, 2px);
+  color: rgb(var(--c-text-primary)); border: 1px solid rgb(var(--c-border-subtle)); }
+:root[data-estilo="minimalista"] .tarefas-ia-balao { border-radius: 14px; }
+.tarefas-ia-balao.is-eu { align-self: flex-end; background: rgb(var(--c-accent) / .13); border-color: rgb(var(--c-accent) / .3); }
+.tarefas-ia-balao.is-ia { align-self: flex-start; background: rgb(var(--c-overlay) / .04); }
+.tarefas-ia-feito { font-size: .75rem; color: rgb(var(--c-success)); }
+.tarefas-ia-sugestao { padding: .5rem .75rem; font-size: .8125rem; text-align: left; color: rgb(var(--c-text-secondary));
+  border: 1px dashed rgb(var(--c-border-subtle)); border-radius: var(--t-r, 2px); }
+.tarefas-ia-sugestao:hover { color: rgb(var(--c-text-primary)); border-color: rgb(var(--c-accent) / .5); background: rgb(var(--c-accent) / .06); }
+.tarefas-ia-campo { display: flex; align-items: flex-end; gap: .5rem; padding: .625rem .75rem; border-top: 1px solid rgb(var(--c-border-subtle) / .6); }
+.tarefas-ia-campo textarea { flex: 1; resize: none; padding: .5rem .625rem; font-size: .8125rem; color: rgb(var(--c-text-primary));
+  background: rgb(var(--c-overlay) / .05); border: 1px solid rgb(var(--c-border-subtle)); border-radius: var(--t-r, 2px); outline: none; }
+.tarefas-ia-campo textarea:focus { border-color: rgb(var(--c-accent) / .6); }
+.tarefas-ia-pontos { display: inline-flex; gap: 3px; }
+.tarefas-ia-pontos i { width: 5px; height: 5px; border-radius: 999px; background: rgb(var(--c-accent)); animation: ia-ponto 1s ease-in-out infinite; }
+.tarefas-ia-pontos i:nth-child(2) { animation-delay: .15s; } .tarefas-ia-pontos i:nth-child(3) { animation-delay: .3s; }
+@keyframes ia-ponto { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+
+/* Arrastar cartões */
+.tarefa-cartao.is-arrastavel { cursor: grab; touch-action: none; user-select: none; }
+.tarefa-cartao-fantasma { position: fixed; z-index: 200; pointer-events: none; cursor: grabbing; opacity: .95;
+  background: rgb(var(--c-bg-elevated)) !important;
+  box-shadow: 0 18px 40px -12px rgb(0 0 0 / .6); border-color: rgb(var(--c-accent) / .7) !important; transition: none !important; }
+body.tarefa-arrastando, body.tarefa-arrastando * { cursor: grabbing !important; user-select: none; }
+.quadro-vaga { flex: none; height: 3.25rem; border: 2px dashed rgb(var(--c-accent) / .55); border-radius: var(--t-r, 2px); background: rgb(var(--c-accent) / .06);
+  animation: vaga .15s ease both; }
+@keyframes vaga { from { height: 0; opacity: 0; } to { height: 3.25rem; opacity: 1; } }
+.tarefa-adicionar { padding: .5rem .625rem; font-size: .8125rem; text-align: left; color: rgb(var(--c-text-muted)); border-radius: var(--t-r, 2px); }
+.tarefa-adicionar:hover { color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .06); }
+
+/* Botão flutuante com a logo */
+.tarefas-lancador { position: fixed; z-index: 60; display: flex; align-items: center; gap: .375rem; }
+.tarefas-lancador-botao { position: relative; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px;
+  border-radius: 999px; border: 1px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-bg-elevated) / .92); backdrop-filter: blur(10px);
+  box-shadow: 0 10px 28px -10px rgb(0 0 0 / .65); cursor: pointer; touch-action: none; transition: transform .15s, box-shadow .15s, border-color .15s; }
+.tarefas-lancador-botao:hover { transform: translateY(-2px) scale(1.04); border-color: rgb(var(--c-accent) / .6); box-shadow: 0 14px 34px -10px rgb(var(--c-accent) / .45); }
+.tarefas-lancador-botao.is-aberto { border-color: rgb(var(--c-accent)); }
+.tarefas-lancador-selo { position: absolute; top: -4px; right: -4px; min-width: 1.25rem; height: 1.25rem; padding: 0 .3rem; display: flex; align-items: center; justify-content: center;
+  font-size: .6875rem; font-weight: 700; color: #fff; background: rgb(var(--c-accent)); border-radius: 999px; box-shadow: 0 0 0 2px rgb(var(--c-bg-primary)); }
+.tarefas-lancador-lista { width: 32px; height: 32px; border-radius: 999px; font-size: .8125rem; opacity: 0; transform: translateX(6px);
+  border: 1px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-bg-elevated) / .92); transition: opacity .15s, transform .15s; }
+.tarefas-lancador:hover .tarefas-lancador-lista, .tarefas-lancador-lista[aria-pressed="true"], .tarefas-lancador-lista:focus-visible { opacity: 1; transform: none; }
+.tarefas-lancador-lista[aria-pressed="true"] { border-color: rgb(var(--c-accent)); }
+
+/* Lista do dia flutuante */
+.lista-do-dia { position: fixed; z-index: 65; width: 300px; max-height: min(70vh, 34rem); display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 4px; border: 1px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-bg-elevated) / .94); backdrop-filter: blur(14px);
+  box-shadow: 0 20px 50px -18px rgb(0 0 0 / .65); animation: painel-entra .2s ease both; }
+:root[data-estilo="minimalista"] .lista-do-dia { border-radius: 16px; }
+.lista-do-dia-topo { display: flex; align-items: center; gap: .25rem; padding: .5rem .5rem .5rem .625rem; font-size: .875rem; cursor: grab; user-select: none; touch-action: none;
+  color: rgb(var(--c-text-primary)); border-bottom: 1px solid rgb(var(--c-border-subtle) / .6); }
+.lista-do-dia-pega { font-size: .625rem; letter-spacing: -2px; color: rgb(var(--c-text-muted)); }
+.lista-do-dia-barra { height: 3px; background: rgb(var(--c-overlay) / .08); }
+.lista-do-dia-barra > span { display: block; height: 100%; background: rgb(var(--c-success)); transition: width .4s ease; }
+.lista-do-dia-itens { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: .125rem; padding: .375rem; }
+.lista-do-dia-itens li { display: flex; align-items: flex-start; gap: .5rem; padding: .375rem; font-size: .8125rem; color: rgb(var(--c-text-primary)); border-radius: 6px; }
+.lista-do-dia-itens li:hover { background: rgb(var(--c-overlay) / .05); }
+.lista-do-dia-itens li small { font-size: .6875rem; color: rgb(var(--c-text-muted)); }
+.lista-do-dia-itens li.is-atrasada small { color: rgb(var(--c-danger)); }
+.lista-do-dia-itens li.is-feita > span { color: rgb(var(--c-text-muted)); text-decoration: line-through; }
+.lista-do-dia-campo { margin: .375rem; padding: .5rem .625rem; font-size: .8125rem; color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .05);
+  border: 1px solid transparent; border-radius: 6px; outline: none; }
+.lista-do-dia-campo:focus { border-color: rgb(var(--c-accent) / .5); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tarefas-painel-fundo, .tarefas-painel, .lista-do-dia, .quadro-vaga, .tarefas-ia-pontos i { animation: none; }
+}
+:root[data-energia="pausa"] .tarefas-ia-pontos i { animation: none; }
+
+/* Painel apertado: categorias só com o emoji (o nome fica no title). */
+@media (max-width: 1500px) { .tarefas-painel .ficha-rotulo { display: none; } }
+.tarefas-painel .tarefas-linha:first-child { flex-wrap: nowrap; }

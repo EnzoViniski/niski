@@ -31,6 +31,7 @@ pub const CHAVES: &[&str] = &[
     "medza-orquestradoras-recolhidas",
     "medza-manha", // Fork: rotina da manhã (ajustes e sessão do dia).
     "medza-tarefas-ajustes", // Fork: tarefas (nome, pasta compartilhada, filtros).
+    "medza-tarefas-painel", // Fork: painel, botão e lista do dia flutuantes.
 ];
 
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]

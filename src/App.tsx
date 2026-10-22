@@ -48,7 +48,9 @@ import { FluxosView } from "./features/fluxos/FluxosViewTardio";
 // Fork: Roadmaps de estudo, carregados só ao abrir a tela.
 import { RoadmapsView } from "./features/roadmaps/RoadmapsViewTardio";
 // Fork: Tarefas (Meu dia, quadro, semana, lista) e aquecimento da manhã por cima de tudo.
-import { TarefasView } from "./features/tarefas/TarefasView";
+import { PainelDeTarefas } from "./features/tarefas/PainelDeTarefas";
+import { BotaoDasTarefas, ListaDoDia } from "./features/tarefas/Flutuantes";
+import { abrirPainelDeTarefas, alternarListaDoDia, usePainel } from "./features/tarefas/painel";
 import { RotinaDaManha } from "./features/manha/RotinaDaManha";
 import { abrirRotinaAgora, useRotinaDaManha } from "./features/manha/useRotinaDaManha";
 // Fork: Edição de vídeo (HyperFrames), carregada só ao abrir a tela.
@@ -68,7 +70,7 @@ import { useAberturasDaAtividade } from "./features/atividade/navegacao";
 import { usaFormaMinimalista } from "./lib/estiloDaInterface"; // Fork: Minimalista e Vidro sem fundo animado.
 import { useAtividadeDoDesktop } from "./features/atividade/vistas";
 
-type View = "workspace" | "settings" | "history" | "fluxos" | "conversa" | "roadmaps" | "video" | "tarefas";
+type View = "workspace" | "settings" | "history" | "fluxos" | "conversa" | "roadmaps" | "video";
 
 export function App() { return <AcoesDaPaleta><AppComPaleta /></AcoesDaPaleta>; }
 
@@ -98,10 +100,12 @@ function AppComPaleta() {
     { id: "video-continuar", titulo: "Continuar edição de vídeo", executar: () => abrirVideo(true) },
     { id: "video-lista", titulo: "Edição de vídeo", executar: () => abrirVideo(false) },
   ]);
-  // Fork (Tarefas e Manhã): tela de tarefas e o aquecimento que cobre a tela no horário escolhido.
+  // Fork (Tarefas e Manhã): painel de tarefas por cima do app e o aquecimento que cobre a tela no horário escolhido.
   const manha = useRotinaDaManha();
+  const painelDeTarefas = usePainel();
   useAcoesDaPaleta("tarefas", [
-    { id: "tarefas-abrir", titulo: "Tarefas: meu dia", executar: () => setView("tarefas") },
+    { id: "tarefas-abrir", titulo: "Tarefas: abrir o painel", executar: abrirPainelDeTarefas },
+    { id: "tarefas-lista", titulo: "Tarefas: lista do dia flutuante", executar: alternarListaDoDia },
     { id: "manha-agora", titulo: "Aquecimento da manhã: fazer agora", executar: abrirRotinaAgora },
   ]);
   // Fork: pasta do agente em worktree isolada que acabou de ser encerrado (`DialogoDaWorktree`).
@@ -263,7 +267,6 @@ function AppComPaleta() {
             : view === "fluxos" ? ["Fluxos de agentes"]
             : view === "roadmaps" ? ["Roadmaps"]
             : view === "video" ? ["Edição de vídeo"]
-            : view === "tarefas" ? ["Tarefas"]
             : [workspaces.find((item) => item.id === activeWorkspaceId)?.name, activeProject?.name].filter((parte): parte is string => Boolean(parte))
         }
         dica={view === "workspace" ? activeProject?.path : undefined}
@@ -333,8 +336,8 @@ function AppComPaleta() {
         showSettings={view === "settings"}
         showHistory={view === "history"}
         showFluxos={view === "fluxos"}
-        showTarefas={view === "tarefas"}
-        onOpenTarefas={() => setView("tarefas")}
+        showTarefas={painelDeTarefas.aberto}
+        onOpenTarefas={abrirPainelDeTarefas}
         showRoadmaps={view === "roadmaps"}
         onOpenRoadmaps={() => abrirRoadmaps(true)}
         showVideo={view === "video"}
@@ -430,8 +433,6 @@ function AppComPaleta() {
         <main className="flex-1 min-h-0">
           {view === "history" ? (
             <HistoryView onResume={resumeHistory} onClose={closeHistory} />
-          ) : view === "tarefas" ? (
-            <TarefasView onClose={() => setView("workspace")} onAbrirAjustes={() => { setSettingsSection("tarefas"); setViewBeforeSettings("tarefas"); setView("settings"); }} />
           ) : view === "roadmaps" ? (
             <RoadmapsView key={aberturaDosRoadmaps.chave} continuar={aberturaDosRoadmaps.continuar} onClose={() => setView("workspace")} />
           ) : view === "video" ? (
@@ -479,7 +480,10 @@ function AppComPaleta() {
         </main>
       </div>
       </div>
-      {manha.aberta && <RotinaDaManha onFechar={manha.fechar} onAbrirTarefas={() => setView("tarefas")} />}
+      <BotaoDasTarefas />
+      <ListaDoDia />
+      <PainelDeTarefas onAbrirAjustes={() => { setSettingsSection("tarefas"); if (view !== "settings") setViewBeforeSettings(view); setView("settings"); }} />
+      {manha.aberta && <RotinaDaManha onFechar={manha.fechar} onAbrirTarefas={abrirPainelDeTarefas} />}
       {worktreeAoFechar && <DialogoDaWorktree caminho={worktreeAoFechar} onFechar={fecharDialogoDaWorktree} />}
       <RecuperacaoDoWorkspace workspaces={workspaces} sessions={sessions} dispatch={dispatch} mostrarAviso={view === "workspace"} />
     </div>

@@ -4,6 +4,7 @@ import { Button, Card, Input } from "../../components/ui";
 import { Avatar } from "./CartaoDaTarefa";
 import { compartilharEm, pessoasConhecidas, salvarAjustes, useTarefas } from "./loja";
 import { CORES_DE_PESSOA } from "./tipos";
+import { mudarPainel, usePainel } from "./painel";
 
 async function escolherPasta(): Promise<string | null> {
   const { open } = await import("@tauri-apps/plugin-dialog");
@@ -18,6 +19,7 @@ export function AjustesDasTarefas() {
   const [aviso, setAviso] = useState("");
   const [erro, setErro] = useState("");
   const outras = pessoasConhecidas(e).filter((p) => p.id !== eu.id);
+  const painel = usePainel();
 
   const compartilhar = async () => {
     setErro(""); setAviso("");
@@ -75,7 +77,24 @@ export function AjustesDasTarefas() {
         {(erro || e.erro) && <p className="text-xs text-danger" role="alert">{erro || e.erro}</p>}
       </Card>
 
+      <Card title="Como ligar no Google Drive (passo a passo)">
+        <ol className="list-decimal space-y-2 pl-5 text-sm text-text-secondary">
+          <li>Instale o <strong className="text-text-primary">Google Drive para computador</strong> (drive.google.com/download) nos dois computadores e entre na conta Google.
+            No Mac ele aparece no Finder como <code>Google Drive</code> (em <code>~/Library/CloudStorage/</code>).</li>
+          <li>No Drive (site ou Finder), crie uma pasta, por exemplo <code>Tarefas Niski</code>, e <strong className="text-text-primary">compartilhe com o e-mail do seu primo</strong> como Editor.</li>
+          <li>No computador dele, a pasta aparece em <em>Compartilhados comigo</em>. Ele clica com o botão direito → <em>Organizar → Adicionar atalho ao Drive</em> (em <em>Meu Drive</em>), para ela aparecer no Finder dele.</li>
+          <li>Deixe a pasta disponível no computador: botão direito nela no Finder → <em>Disponível off-line</em> (assim o Niski lê e grava mesmo sem internet e sincroniza depois).</li>
+          <li>Aqui embaixo, clique em <strong className="text-text-primary">Escolher pasta compartilhada…</strong> e escolha essa pasta. Ele faz o mesmo no Niski dele.</li>
+          <li>Pronto: o que um cria ou muda aparece para o outro em alguns segundos (o tempo do Drive sincronizar + até 15 s do Niski reler).</li>
+        </ol>
+        <p className="text-xs text-text-muted">Funciona igual com iCloud Drive (pasta compartilhada pelo Finder), Dropbox ou OneDrive. Cada tarefa é um arquivo pequeno em <code>niski-tarefas/</code>; não mexa nesses arquivos à mão.</p>
+      </Card>
+
       <Card title="Exibição">
+        <label className="flex items-center gap-2 text-sm text-text-primary">
+          <input type="checkbox" checked={painel.botaoVisivel} onChange={(ev) => mudarPainel({ botaoVisivel: ev.target.checked })} />
+          Mostrar o botão flutuante das tarefas (canto inferior direito)
+        </label>
         <label className="flex items-center gap-2 text-sm text-text-primary">
           <input type="checkbox" checked={ocultarFeitasAntigas} onChange={(ev) => salvarAjustes({ ocultarFeitasAntigas: ev.target.checked })} />
           Esconder tarefas feitas há mais de 7 dias

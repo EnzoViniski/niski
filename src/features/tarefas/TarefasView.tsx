@@ -1,5 +1,6 @@
 // Fork (Tarefas): a tela — criação rápida, filtros, as quatro visões e a gaveta de detalhes.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// Mora no painel por cima do app (`PainelDeTarefas.tsx`); `acoes` e `lateral` são do painel (IA, lista flutuante).
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Button, Input, SegmentedControl } from "../../components/ui";
 import { Avatar } from "./CartaoDaTarefa";
 import { concluir, diaDe, filtrar, lerCriacaoRapida, paraData, reabrir, rotuloDoDia, somarDias } from "./dominio";
@@ -24,7 +25,7 @@ function inicioDaSemana(dia: string) {
   return somarDias(dia, -((d + 6) % 7));
 }
 
-export function TarefasView({ onClose, onAbrirAjustes }: { onClose: () => void; onAbrirAjustes: () => void }) {
+export function TarefasView({ onClose, onAbrirAjustes, acoes, lateral }: { onClose: () => void; onAbrirAjustes: () => void; acoes?: ReactNode; lateral?: ReactNode }) {
   const e = useTarefas();
   const { ajustes } = e;
   const hoje = useHoje();
@@ -77,7 +78,7 @@ export function TarefasView({ onClose, onAbrirAjustes }: { onClose: () => void; 
 
   const props = {
     tarefas: visiveis, hoje, pessoas, eu: ajustes.eu, abertaId, ocultarFeitasAntigas: ajustes.ocultarFeitasAntigas,
-    onAbrir: setAbertaId, onAlternar: alternar, onMover: mover, onNovaEm: novaEm,
+    onAbrir: setAbertaId, onAlternar: alternar, onMover: mover, onNovaEm: novaEm, onCriar: (campos: Partial<Tarefa> & { titulo: string }) => { adicionar(campos); },
   };
   const compartilhada = !!ajustes.pastaCompartilhada;
 
@@ -87,14 +88,15 @@ export function TarefasView({ onClose, onAbrirAjustes }: { onClose: () => void; 
         <header className="tarefas-topo">
           <div className="tarefas-linha">
             <h1 className="tarefas-titulo">Tarefas</h1>
-            <span className={`tarefas-sinc${e.erro ? " is-erro" : compartilhada ? "" : " is-local"}`}
+            <span className={`tarefas-sinc truncate max-w-[16rem]${e.erro ? " is-erro" : compartilhada ? "" : " is-local"}`}
               title={e.erro || (compartilhada ? `Pasta compartilhada: ${ajustes.pastaCompartilhada}` : "Só neste computador")}>
               {e.erro ? "Erro ao sincronizar" : compartilhada ? `Compartilhada${pessoas.length > 1 ? ` com ${pessoas.filter((p) => p.id !== ajustes.eu.id).map((p) => p.nome.split(" ")[0]).join(", ")}` : ""}` : "Só neste computador"}
             </span>
             <span className="flex-1" />
             <SegmentedControl size="sm" value={ajustes.visao} onChange={(visao) => salvarAjustes({ visao })}
               options={[{ value: "dia", label: "Meu dia" }, { value: "quadro", label: "Quadro" }, { value: "semana", label: "Semana" }, { value: "lista", label: "Lista" }] satisfies { value: AjustesDasTarefas["visao"]; label: string }[]} />
-            <Button size="sm" variant="ghost" onClick={onAbrirAjustes} title="Nome, cor e pasta compartilhada">Ajustes</Button>
+            {acoes}
+            <Button size="sm" variant="ghost" onClick={onAbrirAjustes} title="Ajustes: nome, cor e pasta compartilhada" aria-label="Ajustes das tarefas">⚙</Button>
             <Button size="sm" variant="ghost" onClick={onClose} aria-label="Fechar tarefas">×</Button>
           </div>
 
@@ -133,7 +135,7 @@ export function TarefasView({ onClose, onAbrirAjustes }: { onClose: () => void; 
             {CATEGORIAS.map((c) => (
               <button key={c.id} type="button" title={c.rotulo} className={`ficha ficha-filtro${ajustes.filtroCategoria === c.id ? " is-ativa" : ""}`}
                 onClick={() => salvarAjustes({ filtroCategoria: ajustes.filtroCategoria === c.id ? "" : c.id })}>
-                {c.emoji} {c.rotulo.split(" ")[0]}
+                {c.emoji}<span className="ficha-rotulo"> {c.rotulo.split(" ")[0]}</span>
               </button>
             ))}
             <span className="flex-1" />
@@ -163,10 +165,10 @@ export function TarefasView({ onClose, onAbrirAjustes }: { onClose: () => void; 
             : <MeuDia {...props} />}
         </div>
       </div>
-      {aberta && (
+      {aberta ? (
         <DetalheDaTarefa key={aberta.id} t={aberta} todas={e.tarefas} pessoas={pessoas} eu={ajustes.eu} hoje={hoje}
           onMudar={(t) => void salvar(t).catch(() => undefined)} onApagar={tirar} onAbrir={setAbertaId} onFechar={() => setAbertaId(null)} />
-      )}
+      ) : lateral}
     </div>
   );
 }
