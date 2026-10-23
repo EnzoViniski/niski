@@ -5,9 +5,12 @@ import { MODOS_DE_PERMISSAO } from "../SeloDoModo";
 import { TerminalFlutuante } from "./TerminalFlutuante";
 import "./controlesDaConversa.css";
 
-export type ModoDePermissao = "default" | "acceptEdits" | "plan" | "auto";
+// Fork: os do Codex (aprovação/sandbox na linha; trocar reabre a mesma conversa, `modo_codex.rs`).
+export type ModoDoCodex = "default" | "semPerguntar" | "acessoTotal" | "somenteLeitura";
+export type ModoDePermissao = "default" | "acceptEdits" | "plan" | "auto" | ModoDoCodex;
 export type ComandoDaConversa = "fast" | "branch" | "rewind" | "compact";
 const MODOS: ModoDePermissao[] = ["default", "acceptEdits", "plan", "auto"];
+const MODOS_DO_CODEX: ModoDoCodex[] = ["default", "semPerguntar", "acessoTotal", "somenteLeitura"];
 
 export function ControlesDaConversa({ conversaId, provider, modo, fast, pronto, onModo, onComando, onAgendar }: {
   conversaId: string; provider: string | null; modo?: string | null; fast?: boolean | null; pronto: boolean;
@@ -41,6 +44,15 @@ export function ControlesDaConversa({ conversaId, provider, modo, fast, pronto, 
         title="Modo confirmado pela CLI" onChange={(e) => { const alvo = e.target.value as ModoDePermissao; void executar(alvo, () => onModo(alvo)); }}>
         {!MODOS.includes(modo as ModoDePermissao) && <option value="">{modo ? MODOS_DE_PERMISSAO[modo]?.rotulo ?? modo : "Modo não confirmado"}</option>}
         {MODOS.map((m) => <option key={m} value={m}>{MODOS_DE_PERMISSAO[m].rotulo}</option>)}
+      </select>
+    </label>}
+    {provider === "codex" && <label className="conversa-controle-modo">
+      <span className="sr-only">Modo do Codex</span>
+      <select aria-label="Modo do Codex" value={MODOS_DO_CODEX.includes(modo as ModoDoCodex) ? modo! : ""} disabled={bloqueado}
+        title="Trocar reabre o Codex na mesma conversa, já no modo escolhido"
+        onChange={(e) => { const alvo = e.target.value as ModoDoCodex; void executar(alvo, () => onModo(alvo)); }}>
+        {!MODOS_DO_CODEX.includes(modo as ModoDoCodex) && <option value="">{modo ? MODOS_DE_PERMISSAO[modo]?.rotulo ?? modo : "Modo da conta"}</option>}
+        {MODOS_DO_CODEX.map((m) => <option key={m} value={m} title={MODOS_DE_PERMISSAO[m].dica}>{MODOS_DE_PERMISSAO[m].rotulo}</option>)}
       </select>
     </label>}
     {provider === "claude" && suportaFast && <button type="button" className="composer-modo" disabled={bloqueado}

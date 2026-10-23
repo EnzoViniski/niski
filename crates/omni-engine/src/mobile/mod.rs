@@ -64,6 +64,7 @@ mod sobre_mim_rotas; // Fork (Sobre mim): áreas, ajustes e sugestões dos agent
 mod roadmaps_rotas; // Fork (Roadmaps de estudo): os mesmos arquivos do app, para o celular.
 // Fork: comandos oficiais e modo de permissão da Conversa (frente 2C).
 mod comandos;
+mod modo_codex; // Fork: aprovação/sandbox do Codex pelo seletor da Conversa.
 mod barra; // Fork: lista e envio do `/` no campo da Conversa.
 mod fila;
 use fila::*;

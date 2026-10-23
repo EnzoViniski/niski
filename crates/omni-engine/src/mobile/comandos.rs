@@ -9,7 +9,9 @@ pub(super) struct Comando { comando: String, argumento: Option<String> }
 #[derive(Clone, PartialEq)]
 pub(super) enum Pedido { Slash(Comando), Modo(String),
     /// Fork: `/skill argumento` do Claude, já conferido contra a lista da conversa (`barra.rs`).
-    Barra(String) }
+    Barra(String),
+    /// Fork: aprovação/sandbox do Codex (`modo_codex.rs`), que reabre a mesma conversa.
+    ModoCodex(String) }
 
 pub(super) fn rotas() -> Router<Arc<EngineState>> {
     Router::new().route("/conversas/{id}/comando",post(comando))
@@ -29,6 +31,11 @@ async fn comando(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath
 #[derive(Deserialize)] #[serde(deny_unknown_fields)]
 struct ModoBody { modo: String }
 async fn modo(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<ModoBody>) -> Result<(StatusCode,Json<Value>),ApiError> {
+    // Fork: o Codex também escolhe o modo pela Conversa (Perguntar, Sem perguntar, Acesso total, Somente leitura).
+    if ultima_sessao(&state,&id)?.provider == "codex" {
+        if !omni_core::modo_do_codex::valido(&body.modo) { return Err(error(StatusCode::BAD_REQUEST,"Modo do Codex deve ser default, semPerguntar, acessoTotal ou somenteLeitura")); }
+        return enqueue_async(state,id,headers,ActionKind::Comando(Pedido::ModoCodex(body.modo))).await;
+    }
     if !oficiais::modo_valido(&body.modo) { return Err(error(StatusCode::BAD_REQUEST,"Modo deve ser default, acceptEdits, plan ou auto")); }
     if ultima_sessao(&state,&id)?.provider != "claude" { return Err(error(StatusCode::BAD_REQUEST,"Este controle de modo é do Claude Code")); }
     enqueue_async(state,id,headers,ActionKind::Comando(Pedido::Modo(body.modo))).await
@@ -44,7 +51,9 @@ pub(super) fn modo_na_tela(screen: &vt100::Screen) -> Option<&'static str> {
 }
 
 pub(super) fn modo_da_sessao(session: &Arc<LiveSession>) -> Option<&'static str> {
-    let provider = session.meta.lock().ok()?.provider.clone();
+    let (provider, linha) = session.meta.lock().ok().map(|m| (m.provider.clone(), m.initial_command.clone()))?;
+    // Fork (modo do Codex na Conversa): o modo do Codex é o da linha com que ele abriu.
+    if provider.as_deref() == Some("codex") { return linha.as_deref().and_then(omni_core::modo_do_codex::da_linha); }
     if provider.as_deref() != Some("claude") { return None; }
     // A frente de ganchos pode fornecer aqui o modo confirmado pelo evento da CLI.
     if let Some(modo) = interaction::modo_da_sessao(session) { return Some(modo); }
@@ -74,9 +83,10 @@ pub(super) fn com_modo(base: &str, modo: &str) -> Result<String> {
 }
 pub(super) fn modo_salvo(dir: &Path, id: &str) -> Option<String> {
     let mapa: HashMap<String,String> = serde_json::from_slice(&std::fs::read(arquivo_de_modos(dir)).ok()?).ok()?;
-    mapa.get(id).filter(|m| oficiais::modo_valido(m)).cloned()
+    // Fork: o modo do Codex mora no mesmo arquivo (cada uso confere se o valor é do seu agente).
+    mapa.get(id).filter(|m| oficiais::modo_valido(m) || omni_core::modo_do_codex::valido(m)).cloned()
 }
-fn guardar_modo(state: &EngineState, id: &str, modo: &str) -> Result<()> {
+pub(super) fn guardar_modo(state: &EngineState, id: &str, modo: &str) -> Result<()> {
     let _lock = state.persist_lock.lock().map_err(|_|anyhow!("persist poisoned"))?;
     let arquivo = arquivo_de_modos(state.state_file.parent().unwrap());
     let mut mapa: HashMap<String,String> = match std::fs::read(&arquivo) {
@@ -130,6 +140,7 @@ fn executar_com(state: &Arc<EngineState>, action: &Action, pedido: &Pedido, roda
             let prompt = Action { kind: ActionKind::Prompt(texto.clone()), ..action.clone() };
             execute_checked(state,&prompt,rodando)
         }
+        Pedido::ModoCodex(alvo) => modo_codex::trocar(state,action,alvo),
         Pedido::Modo(alvo) => {
             if !oficiais::modo_valido(alvo) { return Err(anyhow!("Modo inválido")); }
             let (_,session) = current(state,&action.conversation_id).map_err(|_|anyhow!("Conversa removida"))?;

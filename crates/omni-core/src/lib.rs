@@ -43,6 +43,7 @@ pub mod resultado_da_acao; // Fork (troca-de-contexto): se a ação do agente de
 pub mod ganchos;
 pub mod notify_do_codex; // Fork (harness, A2): fim de turno do Codex pelo `notify` oficial.
 pub mod subagente_do_codex; // Fork: rollout de subagente não vira a conversa da aba.
+pub mod modo_do_codex; // Fork: aprovação/sandbox do Codex escolhidos na Conversa.
 // Fork (Fase 3): fila de contas — escolha pura da conta com explicação.
 pub mod roteamento;
 // Fork (fix-orquestracao): ler-alterar-gravar o índice de conversas sob trava, com `.tmp` exclusivo.

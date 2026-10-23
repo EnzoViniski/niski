@@ -145,3 +145,55 @@ fn sessao(state: &Arc<EngineState>, tela: &str) -> (Arc<LiveSession>, Arc<Mutex<
     let aprovar = Action { kind: ActionKind::Approval(true), ..action };
     assert!(super::super::fila::execute_checked(&state,&aprovar,|_,_|true).is_err(), "aprovação exige a tela exata");
 }
+
+/// Fork (modo do Codex na Conversa): a rota aceita os quatro modos do Codex e recusa os do Claude; a
+/// troca só reabre com o Codex parado (nenhuma CLI real: os casos que reabririam não rodam aqui).
+#[tokio::test] async fn codex_aceita_os_modos_dele_pela_mesma_rota() {
+    let (dir,state) = fixture(); let (session,_,_) = sessao(&state,"❯ ");
+    session.meta.lock().unwrap().provider = Some("codex".into());
+    atomic_write_json(&dir.path().join("conversations.json"),&json!({"version":1,"conversations":[{
+        "id":"c","project_id":"p","cwd":"/fixture","title":"Teste","created_at_ms":1,
+        "segments":[{"provider":"codex","profile_id":"p","terminal_session_id":"s","started_at_ms":1}]}]})).unwrap();
+    let revision = session.interaction.lock().unwrap().revision(&session);
+    let app = rotas().with_state(state.clone());
+    for modo in ["auto","plan","acceptEdits"] {
+        let req = Request::builder().method("POST").uri("/conversas/c/modo").header("content-type","application/json").header("idempotency-key",modo)
+            .body(Body::from(json!({"modo":modo}).to_string())).unwrap();
+        assert_eq!(app.clone().oneshot(req).await.unwrap().status(),StatusCode::BAD_REQUEST,"{modo} é do Claude");
+    }
+    for modo in omni_core::modo_do_codex::MODOS {
+        let kind = ActionKind::Comando(Pedido::ModoCodex(modo.into()));
+        state.mobile.actions.lock().unwrap().push_back(Action{id:modo.into(),conversation_id:"c".into(),session_id:"s".into(),state:"sent".into(),created_at_ms:now_ms(),error:None,key:modo.into(),revision:revision.clone(),kind});
+        let req = Request::builder().method("POST").uri("/conversas/c/modo").header("content-type","application/json").header("idempotency-key",modo)
+            .body(Body::from(json!({"modo":modo}).to_string())).unwrap();
+        assert_eq!(app.clone().oneshot(req).await.unwrap().status(),StatusCode::ACCEPTED,"{modo}");
+    }
+}
+
+#[test] fn codex_nao_reabre_trabalhando_nem_sendo_outro_agente() {
+    let (dir,state) = fixture();
+    let (session,bytes,action) = sessao(&state,"\r\n OpenAI Codex\r\n esc to interrupt\r\n› ");
+    session.meta.lock().unwrap().provider = Some("codex".into());
+    atomic_write_json(&dir.path().join("conversations.json"),&json!({"version":1,"conversations":[{
+        "id":"c","project_id":"p","cwd":"/fixture","title":"Teste","created_at_ms":1,
+        "segments":[{"provider":"codex","profile_id":"p","terminal_session_id":"s","started_at_ms":1}]}]})).unwrap();
+    session.meta.lock().unwrap().initial_command = Some("codex -m x".into());
+    let erro = executar_com(&state,&action,&Pedido::ModoCodex("semPerguntar".into()),|_,_|true).unwrap_err().to_string();
+    assert!(erro.contains("trabalhando"),"{erro}");
+    session.meta.lock().unwrap().provider = Some("claude".into());
+    assert!(executar_com(&state,&action,&Pedido::ModoCodex("semPerguntar".into()),|_,_|true).is_err());
+    assert!(executar_com(&state,&action,&Pedido::ModoCodex("auto".into()),|_,_|true).is_err(),"modo do Claude");
+    assert!(bytes.lock().unwrap().is_empty(),"nada digitado na CLI");
+    assert_eq!(session.meta.lock().unwrap().initial_command.as_deref(),Some("codex -m x"),"comando intacto");
+}
+
+#[test] fn retomar_codex_leva_o_modo_guardado() {
+    let a = Ajustes { profile_id:None, model:None, effort:None };
+    assert_eq!(comando_de_retomada("codex","codex","th-1",&a,Some("semPerguntar")).unwrap(),"codex resume th-1 -a never -s workspace-write");
+    assert_eq!(comando_de_retomada("codex","codex","th-1",&a,Some("plan")).unwrap(),"codex resume th-1","modo do Claude não vai para o Codex");
+    // Conversa que passou do Codex para o Claude: o modo do Codex guardado não derruba a retomada.
+    assert_eq!(comando_de_retomada("claude","claude","ext",&a,Some("acessoTotal")).unwrap(),"claude --resume ext");
+    let (dir,state) = fixture();
+    guardar_modo(&state,"c","somenteLeitura").unwrap();
+    assert_eq!(modo_salvo(dir.path(),"c").as_deref(),Some("somenteLeitura"));
+}

@@ -182,7 +182,14 @@ pub(super) fn comando_de_retomada(base: &str, provider: &str, sessao: &str, ajus
     }
     // Fork: modo confirmado por conversa, preservado na retomada sem mudar o padrão global.
     if provider == "claude" {
-        if let Some(modo) = modo { comando = comandos::com_modo(&comando,modo)?; }
+        // Fork: valor só do Codex (conversa que trocou de agente) não é do Claude; o resto é conferido.
+        if let Some(modo) = modo.filter(|m| !omni_core::modo_do_codex::valido(m) || omni_core::comandos_oficiais::modo_valido(m)) {
+            comando = comandos::com_modo(&comando,modo)?;
+        }
+    }
+    // Fork (modo do Codex na Conversa): aprovação/sandbox escolhidos para esta conversa.
+    if provider == "codex" {
+        if let Some(com_modo) = modo.and_then(|m| omni_core::modo_do_codex::com_modo(&comando,m)) { comando = com_modo; }
     }
     Ok(comando)
 }

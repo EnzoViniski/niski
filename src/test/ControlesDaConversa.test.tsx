@@ -83,3 +83,17 @@ it("Codex só recebe Compactar; outras plataformas não ganham controles Claude"
   rerender(<ControlesDaConversa {...p} provider="antigravity" />);
   expect(screen.queryByLabelText("Controles da conversa")).not.toBeInTheDocument();
 });
+
+// Fork (modo do Codex na Conversa): o pedido do Enzo era escolher Perguntar/Sem perguntar no Codex.
+it("Codex tem o seletor dele: Perguntar, Sem perguntar, Acesso total e Somente leitura", () => {
+  const p = props(); const { rerender } = render(<ControlesDaConversa {...p} provider="codex" modo={null} />);
+  const seletor = screen.getByLabelText("Modo do Codex");
+  expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Modo da conta", "Perguntar", "Sem perguntar", "Acesso total", "Somente leitura"]);
+  fireEvent.change(seletor, { target: { value: "semPerguntar" } });
+  expect(p.onModo).toHaveBeenCalledWith("semPerguntar");
+  rerender(<ControlesDaConversa {...p} provider="codex" modo="semPerguntar" />);
+  expect(screen.getByLabelText("Modo do Codex")).toHaveValue("semPerguntar");
+  rerender(<ControlesDaConversa {...p} provider="codex" modo="plan" />);
+  expect(screen.getByLabelText("Modo do Codex")).toHaveValue("");
+  expect(screen.getAllByRole("option")[0]).toHaveTextContent("Plano");
+});
