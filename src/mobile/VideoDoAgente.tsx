@@ -28,6 +28,19 @@ export function ultimosLugares(mensagens: { n: number; arquivos?: string[] }[]):
   return mapa;
 }
 
+/** Vídeos dos blocos (ações e falas) cujo último lugar é um deles: os que tocam neste trecho. */
+export function videosQueTocamAqui(blocos: ({ tipo: string; acoes?: { id: string; arquivos?: string[] }[]; mensagem?: { id: string; arquivos?: string[] } })[],
+  lugares: Map<string, number>): { caminho: string; n: number; k: number }[] {
+  const saida: { caminho: string; n: number; k: number }[] = [];
+  for (const bloco of blocos) {
+    for (const m of bloco.acoes ?? (bloco.mensagem ? [bloco.mensagem] : [])) {
+      const n = Number(m.id.slice(m.id.lastIndexOf(":") + 1));
+      (m.arquivos ?? []).forEach((caminho, k) => { if (ehVideo(caminho) && lugares.get(caminho) === n) saida.push({ caminho, n, k }); });
+    }
+  }
+  return saida;
+}
+
 async function enderecoNoPc(caminho: string): Promise<string> {
   const { convertFileSrc } = await import("@tauri-apps/api/core");
   return convertFileSrc(caminho);

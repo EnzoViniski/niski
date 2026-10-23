@@ -5,7 +5,7 @@ import type { ComandoDaConversa, ModoDePermissao } from "./ControlesDaConversa";
 // mudança de lógica. Timeline e rolagem em `useTimeline.ts`, envio em `useEnvio.ts`, `@` em
 // `useMencoes.ts`, aprovação em `CartaoDePermissao.tsx` e o campo com os botões em `RodapeDaConversa.tsx`.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { UltimoLugarDoVideo, ultimosLugares } from "../VideoDoAgente"; // Fork (vídeo na conversa).
+import { UltimoLugarDoVideo, ultimosLugares, VideoDoAgente, videosQueTocamAqui } from "../VideoDoAgente"; // Fork (vídeo na conversa).
 import { Button } from "../../components/ui/Button";
 import { AttachmentIcon } from "../../components/ui/PixelIcon";
 import { request, requestSeMudou, esquecerVersao, enviarTeclas, actionKey, ApiError, type Conversation, type Timeline } from "../api";
@@ -493,6 +493,15 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
               {aberto && blocos.slice(r.inicio, r.fim + 1).map((bloco, k) => desenhar(bloco, r.inicio + k))}
             </TrabalhoRecolhido>,
           );
+          // Fork (vídeo na conversa): vídeo renderizado no trabalho recolhido (e não citado depois) fica à vista.
+          if (!aberto) {
+            const videos = videosQueTocamAqui(blocos.slice(r.inicio, r.fim + 1), lugaresDosVideos);
+            if (videos.length) nos.push(
+              <ul key={`videos-${r.chave}`} className="arquivos-gerados" aria-label="Vídeos gerados pelo agente">
+                {videos.map((v) => <VideoDoAgente key={`${v.caminho}-${v.n}`} conversa={conversation.id} n={v.n} k={v.k} caminho={v.caminho} />)}
+              </ul>,
+            );
+          }
           indice = r.fim;
         }
         return nos;

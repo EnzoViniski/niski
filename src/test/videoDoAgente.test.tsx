@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { ArquivosDoAgente } from "../mobile/ArquivosDoAgente";
-import { UltimoLugarDoVideo, ultimosLugares } from "../mobile/VideoDoAgente";
+import { UltimoLugarDoVideo, ultimosLugares, videosQueTocamAqui } from "../mobile/VideoDoAgente";
 import { usarTransporte } from "../mobile/api";
 
 // Fork (vídeo na conversa): o vídeo do agente toca na conversa do celular, por bilhete do engine.
@@ -32,6 +32,12 @@ describe("vídeo do agente na conversa", () => {
     render(<UltimoLugarDoVideo.Provider value={lugares}><ArquivosDoAgente conversa="c" n={2} caminhos={["/p/v.mp4"]} /></UltimoLugarDoVideo.Provider>);
     expect(screen.getByText("toca mais abaixo")).toBeInTheDocument();
     expect(pedidos).toEqual([]);
+  });
+
+  it("trabalho recolhido mostra o vídeo que não foi citado depois", () => {
+    const blocos = [{ tipo: "acoes", acoes: [{ id: "c:3", arquivos: ["/p/a.mp4", "/p/b.mp4"] }, { id: "c:4" }] }];
+    const lugares = new Map([["/p/a.mp4", 3], ["/p/b.mp4", 9]]);
+    expect(videosQueTocamAqui(blocos, lugares)).toEqual([{ caminho: "/p/a.mp4", n: 3, k: 0 }]);
   });
 
   it("vídeo que ainda não existe avisa e deixa tentar de novo", async () => {
