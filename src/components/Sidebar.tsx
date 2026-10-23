@@ -12,6 +12,7 @@ import {
   CopyIcon,
   DockerIcon,
   FlagIcon,
+  CalendarIcon, // Fork (Rotina).
   ClapperboardIcon,
   ClipboardNoteIcon,
   FolderIcon,
@@ -123,6 +124,9 @@ interface SidebarProps {
   showTarefas?: boolean;
   onOpenTarefas?: () => void;
   /** Fork: Roadmaps de estudo (abre onde parou). */
+  /** Fork (Rotina): tela Rotina (semana, treino, alimentação). */
+  showRotina?: boolean;
+  onOpenRotina?: () => void;
   showRoadmaps?: boolean;
   onOpenRoadmaps?: () => void;
   /** Fork: Edição de vídeo (abre o último vídeo). */
@@ -184,6 +188,8 @@ export function Sidebar({
   onOpenFluxos,
   showTarefas = false,
   onOpenTarefas,
+  showRotina = false,
+  onOpenRotina,
   showRoadmaps = false,
   onOpenRoadmaps,
   showVideo = false,
@@ -436,6 +442,14 @@ export function Sidebar({
             icon={<ClipboardNoteIcon className="w-4 h-4" aria-hidden="true" />}
             label="Tarefas"
             extra={<ContadorDeHoje />}
+          />
+        )}
+        {onOpenRotina && (
+          <NavItem
+            active={showRotina}
+            onClick={onOpenRotina}
+            icon={<CalendarIcon className="w-4 h-4" aria-hidden="true" />}
+            label="Rotina"
           />
         )}
         {onOpenRoadmaps && (

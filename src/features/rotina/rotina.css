@@ -1,0 +1,206 @@
+/* Fork (Rotina): cores e bordas dos tokens (`--c-*`), que cada estilo (Clássico, Minimalista, Vidro;
+   claro e escuro) desenha do seu jeito. Cantos retos no Clássico, redondos no Minimalista. A cor de
+   uma área sempre vem com o nome escrito ao lado (nunca sozinha). */
+
+.rotina { --r-r: 3px; --r-r-grande: 4px; display: flex; height: 100%; min-height: 0; color: rgb(var(--c-text-primary)); }
+:root[data-estilo="minimalista"] .rotina, :root[data-estilo="minimalista"] .rotina-avisos { --r-r: 10px; --r-r-grande: 16px; }
+:root[data-variante="vidro"] .rotina, :root[data-variante="vidro"] .rotina-avisos { --r-r: 12px; --r-r-grande: 18px; }
+.rotina-principal { display: flex; flex: 1; min-width: 0; flex-direction: column; }
+.rotina-topo { display: flex; flex-direction: column; gap: .75rem; padding: 1rem 1.5rem .5rem; border-bottom: 1px solid rgb(var(--c-border-subtle) / .6); }
+.rotina-titulo { font-size: 1.25rem; font-weight: 650; letter-spacing: -.01em; }
+.rotina-conteudo { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem 1.5rem 2rem; scrollbar-gutter: stable; }
+.rotina-erro { margin: .75rem 1.5rem 0; font-size: .8125rem; color: rgb(var(--c-danger)); }
+
+.rotina-abas { display: flex; gap: .25rem; overflow-x: auto; }
+.rotina-aba { padding: .5rem .875rem; min-height: 36px; font-size: .8125rem; font-weight: 550; color: rgb(var(--c-text-secondary)); border-bottom: 2px solid transparent; cursor: pointer; }
+.rotina-aba:hover { color: rgb(var(--c-text-primary)); }
+.rotina-aba.is-on { color: rgb(var(--c-text-primary)); border-bottom-color: rgb(var(--c-accent)); }
+.rotina-aba:focus-visible, .rotina-mini:focus-visible, .rotina-check:focus-visible, .rotina-serie-botao:focus-visible, .rotina-ficha:focus-visible,
+.rotina-passo button:focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px; }
+
+.rotina-linha-botoes { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.rotina-mini { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; padding: .125rem .5rem; font-size: .75rem;
+  color: rgb(var(--c-text-secondary)); border-radius: var(--r-r); cursor: pointer; }
+.rotina-mini:hover { color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .08); }
+.rotina-mini:disabled { opacity: .45; cursor: default; }
+.rotina-muted { font-size: .75rem; color: rgb(var(--c-text-muted)); }
+.rotina-texto { font-size: .8125rem; color: rgb(var(--c-text-secondary)); }
+.rotina-vazio { padding: 1.5rem 0; font-size: .8125rem; color: rgb(var(--c-text-muted)); }
+.rotina-ok { font-size: .75rem; font-weight: 600; color: rgb(var(--c-success)); }
+.rotina-aviso { min-height: 1.25rem; font-size: .8125rem; color: rgb(var(--c-text-secondary)); }
+.rotina-nota { margin-top: .25rem; }
+.rotina-subtitulo { margin: 1rem 0 .5rem; font-size: .75rem; font-weight: 650; letter-spacing: .02em; text-transform: uppercase; color: rgb(var(--c-text-muted)); }
+.rotina-secao-topo { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem; margin-bottom: .75rem; }
+.rotina-secao-topo h2 { font-size: 1rem; font-weight: 650; }
+.rotina-secao-topo h3 { font-size: .875rem; font-weight: 650; }
+.rotina-cartao { padding: 1rem; background: rgb(var(--c-bg-elevated) / .6); border: 1px solid rgb(var(--c-border-subtle) / .7); border-radius: var(--r-r-grande); }
+.rotina-cartao + .rotina-cartao { margin-top: .75rem; }
+.rotina-foco { display: flex; gap: .5rem; align-items: baseline; margin-bottom: .75rem; font-size: .875rem; }
+.rotina-foco > span { font-size: .6875rem; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; color: rgb(var(--c-accent)); }
+
+/* Barras de progresso */
+.rotina-barra { height: .5rem; margin: .5rem 0 .75rem; overflow: hidden; background: rgb(var(--c-overlay) / .08); border-radius: 999px; }
+.rotina-barra.is-fina { height: .25rem; margin: .25rem 0 0; grid-column: 1 / -1; }
+.rotina-barra.is-grossa { height: .875rem; }
+.rotina-barra > span { display: block; height: 100%; background: rgb(var(--c-accent)); border-radius: 999px; transition: width .25s ease-out; }
+
+/* Hoje */
+.rotina-hoje, .rotina-treino { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 1.25rem; align-items: start; }
+@media (max-width: 980px) { .rotina-hoje, .rotina-treino { grid-template-columns: 1fr; } }
+.rotina-lado { display: flex; flex-direction: column; gap: .75rem; }
+.rotina-lado .rotina-cartao + .rotina-cartao { margin-top: 0; }
+.rotina-itens { display: flex; flex-direction: column; gap: .375rem; }
+.rotina-item { display: grid; grid-template-columns: 3.25rem 3px minmax(0, 1fr) auto; align-items: center; gap: .75rem; min-height: 52px; padding: .5rem .625rem;
+  border: 1px solid transparent; border-radius: var(--r-r); }
+.rotina-item:hover { background: rgb(var(--c-overlay) / .04); }
+.rotina-item.is-agora { background: rgb(var(--c-accent) / .1); border-color: rgb(var(--c-accent) / .45); }
+.rotina-item.is-proximo { border-color: rgb(var(--c-border-subtle)); }
+.rotina-item.is-feito .rotina-item-titulo { text-decoration: line-through; color: rgb(var(--c-text-muted)); }
+.rotina-item.is-pulado { opacity: .55; }
+.rotina-item-hora { display: flex; flex-direction: column; font-size: .8125rem; font-weight: 600; font-variant-numeric: tabular-nums; color: rgb(var(--c-text-secondary)); }
+.rotina-item-hora small { font-size: .6875rem; font-weight: 400; color: rgb(var(--c-text-muted)); }
+.rotina-item-faixa { align-self: stretch; width: 3px; border-radius: 2px; }
+.rotina-item-corpo { display: flex; min-width: 0; flex-direction: column; gap: .125rem; }
+.rotina-item-linha { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.rotina-item-titulo { overflow: hidden; font-size: .875rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.rotina-item-detalhe { overflow: hidden; font-size: .75rem; color: rgb(var(--c-text-muted)); text-overflow: ellipsis; white-space: nowrap; }
+.rotina-item-acoes { display: flex; align-items: center; gap: .25rem; }
+.rotina-item > .rotina-mini:last-child { grid-column: 4; }
+.rotina-hoje .rotina-item, .rotina-sessao .rotina-item.is-refeicao { grid-template-columns: 3.25rem 3px minmax(0, 1fr) auto; }
+.rotina-sessao .rotina-item.is-refeicao { grid-template-columns: 3.25rem minmax(0, 1fr) auto; }
+.rotina-selo { flex: none; padding: .0625rem .4rem; font-size: .625rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; border-radius: 999px; }
+.rotina-selo.is-agora { color: rgb(var(--c-bg-primary)); background: rgb(var(--c-accent)); }
+.rotina-selo.is-proximo { color: rgb(var(--c-text-secondary)); background: rgb(var(--c-overlay) / .1); }
+.rotina-check { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; color: transparent; border: 1.5px solid rgb(var(--c-border));
+  border-radius: 999px; cursor: pointer; transition: background-color .15s ease-out, color .15s ease-out; }
+.rotina-check svg { width: 16px; height: 16px; }
+.rotina-check:hover { color: rgb(var(--c-text-muted)); }
+.rotina-check.is-on { color: rgb(var(--c-bg-primary)); background: rgb(var(--c-success)); border-color: rgb(var(--c-success)); }
+.rotina-metas { display: flex; flex-direction: column; gap: .625rem; }
+.rotina-metas li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .5rem; font-size: .8125rem; }
+.rotina-meta-texto { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+
+/* Semana */
+.rotina-semana { display: flex; flex-direction: column; gap: 1rem; }
+.rotina-semana > .rotina-cartao + .rotina-cartao { margin-top: 0; }
+.rotina-numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .75rem; }
+.rotina-numeros > div { display: flex; flex-direction: column; gap: .125rem; padding: .75rem 1rem; background: rgb(var(--c-bg-elevated) / .6);
+  border: 1px solid rgb(var(--c-border-subtle) / .7); border-radius: var(--r-r-grande); }
+.rotina-numeros strong { font-size: 1.375rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.rotina-numeros span { font-size: .75rem; color: rgb(var(--c-text-muted)); }
+.rotina-numeros.is-compacto { margin: .75rem 0; }
+.rotina-numeros.is-compacto strong { font-size: 1rem; }
+.rotina-legenda { display: flex; flex-wrap: wrap; gap: .75rem; font-size: .75rem; color: rgb(var(--c-text-secondary)); }
+.rotina-legenda li { display: inline-flex; align-items: center; gap: .375rem; }
+.rotina-legenda span, .rotina-pinta { display: inline-block; flex: none; width: .625rem; height: .625rem; border-radius: 3px; }
+.rotina-grade { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); gap: .5rem; overflow-x: auto; padding-bottom: .25rem; }
+.rotina-coluna { display: flex; min-width: 0; flex-direction: column; gap: .375rem; padding: .5rem; background: rgb(var(--c-overlay) / .03);
+  border: 1px solid rgb(var(--c-border-subtle) / .6); border-radius: var(--r-r-grande); }
+.rotina-coluna.is-hoje { border-color: rgb(var(--c-accent) / .6); }
+.rotina-coluna-topo { padding: .125rem .25rem .375rem; font-size: .75rem; font-weight: 650; color: rgb(var(--c-text-secondary)); }
+.rotina-coluna.is-hoje .rotina-coluna-topo { color: rgb(var(--c-accent)); }
+.rotina-bloco { display: flex; flex-direction: column; gap: .0625rem; padding: .375rem .5rem; font-size: .75rem; background: rgb(var(--c-bg-elevated) / .8);
+  border-left: 3px solid; border-radius: var(--r-r); }
+.rotina-bloco-hora { font-variant-numeric: tabular-nums; color: rgb(var(--c-text-muted)); }
+.rotina-bloco-titulo { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.rotina-bloco-area { font-size: .6875rem; color: rgb(var(--c-text-muted)); }
+.rotina-bloco.is-feito .rotina-bloco-titulo { text-decoration: line-through; color: rgb(var(--c-text-muted)); }
+.rotina-bloco.is-pulado { opacity: .5; }
+.rotina-bloco.is-sem-hora { border-left-color: rgb(var(--c-border)); color: rgb(var(--c-text-muted)); }
+.rotina-lista { display: flex; flex-direction: column; gap: .375rem; font-size: .8125rem; }
+.rotina-expandir { width: 100%; font-size: .8125rem; font-weight: 600; text-align: left; cursor: pointer; }
+.rotina-expandir::before { content: "▸ "; color: rgb(var(--c-text-muted)); }
+.rotina-expandir[aria-expanded="true"]::before { content: "▾ "; }
+
+/* Formulários */
+.rotina-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .625rem; margin-top: .75rem; font-size: .75rem; color: rgb(var(--c-text-secondary)); }
+.rotina-form label { display: flex; flex-direction: column; gap: .25rem; }
+.rotina-form label.flex { flex-direction: row; align-items: center; }
+.rotina-form-largo { flex: 1 1 220px; }
+.rotina-form input, .rotina-form select, .rotina-form textarea, .rotina-entrada, .rotina-cartao select {
+  min-height: 32px; padding: .25rem .5rem; font-size: .8125rem; color: rgb(var(--c-text-primary)); background: rgb(var(--c-bg-primary) / .6);
+  border: 1px solid rgb(var(--c-border-subtle)); border-radius: var(--r-r); }
+.rotina-entrada { flex: 1; min-width: 0; }
+.rotina-numero { width: 6rem; }
+.rotina-dias { display: flex; flex-wrap: wrap; gap: .25rem; border: 0; }
+.rotina-dias legend { margin-bottom: .25rem; }
+.rotina-dias label { flex-direction: row !important; align-items: center; min-height: 32px; padding: .25rem .5rem; border: 1px solid rgb(var(--c-border-subtle));
+  border-radius: var(--r-r); cursor: pointer; }
+.rotina-dias label.is-on { color: rgb(var(--c-text-primary)); background: rgb(var(--c-accent) / .14); border-color: rgb(var(--c-accent) / .5); }
+.rotina-dias input { position: absolute; opacity: 0; pointer-events: none; }
+.rotina-ajustes { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; align-items: start; }
+
+/* Treino: registro rápido. Alvos de 44 px (mão suada no intervalo da série). */
+.rotina-fichas-escolha { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+.rotina-ficha { display: inline-flex; align-items: baseline; gap: .375rem; min-height: 44px; padding: .5rem .875rem; font-size: .9375rem; font-weight: 700;
+  border: 1px solid rgb(var(--c-border-subtle)); border-radius: var(--r-r-grande); cursor: pointer; }
+.rotina-ficha small { font-size: .75rem; font-weight: 500; color: rgb(var(--c-text-muted)); }
+.rotina-ficha em { font-size: .625rem; font-style: normal; font-weight: 650; text-transform: uppercase; color: rgb(var(--c-accent)); }
+.rotina-ficha.is-on { color: rgb(var(--c-text-primary)); background: rgb(var(--c-accent) / .14); border-color: rgb(var(--c-accent) / .6); }
+.rotina-exercicios { display: flex; flex-direction: column; gap: .75rem; margin-bottom: .75rem; }
+.rotina-exercicio { padding: .75rem; border: 1px solid rgb(var(--c-border-subtle) / .7); border-radius: var(--r-r-grande); }
+.rotina-exercicio-topo { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem; margin-bottom: .5rem; font-size: .875rem; }
+.rotina-registro { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.rotina-passo { display: inline-flex; align-items: center; border: 1px solid rgb(var(--c-border-subtle)); border-radius: var(--r-r-grande); overflow: hidden; }
+.rotina-passo button { width: 44px; height: 44px; font-size: 1.125rem; font-weight: 600; color: rgb(var(--c-text-secondary)); cursor: pointer; touch-action: manipulation; }
+.rotina-passo button:hover { color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .08); }
+.rotina-passo input { width: 3.75rem; height: 44px; font-size: 1rem; font-weight: 650; font-variant-numeric: tabular-nums; text-align: center;
+  color: rgb(var(--c-text-primary)); background: transparent; border: 0; }
+.rotina-passo span { padding-right: .375rem; font-size: .75rem; color: rgb(var(--c-text-muted)); }
+.rotina-serie-botao { min-height: 44px; padding: .5rem 1.125rem; font-size: .9375rem; font-weight: 700; color: rgb(var(--c-bg-primary)); background: rgb(var(--c-accent));
+  border-radius: var(--r-r-grande); cursor: pointer; touch-action: manipulation; transition: transform .1s ease-out; }
+.rotina-serie-botao:active { transform: scale(.97); }
+.rotina-serie-botao:disabled { opacity: .45; cursor: default; }
+.rotina-series { display: flex; flex-wrap: wrap; gap: .375rem; margin-top: .625rem; }
+.rotina-series li { display: inline-flex; align-items: center; gap: .25rem; padding: .125rem .25rem .125rem .625rem; font-size: .75rem; font-variant-numeric: tabular-nums;
+  background: rgb(var(--c-overlay) / .07); border-radius: 999px; }
+.rotina-series button { width: 24px; height: 24px; color: rgb(var(--c-text-muted)); border-radius: 999px; cursor: pointer; }
+.rotina-series button:hover { color: rgb(var(--c-danger)); }
+.rotina-fichas { margin: .5rem 0 1rem; padding: .75rem; background: rgb(var(--c-overlay) / .03); border-radius: var(--r-r-grande); }
+.rotina-fichas textarea { min-height: 5rem; }
+
+/* Gráficos: uma série, eixo único, grade discreta, dica no foco/mouse. */
+.rotina-grafico { margin: .25rem 0 .75rem; }
+.rotina-grafico figcaption { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .375rem; font-size: .8125rem; font-weight: 600; }
+.rotina-grafico-area { position: relative; }
+.rotina-grafico svg { display: block; width: 100%; height: auto; overflow: visible; }
+.rotina-grade-linha { stroke: rgb(var(--c-border-subtle) / .6); stroke-width: 1; }
+.rotina-eixo { font-size: 9px; fill: rgb(var(--c-text-muted)); font-variant-numeric: tabular-nums; }
+.rotina-serie { fill: none; stroke: rgb(var(--c-accent)); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.rotina-marca { fill: rgb(var(--c-accent)); stroke: rgb(var(--c-bg-elevated)); stroke-width: 2; }
+.rotina-marca.is-recorde { fill: rgb(var(--c-success)); }
+.rotina-mira { stroke: rgb(var(--c-text-muted) / .6); stroke-width: 1; stroke-dasharray: 2 3; }
+.rotina-barra-marca { fill: rgb(var(--c-accent) / .85); }
+.rotina-barra-marca.is-foco { fill: rgb(var(--c-accent)); }
+.rotina-meta-linha { stroke: rgb(var(--c-text-secondary)); stroke-width: 1; stroke-dasharray: 4 3; }
+.rotina-dica { position: absolute; top: -.25rem; z-index: 2; display: flex; flex-direction: column; gap: .0625rem; padding: .375rem .5rem; font-size: .75rem;
+  white-space: nowrap; pointer-events: none; transform: translate(-50%, -100%); color: rgb(var(--c-text-primary)); background: rgb(var(--c-bg-elevated));
+  border: 1px solid rgb(var(--c-border-subtle)); border-radius: var(--r-r); box-shadow: 0 4px 14px rgb(0 0 0 / .18); }
+.rotina-dica span { color: rgb(var(--c-text-muted)); }
+.rotina-tabela { width: 100%; font-size: .75rem; font-variant-numeric: tabular-nums; border-collapse: collapse; }
+.rotina-tabela th { padding: .25rem .375rem; font-weight: 600; text-align: left; color: rgb(var(--c-text-muted)); border-bottom: 1px solid rgb(var(--c-border-subtle)); }
+.rotina-tabela td { padding: .25rem .375rem; border-bottom: 1px solid rgb(var(--c-border-subtle) / .4); }
+
+/* Conversa ao lado */
+.rotina-conversa { display: flex; width: min(480px, 42%); min-width: 340px; flex-direction: column; border-left: 1px solid rgb(var(--c-border-subtle) / .7);
+  background: rgb(var(--c-bg-primary) / .4); }
+.rotina-conversa-topo { display: flex; align-items: center; gap: .5rem; padding: .75rem 1rem; font-size: .875rem; border-bottom: 1px solid rgb(var(--c-border-subtle) / .6); }
+.rotina-conversa-corpo { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.rotina-conversa-corpo .rotina-vazio { padding: 1.5rem 1rem; }
+
+/* Avisos discretos (canto inferior esquerdo) */
+.rotina-avisos { position: fixed; left: 1rem; bottom: 1rem; z-index: 60; display: flex; width: min(340px, calc(100vw - 2rem)); flex-direction: column; gap: .5rem; }
+.rotina-aviso-cartao { display: flex; flex-direction: column; gap: .5rem; padding: .75rem .875rem; font-size: .8125rem; color: rgb(var(--c-text-primary));
+  background: rgb(var(--c-bg-elevated)); border: 1px solid rgb(var(--c-border-subtle)); border-left: 3px solid rgb(var(--c-accent));
+  border-radius: var(--r-r-grande, 4px); box-shadow: 0 8px 24px rgb(0 0 0 / .18); animation: rotina-entra .2s ease-out; }
+.rotina-aviso-texto { display: flex; flex-direction: column; gap: .125rem; }
+.rotina-aviso-texto span { font-size: .75rem; color: rgb(var(--c-text-secondary)); }
+.rotina-aviso-principal { min-height: 32px; padding: .25rem .75rem; font-size: .75rem; font-weight: 650; color: rgb(var(--c-bg-primary)); background: rgb(var(--c-accent));
+  border-radius: var(--r-r, 3px); cursor: pointer; }
+@keyframes rotina-entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rotina-aviso-cartao { animation: none; }
+  .rotina-barra > span, .rotina-check, .rotina-serie-botao { transition: none; }
+  .rotina-serie-botao:active { transform: none; }
+}
