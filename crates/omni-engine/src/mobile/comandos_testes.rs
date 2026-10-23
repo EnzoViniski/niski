@@ -197,3 +197,20 @@ fn sessao(state: &Arc<EngineState>, tela: &str) -> (Arc<LiveSession>, Arc<Mutex<
     guardar_modo(&state,"c","somenteLeitura").unwrap();
     assert_eq!(modo_salvo(dir.path(),"c").as_deref(),Some("somenteLeitura"));
 }
+
+/// Fork (perguntas na Conversa): a terceira opção do diálogo de permissão chega à CLI pela fila, presa à
+/// mesma tela que o cartão mostrou.
+#[test] fn opcao_extra_da_permissao_vai_pela_fila_com_a_tecla_dela() {
+    let (_dir,state) = fixture();
+    let tela = "Do you want to make this edit to a.ts?\r\n❯ 1. Yes\r\n  2. Yes, allow all edits during this session (shift+tab)\r\n  3. No, and tell Claude what to do differently (esc)\r\n";
+    let (session,bytes,action) = sessao(&state,tela);
+    let opcoes = crate::opcoes_da_permissao::opcoes(&session.interaction.lock().unwrap().parser.screen().contents(),"claude");
+    assert_eq!(opcoes.iter().map(|o| o.papel).collect::<Vec<_>>(), ["permitir","outra","negar"]);
+    let acao = Action { kind: ActionKind::OpcaoDaPermissao(2), ..action };
+    execute_checked(&state,&acao,|_,_|true).unwrap();
+    assert_eq!(&*bytes.lock().unwrap(),b"2\r");
+    bytes.lock().unwrap().clear();
+    let sumiu = Action { kind: ActionKind::OpcaoDaPermissao(7), ..acao };
+    assert!(execute_checked(&state,&sumiu,|_,_|true).is_err(),"opção que a tela não tem");
+    assert!(bytes.lock().unwrap().is_empty());
+}

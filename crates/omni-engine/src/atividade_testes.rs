@@ -146,6 +146,7 @@ fn pergunta_da_cli_e_espera_dizem_que_e_no_terminal() {
     let cap = |escolha: Option<interaction::Escolha>, espera: bool| interaction::Capabilities {
         prompt: false, approve: false, revision: String::new(), approval_text: None, reason: None, enfileirar: false, escolha, pedido: None,
         espera: espera.then(|| crate::pergunta_da_cli::Espera { texto: "Continuing automatically at 3:45pm · esc to cancel".into(), dica: None }),
+        approval_options: Vec::new(),
     };
     let menu = |da_cli| interaction::Escolha { pergunta: "Enable full access?".into(), detalhe: None, opcoes: Vec::new(), multipla: false,
         etapas: Vec::new(), previa: false, da_cli, teclas: None };

@@ -188,10 +188,11 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const marcar = (id: string, mudanca: Partial<Anexo>) =>
     setAnexos(lista => lista.map(a => (a.id === id ? { ...a, ...mudanca } : a)));
 
-  async function aprovar(permitir: boolean) {
+  /** `opcao`: Fork (perguntas na Conversa) — outra opção do diálogo da CLI além de Permitir/Negar. */
+  async function aprovar(permitir: boolean, opcao?: number) {
     if (!conversation.capabilities || busy) return;
     setBusy(true); setError(null); setFalhaEnvio(null);
-    try { await post("aprovar", { permitir }); await Promise.all([ler(), refresh()]); }
+    try { await post("aprovar", opcao === undefined ? { permitir } : { permitir, opcao }); await Promise.all([ler(), refresh()]); }
     catch (reason) { falhou(reason); }
     finally { setBusy(false); }
   }
@@ -495,6 +496,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
       {enviado && <MessageBubble lado="user" pendente texto={enviado.texto}
         anexosLocais={enviado.anexos.length ? enviado.anexos : undefined} />}
       {capability?.approve && <CartaoDePermissao texto={capability.approval_text} busy={busy} onResponder={(permitir) => void aprovar(permitir)}
+        opcoes={capability.approval_options} onOpcao={(numero) => void aprovar(true, numero)}
         pedido={capability.pedido} conversaId={conversation.id} onRespondido={() => void Promise.all([ler(), refresh()])} /* Fork (Onda 2) */ />}
       {capability?.escolha && !planoPendente && <CartaoDePergunta escolha={capability.escolha} provider={conversation.provider} busy={busy}
         onEscolher={(opcao) => void escolher(opcao)} onAvancar={() => void escolher("avancar")} onAbrirTerminal={abrirTerminal} />}

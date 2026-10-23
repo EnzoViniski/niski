@@ -769,7 +769,8 @@ mod testes_da_pergunta_da_cli {
                 opcoes: vec![interaction::Opcao { numero: 1, rotulo: "Yes, continue anyway".into(), descricao: None, marcada: None }],
                 multipla: false, etapas: Vec::new(), previa: false, da_cli, teclas: None }),
             pedido: None,
-            espera: espera.then(|| crate::pergunta_da_cli::Espera { texto: "Press enter to confirm or esc to cancel".into(), dica: None }) }
+            espera: espera.then(|| crate::pergunta_da_cli::Espera { texto: "Press enter to confirm or esc to cancel".into(), dica: None }),
+            approval_options: Vec::new() }
     }
     #[test] fn pedido_da_cli_fica_com_o_usuario() {
         assert_eq!(pedido_de(&cap(true, false)).unwrap()["tipo"], "pergunta_da_cli");

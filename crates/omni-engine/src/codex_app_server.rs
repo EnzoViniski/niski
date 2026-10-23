@@ -808,6 +808,7 @@ pub(crate) fn capabilities(sessao: &Arc<LiveSession>) -> Option<interaction::Cap
         escolha: None,
         pedido,
         espera: None, // Fork (pergunta-da-cli): o protocolo não tem tela para esperar.
+        approval_options: Vec::new(), // Fork: o pedido do app-server tem cartão próprio.
     })
 }
 

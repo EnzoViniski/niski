@@ -16,7 +16,9 @@ pub(super) enum ActionKind { Prompt(String), Approval(bool), Spawn(SpawnPlan), M
     /// Mensagem mandada com o agente no meio de um turno: entra na fila da CLI.
     Fila(String),
     /// Resposta a um menu da CLI (`interaction::escolha`).
-    Escolha(Resposta) }
+    Escolha(Resposta),
+    /// Fork (perguntas na Conversa): outra opção do diálogo de permissão (`opcoes_da_permissao`).
+    OpcaoDaPermissao(u8) }
 
 #[derive(Clone, Copy, PartialEq)]
 pub(super) enum Resposta {
@@ -100,7 +102,9 @@ pub(super) fn destravar(state: &Arc<EngineState>, id: &str) -> Result<Json<Value
 /// Fork (Onda 2, item 2): `pedido` é o id do pedido do gancho que a tela mostrou; `mensagem`, o "dizer o
 /// que fazer" de quem nega. Sem pedido do gancho, os dois são ignorados e vale a tecla na tela.
 #[derive(Deserialize)] #[serde(deny_unknown_fields)] pub(super) struct ApprovalBody { permitir: bool,
-    #[serde(default)] pedido: Option<String>, #[serde(default)] mensagem: Option<String> }
+    #[serde(default)] pedido: Option<String>, #[serde(default)] mensagem: Option<String>,
+    /// Fork (perguntas na Conversa): o número de uma opção do diálogo na tela além do Permitir/Negar.
+    #[serde(default)] opcao: Option<u8> }
 pub(super) async fn prompt(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<PromptBody>) -> Result<(StatusCode,Json<Value>),ApiError> {
     if body.texto.trim().is_empty() || body.texto.len() > 16_000 || body.texto.chars().any(|c|c.is_control() && c != '\n' && c != '\t') || body.texto.trim_start().starts_with('/') {
         return Err(error(StatusCode::BAD_REQUEST,"Envie texto de até 16000 bytes, sem comandos slash ou caracteres de controle"));
@@ -109,6 +113,8 @@ pub(super) async fn prompt(State(state): State<Arc<EngineState>>, RoutePath(id):
     enqueue_async(state,id,headers,kind).await
 }
 pub(super) async fn approve(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<ApprovalBody>) -> Result<(StatusCode,Json<Value>),ApiError> {
+    // Fork (perguntas na Conversa): opção do diálogo da tela; o pedido do gancho/app-server tem cartão próprio.
+    if let (Some(n), None) = (body.opcao, body.pedido.as_ref()) { return enqueue_async(state,id,headers,ActionKind::OpcaoDaPermissao(n)).await; }
     if let Some(r) = codex_rotas::aprovar(&state,&id,body.permitir,body.pedido.as_deref()).await { return r; } // Fork: 3A, mesma rota.
     // Fork (Onda 2): pedido segurado pelo gancho responde direto, sem tecla nem fila.
     if let Some(resposta) = ganchos_rotas::responder_pelo_gancho(&state,&id,body.permitir,body.pedido.clone(),body.mensagem.clone()).await { return resposta; }
@@ -170,6 +176,7 @@ pub(super) fn enqueue(state:&Arc<EngineState>,id:&str,headers:&HeaderMap,kind:Ac
         // Fila vale com o agente parado (vira um prompt comum) ou trabalhando com o campo livre.
         ActionKind::Fila(_) => capability.prompt || capability.enfileirar,
         ActionKind::Approval(_) => capability.approve,
+        ActionKind::OpcaoDaPermissao(n) => capability.approve && capability.approval_options.iter().any(|o| o.numero == n),
         ActionKind::Escolha(resposta) => capability.escolha.as_ref().is_some_and(|menu| match resposta {
             Resposta::Opcao(n) => menu.opcoes.iter().any(|o| o.numero == n),
             Resposta::Avancar => menu.multipla,
@@ -241,6 +248,18 @@ pub(super) fn execute_checked(state:&Arc<EngineState>, action:&Action, is_runnin
         ActionKind::Fila(text) if interaction::ready_no(&context,provider)
             || interaction::pode_enfileirar_no(&context,provider) => (format!("\x1b[200~{text}\x1b[201~"), true),
         ActionKind::Approval(allow) => { let dialog = interaction::approval(&context.parser.screen().contents(),provider).ok_or_else(||anyhow!("Aprovação não reconhecida"))?; (if *allow { dialog.0 } else { dialog.1 }, false) },
+        // Fork (perguntas na Conversa): setas num write e a confirmação noutro, como no menu genérico.
+        ActionKind::OpcaoDaPermissao(n) => {
+            let opcao = crate::opcoes_da_permissao::opcoes(&context.parser.screen().contents(),provider).into_iter()
+                .find(|o| o.numero == *n).ok_or_else(||anyhow!("Opção da permissão não reconhecida"))?;
+            if let Some(setas) = &opcao.setas {
+                let mut writer = session.writer.lock().map_err(|_|anyhow!("writer poisoned"))?;
+                writer.write_all(setas.as_bytes())?; writer.flush()?;
+                drop(writer);
+                std::thread::sleep(std::time::Duration::from_millis(150));
+            }
+            (opcao.fim, false)
+        }
         // O número sozinho escolhe (confirmado num Claude Code 2.1.302 real); Esc fecha o menu.
         ActionKind::Escolha(opcao) => {
             // Fork (pergunta-da-cli): o mesmo menu que a conversa mostrou, inclusive o genérico da CLI.

@@ -46,6 +46,9 @@ pub struct Capabilities {
     /// Fork (pergunta-da-cli): a CLI parada esperando algo no terminal que não virou menu nem pedido.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub espera: Option<crate::pergunta_da_cli::Espera>,
+    /// Fork (perguntas na Conversa): todas as opções do diálogo de permissão na tela (`opcoes_da_permissao`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub approval_options: Vec<crate::opcoes_da_permissao::OpcaoDaPermissao>,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -511,8 +514,12 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
         // pista nenhuma de por que a conversa travava. O chat se destrava sozinho (`destravar`).
         _ => motivo_geral(context.parser.screen(), provider, available, session.reserved.load(Ordering::SeqCst), &meta.id, context.codex_visto),
     });
+    // Fork (perguntas na Conversa): pedido do gancho tem cartão próprio; o diálogo na tela leva as opções todas.
+    let approval_options = if available && pedido.is_none() && dialog.is_some() {
+        crate::opcoes_da_permissao::opcoes(&context.parser.screen().contents(), provider)
+    } else { Vec::new() };
     let approval_text = pedido.as_ref().map(|p| p.resumo.clone()).or_else(|| dialog.map(|d|d.2));
-    Capabilities { prompt, approve, revision: context.revision(session), approval_text, reason, enfileirar, escolha, pedido, espera }
+    Capabilities { prompt, approve, revision: context.revision(session), approval_text, reason, enfileirar, escolha, pedido, espera, approval_options }
 }
 
 /// Fork: campo vazio no meio de um turno que só os ganchos enxergam (sem o rodapé "esc to interrupt").

@@ -32,6 +32,19 @@ describe("cartão de permissão", () => {
     expect(screen.queryByText("Responder no terminal")).toBeNull();
   });
 
+  // Fork (perguntas na Conversa): "três opções e só dá a opção de permitir" (Enzo, 23/10/2026).
+  it("mostra as outras opções do diálogo com o texto da CLI e manda o número", () => {
+    const opcao = vi.fn();
+    render(<CartaoDePermissao texto="Do you want to make this edit?" busy={false} onResponder={vi.fn()} onOpcao={opcao}
+      opcoes={[{ numero: 1, rotulo: "Yes", papel: "permitir" }, { numero: 2, rotulo: "Yes, allow all edits during this session", papel: "outra" },
+        { numero: 3, rotulo: "No, and tell Claude what to do differently", papel: "negar" }]} />);
+    const outras = screen.getByRole("group", { name: "Outras opções da CLI" });
+    expect(outras.querySelectorAll("button")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Yes, allow all edits during this session" }));
+    expect(opcao).toHaveBeenCalledWith(2);
+    expect(screen.getByRole("button", { name: "Permitir" })).toBeInTheDocument();
+  });
+
   it("pedido do gancho: ferramenta, prazo e Permitir com o id", async () => {
     const respondido = vi.fn();
     render(<CartaoDePermissao busy={false} onResponder={vi.fn()} pedido={pedido({ arriscado: "apaga arquivos em massa" })} conversaId="conv 1" onRespondido={respondido} />);

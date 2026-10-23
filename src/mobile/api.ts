@@ -1,5 +1,8 @@
 import type { TemaPublicado } from "./tema";
 
+/** Fork (perguntas na Conversa): uma opção do diálogo de permissão, com o texto da própria CLI. */
+export interface OpcaoDaPermissao { numero: number; rotulo: string; papel: "permitir" | "negar" | "outra" }
+
 export interface Conversation {
   id: string; title: string; project_id: string; provider: string | null; profile_id: string | null; state: string | null;
   /** Modo de permissão lido do rodapé do CLI: `plan`, `auto`, `acceptEdits` ou `null` (não visível). */
@@ -16,6 +19,8 @@ export interface Conversation {
     pedido?: PedidoDoGancho | null;
     /** Fork (pergunta-da-cli): a CLI parada esperando algo no terminal que não virou menu nem pedido. */
     espera?: EsperaNoTerminal | null;
+    /** Fork (perguntas na Conversa): todas as opções do diálogo de permissão; `outra` vira botão a mais. */
+    approval_options?: OpcaoDaPermissao[];
   } | null;
   /** Há uma sessão aberta no PC ligada a esta conversa (dá para ver o terminal e mandar teclas). */
   live?: boolean;

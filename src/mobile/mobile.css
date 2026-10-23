@@ -65,6 +65,9 @@
 .m-rotulo { font-size: .6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: rgb(var(--c-text-secondary)); margin-top: .25rem; }
 .m-acoes { display: flex; flex-wrap: wrap; gap: .625rem; margin-top: .5rem; }
 .m-acoes-centro { justify-content: center; }
+/* Fork (perguntas na Conversa): as outras opções da CLI têm o texto dela, às vezes longo. */
+.m-acoes-outras { margin-top: .375rem; gap: .375rem; }
+.m-acoes-outras > button { white-space: normal; text-align: left; height: auto; min-height: 1.75rem; max-width: 100%; }
 .m-vazio { text-align: center; padding: 2rem 1rem; font-size: .8125rem; color: rgb(var(--c-text-muted)); }
 .m-dica { font-size: .75rem; color: rgb(var(--c-text-muted)); }
 .m-aviso { font-size: .75rem; color: rgb(var(--c-warning)); border-left: 3px solid rgb(var(--c-warning)); padding-left: .625rem; }

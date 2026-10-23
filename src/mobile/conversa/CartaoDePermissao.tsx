@@ -5,15 +5,18 @@ import { useState } from "react";
 import { PedidoDoCodex } from "../../features/agentes/PedidoDoCodex"; // Fork: 3A.
 import { Button } from "../../components/ui/Button";
 import { WarningIcon } from "../../components/ui/PixelIcon";
-import { ApiError, type PedidoDoGancho } from "../api";
+import { ApiError, type OpcaoDaPermissao, type PedidoDoGancho } from "../api";
 import { formatarRestante, responderPedido, soltarPedido, useSegundosRestantes } from "./pedidoDoGancho";
 
 /** O agente pediu permissão: o texto da tela e os dois botões, como no terminal. */
-export function CartaoDePermissao({ texto, busy, onResponder, pedido, conversaId, onRespondido }: {
+export function CartaoDePermissao({ texto, busy, onResponder, pedido, conversaId, onRespondido, opcoes, onOpcao }: {
   /** O que a CLI está pedindo (`capabilities.approval_text`). */
   texto?: string | null;
   busy: boolean;
   onResponder: (permitir: boolean) => void;
+  /** Fork (perguntas na Conversa): as opções do diálogo; as que não são Permitir/Negar viram botões a mais. */
+  opcoes?: OpcaoDaPermissao[];
+  onOpcao?: (numero: number) => void;
   /** Pedido segurado pelo gancho (`capabilities.pedido`): responde direto, sem tecla na tela. */
   pedido?: PedidoDoGancho | null;
   conversaId?: string;
@@ -31,6 +34,12 @@ export function CartaoDePermissao({ texto, busy, onResponder, pedido, conversaId
       <Button variant="primary" disabled={busy} onClick={() => onResponder(true)}>Permitir</Button>
       <Button variant="danger" disabled={busy} onClick={() => onResponder(false)}>Negar</Button>
     </div>
+    {/* Fork (perguntas na Conversa): "permitir nesta sessão", "sempre permitir este comando"… como no terminal. */}
+    {onOpcao && opcoes?.some((o) => o.papel === "outra") && <div className="m-acoes m-acoes-outras" role="group" aria-label="Outras opções da CLI">
+      {opcoes.filter((o) => o.papel === "outra").map((o) => (
+        <Button key={o.numero} size="sm" variant="ghost" disabled={busy} title={o.rotulo} onClick={() => onOpcao(o.numero)}>{o.rotulo}</Button>
+      ))}
+    </div>}
   </div>;
 }
 
