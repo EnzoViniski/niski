@@ -112,6 +112,11 @@ struct Estado {
     /// Fork (harness, A5/A7): turnos que começaram e terminaram **por evento** nesta PTY.
     turnos_iniciados: u64,
     turnos_terminados: u64,
+    /// Fork (harness, A6): compactações vistas (`PostCompact`) e a última, com o gatilho.
+    compactacoes: u64,
+    ultima_compactacao: Option<(String, u64)>,
+    /// Último erro do `StopFailure` (`rate_limit`, `overloaded`…), com a hora. Só o código.
+    ultimo_erro: Option<(String, u64)>,
 }
 
 #[derive(Default)]
@@ -424,6 +429,33 @@ pub(crate) fn turnos_por_evento(terminal: &str) -> Option<(u64, u64)> {
     Some((e.turnos_iniciados, e.turnos_terminados))
 }
 
+/// Fork (harness, A6): o que os eventos sabem desta PTY, só metadados (nomes, números, horas). `None`
+/// sem estado (sessão sem ganchos nem notify).
+pub(crate) fn estado_do_harness(terminal: &str) -> Option<Value> {
+    let sessoes = RUNTIME.sessoes.lock().ok()?;
+    let e = sessoes.get(terminal)?;
+    let medicao = e.medicao.as_ref();
+    let janela = |j: Option<&regra::Janela>| j.map(|j| json!({"pct": j.pct, "reinicia_em_s": j.reset_s}));
+    Some(json!({
+        "canal": if e.codex { "notify" } else if e.injetado { "ganchos" } else { "nenhum" },
+        "confirmado": e.confirmado,
+        "desligado": e.desligado,
+        "em_turno": e.confirmado && !e.interrompido && e.em_turno,
+        "ferramenta": e.ferramenta_atual.as_deref().filter(|_| e.em_turno),
+        "subagentes": e.subagentes.values().cloned().collect::<Vec<_>>(),
+        "pedido_pendente": !e.pedidos.is_empty(),
+        "modo_de_permissao": e.modo_de_permissao,
+        "esforco": e.esforco,
+        "turnos": {"iniciados": e.turnos_iniciados, "terminados": e.turnos_terminados},
+        "compactacoes": e.compactacoes,
+        "ultima_compactacao": e.ultima_compactacao.as_ref().map(|(g, em)| json!({"gatilho": g, "em_ms": em})),
+        "ultimo_erro": e.ultimo_erro.as_ref().map(|(c, em)| json!({"codigo": c, "em_ms": em})),
+        "ultimo_evento": e.ultimo_evento.as_ref().map(|(nome, em)| json!({"nome": nome, "em_ms": em})),
+        "contexto": medicao.map(|m| json!({"pct": m.contexto_pct, "tamanho": m.contexto_tamanho, "modelo": m.modelo})),
+        "limites": medicao.map(|m| json!({"cinco_horas": janela(m.cinco_horas.as_ref()), "sete_dias": janela(m.sete_dias.as_ref())})),
+    }))
+}
+
 /// Contadores da PTY para o resumo da sessão (A7): (eventos recebidos, turnos por evento, confirmado).
 pub(crate) fn contadores(terminal: &str) -> Option<(usize, u64, bool)> {
     let sessoes = RUNTIME.sessoes.lock().ok()?;
@@ -519,7 +551,16 @@ fn aplicar(state: &EngineState, terminal: &str, evento: &regra::Evento) {
             }
             "PreToolUse" => { e.ferramenta_atual = evento.resumo.clone(); Efeito::Nada }
             "PreCompact" if evento.gatilho.as_deref() == Some("manual") => { e.em_turno = true; Efeito::Nada }
-            "PostCompact" if evento.gatilho.as_deref() == Some("manual") => { e.em_turno = false; e.fim_do_turno_ms = Some(agora); Efeito::Nada }
+            "PostCompact" if evento.gatilho.as_deref() == Some("manual") => {
+                e.compactacoes += 1; e.ultima_compactacao = Some(("manual".into(), agora));
+                e.em_turno = false; e.fim_do_turno_ms = Some(agora); Efeito::Nada
+            }
+            // Fork (harness, A6): compactação automática (ou sem gatilho) só conta.
+            "PostCompact" => {
+                e.compactacoes += 1;
+                e.ultima_compactacao = Some((evento.gatilho.clone().unwrap_or_else(|| "auto".into()), agora));
+                Efeito::Nada
+            }
             "SubagentStart" => {
                 if let Some(id) = &evento.agent_id { e.subagentes.insert(id.clone(), evento.agent_type.clone().unwrap_or_default()); }
                 Efeito::Nada
@@ -529,7 +570,10 @@ fn aplicar(state: &EngineState, terminal: &str, evento: &regra::Evento) {
                 let estava = e.em_turno;
                 if evento.nome != "SessionEnd" || estava { e.turnos_terminados += 1; }
                 e.em_turno = false; e.fim_do_turno_ms = Some(agora); e.ferramenta_atual = None; e.subagentes.clear();
-                if evento.nome == "StopFailure" { e.aviso = Some(regra::aviso_da_falha(evento.erro.as_deref())); }
+                if evento.nome == "StopFailure" {
+                    e.aviso = Some(regra::aviso_da_falha(evento.erro.as_deref()));
+                    e.ultimo_erro = Some((regra::cortar(evento.erro.as_deref().unwrap_or("unknown"), 40), agora));
+                }
                 if evento.nome == "SessionEnd" && !estava { Efeito::Nada } else { Efeito::Terminou(e.aviso) }
             }
             _ => Efeito::Nada,

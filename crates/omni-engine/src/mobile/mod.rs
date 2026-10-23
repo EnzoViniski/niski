@@ -74,6 +74,7 @@ mod codex_rotas; // Fork: Codex app-server, opção por agente.
 mod trocar_agente;
 mod telegram; // Fork: Bot API; avisos no engine mesmo com a janela fechada.
 mod resumo_rota; // Fork (desempenho): só o resumo da conversa, para a faixa da aba de agente.
+mod harness_rota; // Fork (harness, A6): estado do agente pelos eventos, com a fonte de cada parte.
 pub(crate) use celular::{check, settings, totp};
 pub(crate) use catalogo::{publish};
 pub(crate) use contas::{comando_do_agente};
@@ -266,6 +267,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .merge(sobre_mim_rotas::rotas()) // Fork (Sobre mim).
         .merge(roadmaps_rotas::rotas()) // Fork (Roadmaps).
         .merge(resumo_rota::rotas()) // Fork (desempenho).
+        .merge(harness_rota::rotas()) // Fork (harness, A6).
 }
 
 fn router(state: Arc<EngineState>) -> Router {

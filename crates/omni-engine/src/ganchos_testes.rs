@@ -225,6 +225,18 @@ async fn turno_pelos_ganchos_aviso_uma_vez_e_troca_de_transcript() {
     assert_eq!(tipo(&terminal), Some("limite"));
     assert_eq!(sessao.meta.lock().unwrap().attention_seq, antes + 2);
 
+    // Fork (harness, A6): o estado do harness conta turnos, compactações e o último erro, sem texto.
+    c.chamar(c.pedido("/ganchos", Some(&token), evento("PostCompact", json!({"trigger": "auto", "compact_summary": "resumo secreto"})))).await;
+    let harness = estado_do_harness(&terminal).unwrap();
+    assert_eq!((harness["canal"].as_str(), harness["confirmado"].as_bool()), (Some("ganchos"), Some(true)));
+    assert_eq!(harness["turnos"], json!({"iniciados": 2, "terminados": 3}), "{harness}");
+    assert_eq!(harness["compactacoes"], 1);
+    assert_eq!(harness["ultima_compactacao"]["gatilho"], "auto");
+    assert_eq!(harness["ultimo_erro"]["codigo"], "rate_limit");
+    assert_eq!(harness["modo_de_permissao"], "plan");
+    let texto = harness.to_string();
+    assert!(!texto.contains("secreto") && !texto.contains("npm test") && !texto.contains("não guardamos"), "{texto}");
+
     // Outra sessão da CLI (`/clear`): o segmento da conversa passa a apontar para ela.
     let indice = omni_core::conversations::read_index(c.dir.path());
     assert_eq!(indice[0].segments[0].external_session_id.as_deref(), Some("sess-1"));
