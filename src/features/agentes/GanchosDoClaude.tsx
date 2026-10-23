@@ -9,7 +9,8 @@ import { AgentIcon } from "../../components/ui/AgentIcon";
  * usuário continuam valendo; com `disableAllHooks` nas configurações dele, o app não liga nada.
  */
 interface ContaDosGanchos { id: string; nome: string; statusline: boolean }
-interface AjustesDosGanchos { ligado: boolean; espera_s: number; esperas: number[]; contas: ContaDosGanchos[] }
+/** Fork (harness, A1): `eventos` (padrão ligado) só observa; `ligado` = segurar o pedido de permissão pelo app. */
+interface AjustesDosGanchos { eventos?: boolean; ligado: boolean; espera_s: number; esperas: number[]; contas: ContaDosGanchos[] }
 
 const ROTA = "/ganchos/ajustes";
 
@@ -42,19 +43,24 @@ export function GanchosDoClaude() {
         <AgentIcon provider="claude" size={14} />Claude Code: eventos e permissões pelo app
       </h3>
       <p className="mt-1 text-[11px] text-text-secondary">
-        O app recebe os eventos da sessão (início e fim do turno, pedido de permissão) direto do Claude Code, em vez de só ler o
+        O app recebe os eventos da sessão (início e fim do turno, erro, limite de uso) direto do Claude Code, em vez de só ler o
         terminal. Vale para as conversas que abrirem ou reiniciarem depois. Sem eventos (versão antiga, pasta ainda sem confiança),
-        tudo segue pela tela como antes.
+        tudo segue pela tela como antes. Responder permissões pelo app é opcional: desligado, o pedido aparece como sempre.
       </p>
       <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs">
-        <input type="checkbox" checked={ajustes?.ligado ?? true} disabled={!ajustes} onChange={(e) => void gravar({ ligado: e.target.checked })} />
+        <input type="checkbox" checked={ajustes?.eventos ?? true} disabled={!ajustes} onChange={(e) => void gravar({ eventos: e.target.checked })} />
         <span className="font-semibold text-text-primary">Receber eventos do Claude Code</span>
+      </label>
+      <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs">
+        <input type="checkbox" checked={ajustes?.ligado ?? false} disabled={!ajustes || ajustes.eventos === false}
+          onChange={(e) => void gravar({ ligado: e.target.checked })} />
+        <span className="text-text-primary">Responder pedidos de permissão pelo app</span>
       </label>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs" role="radiogroup" aria-label="Quanto esperar sua resposta">
         <span className="text-text-secondary">Esperar sua resposta a um pedido por</span>
         {(ajustes?.esperas ?? [120, 300, 600]).map((segundos) => (
           <label key={segundos} className="flex cursor-pointer items-center gap-1">
-            <input type="radio" name="ganchos-espera" checked={ajustes?.espera_s === segundos} disabled={!ajustes?.ligado}
+            <input type="radio" name="ganchos-espera" checked={ajustes?.espera_s === segundos} disabled={!ajustes?.ligado || ajustes.eventos === false}
               onChange={() => void gravar({ espera_s: segundos })} />
             {segundos / 60} min
           </label>

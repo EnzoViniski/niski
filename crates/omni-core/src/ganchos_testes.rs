@@ -7,7 +7,7 @@ fn sem_usuario() -> ConfigDoUsuario { ConfigDoUsuario::default() }
 
 #[test]
 fn settings_tem_os_eventos_os_prazos_e_nenhum_token() {
-    let settings = montar_settings(47_425, 300, &sem_usuario(), None);
+    let settings = montar_settings(47_425, Some(300), &sem_usuario(), None);
     let hooks = settings["hooks"].as_object().unwrap();
     for evento in EVENTOS_OBSERVADOS {
         let gancho = &hooks[evento][0]["hooks"][0];
@@ -33,14 +33,24 @@ fn settings_tem_os_eventos_os_prazos_e_nenhum_token() {
     assert!(!texto.contains("engine.token"));
 }
 
+/// Fork (harness, A1): só observar (padrão) = sem `PermissionRequest`; a CLI mostra o diálogo dela.
+#[test]
+fn so_eventos_nao_segura_permissao() {
+    let settings = montar_settings(47_425, None, &sem_usuario(), None);
+    let hooks = settings["hooks"].as_object().unwrap();
+    assert!(hooks.get("PermissionRequest").is_none());
+    assert!(EVENTOS_OBSERVADOS.iter().all(|e| hooks.contains_key(*e)));
+    assert!(!settings.to_string().contains("/ganchos/permissao"));
+}
+
 #[test]
 fn allowlist_so_entra_quando_alguem_ja_definiu() {
     let config = ConfigDoUsuario { limita_urls: true, ..sem_usuario() };
-    let settings = montar_settings(47_445, 120, &config, None);
+    let settings = montar_settings(47_445, Some(120), &config, None);
     assert_eq!(settings["allowedHttpHookUrls"], json!(["http://127.0.0.1:47445/*"]));
     assert!(settings.get("httpHookAllowedEnvVars").is_none());
     let config = ConfigDoUsuario { limita_variaveis: true, ..sem_usuario() };
-    let settings = montar_settings(47_445, 120, &config, None);
+    let settings = montar_settings(47_445, Some(120), &config, None);
     assert_eq!(settings["httpHookAllowedEnvVars"], json!(["MEDZA_GANCHO_TOKEN"]));
     assert!(settings.get("allowedHttpHookUrls").is_none());
 }
@@ -49,7 +59,7 @@ fn allowlist_so_entra_quando_alguem_ja_definiu() {
 fn statusline_copia_a_aparencia_do_usuario() {
     let config = ConfigDoUsuario { statusline: Some(json!({"type": "command", "command": "~/linha.sh", "padding": 2,
         "refreshInterval": 5, "hideVimModeIndicator": true, "outra": 1})), ..sem_usuario() };
-    let settings = montar_settings(1, 300, &config, Some("'/x/omni-shim' --medza-statusline 1"));
+    let settings = montar_settings(1, Some(300), &config, Some("'/x/omni-shim' --medza-statusline 1"));
     assert_eq!(settings["statusLine"], json!({"type": "command", "command": "'/x/omni-shim' --medza-statusline 1",
         "padding": 2, "refreshInterval": 5, "hideVimModeIndicator": true}));
     assert_eq!(statusline_do_usuario(&config).as_deref(), Some("~/linha.sh"));
@@ -111,14 +121,27 @@ fn configuracoes_do_usuario_leem_so_as_chaves_que_importam() {
 fn ajustes_tem_padrao_ligado_e_prazo_valido() {
     let dir = tempfile::tempdir().unwrap();
     let padrao = ler_ajustes(dir.path());
-    assert!(!padrao.ligado && padrao.statusline.is_empty());
+    assert!(padrao.eventos && !padrao.ligado && padrao.statusline.is_empty(), "eventos ligados, permissão pelo app desligada");
     assert_eq!(padrao.espera(), 300);
-    gravar_ajustes(dir.path(), &Ajustes { ligado: false, espera_s: 600, statusline: vec!["claude-p".into()] }).unwrap();
+    gravar_ajustes(dir.path(), &Ajustes { eventos: false, ligado: false, espera_s: 600, statusline: vec!["claude-p".into()] }).unwrap();
     let lido = ler_ajustes(dir.path());
-    assert!(!lido.ligado && lido.espera() == 600 && lido.statusline == ["claude-p"]);
+    assert!(!lido.eventos && !lido.ligado && lido.espera() == 600 && lido.statusline == ["claude-p"]);
     assert_eq!(Ajustes { espera_s: 7, ..Ajustes::default() }.espera(), 300);
     std::fs::write(dir.path().join(ARQUIVO_DE_AJUSTES), r#"{"espera_s":120}"#).unwrap();
     assert!(!ler_ajustes(dir.path()).ligado, "campo ausente = desligado");
+}
+
+/// Fork (harness, A1): o `ganchos.json` gravado pelas versões anteriores continua abrindo. Quem tinha
+/// tudo desligado (o padrão antigo) passa a receber só os eventos; quem tinha ligado segue igual.
+#[test]
+fn ajustes_antigos_migram_sem_perder_nada() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join(ARQUIVO_DE_AJUSTES), r#"{"ligado":false,"espera_s":600,"statusline":["claude-p"]}"#).unwrap();
+    let antigo = ler_ajustes(dir.path());
+    assert!(antigo.eventos && !antigo.ligado && antigo.espera() == 600 && antigo.statusline == ["claude-p"]);
+    std::fs::write(dir.path().join(ARQUIVO_DE_AJUSTES), r#"{"ligado":true,"espera_s":120,"statusline":[]}"#).unwrap();
+    let ligado = ler_ajustes(dir.path());
+    assert!(ligado.eventos && ligado.ligado && ligado.espera() == 120);
 }
 
 #[test]

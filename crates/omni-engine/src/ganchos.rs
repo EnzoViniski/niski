@@ -203,7 +203,8 @@ pub(crate) fn preparar(state: &EngineState, terminal: &str, origem: &SessionOrig
         (Some(comando), Vec::new())
     };
     let ajustes = regra::ler_ajustes(&dir);
-    if !ajustes.ligado { return desligar("configuracao", comando); }
+    // Fork (harness, A1): o que desliga tudo é `eventos`; `ligado` só decide se o pedido de permissão é segurado.
+    if !ajustes.eventos { return desligar("configuracao", comando); }
     let pasta_da_conta = origem.env.iter().find(|(k, _)| k == "CLAUDE_CONFIG_DIR").map(|(_, v)| PathBuf::from(v))
         .or_else(|| env::var_os("HOME").or_else(|| env::var_os("USERPROFILE")).map(|h| PathBuf::from(h).join(".claude")))
         .unwrap_or_default();
@@ -218,7 +219,7 @@ pub(crate) fn preparar(state: &EngineState, terminal: &str, origem: &SessionOrig
         .and_then(|_| caminho_do_shim()).and_then(|shim| regra::comando_da_statusline(&shim.to_string_lossy(), porta));
     let arquivo = dir.join(regra::PASTA_DOS_ARQUIVOS).join(format!("{terminal}.json"));
     let Some(digitado) = regra::com_settings(&comando, &arquivo) else { return desligar("caminho", comando) };
-    let settings = regra::montar_settings(porta, ajustes.espera(), &config, statusline.as_deref());
+    let settings = regra::montar_settings(porta, ajustes.ligado.then(|| ajustes.espera()), &config, statusline.as_deref());
     if let Err(erro) = gravar_privado(&arquivo, &settings) {
         registro::aviso("ganchos_arquivo_falhou", &[("terminal", terminal), ("erro", &erro.to_string())]);
         esquecer(terminal);
@@ -231,7 +232,8 @@ pub(crate) fn preparar(state: &EngineState, terminal: &str, origem: &SessionOrig
         if let Some(dele) = regra::statusline_do_usuario(&config) { ambiente.push((regra::VARIAVEL_DA_STATUSLINE_DO_USUARIO.to_owned(), dele)); }
     }
     novo_estado(terminal, Estado { injetado: true, statusline: statusline.is_some(), arquivo: Some(arquivo), chave, perfil, ..Estado::default() });
-    registro::info("ganchos_injetados", &[("terminal", terminal), ("statusline", if statusline.is_some() { "sim" } else { "nao" })]);
+    registro::info("ganchos_injetados", &[("terminal", terminal), ("statusline", if statusline.is_some() { "sim" } else { "nao" }),
+        ("permissoes", if ajustes.ligado { "sim" } else { "nao" })]);
     (Some(digitado), ambiente)
 }
 

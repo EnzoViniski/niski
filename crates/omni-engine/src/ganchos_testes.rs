@@ -385,8 +385,20 @@ async fn desligado_pelas_configuracoes_ou_pelo_usuario_nao_injeta() {
     assert!(comando.as_deref().unwrap().contains(" --settings '") && ambiente.iter().any(|(k, _)| k == regra::VARIAVEL_DO_TOKEN));
     assert!(ambiente.iter().all(|(k, _)| k != regra::VARIAVEL_DA_STATUSLINE_DO_USUARIO), "statusline só com a conta ligada");
 
-    // Configurações → desligado.
-    let (status, _) = c.api("POST", "/ganchos/ajustes", Some(json!({"ligado": false}))).await;
+    let arquivo = c.dir.path().join(regra::PASTA_DOS_ARQUIVOS).join(format!("{terminal}.json"));
+    assert!(fs::read_to_string(&arquivo).unwrap().contains("PermissionRequest"), "permissões ligadas na cena");
+
+    // Fork (harness, A1): permissões pelo app desligadas = só observar; a CLI mostra o diálogo dela.
+    let (status, ajustes) = c.api("POST", "/ganchos/ajustes", Some(json!({"ligado": false}))).await;
+    assert_eq!(status, 200);
+    assert_eq!((ajustes["eventos"].as_bool(), ajustes["ligado"].as_bool()), (Some(true), Some(false)));
+    let (comando, ambiente) = preparar(&c.state, &terminal, &c.origem(), &cwd, Some("claude --resume x".into()));
+    assert!(comando.as_deref().unwrap().contains(" --settings '") && ambiente.iter().any(|(k, _)| k == regra::VARIAVEL_DO_TOKEN));
+    let settings = fs::read_to_string(&arquivo).unwrap();
+    assert!(!settings.contains("PermissionRequest") && settings.contains("UserPromptSubmit") && settings.contains("StopFailure"));
+
+    // Configurações → eventos desligados: nada de ganchos.
+    let (status, _) = c.api("POST", "/ganchos/ajustes", Some(json!({"eventos": false}))).await;
     assert_eq!(status, 200);
     let (comando, ambiente) = preparar(&c.state, &terminal, &c.origem(), &cwd, Some("claude --resume x".into()));
     assert_eq!(comando.as_deref(), Some("claude --resume x"));
@@ -395,7 +407,7 @@ async fn desligado_pelas_configuracoes_ou_pelo_usuario_nao_injeta() {
     assert!(RUNTIME.tokens.lock().unwrap().values().all(|t| t != &terminal), "o token velho morre");
 
     // `disableAllHooks` do usuário: respeitado (nunca sobrescrevemos com false).
-    c.api("POST", "/ganchos/ajustes", Some(json!({"ligado": true}))).await;
+    c.api("POST", "/ganchos/ajustes", Some(json!({"eventos": true}))).await;
     fs::write(c.conta.join("settings.json"), r#"{"disableAllHooks": true}"#).unwrap();
     let (comando, _) = preparar(&c.state, &terminal, &c.origem(), &cwd, Some("claude".into()));
     assert_eq!(comando.as_deref(), Some("claude"));
@@ -508,5 +520,29 @@ async fn troca_de_sessao_da_cli_atualiza_meta_e_comando_de_reinicio() {
     fs::write(&transcript, "{}\n").unwrap();
     let reinicio = comando_ao_reiniciar(&meta).unwrap();
     assert!(reinicio.contains("--resume sess-2") && !reinicio.contains("--session-id"), "{reinicio}");
+    c.fechar(&terminal);
+}
+
+/// Fork (harness, A1): com os ajustes padrão (sem `ganchos.json`), a sessão ganha só os ganchos de
+/// observação. Pasta ainda sem confiança (a CLI suspende os hooks) = nenhum evento: tudo segue pela tela,
+/// exatamente como antes, e o diálogo de permissão é o da CLI.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn padrao_so_observa_e_pasta_sem_confianca_segue_pela_tela() {
+    let c = cena(0);
+    fs::remove_file(c.dir.path().join(regra::ARQUIVO_DE_AJUSTES)).unwrap();
+    servidor(&c.state).await;
+    let (terminal, sessao) = c.abrir(&sem_ganchos(&c));
+    let arquivo = c.dir.path().join(regra::PASTA_DOS_ARQUIVOS).join(format!("{terminal}.json"));
+    let settings = fs::read_to_string(&arquivo).expect("padrão injeta os eventos");
+    assert!(settings.contains("UserPromptSubmit") && !settings.contains("PermissionRequest"));
+    assert!(ate(15, || sessao.interaction.lock().unwrap().parser.screen().contents().contains('❯')).await);
+    let antes = sessao.meta.lock().unwrap().attention_seq;
+    write_terminal(&c.state, &terminal, "oi\r").unwrap();
+    assert!(ate(5, || sessao.interaction.lock().unwrap().turn_active).await, "a tela viu o turno");
+    assert_eq!(em_turno(&terminal), None, "sem evento, a tela manda");
+    assert!(ate(15, || { settle(&sessao); sessao.meta.lock().unwrap().attention_seq > antes }).await, "fim do turno pela tela");
+    assert_eq!(sessao.meta.lock().unwrap().state, SessionState::Answered);
+    assert!(pedido(&terminal).is_none());
     c.fechar(&terminal);
 }

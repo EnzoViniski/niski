@@ -40,6 +40,7 @@ pub const LIMITE_DO_CORPO: usize = 1024 * 1024;
 pub const STATUS_DA_ESPERA: &str = "Aguardando sua resposta no Niski…";
 
 /// Eventos que só observam (sem `PostToolUse`: o `tool_response` do Read/Write traz o arquivo inteiro).
+/// `SessionStart` fica de fora: só aceita `command` e `mcp_tool` (doc de hooks, conferida em 23/10/2026).
 pub const EVENTOS_OBSERVADOS: [&str; 15] = [
     "UserPromptSubmit", "PreToolUse", "PostToolUseFailure", "Notification", "Stop", "StopFailure",
     "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted", "PreCompact", "PostCompact",
@@ -56,9 +57,15 @@ pub fn url_da_permissao(porta: u16) -> String { format!("http://127.0.0.1:{porta
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Ajustes {
-    /// Desligado: nenhuma sessão nova ganha ganchos; tudo segue pela tela.
-    /// Fork: desligado por padrão até a rodada com a CLI real confirmar o diálogo de permissão com
-    /// o gancho pendente (desenho-ondas-2-3.md, seção 6). Ligar em Configurações → Agentes.
+    /// Fork (harness, A1): ganchos **só de observação** (início/fim de turno, aviso, erro, limite). Ligado
+    /// por padrão: não decidem nada (2xx vazio = sem decisão; falha e prazo não bloqueiam, doc de hooks).
+    /// Arquivo antigo, sem o campo, vira ligado. Desligado: nenhuma sessão nova ganha ganchos.
+    #[serde(default = "verdadeiro")]
+    pub eventos: bool,
+    /// Segurar o pedido de permissão (`PermissionRequest`) para responder pelo app/celular/orquestrador.
+    /// Fork: desligado por padrão até a rodada com a CLI real confirmar o diálogo de permissão com o
+    /// gancho pendente (desenho-ondas-2-3.md, seção 6). Sem ele, a CLI mostra o diálogo dela, como antes.
+    /// O nome continua `ligado` para o arquivo antigo (`{"ligado": true}`) seguir valendo igual.
     #[serde(default)]
     pub ligado: bool,
     #[serde(default = "espera_padrao")]
@@ -68,8 +75,9 @@ pub struct Ajustes {
     pub statusline: Vec<String>,
 }
 fn espera_padrao() -> u64 { ESPERA_PADRAO_S }
+fn verdadeiro() -> bool { true }
 impl Default for Ajustes {
-    fn default() -> Self { Self { ligado: false, espera_s: ESPERA_PADRAO_S, statusline: Vec::new() } }
+    fn default() -> Self { Self { eventos: true, ligado: false, espera_s: ESPERA_PADRAO_S, statusline: Vec::new() } }
 }
 impl Ajustes {
     /// Prazo válido (um dos três da tela); qualquer outro vira o padrão.
@@ -171,7 +179,9 @@ pub fn comando_da_statusline(shim: &str, porta: u16) -> Option<String> {
 }
 
 /// O JSON do `--settings` da sessão. Sem token: só URL e o **nome** da variável.
-pub fn montar_settings(porta: u16, espera_s: u64, config: &ConfigDoUsuario, statusline: Option<&str>) -> Value {
+/// `espera_s`: `Some` só com "responder permissões pelo app" ligado; `None` = sem `PermissionRequest`
+/// (a CLI mostra o diálogo dela, como sem ganchos).
+pub fn montar_settings(porta: u16, espera_s: Option<u64>, config: &ConfigDoUsuario, statusline: Option<&str>) -> Value {
     let gancho = |url: String, timeout: u64| json!({
         "type": "http", "url": url, "timeout": timeout,
         "headers": {"Authorization": format!("Bearer ${{{VARIAVEL_DO_TOKEN}}}")},
@@ -184,9 +194,11 @@ pub fn montar_settings(porta: u16, espera_s: u64, config: &ConfigDoUsuario, stat
         if matches!(evento, "PreToolUse" | "PostToolUseFailure") { grupo["matcher"] = json!("*"); }
         hooks.insert(evento.to_owned(), json!([grupo]));
     }
-    let mut permissao = gancho(url_da_permissao(porta), espera_s + 10);
-    permissao["statusMessage"] = json!(STATUS_DA_ESPERA);
-    hooks.insert("PermissionRequest".into(), json!([{"matcher": "*", "hooks": [permissao]}]));
+    if let Some(espera_s) = espera_s {
+        let mut permissao = gancho(url_da_permissao(porta), espera_s + 10);
+        permissao["statusMessage"] = json!(STATUS_DA_ESPERA);
+        hooks.insert("PermissionRequest".into(), json!([{"matcher": "*", "hooks": [permissao]}]));
+    }
     let mut settings = json!({"hooks": hooks});
     if config.limita_urls { settings["allowedHttpHookUrls"] = json!([format!("http://127.0.0.1:{porta}/*")]); }
     if config.limita_variaveis { settings["httpHookAllowedEnvVars"] = json!([VARIAVEL_DO_TOKEN]); }
