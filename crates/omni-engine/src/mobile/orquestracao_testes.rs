@@ -10,6 +10,9 @@ mod jarvis_testes;
 // Fork (Copiloto abre conversa na tela): o copiloto cria conversas fora do projeto especial dele.
 #[path = "orquestracao_copiloto_testes.rs"]
 mod copiloto_testes;
+// Fork (Rotina): o agente da rotina, com as mesmas fixtures e a CLI falsa.
+#[path = "orquestracao_rotina_testes.rs"]
+mod rotina_testes;
 
 const PORTA: u16 = 47_999;
 

@@ -33,6 +33,9 @@ pub(crate) mod jarvis;
 // Fork (Copiloto abre conversa na tela): projeto do subagente, `na_tela` e `listar_projetos`.
 #[path = "orquestracao_copiloto.rs"]
 mod copiloto;
+// Fork (Rotina): o agente da rotina — conversa do projeto `rotina` com as ferramentas da rotina e de tarefas.
+#[path = "orquestracao_rotina.rs"]
+pub(crate) mod rotina;
 
 /// Estado em memória. Nada daqui vai para disco.
 #[derive(Default)]
@@ -222,24 +225,35 @@ async fn do_copiloto(state: &Arc<EngineState>, orquestrador: &str) -> bool {
     tokio::task::spawn_blocking(move || copiloto::e_do_copiloto(&state, &orquestrador)).await.unwrap_or(false)
 }
 
+/// Fork (Rotina): lê o índice fora do runtime assíncrono.
+async fn da_rotina(state: &Arc<EngineState>, orquestrador: &str) -> bool {
+    if orquestrador == jarvis::DONO { return false; }
+    let (state, orquestrador) = (state.clone(), orquestrador.to_owned());
+    tokio::task::spawn_blocking(move || rotina::e_da_rotina(&state, &orquestrador)).await.unwrap_or(false)
+}
+
 async fn responder(state: &Arc<EngineState>, orquestrador: &str, mensagem: Value) -> Option<Value> {
     let metodo = mensagem["method"].as_str().unwrap_or("").to_owned();
     let id = mensagem.get("id").cloned()?; // notificação: nada a responder
+    // Fork (Rotina): a conversa da rotina só enxerga as ferramentas da rotina e de tarefas.
+    let e_rotina = matches!(metodo.as_str(), "initialize" | "tools/list" | "tools/call") && da_rotina(state, orquestrador).await;
     let resultado = match metodo.as_str() {
         "initialize" => {
             let pedida = mensagem["params"]["protocolVersion"].as_str().unwrap_or("");
             let versao = VERSOES.iter().find(|v| **v == pedida).copied().unwrap_or(VERSOES[1]);
             Ok(json!({"protocolVersion": versao, "capabilities": {"tools": {"listChanged": false}},
-                "serverInfo": {"name": "medza-agents", "version": env!("CARGO_PKG_VERSION")}, "instructions": INSTRUCOES}))
+                "serverInfo": {"name": "medza-agents", "version": env!("CARGO_PKG_VERSION")},
+                "instructions": if e_rotina { rotina::INSTRUCOES } else { INSTRUCOES }}))
         }
         "ping" => Ok(json!({})),
         // Fork (Copiloto abre conversa na tela): o copiloto ganha `listar_projetos` e `na_tela`.
-        "tools/list" => Ok(json!({"tools": if orquestrador == jarvis::DONO { jarvis::lista() }
+        "tools/list" => Ok(json!({"tools": if e_rotina { rotina::lista() } else if orquestrador == jarvis::DONO { jarvis::lista() }
             else if do_copiloto(state, orquestrador).await { copiloto::lista() } else { ferramentas::lista() }})),
         "tools/call" => {
             let nome = mensagem["params"]["name"].as_str().unwrap_or("").to_owned();
             let argumentos = mensagem["params"]["arguments"].clone();
-            let saida = if orquestrador == jarvis::DONO { jarvis::chamar(state, &nome, &argumentos).await }
+            let saida = if e_rotina { rotina::chamar(state, &nome, &argumentos).await }
+                else if orquestrador == jarvis::DONO { jarvis::chamar(state, &nome, &argumentos).await }
                 else if do_copiloto(state, orquestrador).await { copiloto::chamar(state, orquestrador, &nome, &argumentos).await }
                 else { ferramentas::chamar(state, orquestrador, &nome, &argumentos).await };
             registro::info("orquestracao_ferramenta", &[("orquestrador", orquestrador), ("ferramenta", &nome),
@@ -347,6 +361,7 @@ pub(super) fn rotas() -> Router<Arc<EngineState>> {
         .route("/orquestracao/{id}", get(fluxo))
         .route("/orquestracao/{id}/ativar", post(ativar))
         .route("/orquestracao/{id}/agentes/{agente}/parar", post(parar_pela_tela))
+        .merge(rotina::rotas()) // Fork (Rotina): abrir a conversa do agente da rotina.
 }
 
 /// Resumo leve para a lateral e a faixa: quem é orquestradora e quantos subagentes tem.
