@@ -7,10 +7,12 @@ import { AgentIcon } from "../../components/ui/AgentIcon";
  * sessões; a config global do agy não muda). O que ele ainda perguntar aparece na conversa, com
  * Permitir/Negar, como no Claude e no Codex.
  */
-type Modo = "auto" | "accept-edits" | "padrao";
+type Modo = "sem-perguntar" | "auto" | "accept-edits" | "padrao";
 
 const OPCOES: { valor: Modo; nome: string; desc: string }[] = [
-  { valor: "accept-edits", nome: "Arquivos sem perguntar (recomendado)", desc: "Cria e edita arquivos sem perguntar. Comandos pedem aprovação na conversa." },
+  // Fork: padrão do app desde 23/10/2026 (pedido do Enzo), `--dangerously-skip-permissions` do agy 1.4.6+.
+  { valor: "sem-perguntar", nome: "Sem perguntar (recomendado)", desc: "Cria, edita e roda comandos sem pedir aprovação, inclusive os que apagam ou publicam. Use em pastas em que você confia." },
+  { valor: "accept-edits", nome: "Arquivos sem perguntar", desc: "Cria e edita arquivos sem perguntar. Comandos pedem aprovação na conversa." },
   { valor: "auto", nome: "Automático", desc: "Também roda comandos seguros sem perguntar; pergunta antes do que não dá para desfazer. Depende da sua conta do Antigravity: sem ele, o app usa \"arquivos sem perguntar\"." },
   { valor: "padrao", nome: "Perguntar tudo", desc: "O padrão do Antigravity: pede aprovação para criar, editar e rodar." },
 ];
@@ -18,6 +20,7 @@ const OPCOES: { valor: Modo; nome: string; desc: string }[] = [
 export function PermissoesDoAntigravity() {
   const [modo, setModo] = useState<Modo | null>(null);
   const [autoDisponivel, setAutoDisponivel] = useState(true);
+  const [semPerguntarDisponivel, setSemPerguntarDisponivel] = useState(true);
   const [efetivo, setEfetivo] = useState<Modo | null>(null);
   const [liberados, setLiberados] = useState(0);
   const [comuns, setComuns] = useState<string[]>([]);
@@ -25,10 +28,11 @@ export function PermissoesDoAntigravity() {
 
   useEffect(() => {
     let vivo = true;
-    request<{ modo: Modo; efetivo: Modo; auto_disponivel: boolean; comandos_liberados?: number; comandos_comuns?: string[] }>("/antigravity/permissoes")
+    request<{ modo: Modo; efetivo: Modo; auto_disponivel: boolean; sem_perguntar_disponivel?: boolean; comandos_liberados?: number; comandos_comuns?: string[] }>("/antigravity/permissoes")
       .then((dados) => {
         if (!vivo) return;
         setModo(dados.modo); setEfetivo(dados.efetivo); setAutoDisponivel(dados.auto_disponivel);
+        setSemPerguntarDisponivel(dados.sem_perguntar_disponivel ?? true);
         setLiberados(dados.comandos_liberados ?? 0); setComuns(dados.comandos_comuns ?? []);
       })
       .catch(() => { if (vivo) setErro("Engine antigo: reinicie o app para escolher."); });
@@ -81,7 +85,12 @@ export function PermissoesDoAntigravity() {
       </div>
       {modo === "auto" && efetivo !== "auto" && !autoDisponivel && (
         <p className="mt-2 text-[11px] text-warning">
-          Sua conta do Antigravity ainda não liberou o Automático: as conversas abrem com "arquivos sem perguntar". Escolha Automático de novo para tentar outra vez.
+          Sua conta do Antigravity ainda não liberou o Automático: as conversas abrem com "{efetivo === "sem-perguntar" ? "sem perguntar" : "arquivos sem perguntar"}". Escolha Automático de novo para tentar outra vez.
+        </p>
+      )}
+      {modo === "sem-perguntar" && !semPerguntarDisponivel && (
+        <p className="mt-2 text-[11px] text-warning">
+          Este Antigravity é anterior à opção de não perguntar: atualize o agy (agy update). Até lá, as conversas abrem com "arquivos sem perguntar".
         </p>
       )}
       <div className="mt-4 border-t border-border-subtle pt-3">

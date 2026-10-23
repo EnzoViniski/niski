@@ -17,18 +17,36 @@ use std::{path::{Path, PathBuf}, sync::Arc};
 const ARQUIVO: &str = "antigravity.json";
 
 /// Modo com que o app abre o `agy`. `Padrao` = não passa `--mode` (o `request-review` do agy, que pede
-/// tudo). Padrão do app: aceitar edições (o Auto depende da conta e não existe no Windows).
+/// tudo). `SemPerguntar` = `--dangerously-skip-permissions` (agy 1.4.6+: aprova toda ferramenta).
+/// Padrão do app: sem perguntar — decisão do Enzo (23/10/2026: "funcionar sem ter que ficar fazendo um
+/// trilhão de perguntas"). Agy sem a opção cai em aceitar edições (`modo_efetivo`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Modo { Auto, AceitarEdicoes, Padrao }
+pub(crate) enum Modo { Auto, AceitarEdicoes, Padrao, SemPerguntar }
 
 impl Modo {
     fn de(texto: &str) -> Option<Self> {
-        match texto { "auto" => Some(Self::Auto), "accept-edits" => Some(Self::AceitarEdicoes), "padrao" => Some(Self::Padrao), _ => None }
+        match texto { "auto" => Some(Self::Auto), "accept-edits" => Some(Self::AceitarEdicoes), "padrao" => Some(Self::Padrao),
+            "sem-perguntar" => Some(Self::SemPerguntar), _ => None }
     }
     fn nome(self) -> &'static str {
-        match self { Self::Auto => "auto", Self::AceitarEdicoes => "accept-edits", Self::Padrao => "padrao" }
+        match self { Self::Auto => "auto", Self::AceitarEdicoes => "accept-edits", Self::Padrao => "padrao", Self::SemPerguntar => "sem-perguntar" }
     }
-    fn do_app() -> Self { Self::AceitarEdicoes }
+    fn do_app() -> Self { Self::SemPerguntar }
+}
+
+/// Opção oficial do agy que aprova toda ferramenta sem perguntar (`agy --help`, 1.4.6).
+const SEM_PERGUNTAR: &str = "--dangerously-skip-permissions";
+
+/// O `agy` instalado tem a opção (o `--help` dela). Lido uma vez por engine; sem agy, `false`.
+pub(crate) fn suporta_sem_perguntar() -> bool {
+    static SUPORTA: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *SUPORTA.get_or_init(|| {
+        omni_core::cli_path::ampliar_path();
+        let mut comando = std::process::Command::new("agy");
+        comando.arg("--help").stdin(std::process::Stdio::null());
+        #[cfg(windows)] { use std::os::windows::process::CommandExt; comando.creation_flags(0x08000000); }
+        comando.output().is_ok_and(|s| [&s.stdout, &s.stderr].iter().any(|b| String::from_utf8_lossy(b).contains(SEM_PERGUNTAR)))
+    })
 }
 
 fn salvo(dir: &Path) -> Value {
@@ -43,9 +61,17 @@ pub(crate) fn modo(dir: &Path) -> Modo {
 /// A conta já mostrou que não tem o Auto (ver `vigiar_auto`).
 fn auto_indisponivel(dir: &Path) -> bool { cfg!(windows) || salvo(dir)["auto_indisponivel"] == true }
 
-/// O que vai na linha: Auto sem Auto na conta vira aceitar edições.
-pub(crate) fn modo_efetivo(dir: &Path) -> Modo {
-    match modo(dir) { Modo::Auto if auto_indisponivel(dir) => Modo::AceitarEdicoes, outro => outro }
+/// O que vai na linha. Auto sem Auto na conta vira sem perguntar (quem escolheu Auto não queria perguntas;
+/// decisão do Enzo, 23/10/2026); sem perguntar num agy sem a opção vira aceitar edições.
+pub(crate) fn modo_efetivo(dir: &Path) -> Modo { modo_efetivo_com(dir, suporta_sem_perguntar()) }
+
+pub(crate) fn modo_efetivo_com(dir: &Path, suporta: bool) -> Modo {
+    match modo(dir) {
+        Modo::Auto if auto_indisponivel(dir) && suporta => Modo::SemPerguntar,
+        Modo::Auto if auto_indisponivel(dir) => Modo::AceitarEdicoes,
+        Modo::SemPerguntar if !suporta => Modo::AceitarEdicoes,
+        outro => outro,
+    }
 }
 
 /// Texto do log do agy quando a conta não tem o Auto.
@@ -81,12 +107,12 @@ pub(crate) fn com_modo(comando: &str, modo: Modo) -> String {
     // Tira um `--mode <x>` (ou `--mode=<x>`) que já esteja na linha, sem mexer no resto.
     while let Some(token) = tokens.next() {
         if token == "--mode" { tokens.next(); continue; }
-        if token.starts_with("--mode=") { continue; }
+        if token.starts_with("--mode=") || token == SEM_PERGUNTAR { continue; }
         partes.push(token);
     }
     sem_modo.push_str(&partes.join(" "));
     let sem_modo = sem_modo.trim();
-    let opcao = match modo { Modo::Padrao => String::new(), outro => format!(" --mode {}", outro.nome()) };
+    let opcao = match modo { Modo::Padrao => String::new(), Modo::SemPerguntar => format!(" {SEM_PERGUNTAR}"), outro => format!(" --mode {}", outro.nome()) };
     // Depois do `--log-file "…"` (que o app põe logo após o binário), antes do resto.
     let (log, resto) = match sem_modo.strip_prefix("--log-file \"").and_then(|r| r.find('"').map(|i| i + "--log-file \"".len() + 1)) {
         Some(fim) => (format!(" {}", &sem_modo[..fim]), sem_modo[fim..].trim()),
@@ -245,6 +271,7 @@ fn pasta(state: &crate::EngineState) -> &Path { state.state_file.parent().unwrap
 async fn ler(State(state): State<Arc<crate::EngineState>>) -> Json<Value> {
     let dir = pasta(&state);
     Json(json!({"modo": modo(dir).nome(), "efetivo": modo_efetivo(dir).nome(), "auto_disponivel": !auto_indisponivel(dir),
+        "sem_perguntar_disponivel": suporta_sem_perguntar(), // Fork: agy 1.4.6+.
         "comandos_liberados": comandos_liberados(dir), "comandos_comuns": COMANDOS_COMUNS}))
 }
 
@@ -258,7 +285,7 @@ async fn gravar(State(state): State<Arc<crate::EngineState>>, Json(corpo): Json<
         return Ok(Json(json!({"comandos_liberados": comandos_liberados(&dir)})));
     }
     let pedido = corpo["modo"].as_str().and_then(Modo::de)
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, Json(json!({"error": "Modo deve ser auto, accept-edits ou padrao"}))))?;
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, Json(json!({"error": "Modo deve ser sem-perguntar, auto, accept-edits ou padrao"}))))?;
     if pedido == Modo::Auto && cfg!(windows) {
         return Err((StatusCode::BAD_REQUEST, Json(json!({"error": "O modo Auto do Antigravity ainda não existe no Windows"}))));
     }
@@ -314,12 +341,19 @@ esc to cancel                                        Gemini 4 Argon · medium\n"
         assert_eq!(com_modo("agy --log-file \"/a b/c.log\"", Modo::Auto), "agy --log-file \"/a b/c.log\" --mode auto");
         assert_eq!(com_modo("agy --mode auto --model g", Modo::Padrao), "agy --model g");
         assert_eq!(com_modo("agy --mode=plan -i \"oi\"", Modo::Auto), "agy --mode auto -i \"oi\"");
+        assert_eq!(com_modo("agy --log-file \"/a b/c.log\" --mode auto --conversation x", Modo::SemPerguntar),
+            "agy --log-file \"/a b/c.log\" --dangerously-skip-permissions --conversation x");
+        assert_eq!(com_modo("agy --dangerously-skip-permissions --model g", Modo::AceitarEdicoes), "agy --mode accept-edits --model g");
         let dir = tempfile::tempdir().unwrap();
-        assert_eq!(modo(dir.path()), Modo::AceitarEdicoes, "padrão do app: aceitar edições");
+        assert_eq!(modo(dir.path()), Modo::SemPerguntar, "padrão do app: sem perguntar (decisão do Enzo)");
+        assert_eq!(modo_efetivo_com(dir.path(), false), Modo::AceitarEdicoes, "agy sem a opção");
         fs::write(dir.path().join(ARQUIVO), r#"{"modo":"padrao"}"#).unwrap();
         assert_eq!(modo(dir.path()), Modo::Padrao);
         fs::write(dir.path().join(ARQUIVO), r#"{"modo":"auto","auto_indisponivel":true}"#).unwrap();
-        assert_eq!((modo(dir.path()), modo_efetivo(dir.path())), (Modo::Auto, Modo::AceitarEdicoes), "conta sem Auto");
+        assert_eq!((modo(dir.path()), modo_efetivo_com(dir.path(), true)), (Modo::Auto, Modo::SemPerguntar), "conta sem Auto");
+        assert_eq!(modo_efetivo_com(dir.path(), false), Modo::AceitarEdicoes, "conta sem Auto e agy antigo");
+        fs::write(dir.path().join(ARQUIVO), r#"{"modo":"accept-edits"}"#).unwrap();
+        assert_eq!(modo_efetivo_com(dir.path(), true), Modo::AceitarEdicoes, "escolha explícita fica");
     }
 
     #[test]
@@ -380,8 +414,8 @@ esc to cancel                                        Gemini 4 Argon · medium\n"
 I1019 manager.go:1498] auto mode is unavailable, falling back to default\n").unwrap();
         vigiar_auto(dir.path().to_path_buf(), log);
         let limite = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while modo_efetivo(dir.path()) != Modo::AceitarEdicoes && std::time::Instant::now() < limite { std::thread::sleep(std::time::Duration::from_millis(100)); }
-        assert_eq!(modo_efetivo(dir.path()), Modo::AceitarEdicoes);
+        while modo_efetivo_com(dir.path(), false) != Modo::AceitarEdicoes && std::time::Instant::now() < limite { std::thread::sleep(std::time::Duration::from_millis(100)); }
+        assert_eq!(modo_efetivo_com(dir.path(), false), Modo::AceitarEdicoes);
         assert_eq!(modo(dir.path()), Modo::Auto, "a escolha do usuário fica");
     }
 

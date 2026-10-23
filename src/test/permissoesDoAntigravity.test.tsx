@@ -43,6 +43,15 @@ describe("permissões do Antigravity", () => {
     expect(screen.getByRole("radio", { name: /Automático/ })).toBeChecked();
   });
 
+  // Fork (23/10/2026): pedido do Enzo, o Antigravity sem um trilhão de perguntas.
+  it("Sem perguntar é a primeira opção e avisa quando o agy é antigo", async () => {
+    estado = { modo: "sem-perguntar", efetivo: "accept-edits", auto_disponivel: false, sem_perguntar_disponivel: false };
+    render(<PermissoesDoAntigravity />);
+    await waitFor(() => expect(screen.getByRole("radio", { name: /^Sem perguntar/ })).toBeChecked());
+    expect(screen.getAllByRole("radio")[0]).toHaveAccessibleName(/^Sem perguntar \(recomendado\)/);
+    expect(screen.getByText(/atualize o agy/)).toBeInTheDocument();
+  });
+
   it("libera e desfaz os comandos de pouco risco no Antigravity", async () => {
     render(<PermissoesDoAntigravity />);
     await userEvent.click(await screen.findByRole("button", { name: "Liberar comandos comuns" }));
