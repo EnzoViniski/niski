@@ -68,7 +68,7 @@ async fn chat_do_codex_inicia_manda_e_troca_modelo() {
         let revisao = interaction::capabilities(&viva(&state, &id)).revision;
         mobile::local(state, "POST", &rota, Some(corpo.to_string()), None,
             vec![("idempotency-key".into(), format!("t-{}", now_ms())), ("if-match".into(), revisao)]).await } };
-    let EngineResponse::Api { status, body } = post("/conversas/c-codex/prompt".into(), json!({"texto": "responda só: ok"})).await else { panic!() };
+    let EngineResponse::Api { status, body, .. } = post("/conversas/c-codex/prompt".into(), json!({"texto": "responda só: ok"})).await else { panic!() };
     println!("prompt: {status} {body}");
     let turnos = viva(&state, &id).interaction.lock().unwrap().turnos_iniciados;
     let mut comecou = false;
@@ -94,7 +94,7 @@ async fn chat_do_codex_inicia_manda_e_troca_modelo() {
     let opcoes: Value = serde_json::from_str(&body).unwrap();
     println!("opções: modelo={:?} esforço={:?} modelos={:?}", opcoes["model"], opcoes["effort"],
         opcoes["models"].as_array().map(|m| m.iter().filter_map(|x| x["id"].as_str()).collect::<Vec<_>>()));
-    let EngineResponse::Api { status, body } = post("/conversas/c-codex/ajustes".into(), json!({"profile_id": null, "model": "gpt-5.6-luna", "effort": "low"})).await else { panic!() };
+    let EngineResponse::Api { status, body, .. } = post("/conversas/c-codex/ajustes".into(), json!({"profile_id": null, "model": "gpt-5.6-luna", "effort": "low"})).await else { panic!() };
     println!("ajustes: {status} {body}");
     let inicio = std::time::Instant::now();
     let mut ultimo_motivo = String::new();

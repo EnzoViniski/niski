@@ -145,7 +145,7 @@ async fn rotas_so_no_desktop_e_configuracao_nao_expoe_token() {
     let c = config();
     state.mobile.telegram.dados.lock().unwrap().config = c.clone();
     let r = local(state.clone(), "GET", "/telegram", None, None, vec![]).await;
-    let EngineResponse::Api { status, body } = r else {
+    let EngineResponse::Api { status, body, .. } = r else {
         panic!()
     };
     assert_eq!(status, 200);

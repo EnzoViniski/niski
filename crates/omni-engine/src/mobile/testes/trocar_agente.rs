@@ -18,7 +18,7 @@ fn publicar(state: &EngineState, projeto: &Path) {
 }
 
 async fn chamar(state: &Arc<EngineState>, metodo: &str, caminho: &str, corpo: Option<Value>) -> (u16, Value) {
-    let EngineResponse::Api { status, body } = local(state.clone(), metodo, caminho, corpo.map(|c| c.to_string()), None, Vec::new()).await
+    let EngineResponse::Api { status, body, .. } = local(state.clone(), metodo, caminho, corpo.map(|c| c.to_string()), None, Vec::new()).await
         else { panic!("não é Api") };
     (status, serde_json::from_str(&body).unwrap_or(Value::Null))
 }

@@ -227,8 +227,10 @@ const etags = new Map<string, string>();
  * `304`, volta `null` e quem chamou mantém o que já tem na tela — sem parsear, sem re-renderizar.
  * A lista e a conversa aberta são consultadas a cada poucos segundos e, quase sempre, nada mudou.
  */
-export async function requestSeMudou<T>(path: string, init?: RequestInit): Promise<T | null> {
-  const anterior = etags.get(path);
+// Fork (desempenho): `chave` separa o ETag de quem lê o mesmo endereço (duas telas da mesma conversa):
+// com um só por endereço, a que lesse depois recebia 304 e ficava com a versão velha.
+export async function requestSeMudou<T>(path: string, init?: RequestInit, chave = path): Promise<T | null> {
+  const anterior = etags.get(chave);
   const response = await transporte(path, {
     ...init,
     cache: "no-store",
@@ -244,7 +246,7 @@ export async function requestSeMudou<T>(path: string, init?: RequestInit): Promi
   }
   const result = await response.json();
   const etag = response.headers.get("etag");
-  if (etag) etags.set(path, etag); else etags.delete(path);
+  if (etag) etags.set(chave, etag); else etags.delete(chave);
   return result as T;
 }
 

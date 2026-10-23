@@ -73,6 +73,7 @@ mod codex_rotas; // Fork: Codex app-server, opção por agente.
 // Fork (trocar agente): "Continuar com…" outro agente na mesma conversa (passagem de bastão).
 mod trocar_agente;
 mod telegram; // Fork: Bot API; avisos no engine mesmo com a janela fechada.
+mod resumo_rota; // Fork (desempenho): só o resumo da conversa, para a faixa da aba de agente.
 pub(crate) use celular::{check, settings, totp};
 pub(crate) use catalogo::{publish};
 pub(crate) use contas::{comando_do_agente};
@@ -264,6 +265,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .merge(memoria_rotas::rotas())
         .merge(sobre_mim_rotas::rotas()) // Fork (Sobre mim).
         .merge(roadmaps_rotas::rotas()) // Fork (Roadmaps).
+        .merge(resumo_rota::rotas()) // Fork (desempenho).
 }
 
 fn router(state: Arc<EngineState>) -> Router {
@@ -276,7 +278,10 @@ fn router(state: Arc<EngineState>) -> Router {
 /// mostrou o token do engine, que vale mais que o de dispositivo: é o próprio desktop.
 pub async fn local(state: Arc<EngineState>, method: &str, path: &str, body: Option<String>, body_base64: Option<String>,
     headers: Vec<(String, String)>) -> EngineResponse {
-    let app = rotas().layer(DefaultBodyLimit::max(32 * 1024)).with_state(state);
+    // Fork (desempenho): o roteador (~80 rotas) era montado de novo a cada pedido do desktop
+    // (vários por segundo com conversas abertas). Monta uma vez; clonar é barato (Arc por dentro).
+    static ROTAS_DO_DESKTOP: std::sync::OnceLock<Router<Arc<EngineState>>> = std::sync::OnceLock::new();
+    let app = ROTAS_DO_DESKTOP.get_or_init(|| rotas().layer(DefaultBodyLimit::max(32 * 1024))).clone().with_state(state);
     let corpo = match body_base64 {
         Some(codificado) => match base64_decode(&codificado) {
             Some(bytes) => axum::body::Body::from(bytes),
@@ -296,8 +301,10 @@ pub async fn local(state: Arc<EngineState>, method: &str, path: &str, body: Opti
     };
     let response = match tower::ServiceExt::oneshot(app, request).await { Ok(response) => response, Err(never) => match never {} };
     let status = response.status().as_u16();
+    // Fork (desempenho): o `ETag` atravessa o IPC; com ele o desktop manda `If-None-Match` e recebe `304`.
+    let etag = response.headers().get("etag").and_then(|v| v.to_str().ok()).map(str::to_owned);
     let bytes = axum::body::to_bytes(response.into_body(), 4 * 1024 * 1024).await.unwrap_or_default();
-    EngineResponse::Api { status, body: String::from_utf8_lossy(&bytes).into_owned() }
+    EngineResponse::Api { status, body: String::from_utf8_lossy(&bytes).into_owned(), etag }
 }
 
 /// Base64 padrão (com ou sem `=`). Uma função evita uma dependência para um uso só: o anexo

@@ -70,7 +70,8 @@ type EngineResponse =
       /** Fork (energia): impressão do estado, para o long-poll. Ausente = engine sem espera. */
       estado?: string;
     }
-  | { type: "api"; status: number; body: string }
+  // Fork (desempenho): `etag` atravessa o IPC (engine novo); sem ele a conversa nunca via 304.
+  | { type: "api"; status: number; body: string; etag?: string }
   | { type: "ok" }
   | { type: "error"; code: string; message: string };
 

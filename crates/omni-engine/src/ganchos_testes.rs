@@ -61,7 +61,7 @@ impl Cena {
     }
 
     async fn api(&self, metodo: &str, rota: &str, corpo: Option<Value>) -> (u16, Value) {
-        let EngineResponse::Api { status, body } = mobile::local(self.state.clone(), metodo, rota, corpo.map(|c| c.to_string()), None,
+        let EngineResponse::Api { status, body, .. } = mobile::local(self.state.clone(), metodo, rota, corpo.map(|c| c.to_string()), None,
             vec![("idempotency-key".into(), uuid::Uuid::new_v4().to_string())]).await else { panic!("resposta da API") };
         (status, serde_json::from_str(&body).unwrap_or(Value::Null))
     }

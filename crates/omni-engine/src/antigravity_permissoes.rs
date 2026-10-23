@@ -541,7 +541,7 @@ I1019 manager.go:1498] auto mode is unavailable, falling back to default\n").unw
             let revisao = crate::interaction::capabilities(&match state.sessions.lock().unwrap().get(&id) { Some(SessionEntry::Live(s)) => s.clone(), _ => panic!() }).revision;
             mobile::local(state, "POST", &rota, Some(corpo.to_string()), None,
                 vec![("idempotency-key".into(), format!("t-{}", now_ms())), ("if-match".into(), revisao)]).await } };
-        let EngineResponse::Api { status, body } = post("/conversas/c-agy/prompt", json!({"texto": "responda só: ok"})).await else { panic!() };
+        let EngineResponse::Api { status, body, .. } = post("/conversas/c-agy/prompt", json!({"texto": "responda só: ok"})).await else { panic!() };
         println!("prompt: {status} {body}");
         let turnos = viva().interaction.lock().unwrap().turnos_iniciados;
         let mut comecou = false;
@@ -558,7 +558,7 @@ I1019 manager.go:1498] auto mode is unavailable, falling back to default\n").unw
         let atual = opcoes["model"].as_str().unwrap_or("").to_owned();
         let outro = opcoes["models"].as_array().unwrap().iter().filter_map(|m| m["id"].as_str()).find(|m| *m != atual).unwrap().to_owned();
         println!("modelo atual {atual:?} → {outro:?}");
-        let EngineResponse::Api { status, body } = post("/conversas/c-agy/ajustes", json!({"profile_id": null, "model": outro, "effort": "low"})).await else { panic!() };
+        let EngineResponse::Api { status, body, .. } = post("/conversas/c-agy/ajustes", json!({"profile_id": null, "model": outro, "effort": "low"})).await else { panic!() };
         println!("ajustes: {status} {body}");
         espera(4).await;
         assert!(pronta(40).await, "não reabriu: {}", tela());

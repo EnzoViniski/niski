@@ -19,7 +19,7 @@ pub fn abrir() -> Result<Acesso, String> {
         headers: Vec::new(),
     })?;
     match resposta {
-        EngineResponse::Api{status:200,body}=>{
+        EngineResponse::Api{status:200,body,..}=>{
             let v:Value=serde_json::from_str(&body).map_err(|_|"O engine devolveu uma resposta inválida ao Jarvis")?;
             Ok(Acesso{url:v["url"].as_str().ok_or("Sem endereço das ferramentas")?.into(),token:v["token"].as_str().ok_or("Sem permissão para as ferramentas")?.into()})
         }

@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn memoria_persiste_rele_desativa_e_rejeita_texto_invalido_pela_api_local() {
     let (dir, state) = fixture();
-    let EngineResponse::Api { status, body } = local(state.clone(), "GET", "/memoria", None, None, vec![]).await else { panic!() };
+    let EngineResponse::Api { status, body, .. } = local(state.clone(), "GET", "/memoria", None, None, vec![]).await else { panic!() };
     assert_eq!(status, 200);
     assert_eq!(serde_json::from_str::<Value>(&body).unwrap(), json!({"ativa":false,"texto":""}));
     for ativa in [true, false] {

@@ -94,12 +94,17 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const url = base;
 
   /** Lê a timeline. Página nova (ou componente recém-montado) vem inteira; depois só se mudou. */
+  // Fork (desempenho): ETag desta tela (não do endereço): a mesma conversa aberta em dois lugares
+  // não rouba a novidade uma da outra. Com o ETag atravessando o IPC, parado volta 304 e nada redesenha.
+  const instancia = useRef(Math.random().toString(36).slice(2));
+  const chaveDaVersao = `${url}#${instancia.current}`;
+  useEffect(() => () => esquecerVersao(chaveDaVersao), [chaveDaVersao]);
   const ler = useCallback(async () => {
-    if (urlCarregada.current !== url) esquecerVersao(url);
-    const resultado = await requestSeMudou<Timeline>(url);
+    if (urlCarregada.current !== url) esquecerVersao(chaveDaVersao);
+    const resultado = await requestSeMudou<Timeline>(url, undefined, chaveDaVersao);
     urlCarregada.current = url;
     if (resultado) setData(resultado);
-  }, [url]);
+  }, [url, chaveDaVersao]);
 
   usePoll(async () => { await ler(); setError(null); }, reason => setError(String(reason)), [ler],
     ativo ? POLL_ATIVO_MS : POLL_PARADO_MS);
