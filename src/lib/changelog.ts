@@ -16,6 +16,19 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.29.0",
+    date: "2026-10-23",
+    changes: [
+      "Conversa com o Codex: a mensagem que você manda volta a aparecer na conversa, mesmo com outro Codex trabalhando na mesma pasta ou depois de reabrir o Codex na mesma aba.",
+      "Escolha o modo do Codex no campo da conversa: Perguntar, Sem perguntar, Acesso total ou Somente leitura. O Codex reabre na mesma conversa, já no modo escolhido.",
+      "Quando o agente pede permissão, o cartão mostra todas as opções que ele oferece (como \"permitir nesta sessão\" ou \"sempre permitir este comando\"), e não só Permitir e Negar.",
+      "Perguntas do Codex chegam certas à conversa: pedidos de acesso à internet e de ferramentas agora são respondidos por ali, com a pergunta e as opções como aparecem no terminal.",
+      "Antigravity sem um monte de perguntas: o padrão agora é \"Sem perguntar\", e ele cria, edita e roda comandos sozinho. Dá para escolher outro modo em Configurações → Agentes.",
+      "Links no terminal abrem numa aba de navegador do app: um clique nos links e ⌘ + clique nos endereços escritos na tela.",
+      "A página de navegador que ficava na tela depois de fechar a aba (o quadrado branco) agora some sozinha.",
+    ],
+  },
+  {
     version: "0.28.0",
     date: "2026-10-23",
     changes: [
