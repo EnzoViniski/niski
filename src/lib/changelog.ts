@@ -16,6 +16,16 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.30.0",
+    date: "2026-10-23",
+    changes: [
+      "O vídeo que o agente cria (no HyperFrames, por exemplo) aparece na conversa com um player, no computador e no celular. No celular ele toca sem baixar inteiro, e dá para salvar ou compartilhar.",
+      "O vídeo aparece mesmo quando o agente não diz onde salvou: o app acha o arquivo que o comando de criar o vídeo gerou.",
+      "Tarefas no celular: as mesmas tarefas do computador, para ver, criar, concluir e editar.",
+      "Rotina no celular: o dia, a semana, o treino e a alimentação, e os botões para planejar a semana e conversar com o agente da rotina.",
+    ],
+  },
+  {
     version: "0.29.0",
     date: "2026-10-23",
     changes: [
