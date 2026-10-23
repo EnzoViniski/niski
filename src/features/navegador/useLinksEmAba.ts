@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { WorkspaceAction, WorkspaceState, LayoutNode } from "../../types/workspace";
 import { tituloDoLink } from "../workspace/abrirLink";
 import { rotuloDoNavegador } from "./NavegadorPane";
+import { EVENTO_ABRIR_LINK, rotulosDesenhados, rotulosPresos, type PedidoDeLink } from "./registroDoNavegador";
 
 /**
  * Fork: links do app abrem numa aba de navegador do layout (`ABRIR_LINK`), nunca na janela.
@@ -43,6 +44,12 @@ export function useLinksEmAba(workspaces: WorkspaceState[], dispatch: (action: W
     };
     document.addEventListener("click", clique, true);
     document.addEventListener("auxclick", clique, true);
+    // Fork: link que não é `<a>` do DOM (o terminal, `linksDoTerminal.ts`).
+    const pedido = (evento: Event) => {
+      const { url, paneId } = (evento as CustomEvent<PedidoDeLink>).detail ?? {};
+      if (url && /^https?:\/\//i.test(url)) abrir(url, paneId);
+    };
+    window.addEventListener(EVENTO_ABRIR_LINK, pedido);
 
     let parar: (() => void) | undefined;
     let vivo = true;
@@ -54,9 +61,25 @@ export function useLinksEmAba(workspaces: WorkspaceState[], dispatch: (action: W
       vivo = false;
       document.removeEventListener("click", clique, true);
       document.removeEventListener("auxclick", clique, true);
+      window.removeEventListener(EVENTO_ABRIR_LINK, pedido);
       parar?.();
     };
   }, [dispatch]);
+
+  // Fork: conferência periódica — página de navegador sem aba fecha, a de aba fora da tela some. Pega o que
+  // escapar do fechar abaixo e do esconder do `NavegadorPane` (o quadrado branco que não saía).
+  const abasRef = useRef<string[]>([]);
+  abasRef.current = workspaces.flatMap((w) => w.projects.flatMap((p) => abasWeb(p.layout))).map(rotuloDoNavegador);
+  useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    const conferir = () => {
+      const montados = rotulosDesenhados();
+      const vivos = [...new Set([...abasRef.current, ...montados, ...rotulosPresos()])];
+      void import("@tauri-apps/api/core").then(({ invoke }) => invoke("navegador_conferir", { vivos, montados })).catch(() => undefined);
+    };
+    const timer = window.setInterval(conferir, 1500);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Aba de navegador fechada (em qualquer workspace/projeto): o webview nativo vai junto.
   const vivas = useRef(new Set<string>());

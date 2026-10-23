@@ -140,6 +140,27 @@ pub fn navegador_fechar<R: Runtime>(app: tauri::AppHandle<R>, rotulo: String) ->
     Ok(())
 }
 
+/// Fork: rede de segurança contra página de navegador sobrando na tela. O Enzo (23/10/2026) abriu um link
+/// do Hyperframes, fechou a aba e ficou um quadrado branco por cima do app que não saía. A interface manda
+/// as abas de navegador que existem (`vivos`) e as que estão desenhadas agora (`montados`): webview de aba
+/// que não existe mais é fechado; o de aba que não está na tela, escondido. Devolve quantos mexeu.
+#[tauri::command]
+pub fn navegador_conferir<R: Runtime>(app: tauri::AppHandle<R>, vivos: Vec<String>, montados: Vec<String>) -> Result<usize, String> {
+    let mut mexidos = 0;
+    for (rotulo, webview) in app.webviews() {
+        if !rotulo.starts_with(PREFIXO) { continue; }
+        if !vivos.contains(&rotulo) {
+            let _ = webview.hide();
+            let _ = webview.close();
+            mexidos += 1;
+        } else if !montados.contains(&rotulo) {
+            let _ = webview.hide();
+        }
+    }
+    if mexidos > 0 { omni_core::registro::info("navegador_sobrando_fechado", &[("quantos", &mexidos.to_string())]); }
+    Ok(mexidos)
+}
+
 /// "Abrir no navegador do Mac": só http/https.
 #[tauri::command]
 pub fn navegador_abrir_fora(url: String) -> Result<(), String> {

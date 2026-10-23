@@ -1,5 +1,6 @@
 import "@xterm/xterm/css/xterm.css";
 import { FitAddon } from "@xterm/addon-fit";
+import { linkHandlerDoTerminal, provedorDeUrls } from "../navegador/linksDoTerminal";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../../components/ui";
@@ -268,6 +269,10 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
+    // Fork: links abrem numa aba de navegador do app (`navegador/linksDoTerminal.ts`); o padrão do xterm
+    // (`confirm` + `window.open`) não fazia nada no app.
+    terminal.options.linkHandler = linkHandlerDoTerminal(() => host);
+    terminal.registerLinkProvider(provedorDeUrls(terminal, () => host));
     terminal.open(host);
     fit.fit();
 

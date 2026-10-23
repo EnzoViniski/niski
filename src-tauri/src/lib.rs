@@ -95,6 +95,7 @@ pub fn run() {
             navegador::navegador_acao,
             navegador::navegador_fechar,
             navegador::navegador_abrir_fora,
+            navegador::navegador_conferir, // Fork: some a página de navegador que sobrou sem aba.
             worktree::git_worktree_da_branch,
             worktree_isolada::criar_worktree_isolada,
             worktree_isolada::estado_da_worktree_isolada,

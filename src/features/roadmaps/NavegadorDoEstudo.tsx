@@ -3,6 +3,7 @@
 // do estudo fecha o anterior, e nada fica aberto com a tela fechada.
 import { useEffect } from "react";
 import { NavegadorPane, rotuloDoNavegador } from "../navegador/NavegadorPane";
+import { prenderPagina } from "../navegador/registroDoNavegador";
 import type { WorkspaceTab } from "../../types/workspace";
 
 /** Hash curto e estável do endereço (vira parte do rótulo do webview: só `[a-z0-9]`). */
@@ -23,9 +24,14 @@ export function idDaAbaDoEstudo(roadmapId: string, url: string) {
 export function NavegadorDoEstudo({ roadmapId, url, oculto = false, onTitulo }: { roadmapId: string; url: string; oculto?: boolean; onTitulo?: (t: string) => void }) {
   const tabId = idDaAbaDoEstudo(roadmapId, url);
   // Fecha de verdade ao trocar de fonte ou sair do estudo (o NavegadorPane só esconde).
-  useEffect(() => () => {
-    if (!("__TAURI_INTERNALS__" in window)) return;
-    void import("@tauri-apps/api/core").then(({ invoke }) => invoke("navegador_fechar", { rotulo: rotuloDoNavegador(tabId) })).catch(() => undefined);
+  useEffect(() => {
+    // Fork: a página segue viva com o painel de cima aberto (a conferência do app não a fecha).
+    const soltar = prenderPagina(rotuloDoNavegador(tabId));
+    return () => {
+      soltar();
+      if (!("__TAURI_INTERNALS__" in window)) return;
+      void import("@tauri-apps/api/core").then(({ invoke }) => invoke("navegador_fechar", { rotulo: rotuloDoNavegador(tabId) })).catch(() => undefined);
+    };
   }, [tabId]);
   if (oculto) return <div className="flex h-full items-center justify-center text-xs text-text-muted">A página volta quando você fechar o painel de cima.</div>;
   const tab: WorkspaceTab = { id: tabId, kind: "web", title: url, resourceId: url };

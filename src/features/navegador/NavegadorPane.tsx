@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { GlobeIcon, ReloadIcon } from "../../components/ui/PixelIcon";
 import type { WorkspaceTab } from "../../types/workspace";
 import { TAB_DRAG_EVENT, type TabDragState } from "../workspace/tabPointerDrag";
+import { marcarDesenhada } from "./registroDoNavegador";
 
 /**
  * Fork: aba "Navegador". A página é um webview nativo filho da janela (`src-tauri/src/navegador.rs`),
@@ -34,13 +35,17 @@ export function NavegadorPane({ tab, onTitulo }: { tab: WorkspaceTab; onTitulo?:
 
   useEffect(() => {
     if (!NO_PC) return;
+    // Fork: a conferência do `useLinksEmAba` só deixa à vista a página de quem está montado.
+    const desmarcar = marcarDesenhada(rotulo);
     let vivo = true;
     let aberto = false;
     let arrastando = false;
     let ultimo = "";
     const sincronizar = () => {
       const caixa = area.current?.getBoundingClientRect();
-      const visivel = Boolean(caixa && caixa.width > 4 && caixa.height > 4 && !arrastando && !document.body.classList.contains("lateral-arrastando"));
+      // Fork: área escondida por CSS (`visibility`/`display` de quem está em volta) também tira a página da tela.
+      const aVista = !area.current?.checkVisibility || area.current.checkVisibility({ visibilityProperty: true });
+      const visivel = Boolean(caixa && caixa.width > 4 && caixa.height > 4 && aVista && !arrastando && !document.body.classList.contains("lateral-arrastando"));
       const chave = caixa ? `${visivel}|${Math.round(caixa.left)}|${Math.round(caixa.top)}|${Math.round(caixa.width)}|${Math.round(caixa.height)}` : "oculto";
       if (chave === ultimo || !caixa) return;
       ultimo = chave;
@@ -69,6 +74,7 @@ export function NavegadorPane({ tab, onTitulo }: { tab: WorkspaceTab; onTitulo?:
 
     return () => {
       vivo = false;
+      desmarcar();
       observador.disconnect();
       window.clearInterval(timer);
       window.removeEventListener("resize", sincronizar);
