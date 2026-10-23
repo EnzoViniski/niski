@@ -69,8 +69,12 @@
 
 /* Na aba do PC a conversa rola por dentro: o cartão fica fixo acima dela, na largura de leitura. */
 .w-painel-central .onde-parei { margin-inline: max(1rem, calc((100% - 56rem) / 2)); }
-/* No celular a página inteira rola: o cartão gruda no topo. */
-.m-conteudo .onde-parei { position: sticky; top: 0; z-index: 12; }
+/* No celular a página inteira rola (e abre no fim): o cartão gruda logo abaixo da barra de cima
+   (`.m-topo`: respiro de cima + botão de 44px + respiro de baixo + sombra). */
+.m-conteudo .onde-parei {
+  position: sticky; z-index: 12;
+  top: calc(max(.5rem, env(safe-area-inset-top)) + 44px + .5rem + var(--pixel-shadow, 4px) + .25rem);
+}
 
 .onde-parei-marca {
   display: flex; align-items: center; gap: .5rem; margin: .25rem 0; font-size: .625rem; font-weight: 700;
@@ -110,3 +114,7 @@
 :root[data-variante="vidro"][data-estilo] .onde-parei-reabrir {
   background: rgb(var(--c-bg-surface) / .6); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
+
+/* Claro: verde e âmbar do tema são para fundo e ícone; em texto pequeno, um tom mais escuro (contraste ≥ 4,5:1). */
+:root[data-theme="claro"] .onde-parei-pedaco[data-tom="ok"] { color: rgb(21 128 61); }
+:root[data-theme="claro"] .na-tela-essencial[data-tom="precisa"] { color: rgb(161 98 7); }
