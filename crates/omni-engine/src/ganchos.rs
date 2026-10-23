@@ -618,6 +618,10 @@ fn aplicar(state: &EngineState, terminal: &str, evento: &regra::Evento) {
         }
     }
     if let Some((sid, Some(caminho))) = troca { atualizar_transcript(state, &sessao, terminal, &sid, &caminho); }
+    // Fork (conversa do Codex): o `notify` traz só o thread; o vínculo acha o rollout dele.
+    if evento.transcript_path.is_none() {
+        if let Some(sid) = &evento.session_id { crate::vinculo_do_codex::vincular(state, &sessao, terminal, sid); }
+    }
 }
 
 fn confirmar(state: &EngineState, chave: &str) {

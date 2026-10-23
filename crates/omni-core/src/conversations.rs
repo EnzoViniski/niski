@@ -211,6 +211,8 @@ fn resolve_transcript_nativo(
         if value["type"] != "session_meta" { return false; }
         let meta = &value["payload"];
         if let Some(id) = &segment.external_session_id { return meta["id"].as_str() == Some(id.as_str()); }
+        // Fork: subagente de outra aba na mesma pasta empatava com a sessão nova e nada era associado.
+        if crate::subagente_do_codex::de_subagente(meta) { return false; }
         let same_cwd = meta["cwd"].as_str().is_some_and(|cwd| cwd.replace('\\',"/").eq_ignore_ascii_case(&conversation.cwd.replace('\\',"/")));
         same_cwd && timestamp(&meta["timestamp"]).or_else(|| timestamp(&value["timestamp"]))
             // Fork (troca segura): sessão nova não pode capturar um rollout já aberto no projeto.
@@ -631,6 +633,32 @@ segunda linha"}}),
         assert_eq!(Path::new(conversations[0].segments[0].transcript_path.as_deref().unwrap()), correto.canonicalize().unwrap());
         assert_eq!(display_title(&conversations[0]), "Implementar busca por cliente");
         assert!(!discover_codex_transcripts(&mut conversations, &[]), "ponteiro já conhecido não deve ser redescoberto");
+    }
+
+    /// Fork: subagente de outra aba do Codex, criado na mesma pasta 2 s depois da sessão nova, empatava
+    /// com ela e a Conversa ficava vazia (caso real do Codex 0.164, 23/10/2026).
+    #[test]
+    fn codex_ignora_rollout_de_subagente_na_mesma_pasta() {
+        let dir = tempfile::tempdir().unwrap();
+        let sessions = dir.path().join("sessions").join("2026").join("10").join("23");
+        std::fs::create_dir_all(&sessions).unwrap();
+        let linha = |id: &str, ts: &str, extra: Value| {
+            let mut payload = json!({"id": id, "cwd": "/projeto", "timestamp": ts});
+            payload.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            json!({"type": "session_meta", "payload": payload}).to_string()
+        };
+        std::fs::write(sessions.join("rollout-a.jsonl"), linha("da-aba", "1970-01-01T00:00:10Z",
+            json!({"source": "cli", "thread_source": "user"}))).unwrap();
+        std::fs::write(sessions.join("rollout-b.jsonl"), linha("subagente", "1970-01-01T00:00:12Z",
+            json!({"thread_source": "subagent", "parent_thread_id": "outra-aba", "source": {"subagent": {}}}))).unwrap();
+        let profile = crate::Profile { id:"codex-p".into(),provider:"codex".into(),name:"Codex".into(),
+            config_dir:dir.path().to_string_lossy().into_owned(),builtin:true,created_at_ms:0,last_used_at_ms:None,authenticated:false,email:None };
+        let mut conversations = vec![Conversation { id:"c".into(),project_id:"p".into(),cwd:"/projeto".into(),
+            title:"x".into(),title_source:TitleSource::Auto,created_at_ms:9_000,
+            segments:vec![Segment { provider:"codex".into(),profile_id:Some("codex-p".into()),external_session_id:None,
+                transcript_path:None,terminal_session_id:Some("t".into()),started_at_ms:9_000,ended_at_ms:None }] }];
+        assert!(discover_codex_transcripts(&mut conversations, &[profile]));
+        assert_eq!(conversations[0].segments[0].external_session_id.as_deref(), Some("da-aba"));
     }
 
     /// Renomear trava o automático: o nome escrito à mão não pode ser trocado pelo primeiro prompt

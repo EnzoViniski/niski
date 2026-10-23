@@ -17,6 +17,7 @@ mod encerramento_da_pty; // Fork: solta a CLI/trava da conversa antes de reabrir
 mod conversa_bloqueada; // Fork: permite passar para outro provedor quando a CLI está na tela de trava.
 mod memoria_compartilhada;
 mod notify_codex; // Fork (harness, A2): fim de turno do Codex pelo `notify` oficial.
+mod vinculo_do_codex; // Fork: o thread do `notify` liga a conversa ao rollout certo.
 mod harness_resumo; // Fork (harness, A7): linha de números por sessão no log.
 mod interaction;
 // Fork (pergunta-da-cli): menu genérico da CLI e "esperando algo no terminal".
