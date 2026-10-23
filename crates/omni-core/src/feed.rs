@@ -311,6 +311,16 @@ pub fn arquivo(fontes: &[(PathBuf, String)], n: usize, k: usize, cache: &mut Fee
     Some((nome, tipo.to_owned(), base64::engine::general_purpose::STANDARD.encode(std::fs::read(&caminho).ok()?)))
 }
 
+/// Fork (vídeo na conversa): o caminho do vídeo `k` da mensagem `n`, para o engine servir em pedaços
+/// (sem o limite de tamanho nem o base64 de [`arquivo`]). Só vídeo que existe.
+pub fn video(fontes: &[(PathBuf, String)], n: usize, k: usize, cache: &mut FeedCache) -> Option<(PathBuf, &'static str)> {
+    let (entrada, _) = entrada_numero(fontes, n, cache)?;
+    let caminho = PathBuf::from(entrada.item.arquivos.get(k)?);
+    let tipo = crate::entregaveis::tipo(&caminho).filter(|t| t.starts_with("video/"))?;
+    std::fs::metadata(&caminho).ok().filter(|m| m.is_file())?;
+    Some((caminho, tipo))
+}
+
 fn item(kind: Kind, role: &str, text: String, tool: Option<String>, value: &Value) -> Item {
     Item { kind, role: role.into(), text, tool, timestamp: value["timestamp"].as_str().map(str::to_owned), imagens: 0,
         midia: Vec::new(), arquivos: Vec::new(), extras: Default::default() }

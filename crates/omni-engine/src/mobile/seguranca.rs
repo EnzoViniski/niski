@@ -77,5 +77,8 @@ pub(super) fn caminho_publico(path: &str) -> bool {
     // A casca das duas páginas é pública (só HTML estático); quem protege os dados é a API.
     matches!(path, "/" | "/pc" | "/pc/" | "/pc.html")
         || path.starts_with("/assets/")
+        // Fork (vídeo na conversa): o `<video>` não manda o token; o bilhete aleatório e curto, emitido
+        // pela rota protegida, é que libera aquele arquivo (`video_rota.rs`).
+        || path.starts_with("/video/")
         || ARQUIVOS_PUBLICOS.contains(&path)
 }

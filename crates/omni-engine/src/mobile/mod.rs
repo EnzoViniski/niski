@@ -65,6 +65,8 @@ mod roadmaps_rotas; // Fork (Roadmaps de estudo): os mesmos arquivos do app, par
 // Fork: comandos oficiais e modo de permissão da Conversa (frente 2C).
 mod comandos;
 mod modo_codex; // Fork: aprovação/sandbox do Codex pelo seletor da Conversa.
+mod video_rota; // Fork: vídeo do agente em pedaços, por bilhete.
+mod tarefas_rotas; // Fork: as tarefas do PC no celular.
 mod barra; // Fork: lista e envio do `/` no campo da Conversa.
 mod fila;
 use fila::*;
@@ -276,6 +278,8 @@ fn rotas() -> Router<Arc<EngineState>> {
         .merge(memoria_rotas::rotas())
         .merge(sobre_mim_rotas::rotas()) // Fork (Sobre mim).
         .merge(roadmaps_rotas::rotas()) // Fork (Roadmaps).
+        .merge(video_rota::rotas()) // Fork: vídeo do agente tocando na conversa do celular.
+        .merge(tarefas_rotas::rotas()) // Fork: Tarefas no celular.
         .merge(resumo_rota::rotas()) // Fork (desempenho).
         .merge(harness_rota::rotas()) // Fork (harness, A6).
         .merge(troca_no_limite::rotas()) // Fork (harness, A4).
