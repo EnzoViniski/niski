@@ -441,7 +441,8 @@ pub(crate) fn estado_do_harness(terminal: &str) -> Option<Value> {
         "confirmado": e.confirmado,
         "desligado": e.desligado,
         "em_turno": e.confirmado && !e.interrompido && e.em_turno,
-        "ferramenta": e.ferramenta_atual.as_deref().filter(|_| e.em_turno),
+        // Só o nome da ferramenta ("Bash"), sem o comando ou caminho que o resumo da tela leva.
+        "ferramenta": e.ferramenta_atual.as_deref().filter(|_| e.em_turno).map(|r| r.split(" · ").next().unwrap_or(r).trim()),
         "subagentes": e.subagentes.values().cloned().collect::<Vec<_>>(),
         "pedido_pendente": !e.pedidos.is_empty(),
         "modo_de_permissao": e.modo_de_permissao,

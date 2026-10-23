@@ -133,6 +133,9 @@ pub(crate) fn uma_volta(state: &Arc<EngineState>) -> Vec<(String, Resultado)> {
 fn trocar(state: &Arc<EngineState>, terminal: &str, conversa: &str, provider: &str, perfil: &str, cwd: &str) -> Resultado {
     const DONO: &str = "engine";
     if !reservar(conversa, DONO) { return Resultado::Reservada; }
+    // Com a reserva na mão, confere de novo: entre a lista de candidatas e a reserva, o painel pode ter
+    // trocado (e soltado) a conta desta conversa. Aí a sessão já não está no limite nesta conta.
+    if !ainda_no_limite(state, terminal, perfil) { soltar(conversa, DONO); return Resultado::Reservada; }
     let resultado = (|| {
         // A conta atual conta como falha: a fila escolhe a próxima (cota e teto de sessões valem).
         let escolha = {
@@ -158,6 +161,15 @@ fn trocar(state: &Arc<EngineState>, terminal: &str, conversa: &str, provider: &s
     })();
     soltar(conversa, DONO);
     resultado
+}
+
+fn ainda_no_limite(state: &EngineState, terminal: &str, perfil: &str) -> bool {
+    let sessao = match state.sessions.lock() {
+        Ok(s) => match s.get(terminal) { Some(SessionEntry::Live(v)) => v.clone(), _ => return false },
+        Err(_) => return false,
+    };
+    let Ok(meta) = sessao.meta.lock() else { return false };
+    meta.notice.as_deref() == Some("usage_limit") && meta.pid.is_some() && meta.profile_id.as_deref() == Some(perfil) && !painel_ligado(terminal)
 }
 
 /* ── Rotas do painel ─────────────────────────────────────────────────────────────────────────── */

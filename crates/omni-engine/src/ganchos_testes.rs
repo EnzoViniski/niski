@@ -208,6 +208,8 @@ async fn turno_pelos_ganchos_aviso_uma_vez_e_troca_de_transcript() {
     assert!(!interaction::capabilities(&sessao).prompt, "no meio do turno não é prompt");
     c.chamar(c.pedido("/ganchos", Some(&token), evento("PreToolUse", json!({"tool_name": "Bash", "tool_input": {"command": "npm test"}})))).await;
     assert_eq!(resumo(&terminal)["ferramenta"], "Bash · npm test");
+    // Fork (harness, A6): a rota do harness leva só o nome da ferramenta, sem o comando.
+    assert_eq!(estado_do_harness(&terminal).unwrap()["ferramenta"], "Bash");
 
     c.chamar(c.pedido("/ganchos", Some(&token), evento("Stop", json!({"last_assistant_message": "não guardamos"})))).await;
     assert_eq!(sessao.meta.lock().unwrap().state, SessionState::Answered);

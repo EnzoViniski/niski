@@ -158,6 +158,15 @@ async fn vigia_nao_troca_com_painel_ligado_nem_com_a_troca_reservada() {
     PAINEIS.lock().unwrap().remove(&terminal);
     assert_eq!(uma_volta(&c.state), vec![(terminal.clone(), Resultado::Reservada)]);
     assert_eq!(c.aberturas().len(), 1, "ninguém reabriu a CLI");
+    // O painel trocou e soltou entre a lista e a reserva do vigia: a conta da sessão já é outra.
+    local(c.state.clone(), "POST", &format!("/conversas/{conversa}/troca-de-conta/soltar"), None, None, vec![]).await;
+    c.sessao(&terminal).meta.lock().unwrap().profile_id = Some("conta-b".into());
+    assert!(!ainda_no_limite(&c.state, &terminal, "conta-a"), "a conta já é outra: o vigia não troca de novo");
+    assert_eq!(trocar(&c.state, &terminal, &conversa, "claude", "conta-a", &c.projeto.to_string_lossy()), Resultado::Reservada);
+    assert!(reservar(&conversa, "outro") , "o vigia soltou a reserva");
+    soltar(&conversa, "outro");
+    c.sessao(&terminal).meta.lock().unwrap().profile_id = Some("conta-a".into());
+    assert!(reservar(&conversa, "painel:painel"));
     // Reserva do vigia ativa: o painel recebe 409.
     local(c.state.clone(), "POST", &format!("/conversas/{conversa}/troca-de-conta/soltar"), None, None, vec![]).await;
     assert!(reservar(&conversa, "engine"));
