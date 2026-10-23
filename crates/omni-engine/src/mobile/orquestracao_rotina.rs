@@ -223,7 +223,8 @@ pub(crate) fn abrir(state: &Arc<EngineState>, pedido: &PedidoDeConversa) -> Resu
         }
     }
 
-    // Conversa nova.
+    // Conversa nova (respeita o teto de sessões do app, como a retomada).
+    limite_de_sessoes::conferir(state).map_err(mensagem_do_erro)?;
     let publicados = state.mobile.workspace.lock().expect("workspace poisoned").agents.clone();
     let plataforma = [Some(ajustes.plataforma.clone()), pedido.plataforma_padrao.clone(), Some("claude".into()), Some("codex".into())]
         .into_iter().flatten()
