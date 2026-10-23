@@ -27,7 +27,7 @@ fn fixture() -> (tempfile::TempDir, Arc<EngineState>) {
 
 #[tokio::test] async fn rota_recusa_comando_fora_da_lista() {
     let (_dir,state) = fixture();
-    let EngineResponse::Api { status, body } = local(state.clone(),"GET","/conversas/c/barra",None,None,vec![]).await else { panic!("não é Api") };
+    let EngineResponse::Api { status, body, .. } = local(state.clone(),"GET","/conversas/c/barra",None,None,vec![]).await else { panic!("não é Api") };
     assert_eq!(status,200);
     assert!(body.contains("\"revisar\""));
     for texto in ["/model opus", "/exit", "/compact", "olá"] {
