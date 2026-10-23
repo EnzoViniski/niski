@@ -38,11 +38,16 @@ pub fn rodar(argumentos: &[String], token: &str) -> i32 {
 
 /// Repassa o JSON ao engine. Erro ou demora: desiste calado (a linha do usuário não pode esperar).
 pub fn enviar(porta: u16, token: &str, corpo: &[u8], limite: Duration) -> std::io::Result<()> {
+    enviar_para(porta, token, "/statusline", corpo, limite)
+}
+
+/// Fork (harness, A2): o mesmo POST para outra rota do servidor dos ganchos (o notify do Codex).
+pub fn enviar_para(porta: u16, token: &str, rota: &str, corpo: &[u8], limite: Duration) -> std::io::Result<()> {
     let inicio = Instant::now();
     let resto = || limite.saturating_sub(inicio.elapsed()).max(Duration::from_millis(1));
     let mut conexao = TcpStream::connect_timeout(&SocketAddr::from(([127, 0, 0, 1], porta)), limite)?;
     conexao.set_write_timeout(Some(resto()))?;
-    write!(conexao, "POST /statusline HTTP/1.1\r\nHost: 127.0.0.1:{porta}\r\nAuthorization: Bearer {token}\r\n\
+    write!(conexao, "POST {rota} HTTP/1.1\r\nHost: 127.0.0.1:{porta}\r\nAuthorization: Bearer {token}\r\n\
         Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", corpo.len())?;
     conexao.write_all(corpo)?;
     conexao.flush()?;

@@ -14,5 +14,8 @@ pub(crate) fn preparar(state: &Arc<EngineState>, terminal: &str, origem: &Sessio
     // Fork (harness, A3): a instrução do Codex vai no ambiente da PTY, não digitada.
     let (comando, da_memoria) = memoria_compartilhada::preparar(state, origem, comando);
     ambiente.extend(da_memoria);
+    // Fork (harness, A2): Codex na PTY avisa o fim do turno pelo `notify` (depois da memória: mesma linha).
+    let (comando, do_notify) = notify_codex::preparar(state, terminal, origem, comando);
+    ambiente.extend(do_notify);
     (comando, ambiente)
 }

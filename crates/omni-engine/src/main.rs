@@ -16,6 +16,7 @@ mod preparo_da_sessao;
 mod encerramento_da_pty; // Fork: solta a CLI/trava da conversa antes de reabrir.
 mod conversa_bloqueada; // Fork: permite passar para outro provedor quando a CLI está na tela de trava.
 mod memoria_compartilhada;
+mod notify_codex; // Fork (harness, A2): fim de turno do Codex pelo `notify` oficial.
 mod interaction;
 // Fork (pergunta-da-cli): menu genérico da CLI e "esperando algo no terminal".
 mod pergunta_da_cli;

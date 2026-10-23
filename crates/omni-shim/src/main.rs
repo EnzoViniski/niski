@@ -13,6 +13,8 @@
 mod wrapper;
 // Fork (Onda 2, item 3): modo statusline (repassa o JSON ao engine e roda a statusline do usuário).
 mod statusline;
+// Fork (harness, A2): modo notify do Codex (fim de turno ao engine e notify do usuário encadeado).
+mod notify;
 
 use omni_core::targets::{command_for, resolve, ssh_connections, to_remote, Target};
 use std::{env, path::PathBuf, process::Command};
@@ -30,6 +32,11 @@ fn main() {
     // Fork: `--medza-statusline <porta>` com o token da PTY no ambiente: modo statusline. Sem o token,
     // segue o caminho de sempre.
     let argumentos: Vec<String> = env::args().skip(1).collect();
+    // Fork (harness, A2): `--medza-notify <porta> '<json>'`, chamado pelo Codex no fim do turno.
+    if argumentos.first().map(String::as_str) == Some(omni_core::notify_do_codex::ARGUMENTO) {
+        let token = env::var(omni_core::ganchos::VARIAVEL_DO_TOKEN).ok();
+        std::process::exit(notify::rodar(&argumentos[1..], token.as_deref()));
+    }
     if argumentos.first().map(String::as_str) == Some(omni_core::ganchos::ARGUMENTO_DA_STATUSLINE) {
         if let Ok(token) = env::var(omni_core::ganchos::VARIAVEL_DO_TOKEN) {
             std::process::exit(statusline::rodar(&argumentos[1..], &token));

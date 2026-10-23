@@ -107,6 +107,11 @@ struct Estado {
     pedidos: VecDeque<Pedido>,
     anel: VecDeque<Ocorrido>,
     medicao: Option<regra::Medicao>,
+    /// Fork (harness, A2): sessão do Codex com `notify` (só o fim do turno vem por evento).
+    codex: bool,
+    /// Fork (harness, A5/A7): turnos que começaram e terminaram **por evento** nesta PTY.
+    turnos_iniciados: u64,
+    turnos_terminados: u64,
 }
 
 #[derive(Default)]
@@ -174,6 +179,7 @@ pub(crate) fn router(state: Arc<EngineState>) -> Router {
         .route("/ganchos", post(evento))
         .route("/ganchos/permissao", post(permissao))
         .route("/statusline", post(statusline))
+        .route(omni_core::notify_do_codex::ROTA, post(codex)) // Fork (harness, A2)
         .layer(DefaultBodyLimit::max(regra::LIMITE_DO_CORPO))
         .with_state(state)
 }
@@ -347,7 +353,8 @@ pub(crate) fn escreveu(terminal: &str, dados: &str) {
 /// A tela viu um turno começar. Sem evento nenhum em 5 s, a sessão fica `sem_eventos` (versão antiga,
 /// pasta sem confiança, política da máquina) e segue pela tela.
 pub(crate) fn tela_viu_turno(terminal: &str) {
-    com_estado(terminal, |e| if e.injetado && !e.confirmado && e.turno_visto_em_ms.is_none() { e.turno_visto_em_ms = Some(now_ms()); });
+    // Fork (harness, A2): no Codex o único evento é o fim do turno; "sem eventos em 5 s" não vale.
+    com_estado(terminal, |e| if e.injetado && !e.codex && !e.confirmado && e.turno_visto_em_ms.is_none() { e.turno_visto_em_ms = Some(now_ms()); });
 }
 
 /// O que a conversa mostra sobre os ganchos (`resumo` do chat).
@@ -371,6 +378,7 @@ pub(crate) fn resumo(terminal: &str) -> Value {
         "contexto": e.medicao.as_ref().map(|m| json!({"pct": m.contexto_pct, "custo_usd": m.custo_usd, "modelo": m.modelo})),
         "ultimo_evento": e.ultimo_evento.as_ref().map(|(nome, _)| nome),
         "eventos": e.anel.len(),
+        "turnos_por_evento": e.turnos_terminados,
     })
 }
 
@@ -391,6 +399,45 @@ pub(crate) fn responder(terminal: &str, pedido: Option<&str>, decisao: Decisao) 
 pub(crate) fn uso_da_statusline(dir: &Path, perfil: &str) -> Option<omni_core::usage::AccountUsage> {
     let mapa: HashMap<String, omni_core::usage::AccountUsage> = serde_json::from_slice(&fs::read(dir.join(ARQUIVO_DE_USO)).ok()?).ok()?;
     mapa.get(perfil).cloned()
+}
+
+/* ── Codex pelo `notify` (Fork harness, A2) ──────────────────────────────────────────────────── */
+
+/// Prepara o estado e o token de uma PTY do Codex que vai chamar o `notify`. `None`: sem servidor ou
+/// com os eventos desligados nas Configurações (aí a sessão segue só pela tela, como antes).
+pub(crate) fn registrar_codex(state: &EngineState, terminal: &str, perfil: Option<String>) -> Option<(u16, String)> {
+    esquecer_token(terminal);
+    let porta = porta_de(state);
+    if porta == 0 || !regra::ler_ajustes(&dir_de(state)).eventos { return None; }
+    let token = random_token();
+    if let Ok(mut tokens) = RUNTIME.tokens.lock() { tokens.insert(token.clone(), terminal.to_owned()); }
+    // `chave` vazia: o Codex não entra na lista de confirmados (ela só libera a statusline do Claude).
+    novo_estado(terminal, Estado { injetado: true, codex: true, perfil, ..Estado::default() });
+    registro::info("notify_codex_injetado", &[("terminal", terminal)]);
+    Some((porta, token))
+}
+
+/// Turnos (iniciados, terminados) vistos por evento nesta PTY, quando os eventos valem. `None` = tela.
+pub(crate) fn turnos_por_evento(terminal: &str) -> Option<(u64, u64)> {
+    let sessoes = RUNTIME.sessoes.lock().ok()?;
+    let e = sessoes.get(terminal).filter(|e| e.confirmado)?;
+    Some((e.turnos_iniciados, e.turnos_terminados))
+}
+
+/// Contadores da PTY para o resumo da sessão (A7): (eventos recebidos, turnos por evento, confirmado).
+pub(crate) fn contadores(terminal: &str) -> Option<(usize, u64, bool)> {
+    let sessoes = RUNTIME.sessoes.lock().ok()?;
+    let e = sessoes.get(terminal)?;
+    Some((e.anel.len(), e.turnos_terminados, e.confirmado))
+}
+
+async fn codex(State(state): State<Arc<EngineState>>, headers: HeaderMap, corpo: Result<Bytes, BytesRejection>) -> Response {
+    let terminal = match autorizar(&state, &headers) { Ok(t) => t, Err(r) => return r };
+    let valor = match corpo_valido(&terminal, corpo) { Ok(v) => v, Err(r) => return r };
+    let Some(evento) = omni_core::notify_do_codex::evento(&valor) else { return StatusCode::OK.into_response() };
+    if com_estado(&terminal, |e| e.codex) != Some(true) { return StatusCode::OK.into_response(); }
+    let _ = tokio::task::spawn_blocking(move || aplicar(&state, &terminal, &evento)).await;
+    StatusCode::OK.into_response()
 }
 
 /* ── O servidor ──────────────────────────────────────────────────────────────────────────────── */
@@ -466,6 +513,7 @@ fn aplicar(state: &EngineState, terminal: &str, evento: &regra::Evento) {
         if let Some(t) = regra::tipo(&evento.nome, evento.notification_type.as_deref(), evento.erro.as_deref()) { e.tipo = Some(t); }
         let efeito = match evento.nome.as_str() {
             "UserPromptSubmit" => {
+                e.turnos_iniciados += 1;
                 e.em_turno = true; e.interrompido = false; e.aviso = None; e.tipo = None; e.fim_do_turno_ms = None;
                 Efeito::Comecou
             }
@@ -479,6 +527,7 @@ fn aplicar(state: &EngineState, terminal: &str, evento: &regra::Evento) {
             "SubagentStop" => { if let Some(id) = &evento.agent_id { e.subagentes.remove(id); } Efeito::Nada }
             "Stop" | "StopFailure" | "SessionEnd" => {
                 let estava = e.em_turno;
+                if evento.nome != "SessionEnd" || estava { e.turnos_terminados += 1; }
                 e.em_turno = false; e.fim_do_turno_ms = Some(agora); e.ferramenta_atual = None; e.subagentes.clear();
                 if evento.nome == "StopFailure" { e.aviso = Some(regra::aviso_da_falha(evento.erro.as_deref())); }
                 if evento.nome == "SessionEnd" && !estava { Efeito::Nada } else { Efeito::Terminou(e.aviso) }
