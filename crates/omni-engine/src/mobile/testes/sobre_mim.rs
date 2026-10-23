@@ -54,7 +54,7 @@ async fn sobre_mim_grava_areas_aceita_sugestao_e_entra_no_contexto_dos_agentes()
     let texto = crate::memoria_compartilhada::texto(&state).unwrap();
     assert!(texto.contains("Sócio da Medza") && texto.contains("propostas.md"));
     let origem = SessionOrigin { provider: Some("claude".into()), ..Default::default() };
-    let comando = crate::memoria_compartilhada::preparar(&state, &origem, Some("claude".into())).unwrap();
+    let comando = crate::memoria_compartilhada::preparar(&state, &origem, Some("claude".into())).0.unwrap();
     assert!(comando.contains("--append-system-prompt-file") && !comando.contains("Medza"));
     assert!(std::fs::read_to_string(dir.path().join("memoria-compartilhada.md")).unwrap().contains("Sócio da Medza"));
     let codex = SessionOrigin { provider: Some("codex".into()), env: vec![("CODEX_HOME".into(), dir.path().to_string_lossy().into_owned())], ..Default::default() };
@@ -64,6 +64,24 @@ async fn sobre_mim_grava_areas_aceita_sugestao_e_entra_no_contexto_dos_agentes()
     omni_core::memoria_compartilhada::salvar(dir.path(), &omni_core::memoria_compartilhada::Memoria { ativa: true, texto: "Preferência geral".into() }).unwrap();
     let juntos = crate::memoria_compartilhada::texto(&state).unwrap();
     assert!(juntos.contains("Preferência geral") && juntos.contains("Sócio da Medza"));
+
+    // Fork (harness, C2): subagente do orquestrador recebe só a memória curta, em arquivo próprio; a
+    // conversa comum segue com o Sobre mim (o arquivo dela não muda com a abertura do subagente).
+    {
+        let _nascendo = crate::mobile::orquestracao::contexto::nascendo("conv-sub");
+        let sub = crate::memoria_compartilhada::texto_para(&state, Some("conv-sub")).unwrap();
+        assert!(sub.contains("Preferência geral") && !sub.contains("Sócio da Medza"), "{sub}");
+        let origem = SessionOrigin { provider: Some("claude".into()), conversation_id: Some("conv-sub".into()), ..Default::default() };
+        let comando = crate::memoria_compartilhada::preparar(&state, &origem, Some("claude".into())).0.unwrap();
+        assert!(comando.contains("memoria-compartilhada-subagente.md"), "{comando}");
+        assert!(!std::fs::read_to_string(dir.path().join("memoria-compartilhada-subagente.md")).unwrap().contains("Sócio da Medza"));
+        assert!(std::fs::read_to_string(dir.path().join("memoria-compartilhada.md")).unwrap().contains("Sócio da Medza"));
+        let codex = SessionOrigin { conversation_id: Some("conv-sub".into()), ..codex.clone() };
+        assert!(!crate::memoria_compartilhada::argumentos_codex(&state, &codex)[1].contains("Sócio da Medza"));
+        assert!(crate::memoria_compartilhada::texto_para(&state, Some("conv-comum")).unwrap().contains("Sócio da Medza"));
+    }
+    assert!(crate::memoria_compartilhada::texto_para(&state, Some("conv-sub")).unwrap().contains("Sócio da Medza"),
+        "fora da abertura e fora do registro, não é subagente");
     let (status, _) = api(&state, "POST", "/sobre-mim/ajustes", Some(json!({"ativo": false, "sugestoes": true}))).await;
     assert_eq!(status, 200);
     let so_memoria = crate::memoria_compartilhada::texto(&state).unwrap();

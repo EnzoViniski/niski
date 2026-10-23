@@ -107,6 +107,16 @@ struct Estado {
     pedidos: VecDeque<Pedido>,
     anel: VecDeque<Ocorrido>,
     medicao: Option<regra::Medicao>,
+    /// Fork (harness, A2): sessão do Codex com `notify` (só o fim do turno vem por evento).
+    codex: bool,
+    /// Fork (harness, A5/A7): turnos que começaram e terminaram **por evento** nesta PTY.
+    turnos_iniciados: u64,
+    turnos_terminados: u64,
+    /// Fork (harness, A6): compactações vistas (`PostCompact`) e a última, com o gatilho.
+    compactacoes: u64,
+    ultima_compactacao: Option<(String, u64)>,
+    /// Último erro do `StopFailure` (`rate_limit`, `overloaded`…), com a hora. Só o código.
+    ultimo_erro: Option<(String, u64)>,
 }
 
 #[derive(Default)]
@@ -174,6 +184,7 @@ pub(crate) fn router(state: Arc<EngineState>) -> Router {
         .route("/ganchos", post(evento))
         .route("/ganchos/permissao", post(permissao))
         .route("/statusline", post(statusline))
+        .route(omni_core::notify_do_codex::ROTA, post(codex)) // Fork (harness, A2)
         .layer(DefaultBodyLimit::max(regra::LIMITE_DO_CORPO))
         .with_state(state)
 }
@@ -203,7 +214,8 @@ pub(crate) fn preparar(state: &EngineState, terminal: &str, origem: &SessionOrig
         (Some(comando), Vec::new())
     };
     let ajustes = regra::ler_ajustes(&dir);
-    if !ajustes.ligado { return desligar("configuracao", comando); }
+    // Fork (harness, A1): o que desliga tudo é `eventos`; `ligado` só decide se o pedido de permissão é segurado.
+    if !ajustes.eventos { return desligar("configuracao", comando); }
     let pasta_da_conta = origem.env.iter().find(|(k, _)| k == "CLAUDE_CONFIG_DIR").map(|(_, v)| PathBuf::from(v))
         .or_else(|| env::var_os("HOME").or_else(|| env::var_os("USERPROFILE")).map(|h| PathBuf::from(h).join(".claude")))
         .unwrap_or_default();
@@ -214,11 +226,11 @@ pub(crate) fn preparar(state: &EngineState, terminal: &str, origem: &SessionOrig
     let perfil = origem.profile_id.clone();
     let chave = format!("{}|{cwd}", perfil.as_deref().unwrap_or("-"));
     let confirmada = RUNTIME.confirmados.lock().is_ok_and(|c| c.contains(&chave));
-    let statusline = perfil.as_ref().filter(|p| ajustes.statusline.contains(p)).filter(|_| confirmada && !config.statusline_gerenciada)
+    let statusline = perfil.as_ref().filter(|p| ajustes.statusline_ligada(p)) /* Fork (harness, C5): padrão ligado */.filter(|_| confirmada && !config.statusline_gerenciada)
         .and_then(|_| caminho_do_shim()).and_then(|shim| regra::comando_da_statusline(&shim.to_string_lossy(), porta));
     let arquivo = dir.join(regra::PASTA_DOS_ARQUIVOS).join(format!("{terminal}.json"));
     let Some(digitado) = regra::com_settings(&comando, &arquivo) else { return desligar("caminho", comando) };
-    let settings = regra::montar_settings(porta, ajustes.espera(), &config, statusline.as_deref());
+    let settings = regra::montar_settings(porta, ajustes.ligado.then(|| ajustes.espera()), &config, statusline.as_deref());
     if let Err(erro) = gravar_privado(&arquivo, &settings) {
         registro::aviso("ganchos_arquivo_falhou", &[("terminal", terminal), ("erro", &erro.to_string())]);
         esquecer(terminal);
@@ -231,7 +243,8 @@ pub(crate) fn preparar(state: &EngineState, terminal: &str, origem: &SessionOrig
         if let Some(dele) = regra::statusline_do_usuario(&config) { ambiente.push((regra::VARIAVEL_DA_STATUSLINE_DO_USUARIO.to_owned(), dele)); }
     }
     novo_estado(terminal, Estado { injetado: true, statusline: statusline.is_some(), arquivo: Some(arquivo), chave, perfil, ..Estado::default() });
-    registro::info("ganchos_injetados", &[("terminal", terminal), ("statusline", if statusline.is_some() { "sim" } else { "nao" })]);
+    registro::info("ganchos_injetados", &[("terminal", terminal), ("statusline", if statusline.is_some() { "sim" } else { "nao" }),
+        ("permissoes", if ajustes.ligado { "sim" } else { "nao" })]);
     (Some(digitado), ambiente)
 }
 
@@ -345,7 +358,8 @@ pub(crate) fn escreveu(terminal: &str, dados: &str) {
 /// A tela viu um turno começar. Sem evento nenhum em 5 s, a sessão fica `sem_eventos` (versão antiga,
 /// pasta sem confiança, política da máquina) e segue pela tela.
 pub(crate) fn tela_viu_turno(terminal: &str) {
-    com_estado(terminal, |e| if e.injetado && !e.confirmado && e.turno_visto_em_ms.is_none() { e.turno_visto_em_ms = Some(now_ms()); });
+    // Fork (harness, A2): no Codex o único evento é o fim do turno; "sem eventos em 5 s" não vale.
+    com_estado(terminal, |e| if e.injetado && !e.codex && !e.confirmado && e.turno_visto_em_ms.is_none() { e.turno_visto_em_ms = Some(now_ms()); });
 }
 
 /// O que a conversa mostra sobre os ganchos (`resumo` do chat).
@@ -369,6 +383,7 @@ pub(crate) fn resumo(terminal: &str) -> Value {
         "contexto": e.medicao.as_ref().map(|m| json!({"pct": m.contexto_pct, "custo_usd": m.custo_usd, "modelo": m.modelo})),
         "ultimo_evento": e.ultimo_evento.as_ref().map(|(nome, _)| nome),
         "eventos": e.anel.len(),
+        "turnos_por_evento": e.turnos_terminados,
     })
 }
 
@@ -389,6 +404,76 @@ pub(crate) fn responder(terminal: &str, pedido: Option<&str>, decisao: Decisao) 
 pub(crate) fn uso_da_statusline(dir: &Path, perfil: &str) -> Option<omni_core::usage::AccountUsage> {
     let mapa: HashMap<String, omni_core::usage::AccountUsage> = serde_json::from_slice(&fs::read(dir.join(ARQUIVO_DE_USO)).ok()?).ok()?;
     mapa.get(perfil).cloned()
+}
+
+/* ── Codex pelo `notify` (Fork harness, A2) ──────────────────────────────────────────────────── */
+
+/// Prepara o estado e o token de uma PTY do Codex que vai chamar o `notify`. `None`: sem servidor ou
+/// com os eventos desligados nas Configurações (aí a sessão segue só pela tela, como antes).
+pub(crate) fn registrar_codex(state: &EngineState, terminal: &str, perfil: Option<String>) -> Option<(u16, String)> {
+    esquecer_token(terminal);
+    let porta = porta_de(state);
+    if porta == 0 || !regra::ler_ajustes(&dir_de(state)).eventos { return None; }
+    let token = random_token();
+    if let Ok(mut tokens) = RUNTIME.tokens.lock() { tokens.insert(token.clone(), terminal.to_owned()); }
+    // `chave` vazia: o Codex não entra na lista de confirmados (ela só libera a statusline do Claude).
+    novo_estado(terminal, Estado { injetado: true, codex: true, perfil, ..Estado::default() });
+    registro::info("notify_codex_injetado", &[("terminal", terminal)]);
+    Some((porta, token))
+}
+
+/// Turnos (iniciados, terminados) vistos por evento nesta PTY, quando os eventos valem. `None` = tela.
+pub(crate) fn turnos_por_evento(terminal: &str) -> Option<(u64, u64)> {
+    let sessoes = RUNTIME.sessoes.lock().ok()?;
+    let e = sessoes.get(terminal).filter(|e| e.confirmado)?;
+    Some((e.turnos_iniciados, e.turnos_terminados))
+}
+
+/// Fork (harness, A6): o que os eventos sabem desta PTY, só metadados (nomes, números, horas). `None`
+/// sem estado (sessão sem ganchos nem notify).
+pub(crate) fn estado_do_harness(terminal: &str) -> Option<Value> {
+    let sessoes = RUNTIME.sessoes.lock().ok()?;
+    let e = sessoes.get(terminal)?;
+    let medicao = e.medicao.as_ref();
+    let janela = |j: Option<&regra::Janela>| j.map(|j| json!({"pct": j.pct, "reinicia_em_s": j.reset_s}));
+    Some(json!({
+        "canal": if e.codex { "notify" } else if e.injetado { "ganchos" } else { "nenhum" },
+        "confirmado": e.confirmado,
+        "desligado": e.desligado,
+        "em_turno": e.confirmado && !e.interrompido && e.em_turno,
+        // Só o nome da ferramenta ("Bash"), sem o comando ou caminho que o resumo da tela leva.
+        "ferramenta": e.ferramenta_atual.as_deref().filter(|_| e.em_turno).map(|r| r.split(" · ").next().unwrap_or(r).trim()),
+        "subagentes": e.subagentes.values().cloned().collect::<Vec<_>>(),
+        "pedido_pendente": !e.pedidos.is_empty(),
+        "modo_de_permissao": e.modo_de_permissao,
+        "esforco": e.esforco,
+        "turnos": {"iniciados": e.turnos_iniciados, "terminados": e.turnos_terminados},
+        "compactacoes": e.compactacoes,
+        "ultima_compactacao": e.ultima_compactacao.as_ref().map(|(g, em)| json!({"gatilho": g, "em_ms": em})),
+        "ultimo_erro": e.ultimo_erro.as_ref().map(|(c, em)| json!({"codigo": c, "em_ms": em})),
+        "ultimo_evento": e.ultimo_evento.as_ref().map(|(nome, em)| json!({"nome": nome, "em_ms": em})),
+        "contexto": medicao.map(|m| json!({"pct": m.contexto_pct, "tamanho": m.contexto_tamanho, "modelo": m.modelo})),
+        "limites": medicao.map(|m| json!({"cinco_horas": janela(m.cinco_horas.as_ref()), "sete_dias": janela(m.sete_dias.as_ref())})),
+    }))
+}
+
+/// Contadores da PTY para o resumo da sessão (A7).
+pub(crate) struct Contadores { pub canal: &'static str, pub eventos: usize, pub turnos: u64, pub compactacoes: u64 }
+
+pub(crate) fn contadores(terminal: &str) -> Option<Contadores> {
+    let sessoes = RUNTIME.sessoes.lock().ok()?;
+    let e = sessoes.get(terminal)?;
+    let canal = if e.desligado.is_some() { "desligado" } else if e.codex { "notify" } else if e.injetado { "ganchos" } else { "nenhum" };
+    Some(Contadores { canal, eventos: e.anel.len(), turnos: e.turnos_terminados, compactacoes: e.compactacoes })
+}
+
+async fn codex(State(state): State<Arc<EngineState>>, headers: HeaderMap, corpo: Result<Bytes, BytesRejection>) -> Response {
+    let terminal = match autorizar(&state, &headers) { Ok(t) => t, Err(r) => return r };
+    let valor = match corpo_valido(&terminal, corpo) { Ok(v) => v, Err(r) => return r };
+    let Some(evento) = omni_core::notify_do_codex::evento(&valor) else { return StatusCode::OK.into_response() };
+    if com_estado(&terminal, |e| e.codex) != Some(true) { return StatusCode::OK.into_response(); }
+    let _ = tokio::task::spawn_blocking(move || aplicar(&state, &terminal, &evento)).await;
+    StatusCode::OK.into_response()
 }
 
 /* ── O servidor ──────────────────────────────────────────────────────────────────────────────── */
@@ -464,12 +549,22 @@ fn aplicar(state: &EngineState, terminal: &str, evento: &regra::Evento) {
         if let Some(t) = regra::tipo(&evento.nome, evento.notification_type.as_deref(), evento.erro.as_deref()) { e.tipo = Some(t); }
         let efeito = match evento.nome.as_str() {
             "UserPromptSubmit" => {
+                e.turnos_iniciados += 1;
                 e.em_turno = true; e.interrompido = false; e.aviso = None; e.tipo = None; e.fim_do_turno_ms = None;
                 Efeito::Comecou
             }
             "PreToolUse" => { e.ferramenta_atual = evento.resumo.clone(); Efeito::Nada }
             "PreCompact" if evento.gatilho.as_deref() == Some("manual") => { e.em_turno = true; Efeito::Nada }
-            "PostCompact" if evento.gatilho.as_deref() == Some("manual") => { e.em_turno = false; e.fim_do_turno_ms = Some(agora); Efeito::Nada }
+            "PostCompact" if evento.gatilho.as_deref() == Some("manual") => {
+                e.compactacoes += 1; e.ultima_compactacao = Some(("manual".into(), agora));
+                e.em_turno = false; e.fim_do_turno_ms = Some(agora); Efeito::Nada
+            }
+            // Fork (harness, A6): compactação automática (ou sem gatilho) só conta.
+            "PostCompact" => {
+                e.compactacoes += 1;
+                e.ultima_compactacao = Some((evento.gatilho.clone().unwrap_or_else(|| "auto".into()), agora));
+                Efeito::Nada
+            }
             "SubagentStart" => {
                 if let Some(id) = &evento.agent_id { e.subagentes.insert(id.clone(), evento.agent_type.clone().unwrap_or_default()); }
                 Efeito::Nada
@@ -477,8 +572,12 @@ fn aplicar(state: &EngineState, terminal: &str, evento: &regra::Evento) {
             "SubagentStop" => { if let Some(id) = &evento.agent_id { e.subagentes.remove(id); } Efeito::Nada }
             "Stop" | "StopFailure" | "SessionEnd" => {
                 let estava = e.em_turno;
+                if evento.nome != "SessionEnd" || estava { e.turnos_terminados += 1; }
                 e.em_turno = false; e.fim_do_turno_ms = Some(agora); e.ferramenta_atual = None; e.subagentes.clear();
-                if evento.nome == "StopFailure" { e.aviso = Some(regra::aviso_da_falha(evento.erro.as_deref())); }
+                if evento.nome == "StopFailure" {
+                    e.aviso = Some(regra::aviso_da_falha(evento.erro.as_deref()));
+                    e.ultimo_erro = Some((regra::cortar(evento.erro.as_deref().unwrap_or("unknown"), 40), agora));
+                }
                 if evento.nome == "SessionEnd" && !estava { Efeito::Nada } else { Efeito::Terminou(e.aviso) }
             }
             _ => Efeito::Nada,

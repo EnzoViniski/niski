@@ -11,9 +11,8 @@ pub(super) async fn contas(State(state): State<Arc<EngineState>>) -> Json<Value>
         let lista: Vec<Value> = omni_core::profiles(&dir).into_iter().map(|perfil| {
             let uso = match perfil.provider.as_str() {
                 "codex" => Some(crate::codex_app_server::uso_da_conta(&state,&perfil.id).unwrap_or_else(||omni_core::usage::read_codex(&perfil.id,Path::new(&perfil.config_dir),agora))), // Fork: 3A.
-                // Fork (Onda 2, item 3): statusline quando é mais nova; o cache do `.claude.json` segue de reserva.
-                "claude" => omni_core::usage::mais_recente(omni_core::usage::read_claude_cache(&perfil.id,&omni_core::usage::claude_state_path(&perfil),agora),
-                    crate::ganchos::uso_da_statusline(&dir,&perfil.id)),
+                // Fork (harness, C5): só a statusline; o `.claude.json` não é mais lido.
+                "claude" => crate::ganchos::uso_da_statusline(&dir,&perfil.id),
                 _ => None,
             };
             json!({"id":perfil.id,"provider":perfil.provider,"name":perfil.name,"usage":uso})
@@ -29,8 +28,8 @@ pub(crate) fn comando_do_agente(state: &EngineState, provider: &str) -> String {
         .unwrap_or_else(|| provider.to_string())
 }
 
-/// Busca o uso da conta de novo, como o botão de atualizar do rodapé do PC. Claude: o engine digita
-/// `/usage` num Claude ocioso da conta (ou num oculto) — leva alguns segundos. Codex: relê o rollout.
+/// Busca o uso da conta de novo, como o botão de atualizar do rodapé do PC. Claude: a última statusline
+/// (Fork harness, C5: nada é digitado). Codex: relê o rollout.
 pub(super) async fn atualizar_uso(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>) -> Result<Json<Value>, ApiError> {
     tokio::task::spawn_blocking(move || {
         let dir = state.state_file.parent().unwrap().to_path_buf();

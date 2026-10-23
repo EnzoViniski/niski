@@ -16,6 +16,8 @@ mod preparo_da_sessao;
 mod encerramento_da_pty; // Fork: solta a CLI/trava da conversa antes de reabrir.
 mod conversa_bloqueada; // Fork: permite passar para outro provedor quando a CLI está na tela de trava.
 mod memoria_compartilhada;
+mod notify_codex; // Fork (harness, A2): fim de turno do Codex pelo `notify` oficial.
+mod harness_resumo; // Fork (harness, A7): linha de números por sessão no log.
 mod interaction;
 // Fork (pergunta-da-cli): menu genérico da CLI e "esperando algo no terminal".
 mod pergunta_da_cli;
@@ -353,6 +355,8 @@ fn handle_request(request: EngineRequest, state: &Arc<EngineState>) -> EngineRes
         EngineRequest::DuplicateSession { session_id, .. } => duplicate_session(state, &session_id),
         EngineRequest::RestartSession { session_id, .. } => restart_session(state, &session_id),
         EngineRequest::Snapshot { session_id, since, espera_ms, estado_conhecido, .. } => {
+            // Fork (harness, A4): um painel está lendo esta PTY (o vigia do limite deixa a troca com ele).
+            let _painel = mobile::troca_no_limite::painel_lendo(&session_id);
             // Fork (energia): espera saída nova ou mudança de estado em vez de a UI perguntar 10x/s.
             espera_de_saida::esperar_snapshot(state, &session_id, since, espera_ms, estado_conhecido.as_deref());
             snapshot(state, &session_id, since)
@@ -698,6 +702,8 @@ fn spawn_reader_thread(state: Arc<EngineState>, session: Arc<LiveSession>, mut r
             }
         }
         let exit_status = session.child.lock().ok().and_then(|mut child| child.try_wait().ok().flatten());
+        // Fork (harness, A7): números do harness desta CLI (uma vez; antes do meta, mesma ordem de travas).
+        if session.meta.lock().is_ok_and(|m| m.pid == watched_pid) { harness_resumo::registrar_da_sessao(&session); }
         if let Ok(meta) = session.meta.lock() {
             if meta.pid == watched_pid {
                 registro::info("sessao_terminou", &[
@@ -1095,9 +1101,14 @@ fn restart_session_com_comando(state: &Arc<EngineState>, session_id: &str, coman
         // The Arc stays the same object in the map — only its interior fields are
         // swapped, so no removal/reinsertion window where lookups would fail.
         RestartTarget::Live(session) => {
-            let mut context = session.interaction.lock().map_err(|_| anyhow!("screen poisoned"))?;
+            let context = session.interaction.lock().map_err(|_| anyhow!("screen poisoned"))?;
             if session.reserved.load(Ordering::SeqCst) { return Err(anyhow!("Consulta de uso em andamento")); }
+            // Fork (harness): a tela fica livre enquanto a CLI antiga encerra. No macOS o processo que sai
+            // só termina depois que a saída pendente da PTY é lida; com a tela presa, o leitor parava, a
+            // saída não escoava e o reinício desistia em 3 s ("ainda está encerrando", visto no log real).
+            drop(context);
             encerramento_da_pty::encerrar(&session)?; // Fork: aguarda a CLI antiga liberar sua trava.
+            let mut context = session.interaction.lock().map_err(|_| anyhow!("screen poisoned"))?;
             session.meta.lock().map_err(|_| anyhow!("metadata poisoned"))?.pid = None;
             let meta = session.meta.lock().map_err(|_| anyhow!("session metadata poisoned"))?.clone();
             context.parser = vt100::Parser::new(meta.rows, meta.cols, 0);
@@ -1415,6 +1426,8 @@ fn close_session(state: &EngineState, session_id: &str) -> Result<EngineResponse
         .lock()
         .map_err(|_| anyhow!("sessions lock poisoned"))?
         .remove(session_id);
+    // Fork (harness, A7): a linha de números sai antes de os contadores dos ganchos sumirem.
+    if let Some(SessionEntry::Live(sessao)) = &entry { harness_resumo::registrar_da_sessao(sessao); }
     // Fork: token, pedidos e arquivo de ganchos da sessão somem junto.
     ganchos::esquecer(session_id);
     codex_app_server::esquecer(session_id); // Fork: processos e socket da conversa.
@@ -1710,7 +1723,8 @@ mod tests {
         let EngineResponse::AccountUsage { usage } = interaction::account_usage(&state, "missing", true).unwrap() else { panic!("usage response expected") };
         assert_eq!(usage.status, "unavailable");
         assert!(usage.primary.is_none());
-        assert!(usage.reason.is_some_and(|reason| reason.contains("não encontrada")));
+        // Fork (harness, C5): sem statusline ainda, o motivo diz quando o uso aparece; nada é aberto.
+        assert!(usage.reason.is_some_and(|reason| reason.contains("primeira resposta")));
         assert!(state.sessions.lock().unwrap().is_empty());
     }
 

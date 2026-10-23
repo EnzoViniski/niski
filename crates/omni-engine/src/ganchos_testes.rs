@@ -208,6 +208,8 @@ async fn turno_pelos_ganchos_aviso_uma_vez_e_troca_de_transcript() {
     assert!(!interaction::capabilities(&sessao).prompt, "no meio do turno não é prompt");
     c.chamar(c.pedido("/ganchos", Some(&token), evento("PreToolUse", json!({"tool_name": "Bash", "tool_input": {"command": "npm test"}})))).await;
     assert_eq!(resumo(&terminal)["ferramenta"], "Bash · npm test");
+    // Fork (harness, A6): a rota do harness leva só o nome da ferramenta, sem o comando.
+    assert_eq!(estado_do_harness(&terminal).unwrap()["ferramenta"], "Bash");
 
     c.chamar(c.pedido("/ganchos", Some(&token), evento("Stop", json!({"last_assistant_message": "não guardamos"})))).await;
     assert_eq!(sessao.meta.lock().unwrap().state, SessionState::Answered);
@@ -224,6 +226,18 @@ async fn turno_pelos_ganchos_aviso_uma_vez_e_troca_de_transcript() {
     assert_eq!(sessao.meta.lock().unwrap().notice.as_deref(), Some("usage_limit"));
     assert_eq!(tipo(&terminal), Some("limite"));
     assert_eq!(sessao.meta.lock().unwrap().attention_seq, antes + 2);
+
+    // Fork (harness, A6): o estado do harness conta turnos, compactações e o último erro, sem texto.
+    c.chamar(c.pedido("/ganchos", Some(&token), evento("PostCompact", json!({"trigger": "auto", "compact_summary": "resumo secreto"})))).await;
+    let harness = estado_do_harness(&terminal).unwrap();
+    assert_eq!((harness["canal"].as_str(), harness["confirmado"].as_bool()), (Some("ganchos"), Some(true)));
+    assert_eq!(harness["turnos"], json!({"iniciados": 2, "terminados": 3}), "{harness}");
+    assert_eq!(harness["compactacoes"], 1);
+    assert_eq!(harness["ultima_compactacao"]["gatilho"], "auto");
+    assert_eq!(harness["ultimo_erro"]["codigo"], "rate_limit");
+    assert_eq!(harness["modo_de_permissao"], "plan");
+    let texto = harness.to_string();
+    assert!(!texto.contains("secreto") && !texto.contains("npm test") && !texto.contains("não guardamos"), "{texto}");
 
     // Outra sessão da CLI (`/clear`): o segmento da conversa passa a apontar para ela.
     let indice = omni_core::conversations::read_index(c.dir.path());
@@ -385,8 +399,20 @@ async fn desligado_pelas_configuracoes_ou_pelo_usuario_nao_injeta() {
     assert!(comando.as_deref().unwrap().contains(" --settings '") && ambiente.iter().any(|(k, _)| k == regra::VARIAVEL_DO_TOKEN));
     assert!(ambiente.iter().all(|(k, _)| k != regra::VARIAVEL_DA_STATUSLINE_DO_USUARIO), "statusline só com a conta ligada");
 
-    // Configurações → desligado.
-    let (status, _) = c.api("POST", "/ganchos/ajustes", Some(json!({"ligado": false}))).await;
+    let arquivo = c.dir.path().join(regra::PASTA_DOS_ARQUIVOS).join(format!("{terminal}.json"));
+    assert!(fs::read_to_string(&arquivo).unwrap().contains("PermissionRequest"), "permissões ligadas na cena");
+
+    // Fork (harness, A1): permissões pelo app desligadas = só observar; a CLI mostra o diálogo dela.
+    let (status, ajustes) = c.api("POST", "/ganchos/ajustes", Some(json!({"ligado": false}))).await;
+    assert_eq!(status, 200);
+    assert_eq!((ajustes["eventos"].as_bool(), ajustes["ligado"].as_bool()), (Some(true), Some(false)));
+    let (comando, ambiente) = preparar(&c.state, &terminal, &c.origem(), &cwd, Some("claude --resume x".into()));
+    assert!(comando.as_deref().unwrap().contains(" --settings '") && ambiente.iter().any(|(k, _)| k == regra::VARIAVEL_DO_TOKEN));
+    let settings = fs::read_to_string(&arquivo).unwrap();
+    assert!(!settings.contains("PermissionRequest") && settings.contains("UserPromptSubmit") && settings.contains("StopFailure"));
+
+    // Configurações → eventos desligados: nada de ganchos.
+    let (status, _) = c.api("POST", "/ganchos/ajustes", Some(json!({"eventos": false}))).await;
     assert_eq!(status, 200);
     let (comando, ambiente) = preparar(&c.state, &terminal, &c.origem(), &cwd, Some("claude --resume x".into()));
     assert_eq!(comando.as_deref(), Some("claude --resume x"));
@@ -395,7 +421,7 @@ async fn desligado_pelas_configuracoes_ou_pelo_usuario_nao_injeta() {
     assert!(RUNTIME.tokens.lock().unwrap().values().all(|t| t != &terminal), "o token velho morre");
 
     // `disableAllHooks` do usuário: respeitado (nunca sobrescrevemos com false).
-    c.api("POST", "/ganchos/ajustes", Some(json!({"ligado": true}))).await;
+    c.api("POST", "/ganchos/ajustes", Some(json!({"eventos": true}))).await;
     fs::write(c.conta.join("settings.json"), r#"{"disableAllHooks": true}"#).unwrap();
     let (comando, _) = preparar(&c.state, &terminal, &c.origem(), &cwd, Some("claude".into()));
     assert_eq!(comando.as_deref(), Some("claude"));
@@ -416,8 +442,9 @@ async fn desligado_pelas_configuracoes_ou_pelo_usuario_nao_injeta() {
     esquecer(&terminal);
 }
 
+#[cfg(unix)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn statusline_vira_uso_da_conta_e_contas_prefere_a_mais_nova() {
+async fn statusline_vira_uso_da_conta_e_o_claude_json_nao_e_aberto() {
     let c = cena(PORTA_FALSA + 4);
     atomic_write_json(&c.dir.path().join("profiles.json"), &json!({"profiles": [{"id": "claude-p", "provider": "claude", "name": "Trabalho",
         "config_dir": c.conta.to_string_lossy(), "builtin": false, "created_at_ms": 0}]})).unwrap();
@@ -434,17 +461,33 @@ async fn statusline_vira_uso_da_conta_e_contas_prefere_a_mais_nova() {
     let gravado = fs::read_to_string(c.dir.path().join(ARQUIVO_DE_USO)).unwrap();
     assert!(!gravado.contains("Opus") && !gravado.contains("0.82"), "só os números de uso vão para o disco");
 
-    // Cache antigo do `.claude.json` (fixture sintética) continua de reserva; a statusline é mais nova.
-    fs::write(c.conta.join(".claude.json"), json!({"cachedUsageUtilization": {"fetchedAtMs": 5, "utilization": {
-        "five_hour": {"utilization": 90.0, "resets_at": "2096-01-01T00:00:00Z"}}}}).to_string()).unwrap();
-    let (status, contas) = c.api("GET", "/contas", None).await;
+    // Fork (harness, C5): o `.claude.json` não é mais aberto. Aqui ele é um FIFO: qualquer leitura
+    // travaria no `open` (ninguém escreve do outro lado) e o prazo abaixo estouraria.
+    let fifo = c.conta.join(".claude.json");
+    assert!(std::process::Command::new("mkfifo").arg(&fifo).status().unwrap().success());
+    let (status, contas) = tokio::time::timeout(std::time::Duration::from_secs(10), c.api("GET", "/contas", None)).await
+        .expect("GET /contas abriu o .claude.json");
     assert_eq!(status, 200);
     assert_eq!(contas[0]["usage"]["source"], "claude_statusline", "{contas}");
-    let EngineResponse::AccountUsage { usage } = interaction::account_usage(&c.state, "claude-p", false).unwrap() else { panic!() };
-    assert_eq!(usage.source, "claude_statusline");
+    let estado = c.state.clone();
+    let consultas = tokio::time::timeout(std::time::Duration::from_secs(10), tokio::task::spawn_blocking(move || {
+        [false, true].map(|refresh| match interaction::account_usage(&estado, "claude-p", refresh).unwrap() {
+            EngineResponse::AccountUsage { usage } => usage, _ => panic!() })
+    })).await.expect("account_usage abriu o .claude.json").unwrap();
+    assert!(consultas.iter().all(|u| u.source == "claude_statusline"));
+    let (status, _) = tokio::time::timeout(std::time::Duration::from_secs(10), c.api("POST", "/contas/claude-p/uso", None)).await
+        .expect("atualizar o uso abriu o .claude.json");
+    assert_eq!(status, 200);
+    let sessoes = c.state.sessions.lock().unwrap().len();
+    assert_eq!(sessoes, 1, "atualizar o uso não abre Claude escondido (só a sessão do teste)");
+    // Sem statusline gravada: sem número, com o motivo, e ainda sem abrir o arquivo.
     fs::remove_file(c.dir.path().join(ARQUIVO_DE_USO)).unwrap();
-    let EngineResponse::AccountUsage { usage } = interaction::account_usage(&c.state, "claude-p", false).unwrap() else { panic!() };
-    assert_eq!(usage.source, "claude_cache", "sem statusline, a leitura antiga vale");
+    let estado = c.state.clone();
+    let usage = tokio::time::timeout(std::time::Duration::from_secs(10), tokio::task::spawn_blocking(move ||
+        match interaction::account_usage(&estado, "claude-p", true).unwrap() { EngineResponse::AccountUsage { usage } => usage, _ => panic!() }))
+        .await.expect("sem statusline abriu o .claude.json").unwrap();
+    assert!(usage.primary.is_none() && usage.reason.as_deref().is_some_and(|m| m.contains("primeira resposta")), "{usage:?}");
+    fs::remove_file(&fifo).unwrap();
     c.fechar(&terminal);
 }
 
@@ -508,5 +551,29 @@ async fn troca_de_sessao_da_cli_atualiza_meta_e_comando_de_reinicio() {
     fs::write(&transcript, "{}\n").unwrap();
     let reinicio = comando_ao_reiniciar(&meta).unwrap();
     assert!(reinicio.contains("--resume sess-2") && !reinicio.contains("--session-id"), "{reinicio}");
+    c.fechar(&terminal);
+}
+
+/// Fork (harness, A1): com os ajustes padrão (sem `ganchos.json`), a sessão ganha só os ganchos de
+/// observação. Pasta ainda sem confiança (a CLI suspende os hooks) = nenhum evento: tudo segue pela tela,
+/// exatamente como antes, e o diálogo de permissão é o da CLI.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn padrao_so_observa_e_pasta_sem_confianca_segue_pela_tela() {
+    let c = cena(0);
+    fs::remove_file(c.dir.path().join(regra::ARQUIVO_DE_AJUSTES)).unwrap();
+    servidor(&c.state).await;
+    let (terminal, sessao) = c.abrir(&sem_ganchos(&c));
+    let arquivo = c.dir.path().join(regra::PASTA_DOS_ARQUIVOS).join(format!("{terminal}.json"));
+    let settings = fs::read_to_string(&arquivo).expect("padrão injeta os eventos");
+    assert!(settings.contains("UserPromptSubmit") && !settings.contains("PermissionRequest"));
+    assert!(ate(15, || sessao.interaction.lock().unwrap().parser.screen().contents().contains('❯')).await);
+    let antes = sessao.meta.lock().unwrap().attention_seq;
+    write_terminal(&c.state, &terminal, "oi\r").unwrap();
+    assert!(ate(5, || sessao.interaction.lock().unwrap().turn_active).await, "a tela viu o turno");
+    assert_eq!(em_turno(&terminal), None, "sem evento, a tela manda");
+    assert!(ate(15, || { settle(&sessao); sessao.meta.lock().unwrap().attention_seq > antes }).await, "fim do turno pela tela");
+    assert_eq!(sessao.meta.lock().unwrap().state, SessionState::Answered);
+    assert!(pedido(&terminal).is_none());
     c.fechar(&terminal);
 }

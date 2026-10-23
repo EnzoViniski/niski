@@ -312,6 +312,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
     plano.conversation_id = Some(conversa.clone());
     let acao = Action { id: state.next_id(), conversation_id: String::new(), session_id: String::new(), state: "executing".into(),
         created_at_ms: now_ms(), error: None, key: String::new(), revision: String::new(), kind: ActionKind::Spawn(plano.clone()) };
+    let _nascendo = super::contexto::nascendo(&conversa); // Fork (harness, C2): só a memória curta.
     if let Err(e) = spawn_from_mobile(state, &acao, &plano) {
         if let Some(wt) = &worktree { let _ = worktree_isolada::remover(Path::new(&wt.caminho), true); }
         return Err(format!("Não consegui abrir o subagente: {e}"));
@@ -367,6 +368,10 @@ fn enviar(state: &Arc<EngineState>, conversa: &str, kind: ActionKind, revisao: &
         match situacao {
             Some((estado, _)) if estado == "sent" => {
                 state.mobile.orquestracao.enviado_em.lock().expect("enviado poisoned").insert(conversa.to_owned(), (now_ms(), antes));
+                // Fork (harness, A5): base dos turnos por evento, para o `esperar`.
+                if let Some(terminal) = current(state, conversa).ok().and_then(|(_, s)| s).and_then(|s| s.meta.lock().ok().map(|m| m.id.clone())) {
+                    super::eventos::marcar_envio(conversa, &terminal);
+                }
                 return Ok(());
             }
             Some((estado, erro)) if estado == "rejected" => return Err(erro.unwrap_or_else(|| "Recusada".into())),
@@ -490,14 +495,21 @@ async fn esperar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> 
         }).await.map_err(|_| "Falha interna".to_owned())?;
         // "Pronto" de antes do turno que a última mensagem abriu não vale (até 20 s depois do envio).
         let envio = state.mobile.orquestracao.enviado_em.lock().expect("enviado poisoned").get(&agente).copied();
-        let turnos_agora = { let (s, a) = (state.clone(), agente.clone());
-            tokio::task::spawn_blocking(move || current(&s, &a).ok().and_then(|(_, s)| s).map(|s| turnos(&s)).unwrap_or(0)).await.unwrap_or(0) };
+        let (turnos_agora, por_evento) = { let (s, a) = (state.clone(), agente.clone());
+            tokio::task::spawn_blocking(move || {
+                let sessao = current(&s, &a).ok().and_then(|(_, s)| s);
+                let terminal = sessao.as_ref().and_then(|s| s.meta.lock().ok().map(|m| m.id.clone()));
+                // Fork (harness, A5): o turno terminou por evento depois do envio?
+                let por_evento = terminal.as_deref().and_then(|t| super::eventos::terminou_desde_envio(&a, t)) == Some(true);
+                (sessao.map(|s| turnos(&s)).unwrap_or(0), por_evento)
+            }).await.unwrap_or((0, false)) };
         let recem_enviado = envio.is_some_and(|(quando, antes)| turnos_agora <= antes && now_ms().saturating_sub(quando) < 20_000);
         viu_trabalhando |= estado == regra::Estado::Trabalhando;
         let esperando_tarefa = pendente.as_deref().is_some_and(|m| m.starts_with("esperando"));
         let terminou = match estado {
             regra::Estado::Trabalhando | regra::Estado::Abrindo => false,
-            regra::Estado::Pronto => !esperando_tarefa && (viu_trabalhando || !recem_enviado),
+            // Fork (harness, A5): com o evento de fim de turno, sem esperar a janela de 20 s da tela.
+            regra::Estado::Pronto => !esperando_tarefa && (por_evento || viu_trabalhando || !recem_enviado),
             _ => true,
         };
         if terminou {
@@ -645,6 +657,7 @@ fn responder(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Resu
 pub(super) fn parar(state: &EngineState, orquestrador: &str, agente: &str) -> Result<String, String> {
     do_orquestrador(state, orquestrador, agente)?;
     state.mobile.orquestracao.pendentes.lock().expect("pendentes poisoned").remove(agente);
+    super::eventos::esquecer(agente); // Fork (harness, A5)
     let Ok((_, Some(sessao))) = current(state, agente) else { return Ok("O agente já estava parado.".into()) };
     let id = sessao.meta.lock().map(|m| m.id.clone()).map_err(|_| "Sessão indisponível".to_owned())?;
     stop_session(state, &id).map_err(|e| e.to_string())?;

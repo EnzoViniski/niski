@@ -12,3 +12,7 @@ omni-core = { path = "../omni-core" }
 omni-protocol = { path = "../omni-protocol" }
 # Já no workspace: a linha própria da statusline lê o JSON que o Claude Code manda.
 serde_json.workspace = true
+
+[dev-dependencies]
+# Fork (harness, A2): pasta temporária nos testes do modo notify (já no Cargo.lock).
+tempfile = "3"

@@ -223,7 +223,7 @@ export function AgentUsageStatus({ engineOnline, activeSessionId }: AgentUsageSt
       <button
         type="button"
         aria-label={`Consultar uso do ${rotulo}`}
-        title="Consultar /usage"
+        title={provider === "antigravity" ? "Consultar /usage" : "Atualizar uso"}
         disabled={busy || !engineOnline || !profileId}
         onClick={() => void refresh()}
         className="shrink-0 text-text-secondary hover:text-accent disabled:opacity-50"

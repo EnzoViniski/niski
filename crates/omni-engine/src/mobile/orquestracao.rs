@@ -24,6 +24,12 @@ use std::sync::atomic::AtomicU16;
 
 #[path = "orquestracao_ferramentas.rs"]
 mod ferramentas;
+// Fork (harness, A5): fim do turno do subagente pelo evento, quando ele existe.
+#[path = "orquestracao_eventos.rs"]
+mod eventos;
+// Fork (harness, C2): subagente recebe só a memória curta.
+#[path = "orquestracao_contexto.rs"]
+pub(crate) mod contexto;
 // Fork (Copiloto): ferramentas de tarefas (as mesmas da tela Tarefas).
 #[path = "orquestracao_tarefas.rs"]
 mod tarefas_mcp;

@@ -75,6 +75,8 @@ mod trocar_agente;
 mod telegram; // Fork: Bot API; avisos no engine mesmo com a janela fechada.
 mod rotina_rotas; // Fork (Rotina): dados da rotina e o relógio dos lembretes.
 mod resumo_rota; // Fork (desempenho): só o resumo da conversa, para a faixa da aba de agente.
+mod harness_rota; // Fork (harness, A6): estado do agente pelos eventos, com a fonte de cada parte.
+pub(crate) mod troca_no_limite; // Fork (harness, A4): troca de conta no limite sem painel aberto.
 pub(crate) use celular::{check, settings, totp};
 pub(crate) use catalogo::{publish};
 pub(crate) use contas::{comando_do_agente};
@@ -143,6 +145,7 @@ pub fn start(state: Arc<EngineState>) {
     telegram::iniciar(state.clone()); // Fork: mensagens só quando o usuário conecta seu bot.
     rotina_rotas::iniciar(state.clone()); // Fork (Rotina): lembretes com a janela fechada.
     telegram::rotina::iniciar(state.clone()); // Fork (Rotina): só age com o bot da rotina conectado.
+    troca_no_limite::iniciar(state.clone()); // Fork (harness, A4): limite de uso em sessão sem painel.
     // A primeira leitura do histórico abre o começo de todo transcript de todas as contas: segundos,
     // numa máquina com muito histórico. Feita já na subida, quando ninguém está esperando, a primeira
     // abertura do celular ou da web encontra tudo pronto em vez de ficar carregando.
@@ -273,6 +276,8 @@ fn rotas() -> Router<Arc<EngineState>> {
         .merge(sobre_mim_rotas::rotas()) // Fork (Sobre mim).
         .merge(roadmaps_rotas::rotas()) // Fork (Roadmaps).
         .merge(resumo_rota::rotas()) // Fork (desempenho).
+        .merge(harness_rota::rotas()) // Fork (harness, A6).
+        .merge(troca_no_limite::rotas()) // Fork (harness, A4).
 }
 
 fn router(state: Arc<EngineState>) -> Router {

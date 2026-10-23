@@ -41,6 +41,7 @@ pub mod diff_do_agente;
 pub mod resultado_da_acao; // Fork (troca-de-contexto): se a ação do agente deu certo (`ok` na timeline).
 // Fork (Onda 2): ganchos HTTP do Claude Code por sessão, pedidos de permissão e statusline (parte pura).
 pub mod ganchos;
+pub mod notify_do_codex; // Fork (harness, A2): fim de turno do Codex pelo `notify` oficial.
 // Fork (Fase 3): fila de contas — escolha pura da conta com explicação.
 pub mod roteamento;
 // Fork (fix-orquestracao): ler-alterar-gravar o índice de conversas sob trava, com `.tmp` exclusivo.

@@ -110,47 +110,8 @@ pub fn claude_state_path(profile: &crate::Profile) -> std::path::PathBuf {
     }
 }
 
-/// Resultado da última consulta de uso que o próprio Claude Code gravou (`cachedUsageUtilization`,
-/// atualizado quando o `/usage` busca os limites). É número de uso, não credencial. Muito mais
-/// confiável que ler a tela, que depende da altura do painel e do momento do redesenho.
-/// `None` quando o arquivo não tem o campo (versão antiga do CLI), está no meio de uma escrita, ou
-/// o cache é de outra conta que esteve logada antes.
-pub fn read_claude_cache(profile_id: &str, state_file: &Path, now_ms: u64) -> Option<AccountUsage> {
-    let state: Value = serde_json::from_slice(&std::fs::read(state_file).ok()?).ok()?;
-    claude_cache(&state, profile_id, now_ms)
-}
-
-fn claude_cache(state: &Value, profile_id: &str, now_ms: u64) -> Option<AccountUsage> {
-    let cache = state.get("cachedUsageUtilization")?;
-    let account = |value: &Value| value.get("accountUuid").and_then(Value::as_str).map(str::to_owned);
-    if let (Some(cached), Some(current)) = (account(cache), state.get("oauthAccount").and_then(account)) {
-        if cached != current { return None; }
-    }
-    let window = |key: &str, minutes: u64| -> Option<UsageWindow> {
-        let item = cache.pointer(&format!("/utilization/{key}"))?;
-        let used = item.get("utilization")?.as_f64().filter(|v| v.is_finite() && *v >= 0.0)?;
-        let resets_at = item.get("resets_at").and_then(Value::as_str)
-            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok()).map(|d| d.timestamp());
-        Some(UsageWindow { used_percent: used, window_minutes: minutes, resets_at, reset_label: None })
-    };
-    let (primary, secondary) = (window("five_hour", 300), window("seven_day", 10080));
-    if primary.is_none() && secondary.is_none() { return None; }
-    let expired = [&primary, &secondary].into_iter().flatten()
-        .any(|w| w.resets_at.is_some_and(|reset| reset as u64 <= now_ms / 1000));
-    Some(AccountUsage { profile_id: profile_id.into(), provider: "claude".into(), source: "claude_cache".into(),
-        status: if expired { "stale" } else { "available" }.into(),
-        observed_at_ms: cache.get("fetchedAtMs").and_then(Value::as_u64), primary, secondary, reason: None })
-}
-
-/// Fork (Onda 2, item 3): entre duas leituras de uso da mesma conta, a mais nova (`observed_at_ms`).
-/// A statusline (`claude_statusline`) é a fonte preferida quando existe; a leitura do
-/// `cachedUsageUtilization` continua como reserva. Aposentar a reserva é decisão do Enzo.
-pub fn mais_recente(a: Option<AccountUsage>, b: Option<AccountUsage>) -> Option<AccountUsage> {
-    match (a, b) {
-        (Some(a), Some(b)) => Some(if b.observed_at_ms.unwrap_or(0) > a.observed_at_ms.unwrap_or(0) { b } else { a }),
-        (a, b) => a.or(b),
-    }
-}
+// Fork (harness, decisão C5 do Enzo): a leitura do `cachedUsageUtilization` do `.claude.json` foi
+// aposentada. O uso da conta Claude vem só da statusline (`ganchos::Medicao::uso`, gravado pelo engine).
 
 /// Conservative screen grammar. Reset text is preserved, not interpreted in the PC timezone.
 pub fn parse_claude_screen(screen: &str, profile_id: &str, now_ms: u64) -> AccountUsage {
@@ -256,21 +217,6 @@ mod tests {
         assert!(read_codex("one",temp.path(),1).primary.is_none());
         assert!(read_codex("other",&temp.path().join("other"),1).primary.is_none());
     }
-    #[test] fn claude_cache_reads_real_shape_and_rejects_other_account() {
-        // Formato copiado de um ~/.claude.json real (Claude Code 2.1.272).
-        let state = json!({"oauthAccount":{"accountUuid":"a1"},"cachedUsageUtilization":{"fetchedAtMs":1789466241412u64,"accountUuid":"a1",
-            "utilization":{"five_hour":{"utilization":34,"resets_at":"2026-09-15T14:40:00.062389+00:00","limit_dollars":null},
-            "seven_day":{"utilization":61,"resets_at":"2026-09-17T17:00:00.062414+00:00"},"seven_day_opus":null}}});
-        let usage = claude_cache(&state,"p",1789466241412).unwrap();
-        assert_eq!((usage.status.as_str(), usage.observed_at_ms), ("available", Some(1789466241412)));
-        assert_eq!(usage.primary.as_ref().unwrap().used_percent, 34.0);
-        assert_eq!(usage.primary.unwrap().resets_at, Some(1789483200)); // 14:40 UTC
-        assert_eq!(usage.secondary.unwrap().used_percent, 61.0);
-        assert_eq!(claude_cache(&state,"p",1789900000000).unwrap().status, "stale"); // reset já passou
-        let mut other = state.clone(); other["oauthAccount"]["accountUuid"] = json!("b2");
-        assert!(claude_cache(&other,"p",1).is_none());
-        assert!(claude_cache(&json!({"oauthAccount":{}}),"p",1).is_none());
-    }
     #[test] fn claude_state_path_follows_profile_isolation() {
         let profile = |builtin, dir: &str| crate::Profile { id:"p".into(), provider:"claude".into(), name:"n".into(),
             config_dir: dir.into(), builtin, created_at_ms: 0, last_used_at_ms: None, authenticated: false, email: None };
@@ -283,15 +229,5 @@ mod tests {
         assert!(parse_claude_screen(&screen.replace("% used","% remaining"),"p",10).primary.is_none());
         assert!(parse_claude_screen(&screen.replace("██ 12% used","10% 12% used"),"p",10).primary.is_none());
         assert!(parse_claude_screen(&format!("{screen}\nCurrent session"),"p",10).primary.is_none());
-    }
-    /// Fork: a statusline vence quando é mais nova; a leitura antiga continua de reserva.
-    #[test] fn mais_recente_prefere_a_leitura_mais_nova() {
-        let uso = |fonte: &str, em: Option<u64>| AccountUsage { profile_id: "p".into(), provider: "claude".into(), source: fonte.into(),
-            status: "available".into(), observed_at_ms: em, primary: None, secondary: None, reason: None };
-        assert_eq!(mais_recente(Some(uso("claude_cache", Some(10))), Some(uso("claude_statusline", Some(20)))).unwrap().source, "claude_statusline");
-        assert_eq!(mais_recente(Some(uso("claude_cache", Some(30))), Some(uso("claude_statusline", Some(20)))).unwrap().source, "claude_cache");
-        assert_eq!(mais_recente(None, Some(uso("claude_statusline", Some(1)))).unwrap().source, "claude_statusline");
-        assert_eq!(mais_recente(Some(uso("claude_cache", None)), None).unwrap().source, "claude_cache");
-        assert!(mais_recente(None, None).is_none());
     }
 }

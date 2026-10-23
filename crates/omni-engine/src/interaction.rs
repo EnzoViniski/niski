@@ -1,6 +1,6 @@
 //! Typed actions over existing PTYs. Recognition deliberately fails closed.
 use super::*;
-use omni_core::usage::{AccountUsage, parse_claude_screen};
+use omni_core::usage::AccountUsage;
 use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}, time::{Duration, Instant}};
 
 /// `turn_active`: o agente mostrou sinal de turno (hint de interromper ou diálogo de aprovação) desde
@@ -538,6 +538,7 @@ fn motivo_geral(screen: &vt100::Screen, provider: &str, rodando: bool, reservada
     let mut campos = vec![("sessao", sessao), ("provider", provider), ("motivo", motivo.as_str())];
     if !campo.is_empty() { campos.push(("campo", &campo)); }
     omni_core::registro::aviso_sem_repetir(&format!("sem_entrada:{sessao}:{motivo}"), "conversa_sem_entrada", &campos);
+    crate::harness_resumo::sem_entrada(sessao, &motivo); // Fork (harness, A7): conta o motivo uma vez por sessão.
     format!("Entrada não reconhecida: {motivo}")
 }
 
@@ -560,69 +561,19 @@ fn motivo_antigravity(screen: &vt100::Screen, rodando: bool, reservada: bool) ->
     if faltas.is_empty() { "Antigravity: entrada não reconhecida".into() } else { format!("Antigravity: {}", faltas.join(" · ")) }
 }
 
-/// Uso da conta Claude. A fonte é o `cachedUsageUtilization` que o próprio Claude Code grava no
-/// `.claude.json` a cada `/usage` — ler a tela falhava conforme a altura do painel e o momento do
-/// redesenho (a lista "What's contributing" empurra os limites para fora de um painel baixo).
-///
-/// - `refresh: false` só lê o arquivo. Nunca digita nada.
-/// - `refresh: true` precisa de um `/usage` novo, porque o arquivo só muda quando alguém consulta:
-///   usa um agente Claude ocioso da conta; sem nenhum, abre um Claude **oculto e temporário** na
-///   pasta do engine, consulta e encerra. Sucesso = `fetchedAtMs` do arquivo mudou.
-/// - Falhou: devolve a última leitura do arquivo com o motivo, em vez de sumir com os números.
+/// Uso da conta Claude. Fork (harness, decisão C5 do Enzo, 23/10/2026): a fonte é **só** a statusline do
+/// Claude Code (`rate_limits`, gravada pelo `omni-shim` em `uso-statusline.json`). O app não lê mais o
+/// `.claude.json` (o `cachedUsageUtilization`) nem digita `/usage` numa sessão escondida. A statusline só
+/// traz os limites depois da primeira resposta da conta (doc da statusline): antes disso, sem número.
+/// `refresh` não muda nada aqui (não há o que consultar); fica no protocolo para Codex e Antigravity.
 pub fn account_usage(state: &Arc<EngineState>, profile_id: &str, refresh: bool) -> Result<EngineResponse> {
     let dir = state.state_file.parent().ok_or_else(|| anyhow!("engine dir unavailable"))?.to_path_buf();
     if let Some(perfil) = omni_core::profiles(&dir).into_iter().find(|p| p.id == profile_id && p.provider == "antigravity") {
         return uso_antigravity(state, &dir, &perfil, refresh);
     }
-    let profile = omni_core::profiles(&dir).into_iter().find(|p| p.id == profile_id && p.provider == "claude");
-    let state_path = profile.as_ref().map(omni_core::usage::claude_state_path);
-    let read_cache = || state_path.as_deref().and_then(|path| omni_core::usage::read_claude_cache(profile_id, path, now_ms()));
-    let with_reason = |usage: Option<AccountUsage>, reason: &str| {
-        let mut usage = usage.unwrap_or_else(|| AccountUsage::unavailable(profile_id, "claude", reason));
-        usage.reason = Some(reason.into());
-        Ok(EngineResponse::AccountUsage { usage })
-    };
-    let before = read_cache();
-    if !refresh {
-        // Fork (Onda 2, item 3): a statusline (quando a conta liga) é a fonte preferida se for mais nova;
-        // o `cachedUsageUtilization` continua de reserva (aposentar é decisão do Enzo).
-        let statusline = crate::ganchos::uso_da_statusline(&dir, profile_id);
-        return match omni_core::usage::mais_recente(before, statusline) {
-            Some(usage) => Ok(EngineResponse::AccountUsage { usage }),
-            None => with_reason(None, "Sem consulta de uso ainda. Clique em atualizar."),
-        };
-    }
-    let Some(profile) = profile else { return with_reason(before, "Conta Claude não encontrada.") };
-    // Leitura de menos de 1 min: o Claude devolveria a mesma (ele só busca de novo depois de alguns
-    // minutos — medido: 4 min depois repetiu, 7 min depois buscou).
-    if let Some(usage) = before.as_ref().filter(|u| u.observed_at_ms.is_some_and(|at| now_ms().saturating_sub(at) < 60_000)) {
-        return Ok(EngineResponse::AccountUsage { usage: usage.clone() });
-    }
-    let previous_fetch = before.as_ref().and_then(|u| u.observed_at_ms);
-
-    // Fork: nunca digitar `/usage` numa conversa do usuário. O Esc que fecha o painel, somado a um Esc
-    // do usuário (ou de outra consulta), virava Esc duplo no prompt e abria o menu do rewind
-    // ("Summarize from here"): o agente parava perguntando no terminal. Sempre o Claude oculto.
-    // Claude oculto só para consultar. `/usage` não manda
-    // mensagem ao modelo, e sem mensagem o Claude não grava conversa.
-    let id = state.next_id();
-    let hidden = spawn_terminal_inner(state, id.clone(), String::new(), "Claude · consulta de uso".into(),
-        dir.to_string_lossy().into_owned(), None, Some("claude".into()), 40, 120, now_ms(),
-        SessionOrigin { headless: true, env: omni_core::env_for(&profile), provider: Some("claude".into()),
-            profile_id: Some(profile_id.into()), conversation_id: None, external_session_id: None });
-    let result = hidden.and_then(|_| {
-        let session = match state.sessions.lock().map_err(|_|anyhow!("sessions poisoned"))?.get(&id) {
-            Some(SessionEntry::Live(session)) => session.clone(),
-            _ => return Ok(None),
-        };
-        if !wait_claude_ready(&session, Duration::from_secs(25)) { return Ok(None); }
-        run_usage_command(state, &session, profile_id, &read_cache, previous_fetch)
-    });
-    end_hidden(state, &id, "claude");
-    match result? {
-        Some(usage) => Ok(EngineResponse::AccountUsage { usage }),
-        None => with_reason(before, "O Claude não trouxe o uso a tempo; mostrando a última leitura."),
-    }
+    Ok(EngineResponse::AccountUsage { usage: crate::ganchos::uso_da_statusline(&dir, profile_id).unwrap_or_else(|| {
+        AccountUsage::unavailable(profile_id, "claude", "O uso aparece depois da primeira resposta do Claude nesta conta.")
+    }) })
 }
 
 /// Uso da conta do Antigravity. A CLI não grava o uso em arquivo nenhum: só o painel do `/usage`
@@ -889,92 +840,6 @@ pub fn alternar_modo(state: &Arc<EngineState>, session: &Arc<LiveSession>, alvo:
         }
     }
     Err(anyhow!("Não foi possível chegar no modo pedido"))
-}
-
-/// Fork: o painel do `/usage` (ou o autocomplete dele) está na tela.
-fn painel_do_usage_aberto(texto: &str) -> bool {
-    texto.contains("Current session") || texto.contains("Refreshing") || texto.lines().any(|l| l.trim_start().starts_with("/usage"))
-}
-
-/// Digita `/usage` numa sessão ociosa e espera o resultado; fecha o diálogo aberto com Esc — com
-/// sucesso ou não. Pronto quando:
-/// - o `fetchedAtMs` do arquivo mudou (o Claude buscou de novo), ou
-/// - o diálogo terminou de carregar (limites na tela, sem "Refreshing…") por duas leituras seguidas:
-///   o Claude não busca de novo se consultou há pouco, e aí o valor do arquivo **é** o atual.
-/// CLI que não grava o cache: os números da própria tela.
-fn run_usage_command(state: &Arc<EngineState>, session: &Arc<LiveSession>, profile_id: &str,
-    read_cache: &dyn Fn() -> Option<AccountUsage>, previous_fetch: Option<u64>) -> Result<Option<AccountUsage>> {
-    {
-        let sessions = state.sessions.lock().map_err(|_|anyhow!("sessions poisoned"))?;
-        if !sessions.values().any(|entry| matches!(entry,SessionEntry::Live(s) if Arc::ptr_eq(s,session))) { return Ok(None); }
-        let mut context = session.interaction.lock().map_err(|_|anyhow!("screen poisoned"))?;
-        if !ready(context.parser.screen(),"claude") || session.reserved.swap(true,Ordering::SeqCst) { return Ok(None); }
-        context.input_revision += 1;
-        let written = (|| -> Result<()> {
-            let mut writer = session.writer.lock().map_err(|_|anyhow!("writer poisoned"))?;
-            writer.write_all(b"/usage")?; writer.flush()?; Ok(())
-        })();
-        if let Err(error) = written { session.reserved.store(false,Ordering::SeqCst); return Err(error); }
-    }
-    struct Release<'a>(&'a LiveSession);
-    impl Drop for Release<'_> { fn drop(&mut self) { self.0.reserved.store(false,Ordering::SeqCst); } }
-    let _release = Release(session);
-    let write = |bytes: &[u8]| -> Result<()> {
-        let mut writer = session.writer.lock().map_err(|_|anyhow!("writer poisoned"))?;
-        writer.write_all(bytes)?; writer.flush()?; Ok(())
-    };
-    // Texto e Enter no mesmo write chegam como uma rajada só, que o Claude trata como colagem: o
-    // `\r` não submete. Enter separado, fora dos locks (o leitor da PTY precisa da tela no intervalo).
-    std::thread::sleep(Duration::from_millis(250));
-    write(b"\r")?;
-    let started = Instant::now();
-    let mut result = None;
-    // Momento em que o diálogo terminou de carregar: o "Refreshing…" apareceu e sumiu, ou (CLI sem
-    // esse aviso) os limites ficaram na tela por 2 s.
-    let (mut saw_refreshing, mut loaded_at, mut limits_since) = (false, None::<Instant>, None::<Instant>);
-    while started.elapsed() < Duration::from_secs(15) && result.is_none() {
-        std::thread::sleep(Duration::from_millis(250));
-        if !state.sessions.lock().map_err(|_|anyhow!("sessions poisoned"))?.values().any(|entry| matches!(entry,SessionEntry::Live(s) if Arc::ptr_eq(s,session))) { break; }
-        if session.meta.lock().map_err(|_|anyhow!("metadata poisoned"))?.pid.is_none() { break; }
-        let cached = read_cache();
-        if cached.as_ref().is_some_and(|u| u.observed_at_ms.is_some() && u.observed_at_ms != previous_fetch) {
-            result = cached;
-            break;
-        }
-        let text = session.interaction.lock().map_err(|_|anyhow!("screen poisoned"))?.parser.screen().contents();
-        let refreshing = text.contains("Refreshing");
-        saw_refreshing |= refreshing;
-        if text.contains("Current session") { limits_since.get_or_insert_with(Instant::now); }
-        if loaded_at.is_none() && ((saw_refreshing && !refreshing) || limits_since.is_some_and(|at| !saw_refreshing && at.elapsed() >= Duration::from_secs(2))) {
-            loaded_at = Some(Instant::now());
-        }
-        // Carregou e o arquivo não mudou: ou o Claude ainda vai gravar (1,5 s de folga), ou ele não
-        // buscou de novo porque consultou há poucos minutos — nesse caso o arquivo é o valor atual,
-        // o mesmo que o `/usage` mostraria no terminal.
-        if loaded_at.is_some_and(|at| at.elapsed() >= Duration::from_millis(1500)) {
-            result = cached.or_else(|| Some(parse_claude_screen(&text, profile_id, now_ms())).filter(|u| u.status == "available"));
-            break;
-        }
-    }
-    // Fecha o diálogo que NÓS abrimos: a sessão estava ociosa e com a entrada reservada, então uma
-    // tela que não é o composer vazio só pode ser o `/usage` (ou o autocomplete dele).
-    // Fork: Esc só com o painel do `/usage` na tela — "não está pronta" não basta (Esc a mais no prompt
-    // vazio arma o Esc duplo do rewind).
-    if session.interaction.lock().is_ok_and(|context| painel_do_usage_aberto(&context.parser.screen().contents())) { let _ = write(b"\x1b"); }
-    Ok(result)
-}
-
-#[cfg(test)]
-mod testes_do_usage {
-    use super::painel_do_usage_aberto;
-    #[test]
-    fn esc_so_com_o_painel_do_usage() {
-        assert!(painel_do_usage_aberto("  Current session\n  ███ 40% used"));
-        assert!(painel_do_usage_aberto("Refreshing…"));
-        assert!(painel_do_usage_aberto("❯ /usage\n  /usage   Show plan usage limits"));
-        assert!(!painel_do_usage_aberto("╭───╮\n│ ❯   │\n╰───╯\n  ? for shortcuts"));
-        assert!(!painel_do_usage_aberto(""));
-    }
 }
 
 #[cfg(test)]

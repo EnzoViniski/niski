@@ -40,14 +40,12 @@ pub(crate) fn ler_politica(dir: &Path) -> Politica {
     })
 }
 
-/// O uso que o app já lê, igual ao `GET /contas`: Claude pelo cache ou pela statusline (o mais
-/// novo), Codex pelo rollout. Outras CLIs: sem fonte.
+/// O uso que o app já lê, igual ao `GET /contas`: Claude pela statusline (Fork harness, C5: o
+/// `.claude.json` não é mais lido), Codex pelo rollout. Outras CLIs: sem fonte.
 fn uso_da_conta(dir: &Path, perfil: &omni_core::Profile, agora: u64) -> Option<AccountUsage> {
     match perfil.provider.as_str() {
         "codex" => Some(omni_core::usage::read_codex(&perfil.id, Path::new(&perfil.config_dir), agora)),
-        "claude" => omni_core::usage::mais_recente(
-            omni_core::usage::read_claude_cache(&perfil.id, &omni_core::usage::claude_state_path(perfil), agora),
-            crate::ganchos::uso_da_statusline(dir, &perfil.id)),
+        "claude" => crate::ganchos::uso_da_statusline(dir, &perfil.id),
         _ => None,
     }
 }

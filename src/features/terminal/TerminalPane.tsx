@@ -45,6 +45,8 @@ import { useSession } from "./sessionProviders";
 import { ConversaNaoAchada, PastaSumida } from "../retomada/AvisoDeRetomada";
 import { cliNaoAchouAConversa, ehPastaSumida } from "../retomada/retomadaService";
 import { NOME_CURTO } from "../../lib/identidade";
+// Fork (harness, A4): reserva da troca de conta, para o engine e o painel não trocarem juntos.
+import { donoDoPainel, reservarTrocaDeConta, soltarTrocaDeConta } from "./reservaDaTrocaDeConta";
 
 /** Colar imagem numa CLI de agente: ESC v (meta+v) — o que o Alt+V já mandava e funcionava.
  *  Se alguma CLI passar a escutar ^V (0x16) em vez disso, é aqui que muda. */
@@ -125,6 +127,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
    *  dev, remontagem): sem isto cada execução abria a sua PTY e "Novo terminal" virava dois. */
   const criandoRef = useRef<Promise<TerminalSession> | null>(null);
   const sequenceRef = useRef(0);
+  const donoDaTrocaRef = useRef(donoDoPainel()); // Fork (harness, A4).
   const falhasRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<TerminalState>("stopped");
@@ -379,6 +382,13 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
     }) {
       if (failoverInProgress || Date.now() < failoverRetryAt) return;
       failoverInProgress = true;
+      // Fork (harness, A4): o engine também troca a conta de sessão sem painel. Sem a reserva, a troca é dele.
+      const dono = donoDaTrocaRef.current;
+      if (!(await reservarTrocaDeConta(input.conversationId, dono))) {
+        failoverRetryAt = Date.now() + FAILOVER_RETRY_MS;
+        failoverInProgress = false;
+        return;
+      }
       // Nova tentativa depois de "sem outra conta" não pisca o aviso: só troca se achar alguém.
       if (failoverRetryAt === 0) {
         setFailoverStatus({
@@ -476,6 +486,8 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
           });
           retryLater();
         }
+      } finally {
+        void soltarTrocaDeConta(input.conversationId, dono); // Fork (harness, A4).
       }
     }
 
