@@ -71,6 +71,14 @@ pub struct Extras {
     pub plano: Option<String>,
     #[serde(skip)]
     pub mudanca: Option<MudancaDeTarefas>,
+    /// Fork (troca-de-contexto): a ação deu certo? Vem do resultado que a CLI grava depois
+    /// (`resultado_da_acao`); ausente enquanto não chegou ou quando a CLI não diz.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ok: Option<bool>,
+    /// Fork (troca-de-contexto): id da chamada (`tool_use.id` do Claude, `call_id` do Codex), para casar
+    /// com o resultado. Fica fora do JSON.
+    #[serde(skip)]
+    pub chamada: Option<String>,
 }
 
 fn texto<'a>(valor: &'a Value, chave: &str) -> Option<&'a str> {
