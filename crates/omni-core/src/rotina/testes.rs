@@ -242,3 +242,27 @@ fn dias_e_horas_aceitam_formas_comuns() {
     assert_eq!(duracao("23:30", "07:00"), 450);
     assert_eq!(chave("  Supino   Reto "), chave("supino reto"));
 }
+
+#[test]
+fn responder_aviso_duas_vezes_nao_repete_o_efeito() {
+    // Fork (Rotina): dois toques no botão do Telegram (ou tela e Telegram juntos) chegam como duas respostas.
+    let dir = tempfile::tempdir().unwrap();
+    let a = agora("2026-10-23", "10:00");
+    let disparo = |chave: &str, tipo: &str| lembretes::Disparo { chave: chave.into(), tipo: tipo.into(), titulo: "x".into(),
+        data: "2026-10-23".into(), alvo: tipo.into(), botoes: vec!["feito".into(), "adiar".into()], ..Default::default() };
+    let mut estado = lembretes::Estado::default();
+    estado.registrar(&[disparo("agua:2026-10-23:08:30", "agua"), disparo("lembrete:l1:2026-10-23", "lembrete")], a.ms);
+    gravar(dir.path(), &estado).unwrap();
+
+    let primeiro = op(dir.path(), "responder_aviso", json!({"chave": "agua:2026-10-23:08:30", "acao": "copo"}), &a);
+    let segundo = op(dir.path(), "responder_aviso", json!({"chave": "agua:2026-10-23:08:30", "acao": "copo"}), &a);
+    assert_eq!(primeiro["agua_ml"], 250);
+    assert_eq!(segundo["ja_respondido"], "copo");
+    assert_eq!(ler::<Alimentacao>(dir.path()).dia(a.hoje).agua_ml, 250, "um copo só");
+
+    op(dir.path(), "responder_aviso", json!({"chave": "lembrete:l1:2026-10-23", "acao": "adiar"}), &a);
+    op(dir.path(), "responder_aviso", json!({"chave": "lembrete:l1:2026-10-23", "acao": "adiar"}), &a);
+    assert_eq!(ler::<lembretes::Estado>(dir.path()).adiados.len(), 1, "um adiado só");
+    // "visto" continua valendo (só esconde).
+    assert!(executar(dir.path(), "responder_aviso", &json!({"chave": "lembrete:l1:2026-10-23", "acao": "visto"}), &a).is_ok());
+}

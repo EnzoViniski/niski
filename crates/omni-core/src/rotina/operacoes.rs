@@ -649,6 +649,11 @@ fn responder_aviso(dados: &Path, args: &Value, agora: &Agora) -> Result<Value, S
     let acao = obrigatorio(args, "acao", 20)?;
     let estado: Estado = ler(dados);
     let aviso = estado.aviso(&chave_aviso).cloned().ok_or("Lembrete não encontrado (já saiu da lista)")?;
+    // Já respondido (dois toques no botão do Telegram, tela e Telegram ao mesmo tempo): não repete o
+    // efeito — sem segundo adiado, sem copo a mais, sem desmarcar o que já foi feito.
+    if !aviso.resposta.is_empty() && acao != "visto" {
+        return Ok(json!({"ok": true, "acao": acao, "tipo": aviso.disparo.tipo, "ja_respondido": aviso.resposta}));
+    }
     let d = aviso.disparo;
     let dia = data(&d.data).unwrap_or(agora.hoje);
     let item = match d.tipo.as_str() {

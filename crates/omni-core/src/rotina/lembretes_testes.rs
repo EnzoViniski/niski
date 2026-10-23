@@ -225,6 +225,7 @@ fn responder_aviso_pela_operacao_conclui_marca_e_soma_agua() {
         Disparo { chave: format!("tarefa:{id}:2026-10-23:12:10"), tipo: "tarefa".into(), alvo: id.into(), data: "2026-10-23".into(), ..Default::default() },
         Disparo { chave: "agua:2026-10-23:12:00".into(), tipo: "agua".into(), alvo: "agua".into(), data: "2026-10-23".into(), ..Default::default() },
         Disparo { chave: "refeicao:almoco:2026-10-23".into(), tipo: "refeicao".into(), alvo: "almoco".into(), data: "2026-10-23".into(), ..Default::default() },
+        Disparo { chave: "refeicao:jantar:2026-10-23".into(), tipo: "refeicao".into(), alvo: "jantar".into(), data: "2026-10-23".into(), ..Default::default() },
     ];
     estado.registrar(&disparos, agora.ms);
     gravar(dir.path(), &estado).unwrap();
@@ -235,7 +236,10 @@ fn responder_aviso_pela_operacao_conclui_marca_e_soma_agua() {
     executar(dir.path(), "responder_aviso", &json!({"chave": disparos[2].chave, "acao": "pular"}), &agora).unwrap();
     let plano: Plano = ler(dir.path());
     assert!(plano.marcas_do_dia(hoje).pulados.contains(&"refeicao:almoco".to_owned()));
+    // Fork (Rotina): já respondido (pulado) não vira adiado depois.
     let r = executar(dir.path(), "responder_aviso", &json!({"chave": disparos[2].chave, "acao": "adiar", "minutos": 30}), &agora).unwrap();
+    assert_eq!(r["ja_respondido"], "pulado");
+    let r = executar(dir.path(), "responder_aviso", &json!({"chave": disparos[3].chave, "acao": "adiar", "minutos": 30}), &agora).unwrap();
     assert_eq!(r["novo_em_ms"], agora.ms + 30 * 60_000);
     let avisos = executar(dir.path(), "ler_avisos", &json!({}), &agora).unwrap();
     assert_eq!(avisos["nao_vistos"], 0);
