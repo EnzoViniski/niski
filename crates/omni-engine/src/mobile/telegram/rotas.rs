@@ -26,7 +26,8 @@ async fn status(
 struct Conectar {
     token: String,
 }
-fn token_valido(token: &str) -> bool {
+// Fork (Rotina): também vale para o bot da rotina.
+pub(super) fn token_valido(token: &str) -> bool {
     let Some((id, segredo)) = token.split_once(':') else {
         return false;
     };

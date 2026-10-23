@@ -183,16 +183,16 @@ fn sessao_de(sessao: &Arc<LiveSession>) -> Option<String> {
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
-pub(super) struct PedidoDeConversa {
+pub(crate) struct PedidoDeConversa {
     /// `planejar` ou `conversar`.
-    pub modo: String,
+    pub(crate) modo: String,
     /// Padrão da tela (a do copiloto) quando os Ajustes da Rotina não escolheram.
-    pub plataforma_padrao: Option<String>,
-    pub conta_padrao: Option<String>,
+    pub(crate) plataforma_padrao: Option<String>,
+    pub(crate) conta_padrao: Option<String>,
 }
 
 /// Abre (ou reabre, ou só devolve) a conversa da rotina. Devolve `{sessao, conversa, nova}`.
-pub(super) fn abrir(state: &Arc<EngineState>, pedido: &PedidoDeConversa) -> Result<Value, String> {
+pub(crate) fn abrir(state: &Arc<EngineState>, pedido: &PedidoDeConversa) -> Result<Value, String> {
     static ABRINDO: Mutex<()> = Mutex::new(());
     let _abrindo = ABRINDO.lock().unwrap_or_else(|e| e.into_inner());
     let planejar = pedido.modo == "planejar";

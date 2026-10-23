@@ -109,6 +109,8 @@ pub struct MobileRuntime {
     orquestracao: orquestracao::Runtime,
     atividade: Mutex<caixa_de_atividade::Registro>,
     telegram: telegram::Runtime,
+    /// Fork (Rotina): o bot da rotina, separado do bot dos avisos.
+    rotina_telegram: telegram::rotina::Runtime,
 }
 
 #[derive(Default)]
@@ -131,7 +133,7 @@ impl MobileRuntime {
             feeds: Mutex::new(omni_core::feed::FeedCache::default()),
             codex_descoberto_em: Mutex::new(0), arquivos: Mutex::new(HashMap::new()),
             orquestracao: orquestracao::Runtime::default(), atividade: Mutex::new(caixa_de_atividade::Registro::abrir(dir)),
-            telegram: telegram::Runtime::abrir(dir) }
+            telegram: telegram::Runtime::abrir(dir), rotina_telegram: telegram::rotina::Runtime::abrir(dir) }
     }
 }
 
@@ -140,6 +142,7 @@ pub fn start(state: Arc<EngineState>) {
     caixa_de_atividade::iniciar(state.clone()); // Fork: observa mesmo sem clientes conectados.
     telegram::iniciar(state.clone()); // Fork: mensagens só quando o usuário conecta seu bot.
     rotina_rotas::iniciar(state.clone()); // Fork (Rotina): lembretes com a janela fechada.
+    telegram::rotina::iniciar(state.clone()); // Fork (Rotina): só age com o bot da rotina conectado.
     // A primeira leitura do histórico abre o começo de todo transcript de todas as contas: segundos,
     // numa máquina com muito histórico. Feita já na subida, quando ninguém está esperando, a primeira
     // abertura do celular ou da web encontra tudo pronto em vez de ficar carregando.
@@ -210,6 +213,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .merge(caixa_de_atividade::rotas()) // Fork: atividade e vistos, mesma API nos dois transportes.
         .merge(telegram::rotas()) // Fork: configuração exclusiva do IPC do desktop.
         .merge(rotina_rotas::rotas()) // Fork (Rotina): plano, treino, alimentação e lembretes.
+        .merge(telegram::rotina::rotas()) // Fork (Rotina): bot da rotina, só pelo desktop.
         .route("/projetos",get(projects))
         .route("/painel",get(painel))
         .route("/conversas/{id}/timeline",get(timeline))
