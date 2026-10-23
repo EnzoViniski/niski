@@ -365,7 +365,8 @@ pub fn items_em(value: &Value, provider: &str, cwd: Option<&Path>) -> Vec<Item> 
                             let criado = (nome == "Write").then(|| bloco["input"]["file_path"].as_str()).flatten()
                                 .and_then(|c| crate::entregaveis::criado(c, cwd));
                             // Fork: diff, lista de tarefas e plano da chamada.
-                            let extras = crate::plano_do_agente::extras_claude(&nome, &bloco["input"], bloco["id"].as_str());
+                            let mut extras = crate::plano_do_agente::extras_claude(&nome, &bloco["input"], bloco["id"].as_str());
+                            extras.chamada = bloco["id"].as_str().map(str::to_owned); // Fork (troca-de-contexto): casa com o resultado.
                             saida.push(Item { arquivos: criado.map(|c| c.to_string_lossy().into_owned()).into_iter().collect(), extras,
                                 ..item(Kind::Tool, "assistant", detalhe, Some(nome), value) });
                         },
@@ -398,8 +399,9 @@ pub fn items_em(value: &Value, provider: &str, cwd: Option<&Path>) -> Vec<Item> 
                     .filter_map(|linha| linha.strip_prefix("*** Add File: "))
                     .filter_map(|c| crate::entregaveis::criado(c, cwd))
                     .map(|c| c.to_string_lossy().into_owned()).collect();
-                saida.push(Item { arquivos: criados, extras: crate::plano_do_agente::extras_codex(payload),
-                    ..item(Kind::Tool, "assistant", detalhe, Some(nome), value) });
+                let mut extras = crate::plano_do_agente::extras_codex(payload);
+                extras.chamada = payload["call_id"].as_str().map(str::to_owned); // Fork (troca-de-contexto): casa com o resultado.
+                saida.push(Item { arquivos: criados, extras, ..item(Kind::Tool, "assistant", detalhe, Some(nome), value) });
             }
         }
         // Fork: arquivo mudado pelo Codex (o patch já aplicado), com o diff.
@@ -496,6 +498,22 @@ struct Contexto {
     cwd: Option<PathBuf>,
     /// Lista de tarefas, modo de permissão e último patch (ver `plano_do_agente`).
     estado: crate::plano_do_agente::EstadoDaConversa,
+    /// Fork (troca-de-contexto): resultados de ação lidos e ainda não aplicados (ver `aplicar_resultados`).
+    resultados: Vec<(String, bool)>,
+}
+
+/// Fork (troca-de-contexto): até quantos itens para trás o resultado procura a chamada dele.
+const BUSCA_DA_CHAMADA: usize = 500;
+
+/// Fork (troca-de-contexto): põe o `ok` no item da ação de cada resultado lido. O resultado vem numa
+/// linha depois da chamada (às vezes várias), então o item já está no cache: procura do fim para trás.
+fn aplicar_resultados(entries: &mut [Entry], pendentes: &mut Vec<(String, bool)>) {
+    for (id, ok) in pendentes.drain(..) {
+        if let Some(entrada) = entries.iter_mut().rev().take(BUSCA_DA_CHAMADA)
+            .find(|e| e.item.extras.chamada.as_deref() == Some(id.as_str())) {
+            entrada.item.extras.ok = Some(ok);
+        }
+    }
 }
 
 fn entradas(linha: &[u8], provider: &str, contexto: &mut Contexto) -> Vec<Entry> {
@@ -511,6 +529,7 @@ fn entradas(linha: &[u8], provider: &str, contexto: &mut Contexto) -> Vec<Entry>
     };
     if let Some(pasta) = pasta.filter(|p| Path::new(p).is_absolute()) { *cwd = Some(PathBuf::from(pasta)); }
     let base = value["uuid"].as_str().map(str::to_owned).unwrap_or_else(|| format!("{:016x}", hash(linha)));
+    contexto.resultados.extend(crate::resultado_da_acao::resultados(&value, provider)); // Fork (troca-de-contexto)
     // Fork: a lista de tarefas anda com o transcript (o `TaskUpdate` só diz o que mudou), e o
     // `FileChange` do Codex que repete o patch recém-mostrado não vira outra linha.
     let estado = &mut contexto.estado;
@@ -579,6 +598,7 @@ impl FeedCache {
             let completo = novo.iter().rposition(|b| *b == b'\n').map_or(0, |i| i + 1);
             for linha in novo[..completo].split(|b| *b == b'\n') {
                 feed.entries.extend(entradas(linha, provider, &mut feed.contexto));
+                aplicar_resultados(&mut feed.entries, &mut feed.contexto.resultados); // Fork (troca-de-contexto)
             }
             feed.offset += completo as u64;
             // Sem `\n` no fim a última linha pode estar no meio da escrita — ou o arquivo
@@ -586,9 +606,11 @@ impl FeedCache {
             // a próxima leitura recomeça dela, então nada duplica quando a CLI completar a linha.
             let mut visivel = feed.contexto.clone();
             let resto = entradas(&novo[completo..], provider, &mut visivel);
-            feed.contexto_visivel = (completo < novo.len()).then_some(visivel);
             feed.provisorios = resto.len();
             feed.entries.extend(resto);
+            // Fork (troca-de-contexto): resultado na linha provisória vale para mostrar; relida, dá o mesmo.
+            aplicar_resultados(&mut feed.entries, &mut visivel.resultados);
+            feed.contexto_visivel = (completo < novo.len()).then_some(visivel);
         }
         Ok(&self.feeds[path].entries)
     }

@@ -216,7 +216,7 @@ export function PaneView({
           <PainelVazio onCriar={criarAba} />
         ) : tab.kind === "agent" ? (
           // Fork: a faixa abre revisão ao lado e mantém o destinatário da aba.
-          <AbaDeAgente agentView={agentView} sessionId={tab.resourceId ?? null}
+          <AbaDeAgente agentView={agentView} sessionId={tab.resourceId ?? null} emFoco={active} /* Fork (troca-de-contexto) */
             onRevisao={tab.resourceId ? () => dispatch({ type: "ABRIR_REVISAO", sessionId: tab.resourceId!, paneId: pane.id, projectId: projetoDoPainel !== projectId ? projetoDoPainel : undefined }) : undefined}>
             <TerminalPane
               projectId={projetoDaAba.id}

@@ -1,0 +1,120 @@
+/* Fork (troca-de-contexto): cartão "onde parei", marca "novo desde a sua última olhada" e a linha de
+   cada agente na lateral. Clássico aqui; Minimalista e Vidro no fim. Cores só dos tokens do tema, então
+   claro e escuro saem juntos. O único movimento (a entrada do cartão) some com "Reduzir movimento"
+   pelas regras globais do `index.css`. */
+
+.onde-parei {
+  --tom: var(--c-text-muted);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .375rem;
+  padding: .5rem .75rem .625rem;
+  font-size: .75rem;
+  line-height: 1.45;
+  color: rgb(var(--c-text-secondary));
+  background: rgb(var(--c-bg-surface));
+  border: 2px solid rgb(var(--c-outline));
+  border-left: 4px solid rgb(var(--tom));
+  box-shadow: 3px 3px 0 rgb(var(--c-outline) / .6);
+  animation: onde-parei-entra 180ms ease-out;
+}
+.onde-parei[data-tom="precisa"] { --tom: var(--c-warning); }
+.onde-parei[data-tom="erro"] { --tom: var(--c-danger); }
+.onde-parei[data-tom="trabalhando"] { --tom: var(--c-accent); }
+.onde-parei[data-tom="pronto"] { --tom: var(--c-success); }
+@keyframes onde-parei-entra { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+.onde-parei-topo { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.onde-parei-ponto { width: .5rem; height: .5rem; flex-shrink: 0; border-radius: 50%; background: rgb(var(--tom)); }
+.onde-parei-estado { font-size: .8125rem; font-weight: 700; color: rgb(var(--c-text-primary)); white-space: nowrap; }
+.onde-parei-contexto { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--c-text-muted)); }
+.onde-parei-fechar {
+  display: grid; place-items: center; width: 1.75rem; height: 1.75rem; margin: -.25rem -.375rem -.25rem 0;
+  font-size: 1rem; line-height: 1; color: rgb(var(--c-text-muted)); background: none; border: 0; cursor: pointer;
+}
+.onde-parei-fechar:hover { color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .06); }
+.onde-parei-fechar:focus-visible, .onde-parei-acao:focus-visible, .onde-parei-reabrir:focus-visible {
+  outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px;
+}
+.onde-parei-detalhe {
+  margin: 0; padding: .25rem .5rem; font-family: var(--font-mono, ui-monospace, monospace); font-size: .75rem;
+  color: rgb(var(--c-text-primary)); background: rgb(var(--tom) / .1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.onde-parei-linhas { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: .75rem; row-gap: .2rem; margin: 0; }
+.onde-parei-linhas > div { display: contents; }
+.onde-parei-linhas dt { font-size: .6875rem; font-weight: 600; color: rgb(var(--c-text-muted)); white-space: nowrap; }
+.onde-parei-linhas dd { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgb(var(--c-text-secondary)); }
+.onde-parei-feitos { display: flex; flex-wrap: wrap; gap: .25rem .5rem; white-space: normal !important; }
+.onde-parei-pedaco { white-space: nowrap; }
+.onde-parei-pedaco + .onde-parei-pedaco::before { content: "·"; margin-right: .5rem; color: rgb(var(--c-text-muted)); }
+.onde-parei-pedaco[data-tom="ok"] { color: rgb(var(--c-success)); font-weight: 600; }
+.onde-parei-pedaco[data-tom="falha"] { color: rgb(var(--c-danger)); font-weight: 600; }
+.onde-parei-acoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; }
+.onde-parei-acao {
+  min-height: 1.75rem; padding: .125rem .625rem; font: inherit; font-size: .75rem; font-weight: 600; cursor: pointer;
+  color: rgb(var(--c-text-secondary)); background: none; border: 1px solid rgb(var(--c-outline));
+}
+.onde-parei-acao:hover { color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .05); }
+.onde-parei-acao.is-principal { color: rgb(var(--c-text-primary)); border-color: rgb(var(--tom)); background: rgb(var(--tom) / .12); }
+
+/* Fechado: um botão discreto no canto, por cima do começo da conversa. */
+.onde-parei-reabrir {
+  position: absolute; top: .375rem; right: max(1rem, calc((100% - 56rem) / 2)); z-index: 12;
+  min-height: 1.5rem; padding: .125rem .5rem; font: inherit; font-size: .6875rem; font-weight: 600; cursor: pointer;
+  color: rgb(var(--c-text-muted)); background: rgb(var(--c-bg-surface) / .9); border: 1px solid rgb(var(--c-outline) / .7);
+  opacity: .75; transition: opacity 150ms ease-out;
+}
+.onde-parei-reabrir:hover, .onde-parei-reabrir:focus-visible { opacity: 1; color: rgb(var(--c-text-primary)); }
+
+/* Na aba do PC a conversa rola por dentro: o cartão fica fixo acima dela, na largura de leitura. */
+.w-painel-central .onde-parei { margin-inline: max(1rem, calc((100% - 56rem) / 2)); }
+/* No celular a página inteira rola (e abre no fim): o cartão gruda logo abaixo da barra de cima
+   (`.m-topo`: respiro de cima + botão de 44px + respiro de baixo + sombra). */
+.m-conteudo .onde-parei {
+  position: sticky; z-index: 12;
+  top: calc(max(.5rem, env(safe-area-inset-top)) + 44px + .5rem + var(--pixel-shadow, 4px) + .25rem);
+}
+
+.onde-parei-marca {
+  display: flex; align-items: center; gap: .5rem; margin: .25rem 0; font-size: .625rem; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; color: rgb(var(--c-accent));
+}
+.onde-parei-marca::before, .onde-parei-marca::after { content: ""; flex: 1; height: 1px; background: rgb(var(--c-accent) / .45); }
+
+/* Lateral "Na tela": a linha do essencial embaixo do nome. */
+.na-tela-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.na-tela-texto .na-tela-nome { flex: none; }
+.na-tela-essencial {
+  display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: .625rem; font-weight: 400; line-height: 1.3; color: rgb(var(--c-text-muted));
+}
+:root[data-estilo="minimalista"] .na-tela-essencial { font-size: .6875rem; }
+.na-tela-essencial[data-tom="precisa"] { color: rgb(var(--c-warning)); }
+.na-tela-essencial[data-tom="erro"] { color: rgb(var(--c-danger)); }
+.na-tela-novas {
+  flex-shrink: 0; padding: 0 .3rem; font-size: .625rem; font-weight: 700; line-height: 1rem; font-variant-numeric: tabular-nums;
+  color: rgb(var(--c-accent)); border: 1px solid rgb(var(--c-accent) / .5);
+}
+
+/* ── Minimalista e Vidro ─────────────────────────────────────────────────────────────────────── */
+:root[data-estilo="minimalista"] .onde-parei {
+  border-width: 1px; border-left-width: 3px; border-color: rgb(var(--c-border-subtle)); border-left-color: rgb(var(--tom));
+  border-radius: var(--m-r-cartao, 14px); box-shadow: none;
+}
+:root[data-estilo="minimalista"] :is(.onde-parei-acao, .onde-parei-reabrir) { border-color: rgb(var(--c-border-subtle)); }
+:root[data-estilo="minimalista"] .onde-parei-detalhe { border-radius: 6px; }
+:root[data-estilo="minimalista"] .onde-parei-acao,
+:root[data-estilo="minimalista"] .onde-parei-reabrir,
+:root[data-estilo="minimalista"] .na-tela-novas { border-radius: 999px; }
+:root[data-estilo="minimalista"] .onde-parei-fechar { border-radius: 8px; }
+:root[data-variante="vidro"][data-estilo] .onde-parei {
+  background: rgb(var(--c-overlay) / .04); border-color: rgb(var(--c-overlay) / .1); border-left-color: rgb(var(--tom));
+}
+:root[data-variante="vidro"][data-estilo] .onde-parei-reabrir {
+  background: rgb(var(--c-bg-surface) / .6); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+
+/* Claro: verde e âmbar do tema são para fundo e ícone; em texto pequeno, um tom mais escuro (contraste ≥ 4,5:1). */
+:root[data-theme="claro"] .onde-parei-pedaco[data-tom="ok"] { color: rgb(21 128 61); }
+:root[data-theme="claro"] .na-tela-essencial[data-tom="precisa"] { color: rgb(161 98 7); }

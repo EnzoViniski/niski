@@ -38,6 +38,7 @@ pub mod worktree_isolada;
 // Fork: conversa rica — lista de tarefas, plano do plan mode, modo de permissão e diffs do agente.
 pub mod plano_do_agente;
 pub mod diff_do_agente;
+pub mod resultado_da_acao; // Fork (troca-de-contexto): se a ação do agente deu certo (`ok` na timeline).
 // Fork (Onda 2): ganchos HTTP do Claude Code por sessão, pedidos de permissão e statusline (parte pura).
 pub mod ganchos;
 // Fork (Fase 3): fila de contas — escolha pura da conta com explicação.

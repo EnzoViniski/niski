@@ -28,6 +28,7 @@ export const CHAVES_ESPELHADAS = [
   "medza-tarefas-ajustes", // Fork: tarefas.
   "medza-tarefas-painel", // Fork: painel, botão e lista do dia flutuantes.
   "medza-copiloto", // Fork: janela do copiloto (conversa, pasta, modo, posição).
+  "medza-ultima-olhada", // Fork (troca-de-contexto): até onde você viu cada conversa (só números).
 ] as const;
 
 export const CHAVE_DO_CARIMBO = "medza-interface-salva-em";

@@ -85,6 +85,8 @@ export interface Mensagem {
   tarefas?: Tarefa[];
   /** Fork: `ExitPlanMode` — o plano em markdown. */
   plano?: string;
+  /** Fork (troca-de-contexto): a ação deu certo? Engine antigo ou CLI que não diz: ausente. */
+  ok?: boolean;
 }
 /** Fork: tarefa da lista do agente (TodoWrite/TaskCreate do Claude, update_plan do Codex). */
 export interface Tarefa {

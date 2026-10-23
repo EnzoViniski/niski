@@ -35,6 +35,10 @@ import { CartaoDePermissao } from "./CartaoDePermissao";
 import { CartaoDeEspera } from "./CartaoDeEspera";
 import { TerminalFlutuante } from "./TerminalFlutuante";
 import { RodapeDaConversa } from "./RodapeDaConversa";
+// Fork (troca-de-contexto): cartão "onde parei" e marca "novo desde a sua última olhada".
+import { useOndeParei } from "../../features/troca/useOndeParei";
+import { CartaoOndeParei, MarcaDeNovo } from "../../features/troca/CartaoOndeParei";
+import { blocoDaMarca } from "../../features/troca/ondeParei";
 
 export function ConversationDetail({ conversation: daLista, refresh, abrirConversa }: {
   conversation: Conversation;
@@ -122,6 +126,9 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const { mensagens, anteriorA, buscandoAntigas, buscarAntigas, buscarAntigasRef } = useMensagensAntigas({ data, base, fim, setError });
   const { blocos, separadores, continuacoes } = useBlocos(mensagens);
   const ultimaId = mensagens[mensagens.length - 1]?.id ?? "";
+  // Fork (troca-de-contexto): o que mudou desde a sua última olhada, da timeline que já está aqui.
+  const onde = useOndeParei({ conversa: conversation, mensagens, tarefas: data?.timeline?.tarefas, carregado: data !== null, tela: telaRef });
+  const marcaEm = blocoDaMarca(blocos, onde.marca);
 
   useConfirmacaoDoEnvio({ data, mensagens, enviado, setEnviado, fila, setFila, setFalhaEnvio });
 
@@ -443,6 +450,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
         <span><AttachmentIcon className="h-5 w-5" />Solte para anexar à conversa</span>
       </div>
     )}
+    <CartaoOndeParei onde={onde} tela={telaRef} /* Fork (troca-de-contexto) */ />
     {anteriorA !== null && (
       <Button variant="ghost" size="sm" className="m-paginar" disabled={buscandoAntigas} onClick={() => void buscarAntigas()}>
         {buscandoAntigas ? "Carregando…" : "Mensagens anteriores"}
@@ -466,6 +474,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
         const porInicio = new Map(recolhidos.map((r) => [r.inicio, r]));
         for (let indice = 0; indice < blocos.length; indice++) {
           const r = porInicio.get(indice);
+          // Fork (troca-de-contexto): a marca antes do bloco (ou do trabalho recolhido) onde começa o novo.
+          if (marcaEm >= 0 && (indice === marcaEm || (r && marcaEm > r.inicio && marcaEm <= r.fim))) nos.push(<MarcaDeNovo key="marca-de-novo" />);
           if (!r) { nos.push(desenhar(blocos[indice], indice)); continue; }
           const aberto = trabalhoAberto.has(r.chave);
           nos.push(
