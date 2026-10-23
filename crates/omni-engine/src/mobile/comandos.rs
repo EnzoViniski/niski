@@ -32,12 +32,16 @@ async fn comando(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath
 struct ModoBody { modo: String }
 async fn modo(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<ModoBody>) -> Result<(StatusCode,Json<Value>),ApiError> {
     // Fork: o Codex também escolhe o modo pela Conversa (Perguntar, Sem perguntar, Acesso total, Somente leitura).
-    if ultima_sessao(&state,&id)?.provider == "codex" {
-        if !omni_core::modo_do_codex::valido(&body.modo) { return Err(error(StatusCode::BAD_REQUEST,"Modo do Codex deve ser default, semPerguntar, acessoTotal ou somenteLeitura")); }
+    // Valor que não é de nenhum dos dois é recusado antes de procurar a sessão, como antes.
+    let do_codex = omni_core::modo_do_codex::valido(&body.modo);
+    if !oficiais::modo_valido(&body.modo) && !do_codex { return Err(error(StatusCode::BAD_REQUEST,"Modo deve ser default, acceptEdits, plan ou auto")); }
+    let provider = ultima_sessao(&state,&id)?.provider;
+    if provider == "codex" {
+        if !do_codex { return Err(error(StatusCode::BAD_REQUEST,"Modo do Codex deve ser default, semPerguntar, acessoTotal ou somenteLeitura")); }
         return enqueue_async(state,id,headers,ActionKind::Comando(Pedido::ModoCodex(body.modo))).await;
     }
     if !oficiais::modo_valido(&body.modo) { return Err(error(StatusCode::BAD_REQUEST,"Modo deve ser default, acceptEdits, plan ou auto")); }
-    if ultima_sessao(&state,&id)?.provider != "claude" { return Err(error(StatusCode::BAD_REQUEST,"Este controle de modo é do Claude Code")); }
+    if provider != "claude" { return Err(error(StatusCode::BAD_REQUEST,"Este controle de modo é do Claude Code")); }
     enqueue_async(state,id,headers,ActionKind::Comando(Pedido::Modo(body.modo))).await
 }
 
