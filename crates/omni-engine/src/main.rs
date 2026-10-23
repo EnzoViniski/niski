@@ -355,6 +355,8 @@ fn handle_request(request: EngineRequest, state: &Arc<EngineState>) -> EngineRes
         EngineRequest::DuplicateSession { session_id, .. } => duplicate_session(state, &session_id),
         EngineRequest::RestartSession { session_id, .. } => restart_session(state, &session_id),
         EngineRequest::Snapshot { session_id, since, espera_ms, estado_conhecido, .. } => {
+            // Fork (harness, A4): um painel está lendo esta PTY (o vigia do limite deixa a troca com ele).
+            let _painel = mobile::troca_no_limite::painel_lendo(&session_id);
             // Fork (energia): espera saída nova ou mudança de estado em vez de a UI perguntar 10x/s.
             espera_de_saida::esperar_snapshot(state, &session_id, since, espera_ms, estado_conhecido.as_deref());
             snapshot(state, &session_id, since)
@@ -1099,9 +1101,14 @@ fn restart_session_com_comando(state: &Arc<EngineState>, session_id: &str, coman
         // The Arc stays the same object in the map — only its interior fields are
         // swapped, so no removal/reinsertion window where lookups would fail.
         RestartTarget::Live(session) => {
-            let mut context = session.interaction.lock().map_err(|_| anyhow!("screen poisoned"))?;
+            let context = session.interaction.lock().map_err(|_| anyhow!("screen poisoned"))?;
             if session.reserved.load(Ordering::SeqCst) { return Err(anyhow!("Consulta de uso em andamento")); }
+            // Fork (harness): a tela fica livre enquanto a CLI antiga encerra. No macOS o processo que sai
+            // só termina depois que a saída pendente da PTY é lida; com a tela presa, o leitor parava, a
+            // saída não escoava e o reinício desistia em 3 s ("ainda está encerrando", visto no log real).
+            drop(context);
             encerramento_da_pty::encerrar(&session)?; // Fork: aguarda a CLI antiga liberar sua trava.
+            let mut context = session.interaction.lock().map_err(|_| anyhow!("screen poisoned"))?;
             session.meta.lock().map_err(|_| anyhow!("metadata poisoned"))?.pid = None;
             let meta = session.meta.lock().map_err(|_| anyhow!("session metadata poisoned"))?.clone();
             context.parser = vt100::Parser::new(meta.rows, meta.cols, 0);
