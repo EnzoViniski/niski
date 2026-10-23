@@ -52,6 +52,7 @@ pub mod arquivo_de_conversas;
 pub mod clonar_arquivo; // Fork (espaço em disco): clone APFS para o arquivo de conversas.
 pub mod roadmaps; // Fork (Roadmaps de estudo): arquivos de cada roadmap, usados pelo app e pelo celular.
 pub mod tarefas; // Fork (Tarefas): um JSON por tarefa, usados pelo app e pelas ferramentas do copiloto.
+pub mod rotina; // Fork (Rotina): plano da semana, treino, alimentação, lembretes e o agente da rotina.
 
 use serde::{Deserialize, Serialize};
 use std::{fs, path::{Path, PathBuf}};
