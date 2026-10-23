@@ -81,8 +81,9 @@ fn opcao(linha: &str) -> Option<(bool, u8, String)> {
     let resto = linha.trim_start_matches(MARCAS).trim();
     let (numero, rotulo) = resto.split_once(". ").or_else(|| resto.split_once(") "))?;
     let numero: u8 = numero.parse().ok()?;
-    // Prévia/explicação à direita, num vão largo, não é rótulo.
-    let rotulo = rotulo.split("   ").next().unwrap_or("").trim();
+    // Fork (perguntas na Conversa): a explicação à direita, em coluna, sai em `numerado` com todas as
+    // opções juntas (`coluna_da_descricao`); cortar no vão de três espaços deixava ela grudada no rótulo.
+    let rotulo = rotulo.trim();
     (!rotulo.is_empty() && (1..=9).contains(&numero)).then(|| (sel, numero, rotulo.to_owned()))
 }
 
@@ -227,6 +228,10 @@ pub fn menu_no_texto(texto: &str, provider: &str, cursor: Option<usize>) -> Opti
 /// 6 linhas). A numeração de perguntas do Codex ("Question 1/1 (1 unanswered)") não é a pergunta.
 fn pergunta_acima(caixa: &[&str], primeira: usize) -> (String, Option<String>) {
     let inicio = caixa[..primeira].iter().rposition(|l| borda(l) || campo(l)).map_or(0, |i| i + 1);
+    // Fork (perguntas na Conversa): a resposta do agente que ficou em cima ("• Vou perguntar.") não é a
+    // pergunta — no Codex 0.164 ela virava o título do cartão. A pergunta começa depois dela.
+    let inicio = caixa[inicio..primeira].iter().rposition(|l| limpa(l).starts_with(['•', '●', '⏺', '■']))
+        .map_or(inicio, |i| inicio + i + 1);
     let textos: Vec<&str> = caixa[inicio..primeira].iter().map(|l| limpa(l))
         .filter(|l| !l.is_empty() && !(l.starts_with("Question ") && l.contains('/'))).collect();
     let textos = &textos[textos.len().saturating_sub(6)..];
@@ -270,10 +275,13 @@ fn numerado(caixa: &[&str], provider: &str, tem_rodape: bool) -> Option<Escolha>
     if selecionadas.is_empty() && !tem_rodape { return None; }
     let (pergunta, detalhe) = pergunta_acima(caixa, achadas[0].0);
     // Explicação embaixo de cada opção (linhas entre ela e a próxima; a última não leva o rodapé).
-    let opcoes: Vec<Opcao> = achadas.iter().enumerate().map(|(k, (i, _, numero, rotulo))| {
+    // Fork (perguntas na Conversa): rótulo e descrição em coluna na mesma linha (Codex).
+    let separadas = crate::coluna_da_descricao::separar(&achadas.iter().map(|o| o.3.clone()).collect::<Vec<_>>());
+    let opcoes: Vec<Opcao> = achadas.iter().zip(separadas).enumerate().map(|(k, ((i, _, numero, _), (rotulo, coluna)))| {
         let fim = achadas.get(k + 1).map_or(*i + 1, |o| o.0);
-        let descricao = caixa[i + 1..fim].iter().map(|l| limpa(l)).filter(|l| !l.is_empty()).collect::<Vec<_>>().join(" ");
-        Opcao { numero: *numero, rotulo: rotulo.clone(), descricao: (!descricao.is_empty()).then_some(descricao), marcada: None }
+        let abaixo = caixa[i + 1..fim].iter().map(|l| limpa(l)).filter(|l| !l.is_empty()).collect::<Vec<_>>().join(" ");
+        let descricao = [coluna.unwrap_or_default(), abaixo].into_iter().filter(|t| !t.is_empty()).collect::<Vec<_>>().join(" ");
+        Opcao { numero: *numero, rotulo, descricao: (!descricao.is_empty()).then_some(descricao), marcada: None }
     }).collect();
     // Claude: o número escolhe (o seletor dele numera para isso). Codex e outros: setas a partir da
     // opção marcada e Enter — sem marca visível não há de onde partir, e fica a espera.

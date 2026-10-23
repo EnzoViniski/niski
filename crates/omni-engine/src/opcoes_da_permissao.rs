@@ -43,7 +43,7 @@ pub fn opcoes(texto: &str, provider: &str) -> Vec<OpcaoDaPermissao> {
         .map(|l| l.trim().trim_start_matches('│').trim_end_matches('│').trim().to_owned()).collect();
     let pergunta = |l: &str| match provider {
         "claude" => l.starts_with("Do you want to") && l.ends_with('?'),
-        "codex" => l.starts_with("Would you like to") && l.ends_with('?'),
+        "codex" => (l.starts_with("Would you like to") || l.starts_with("Do you want to approve")) && l.ends_with('?'),
         _ => l.ends_with('?') && opcao(l, 1).is_none(),
     };
     let Some(inicio) = linhas.iter().rposition(|l| pergunta(l)) else { return Vec::new() };

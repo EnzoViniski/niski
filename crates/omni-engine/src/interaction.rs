@@ -136,7 +136,9 @@ pub fn escolha(text: &str) -> Option<Escolha> {
         let linha = linha.trim().trim_start_matches(['❯', '›', '>']).trim();
         let (numero, rotulo) = linha.split_once(". ")?;
         let numero: u8 = numero.parse().ok()?;
-        let rotulo = sem_previa(rotulo);
+        // Fork (perguntas na Conversa): só a caixa da prévia sai aqui; a descrição em coluna (Codex) é
+        // separada depois, com todas as opções juntas (`coluna_da_descricao`).
+        let rotulo = rotulo[..rotulo.find(CAIXA).unwrap_or(rotulo.len())].trim().to_owned();
         let rotulo = rotulo.as_str();
         // Caixa de marcar ("[ ] Uva", "[✔] Uva"): vira `marcada`.
         let (marcada, rotulo) = match rotulo.strip_prefix('[').and_then(|r| r.split_once("] ")) {
@@ -159,7 +161,15 @@ pub fn escolha(text: &str) -> Option<Escolha> {
     // A caixa começa na borda acima da opção 1: a pergunta do agente (AskUserQuestion) tem outra
     // borda antes de "Chat about this", e começar na última deixava só essa opção.
     let um = linhas[..rodape].iter().rposition(|l| opcao(l).is_some_and(|o| o.numero == 1))?;
-    let inicio = linhas[..um].iter().rposition(|l| borda(l)).map(|i| i + 1).unwrap_or(um.saturating_sub(20));
+    // Fork (perguntas na Conversa): sem borda acima (formulário de aprovação do MCP no Codex 0.164), a
+    // caixa é o bloco de texto colado na opção 1 — antes subia 20 linhas e a "pergunta" virava uma linha
+    // velha do histórico.
+    let inicio = linhas[..um].iter().rposition(|l| borda(l)).map(|i| i + 1).unwrap_or_else(|| {
+        let mut i = um;
+        while i > 0 && linhas[i - 1].trim().is_empty() && um - i < 3 { i -= 1; }
+        while i > 0 && !linhas[i - 1].trim().is_empty() && um - i < 20 { i -= 1; }
+        i
+    });
     let caixa: Vec<&str> = linhas[inicio..rodape].iter().copied().filter(|l| !borda(l)).collect();
     if caixa.iter().any(|l| l.contains("Do you want to")) { return None; }
     // Opções só da opção 1 para baixo: o que vem antes é a pergunta, mesmo que tenha lista numerada.
@@ -180,6 +190,14 @@ pub fn escolha(text: &str) -> Option<Escolha> {
             },
         }
     }
+    // Fork (perguntas na Conversa): descrição na mesma linha, em coluna ("2. Allow for this session  Run…").
+    let separadas = crate::coluna_da_descricao::separar(&todas.iter().map(|o| o.rotulo.clone()).collect::<Vec<_>>());
+    for (opcao, (rotulo, coluna)) in todas.iter_mut().zip(separadas) {
+        opcao.rotulo = rotulo;
+        if let Some(coluna) = coluna {
+            opcao.descricao = Some(match opcao.descricao.take() { Some(abaixo) => format!("{coluna} {abaixo}"), None => coluna });
+        }
+    }
     if todas.len() < 2 || todas.len() > 9 || todas.iter().enumerate().any(|(i, o)| o.numero as usize != i + 1) { return None; }
     let multipla = todas.iter().any(|o| o.marcada.is_some());
     // "Type something" abre um campo de texto dentro do menu, que a conversa não preenche; para
@@ -198,7 +216,10 @@ pub fn escolha(text: &str) -> Option<Escolha> {
             })
             .filter(|e| !e.titulo.is_empty()).collect()
     }).filter(|e: &Vec<Etapa>| e.len() > 1).unwrap_or_default();
-    let mut textos = caixa[..primeira].iter().filter(|l| !aba(l)).map(|l| l.trim()).filter(|l| !l.is_empty());
+    // Fork: o contador do formulário do Codex ("Field 1/1", "Question 1/2 (2 unanswered)") não é a pergunta.
+    let contador = |l: &str| ["Field ", "Question "].iter().any(|p| l.strip_prefix(p)
+        .and_then(|r| r.split_whitespace().next()).is_some_and(|n| n.contains('/') && n.chars().all(|c| c.is_ascii_digit() || c == '/')));
+    let mut textos = caixa[..primeira].iter().filter(|l| !aba(l)).map(|l| l.trim()).filter(|l| !l.is_empty() && !contador(l));
     // Antigravity numera as perguntas ("Question 1/1: O que…"): a numeração não é texto da pergunta.
     let pergunta = textos.next()?;
     let pergunta = pergunta.strip_prefix("Question ").and_then(|resto| resto.split_once(": "))
@@ -349,7 +370,9 @@ pub fn approval(text: &str, provider: &str) -> Option<(String, String, String)> 
         .map(|l| l.trim().trim_start_matches('│').trim_end_matches('│').trim().to_string()).collect();
     let pergunta = |l: &str| match provider {
         "claude" => l.starts_with("Do you want to") && l.ends_with('?'),
-        "codex" => l == "Would you like to run the following command?" || (l.starts_with("Would you like to") && l.ends_with('?')),
+        "codex" => l == "Would you like to run the following command?" || (l.starts_with("Would you like to") && l.ends_with('?'))
+            // Fork (perguntas na Conversa): acesso à rede no Codex 0.164 (`approval_overlay.rs`); as 4 opções vão ao cartão.
+            || (l.starts_with("Do you want to approve") && l.ends_with('?')),
         _ => false,
     };
     let start = lines.iter().rposition(|l| pergunta(l))?;

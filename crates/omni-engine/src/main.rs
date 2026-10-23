@@ -19,6 +19,7 @@ mod memoria_compartilhada;
 mod notify_codex; // Fork (harness, A2): fim de turno do Codex pelo `notify` oficial.
 mod vinculo_do_codex; // Fork: o thread do `notify` liga a conversa ao rollout certo.
 mod opcoes_da_permissao; // Fork: todas as opções do diálogo de permissão na Conversa.
+mod coluna_da_descricao; // Fork: rótulo e descrição em coluna nas opções do Codex.
 mod harness_resumo; // Fork (harness, A7): linha de números por sessão no log.
 mod interaction;
 // Fork (pergunta-da-cli): menu genérico da CLI e "esperando algo no terminal".

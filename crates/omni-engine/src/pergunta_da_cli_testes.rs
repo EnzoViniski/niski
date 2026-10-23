@@ -237,3 +237,34 @@ fn menu_ou_escolha(tela: &str, provider: &str) -> Option<Escolha> { escolha(tela
     assert_eq!(rotulos(&menu), ["Yes, continue anyway", "Cancel"]);
     assert!(espera(parser.screen(), "codex", 500).is_none(), "tela recém-desenhada não vira aviso");
 }
+
+/* ── Codex 0.164: telas dos snapshots oficiais (tag rust-v0.164.0, `codex-rs/tui/src/bottom_pane`) ── */
+
+/// Formulário de aprovação de ferramenta do MCP (`mcp_server_elicitation_approval_form_with_session_persist.snap`),
+/// com histórico em cima: a pergunta era a linha velha do histórico (a caixa subia 20 linhas sem borda).
+#[test] fn codex_formulario_do_mcp_mostra_a_pergunta_certa() {
+    let tela = "• Rodei o preview do vídeo.\n\n› gere o vídeo de novo\n\n• Chamando a ferramenta do MCP hyperframes.\n\n  Field 1/1\n  Allow this request?\n  › 1. Allow                   Run the tool and continue\n    2. Allow for this session  Run the tool and remember this choice for this session\n    3. Always allow            Run the tool and remember this choice for future tool calls\n    4. Cancel                  Cancel this tool call\n\n\n  enter to submit | esc to cancel\n";
+    let menu = menu_ou_escolha(tela, "codex").expect("formulário do MCP");
+    assert_eq!(menu.pergunta, "Allow this request?");
+    assert_eq!(rotulos(&menu), ["Allow", "Allow for this session", "Always allow", "Cancel"]);
+    assert_eq!(menu.opcoes[1].descricao.as_deref(), Some("Run the tool and remember this choice for this session"));
+}
+
+/// Acesso à rede (`network_exec_prompt.snap`): quatro opções; antes ficava "responda no terminal".
+#[test] fn codex_acesso_a_rede_vira_cartao_com_as_quatro_opcoes() {
+    let tela = "  Do you want to approve network access to \"example.com\"?\n\n  Reason: network request blocked\n\n\n\n› 1. Yes, just this once (y)\n  2. Yes, and allow this host for this conversation (a)\n  3. Yes, and allow this host in the future (p)\n  4. No, and tell Codex what to do differently (esc)\n\n  Press enter to confirm or esc to cancel\n";
+    let (sim, nao, _) = approval(tela, "codex").expect("vira o cartão de permissão");
+    assert_eq!((sim.as_str(), nao.as_str()), ("y", "\x1b"));
+    let opcoes = crate::opcoes_da_permissao::opcoes(tela, "codex");
+    assert_eq!(opcoes.iter().map(|o| o.papel).collect::<Vec<_>>(), ["permitir", "outra", "outra", "negar"]);
+    assert_eq!(opcoes[2].setas.as_deref(), Some("\x1b[B\x1b[B"));
+}
+
+/// Pergunta do agente no Plan mode (`request_user_input_options.snap`) com o histórico em cima.
+#[test] fn codex_pergunta_do_plan_mode_da_tag_0_164() {
+    let tela = "› me pergunte qual opção usar\n\n• Vou perguntar.\n\n  Question 1/1 (1 unanswered)\n  Choose an option.\n\n  › 1. Option 1           First choice.\n    2. Option 2           Second choice.\n    3. Option 3           Third choice.\n    4. None of the above  Optionally, add details in notes (tab)\n\n  tab to add notes | enter to submit answer | esc to interrupt\n";
+    let menu = menu_ou_escolha(tela, "codex").expect("pergunta do Codex");
+    assert_eq!(menu.pergunta, "Choose an option.");
+    assert_eq!(rotulos(&menu), ["Option 1", "Option 2", "Option 3", "None of the above"]);
+    assert_eq!(teclas_da_opcao(&menu, 3), Some((Some("\x1b[B\x1b[B".into()), "\r".into())));
+}
