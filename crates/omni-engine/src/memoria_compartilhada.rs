@@ -2,17 +2,21 @@
 use crate::*;
 use omni_core::memoria_compartilhada as memoria;
 
-pub(crate) fn texto(state: &EngineState) -> Option<String> {
+pub(crate) fn texto(state: &EngineState) -> Option<String> { texto_para(state, None) }
+
+/// Fork (harness, C2): o texto para a conversa. Subagente do orquestrador recebe só a memória curta.
+pub(crate) fn texto_para(state: &EngineState, conversa: Option<&str>) -> Option<String> {
     let dir = state.state_file.parent()?;
+    let subagente = conversa.is_some_and(|c| mobile::orquestracao::contexto::eh_subagente(state, c));
     let memoria = match memoria::ler(dir) {
         Ok(m) => memoria::contexto(&m),
         Err(_) => { registro::aviso_sem_repetir("memoria_ilegivel", "memoria_nao_carregada", &[]); None }
     };
     // Fork (Sobre mim): vai junto, pelo mesmo caminho (Claude, Codex, app-server e fluxos).
-    let sobre_mim = match omni_core::sobre_mim::contexto(dir) {
+    let sobre_mim = if subagente { None } else { match omni_core::sobre_mim::contexto(dir) {
         Ok(texto) => texto,
         Err(_) => { registro::aviso_sem_repetir("sobre_mim_ilegivel", "sobre_mim_nao_carregado", &[]); None }
-    };
+    } };
     match (memoria, sobre_mim) {
         (Some(memoria), Some(sobre_mim)) => Some(format!("{memoria}\n\n{sobre_mim}")),
         (memoria, sobre_mim) => memoria.or(sobre_mim),
@@ -20,7 +24,7 @@ pub(crate) fn texto(state: &EngineState) -> Option<String> {
 }
 
 pub(crate) fn argumentos_codex(state: &EngineState, origem: &SessionOrigin) -> Vec<String> {
-    let Some(texto) = texto(state) else { return vec![] };
+    let Some(texto) = texto_para(state, origem.conversation_id.as_deref()) else { return vec![] };
     let pasta = origem.env.iter().find(|(k, _)| k == "CODEX_HOME").map(|(_, v)| PathBuf::from(v))
         .or_else(|| env::var_os("HOME").or_else(|| env::var_os("USERPROFILE")).map(|h| PathBuf::from(h).join(".codex")));
     let Some(pasta) = pasta else { return vec![] };
@@ -48,12 +52,15 @@ pub(crate) fn preparar(state: &EngineState, origem: &SessionOrigin, comando: Opt
     if comando.contains("--remote") || comando.contains("developer_instructions") || comando.contains(VARIAVEL_DO_CODEX) {
         return (Some(comando), ambiente);
     }
-    let Some(texto) = texto(state) else { return (Some(comando), ambiente) };
+    let Some(texto) = texto_para(state, origem.conversation_id.as_deref()) else { return (Some(comando), ambiente) };
     match origem.provider.as_deref() {
         Some("claude") if !comando.contains("--append-system-prompt-file") => {
             // Caminho fixo da memória não contém o texto pessoal na linha do shell.
             let Some(dir) = state.state_file.parent() else { return (Some(comando), ambiente) };
-            let arquivo = dir.join("memoria-compartilhada.md");
+            // Fork (harness, C2): subagente tem arquivo próprio (só a memória curta). Um arquivo só para os
+            // dois faria a abertura de um subagente trocar o texto das conversas que já estão abertas.
+            let subagente = origem.conversation_id.as_deref().is_some_and(|c| mobile::orquestracao::contexto::eh_subagente(state, c));
+            let arquivo = dir.join(if subagente { "memoria-compartilhada-subagente.md" } else { "memoria-compartilhada.md" });
             // O arquivo é uma projeção do JSON, recriada a cada abertura; nenhum transcript é lido.
             if gravar_texto(&arquivo, &texto).is_ok() {
                 comando.push_str(&format!(" --append-system-prompt-file {}", citar(&arquivo.to_string_lossy())));

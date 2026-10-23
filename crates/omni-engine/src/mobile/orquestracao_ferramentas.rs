@@ -312,6 +312,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
     plano.conversation_id = Some(conversa.clone());
     let acao = Action { id: state.next_id(), conversation_id: String::new(), session_id: String::new(), state: "executing".into(),
         created_at_ms: now_ms(), error: None, key: String::new(), revision: String::new(), kind: ActionKind::Spawn(plano.clone()) };
+    let _nascendo = super::contexto::nascendo(&conversa); // Fork (harness, C2): só a memória curta.
     if let Err(e) = spawn_from_mobile(state, &acao, &plano) {
         if let Some(wt) = &worktree { let _ = worktree_isolada::remover(Path::new(&wt.caminho), true); }
         return Err(format!("Não consegui abrir o subagente: {e}"));
