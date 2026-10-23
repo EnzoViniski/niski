@@ -71,14 +71,15 @@ export function GanchosDoClaude() {
         <div className="mt-4 border-t border-border-subtle pt-3">
           <p className="text-xs font-semibold text-text-primary">Ler uso pela statusline</p>
           <p className="mt-1 text-[11px] text-text-secondary">
-            Contexto, custo estimado e limites de 5 h e da semana vêm da statusline do Claude Code. Com ela, o Claude Code esconde a
-            maior parte das dicas do rodapé do terminal (como "esc to interrupt"); a sua statusline continua aparecendo. Só entra em
-            conversa que já recebeu eventos, a partir da próxima abertura.
+            O uso da conta (limites de 5 h e da semana), o contexto e o custo estimado vêm da statusline do Claude Code. É a única
+            fonte do uso: o app não abre mais arquivos internos do Claude nem digita /usage. Vem ligada; o número aparece depois da
+            primeira resposta da conta. Com ela, o Claude Code esconde a maior parte das dicas do rodapé do terminal (como "esc to
+            interrupt"); a sua statusline continua aparecendo. Só entra em conversa que já recebeu eventos, a partir da próxima abertura.
           </p>
           <div className="mt-2 flex flex-col gap-1">
             {ajustes.contas.map((conta) => (
               <label key={conta.id} className="flex cursor-pointer items-center gap-2 text-xs">
-                <input type="checkbox" checked={conta.statusline} disabled={!ajustes.ligado}
+                <input type="checkbox" checked={conta.statusline} disabled={ajustes.eventos === false /* Fork (harness): depende dos eventos, não das permissões */}
                   onChange={(e) => void gravar({ statusline: { conta: conta.id, ligado: e.target.checked } })} />
                 {conta.nome}
               </label>

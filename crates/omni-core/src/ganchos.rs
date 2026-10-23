@@ -70,16 +70,30 @@ pub struct Ajustes {
     pub ligado: bool,
     #[serde(default = "espera_padrao")]
     pub espera_s: u64,
-    /// Contas (ids de perfil) com "Ler uso pela statusline". Desligado por padrão.
+    /// Contas (ids de perfil) que ligaram "Ler uso pela statusline" quando ela era opcional. Mantida para o
+    /// arquivo antigo e para uma versão anterior do app que abra este arquivo; quem decide agora é
+    /// [`Ajustes::statusline_ligada`].
     #[serde(default)]
     pub statusline: Vec<String>,
+    /// Fork (harness, decisão C5): a statusline é a única fonte do uso da conta Claude, então vem ligada
+    /// em toda conta; aqui ficam só as contas que o usuário desligou. Arquivo antigo: lista vazia.
+    #[serde(default)]
+    pub statusline_desligada: Vec<String>,
 }
 fn espera_padrao() -> u64 { ESPERA_PADRAO_S }
 fn verdadeiro() -> bool { true }
 impl Default for Ajustes {
-    fn default() -> Self { Self { eventos: true, ligado: false, espera_s: ESPERA_PADRAO_S, statusline: Vec::new() } }
+    fn default() -> Self { Self { eventos: true, ligado: false, espera_s: ESPERA_PADRAO_S, statusline: Vec::new(), statusline_desligada: Vec::new() } }
 }
 impl Ajustes {
+    /// A conta lê o uso pela statusline (padrão ligado; desligada só se o usuário desligou).
+    pub fn statusline_ligada(&self, perfil: &str) -> bool { !self.statusline_desligada.iter().any(|c| c == perfil) }
+    /// Liga ou desliga a statusline da conta (as duas listas andam juntas).
+    pub fn definir_statusline(&mut self, perfil: &str, ligada: bool) {
+        self.statusline.retain(|c| c != perfil);
+        self.statusline_desligada.retain(|c| c != perfil);
+        if ligada { self.statusline.push(perfil.to_owned()) } else { self.statusline_desligada.push(perfil.to_owned()) }
+    }
     /// Prazo válido (um dos três da tela); qualquer outro vira o padrão.
     pub fn espera(&self) -> u64 {
         if ESPERAS_PERMITIDAS_S.contains(&self.espera_s) { self.espera_s } else { ESPERA_PADRAO_S }

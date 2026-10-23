@@ -55,6 +55,17 @@ describe("ganchos do Claude nas Configurações", () => {
     expect(permissoes).toBeDisabled();
   });
 
+  // Fork (harness, C5): a statusline (única fonte do uso) depende dos eventos, não das permissões pelo app.
+  it("statusline da conta liga sem as permissões pelo app e trava sem os eventos", async () => {
+    estado = { ...estado, ligado: false, contas: [{ id: "claude-p", nome: "Trabalho", statusline: true }] };
+    render(<GanchosDoClaude />);
+    const conta = await screen.findByRole("checkbox", { name: "Trabalho" });
+    await waitFor(() => expect(conta).toBeChecked());
+    expect(conta).toBeEnabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Receber eventos do Claude Code" }));
+    await waitFor(() => expect(conta).toBeDisabled());
+  });
+
   it("engine antigo: avisa", async () => {
     usarTransporte(async () => new Response("{}", { status: 404 }));
     render(<GanchosDoClaude />);

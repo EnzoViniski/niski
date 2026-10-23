@@ -123,7 +123,7 @@ fn ajustes_tem_padrao_ligado_e_prazo_valido() {
     let padrao = ler_ajustes(dir.path());
     assert!(padrao.eventos && !padrao.ligado && padrao.statusline.is_empty(), "eventos ligados, permissão pelo app desligada");
     assert_eq!(padrao.espera(), 300);
-    gravar_ajustes(dir.path(), &Ajustes { eventos: false, ligado: false, espera_s: 600, statusline: vec!["claude-p".into()] }).unwrap();
+    gravar_ajustes(dir.path(), &Ajustes { eventos: false, ligado: false, espera_s: 600, statusline: vec!["claude-p".into()], statusline_desligada: vec![] }).unwrap();
     let lido = ler_ajustes(dir.path());
     assert!(!lido.eventos && !lido.ligado && lido.espera() == 600 && lido.statusline == ["claude-p"]);
     assert_eq!(Ajustes { espera_s: 7, ..Ajustes::default() }.espera(), 300);
@@ -142,6 +142,18 @@ fn ajustes_antigos_migram_sem_perder_nada() {
     std::fs::write(dir.path().join(ARQUIVO_DE_AJUSTES), r#"{"ligado":true,"espera_s":120,"statusline":[]}"#).unwrap();
     let ligado = ler_ajustes(dir.path());
     assert!(ligado.eventos && ligado.ligado && ligado.espera() == 120);
+    // Fork (harness, C5): a statusline vale para toda conta, inclusive as que não estavam na lista antiga.
+    assert!(ligado.statusline_ligada("claude-p") && ligado.statusline_ligada("outra"));
+}
+
+#[test]
+fn statusline_vem_ligada_e_desliga_por_conta() {
+    let mut ajustes = Ajustes::default();
+    assert!(ajustes.statusline_ligada("a"));
+    ajustes.definir_statusline("a", false);
+    assert!(!ajustes.statusline_ligada("a") && ajustes.statusline_ligada("b"));
+    ajustes.definir_statusline("a", true);
+    assert!(ajustes.statusline_ligada("a") && ajustes.statusline == ["a"] && ajustes.statusline_desligada.is_empty());
 }
 
 #[test]

@@ -440,8 +440,9 @@ async fn desligado_pelas_configuracoes_ou_pelo_usuario_nao_injeta() {
     esquecer(&terminal);
 }
 
+#[cfg(unix)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn statusline_vira_uso_da_conta_e_contas_prefere_a_mais_nova() {
+async fn statusline_vira_uso_da_conta_e_o_claude_json_nao_e_aberto() {
     let c = cena(PORTA_FALSA + 4);
     atomic_write_json(&c.dir.path().join("profiles.json"), &json!({"profiles": [{"id": "claude-p", "provider": "claude", "name": "Trabalho",
         "config_dir": c.conta.to_string_lossy(), "builtin": false, "created_at_ms": 0}]})).unwrap();
@@ -458,17 +459,33 @@ async fn statusline_vira_uso_da_conta_e_contas_prefere_a_mais_nova() {
     let gravado = fs::read_to_string(c.dir.path().join(ARQUIVO_DE_USO)).unwrap();
     assert!(!gravado.contains("Opus") && !gravado.contains("0.82"), "só os números de uso vão para o disco");
 
-    // Cache antigo do `.claude.json` (fixture sintética) continua de reserva; a statusline é mais nova.
-    fs::write(c.conta.join(".claude.json"), json!({"cachedUsageUtilization": {"fetchedAtMs": 5, "utilization": {
-        "five_hour": {"utilization": 90.0, "resets_at": "2096-01-01T00:00:00Z"}}}}).to_string()).unwrap();
-    let (status, contas) = c.api("GET", "/contas", None).await;
+    // Fork (harness, C5): o `.claude.json` não é mais aberto. Aqui ele é um FIFO: qualquer leitura
+    // travaria no `open` (ninguém escreve do outro lado) e o prazo abaixo estouraria.
+    let fifo = c.conta.join(".claude.json");
+    assert!(std::process::Command::new("mkfifo").arg(&fifo).status().unwrap().success());
+    let (status, contas) = tokio::time::timeout(std::time::Duration::from_secs(10), c.api("GET", "/contas", None)).await
+        .expect("GET /contas abriu o .claude.json");
     assert_eq!(status, 200);
     assert_eq!(contas[0]["usage"]["source"], "claude_statusline", "{contas}");
-    let EngineResponse::AccountUsage { usage } = interaction::account_usage(&c.state, "claude-p", false).unwrap() else { panic!() };
-    assert_eq!(usage.source, "claude_statusline");
+    let estado = c.state.clone();
+    let consultas = tokio::time::timeout(std::time::Duration::from_secs(10), tokio::task::spawn_blocking(move || {
+        [false, true].map(|refresh| match interaction::account_usage(&estado, "claude-p", refresh).unwrap() {
+            EngineResponse::AccountUsage { usage } => usage, _ => panic!() })
+    })).await.expect("account_usage abriu o .claude.json").unwrap();
+    assert!(consultas.iter().all(|u| u.source == "claude_statusline"));
+    let (status, _) = tokio::time::timeout(std::time::Duration::from_secs(10), c.api("POST", "/contas/claude-p/uso", None)).await
+        .expect("atualizar o uso abriu o .claude.json");
+    assert_eq!(status, 200);
+    let sessoes = c.state.sessions.lock().unwrap().len();
+    assert_eq!(sessoes, 1, "atualizar o uso não abre Claude escondido (só a sessão do teste)");
+    // Sem statusline gravada: sem número, com o motivo, e ainda sem abrir o arquivo.
     fs::remove_file(c.dir.path().join(ARQUIVO_DE_USO)).unwrap();
-    let EngineResponse::AccountUsage { usage } = interaction::account_usage(&c.state, "claude-p", false).unwrap() else { panic!() };
-    assert_eq!(usage.source, "claude_cache", "sem statusline, a leitura antiga vale");
+    let estado = c.state.clone();
+    let usage = tokio::time::timeout(std::time::Duration::from_secs(10), tokio::task::spawn_blocking(move ||
+        match interaction::account_usage(&estado, "claude-p", true).unwrap() { EngineResponse::AccountUsage { usage } => usage, _ => panic!() }))
+        .await.expect("sem statusline abriu o .claude.json").unwrap();
+    assert!(usage.primary.is_none() && usage.reason.as_deref().is_some_and(|m| m.contains("primeira resposta")), "{usage:?}");
+    fs::remove_file(&fifo).unwrap();
     c.fechar(&terminal);
 }
 

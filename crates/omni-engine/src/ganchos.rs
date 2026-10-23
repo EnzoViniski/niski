@@ -226,7 +226,7 @@ pub(crate) fn preparar(state: &EngineState, terminal: &str, origem: &SessionOrig
     let perfil = origem.profile_id.clone();
     let chave = format!("{}|{cwd}", perfil.as_deref().unwrap_or("-"));
     let confirmada = RUNTIME.confirmados.lock().is_ok_and(|c| c.contains(&chave));
-    let statusline = perfil.as_ref().filter(|p| ajustes.statusline.contains(p)).filter(|_| confirmada && !config.statusline_gerenciada)
+    let statusline = perfil.as_ref().filter(|p| ajustes.statusline_ligada(p)) /* Fork (harness, C5): padrão ligado */.filter(|_| confirmada && !config.statusline_gerenciada)
         .and_then(|_| caminho_do_shim()).and_then(|shim| regra::comando_da_statusline(&shim.to_string_lossy(), porta));
     let arquivo = dir.join(regra::PASTA_DOS_ARQUIVOS).join(format!("{terminal}.json"));
     let Some(digitado) = regra::com_settings(&comando, &arquivo) else { return desligar("caminho", comando) };

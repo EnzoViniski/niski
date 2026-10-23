@@ -3,7 +3,7 @@
 //!   mostra o diálogo dela;
 //! - `GET|POST /ganchos/ajustes` — eventos (padrão ligado), permissões pelo app (`ligado`, padrão desligado),
 //!   prazo do pedido (2/5/10 min) e
-//!   "Ler uso pela statusline" por conta (padrão desligado).
+//!   "Ler uso pela statusline" por conta (padrão ligado desde a decisão C5: é a única fonte do uso).
 //!
 //! O `/conversas/{id}/aprovar` continua em `fila.rs`; quando há pedido do gancho ele chama
 //! `responder_pelo_gancho` daqui em vez de entrar na fila de teclas.
@@ -76,7 +76,7 @@ fn ajustes_em_json(state: &EngineState) -> Value {
     let dir = state.state_file.parent().unwrap();
     let ajustes = regra::ler_ajustes(dir);
     let contas: Vec<Value> = omni_core::profiles(dir).into_iter().filter(|p| p.provider == "claude")
-        .map(|p| json!({"id": p.id, "nome": p.name, "statusline": ajustes.statusline.contains(&p.id)})).collect();
+        .map(|p| json!({"id": p.id, "nome": p.name, "statusline": ajustes.statusline_ligada(&p.id)})).collect();
     json!({"eventos": ajustes.eventos, "ligado": ajustes.ligado, "espera_s": ajustes.espera(), "esperas": regra::ESPERAS_PERMITIDAS_S, "contas": contas})
 }
 
@@ -103,12 +103,11 @@ async fn gravar_ajustes(State(state): State<Arc<EngineState>>, Json(body): Json<
             if !omni_core::profiles(&dir).iter().any(|p| p.id == conta && p.provider == "claude") {
                 return Err(error(StatusCode::NOT_FOUND, "Conta Claude não encontrada"));
             }
-            ajustes.statusline.retain(|c| c != &conta);
-            if ligado { ajustes.statusline.push(conta); }
+            ajustes.definir_statusline(&conta, ligado);
         }
         regra::gravar_ajustes(&dir, &ajustes).map_err(|_| error(StatusCode::INTERNAL_SERVER_ERROR, "Não consegui gravar"))?;
         omni_core::registro::info("ganchos_ajustes", &[("eventos", if ajustes.eventos { "sim" } else { "nao" }), ("ligado", if ajustes.ligado { "sim" } else { "nao" }),
-            ("espera_s", &ajustes.espera().to_string()), ("contas_statusline", &ajustes.statusline.len().to_string())]);
+            ("espera_s", &ajustes.espera().to_string()), ("contas_sem_statusline", &ajustes.statusline_desligada.len().to_string())]);
         Ok(Json(ajustes_em_json(&state)))
     }).await.map_err(|_| error(StatusCode::INTERNAL_SERVER_ERROR, "Falha ao gravar"))?
 }

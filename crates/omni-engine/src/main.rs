@@ -1723,7 +1723,8 @@ mod tests {
         let EngineResponse::AccountUsage { usage } = interaction::account_usage(&state, "missing", true).unwrap() else { panic!("usage response expected") };
         assert_eq!(usage.status, "unavailable");
         assert!(usage.primary.is_none());
-        assert!(usage.reason.is_some_and(|reason| reason.contains("não encontrada")));
+        // Fork (harness, C5): sem statusline ainda, o motivo diz quando o uso aparece; nada é aberto.
+        assert!(usage.reason.is_some_and(|reason| reason.contains("primeira resposta")));
         assert!(state.sessions.lock().unwrap().is_empty());
     }
 
