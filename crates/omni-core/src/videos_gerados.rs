@@ -135,6 +135,9 @@ mod testes {
             "input":{"command":"npx hyperframes render --output final.mp4"}}]}});
         let itens = crate::feed::items_em(&chamada, "claude", Some(dir.path()));
         assert_eq!(itens[0].arquivos, [dir.path().join("final.mp4").to_string_lossy().into_owned()]);
+        // Resposta gravada como texto simples (não em blocos) também mostra o vídeo citado.
+        let simples = json!({"type":"assistant","message":{"role":"assistant","content":"Pronto: `renders/r1/output.mp4`"}});
+        assert_eq!(crate::feed::items_em(&simples, "claude", Some(dir.path()))[0].arquivos.len(), 1);
         let sem_video = json!({"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"ok"}]}});
         assert!(crate::feed::items_em(&sem_video, "claude", Some(dir.path())).is_empty());
     }

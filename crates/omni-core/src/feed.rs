@@ -364,9 +364,10 @@ pub fn items_em(value: &Value, provider: &str, cwd: Option<&Path>) -> Vec<Item> 
                     saida.push(Item { imagens, ..item(Kind::Text, "user", texto, None, value) });
                 }
             } else if role == "assistant" {
+                // Fork (vídeo na conversa): sem o `return` daqui — a resposta em texto simples também passa
+                // pela busca de arquivos citados no fim (o `content` não é lista, o laço abaixo não roda).
                 if let Some(texto) = message["content"].as_str() {
                     if !texto.trim().is_empty() { saida.push(item(Kind::Text, "assistant", texto.to_owned(), None, value)); }
-                    return saida;
                 }
                 for bloco in message["content"].as_array().into_iter().flatten() {
                     match bloco["type"].as_str() {

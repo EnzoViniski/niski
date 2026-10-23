@@ -35,7 +35,18 @@ async fn browser_fixture() {
         linha(1,"assistant","Achei a causa. O **token é validado duas vezes** a cada requisição:\n\n1. no middleware de sessão\n2. de novo em `authGuard`\n\n```ts\nexport function authGuard(req: Request) {\n  return validar(req.token); // duplicado\n}\n```\n\n| Etapa | Antes | Depois |\n|---|---|---|\n| Login | 1,8 s | 0,6 s |\n| Refresh | 900 ms | 310 ms |"),
         linha(2,"user","Perfeito. Segue o print do erro que aparece e o log do servidor.\n\n[Anexos enviados pelo celular]\n- C:\\dev\\omni-agents\\.omni-agents\\anexos\\1726000000000-ab12-print-erro.png\n- C:\\dev\\omni-agents\\.omni-agents\\anexos\\1726000000001-cd34-servidor.log"),
         linha(3,"assistant","Vi os dois. O erro do print é o `401` que o segundo `authGuard` devolve quando o token acabou de ser renovado. Removi a validação duplicada e os testes passaram."),
+        // Fork (vídeo na conversa): `OMNI_FIXTURE_VIDEO` aponta um .mp4 de verdade para conferir o player.
+        linha(4,"assistant",&std::env::var("OMNI_FIXTURE_VIDEO").map(|v| format!("O vídeo ficou pronto: `{v}`")).unwrap_or_else(|_| "Sem vídeo nesta rodada.".into())),
     ];
+    // Fork (Tarefas no celular): o "eu" do PC e duas tarefas na pasta padrão.
+    let ajustes = json!({"eu": {"id": "enzo", "nome": "Enzo", "cor": "#f97316", "atualizadaEm": ""}, "pastaCompartilhada": ""}).to_string();
+    atomic_write_json(&dir.path().join("estado-da-interface.json"), &json!({"chaves": {"medza-tarefas-ajustes": ajustes}})).unwrap();
+    let hoje = chrono::Local::now().format("%Y-%m-%d").to_string();
+    for (id, titulo, status) in [("t-1", "Gravar o vídeo da Aircook", "a_fazer"), ("t-2", "Revisar contrato da Medza", "fazendo")] {
+        let tarefa = json!({"versao": 1, "id": id, "titulo": titulo, "descricao": "", "status": status, "prioridade": "alta", "categoria": "trabalho",
+            "responsavel": "enzo", "criadaPor": "enzo", "data": hoje, "criadaEm": "2026-10-23T10:00:00Z", "atualizadaEm": "2026-10-23T10:00:00Z"});
+        omni_core::tarefas::gravar(&dir.path().join("tarefas"), "tarefas", id, &tarefa.to_string()).unwrap();
+    }
     std::fs::write(&transcript,mensagens.join("\n")).unwrap();
     atomic_write_json(&dir.path().join("profiles.json"),&json!({"profiles":[
         {"id":"claude-p","provider":"claude","name":"Pessoal","config_dir":conta.to_string_lossy(),"builtin":false,"created_at_ms":0},
