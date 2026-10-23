@@ -4,7 +4,8 @@ import type { ComandoDaConversa, ModoDePermissao } from "./ControlesDaConversa";
 // Fork (Onda 2.0): a conversa aberta (celular, web e aba Conversa do PC) saiu do `MobileApp.tsx` sem
 // mudança de lógica. Timeline e rolagem em `useTimeline.ts`, envio em `useEnvio.ts`, `@` em
 // `useMencoes.ts`, aprovação em `CartaoDePermissao.tsx` e o campo com os botões em `RodapeDaConversa.tsx`.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { UltimoLugarDoVideo, ultimosLugares } from "../VideoDoAgente"; // Fork (vídeo na conversa).
 import { Button } from "../../components/ui/Button";
 import { AttachmentIcon } from "../../components/ui/PixelIcon";
 import { request, requestSeMudou, esquecerVersao, enviarTeclas, actionKey, ApiError, type Conversation, type Timeline } from "../api";
@@ -124,6 +125,8 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
 
   // Fork (Onda 2.0): páginas antigas, blocos e rolagem moram em `useTimeline.ts`.
   const { mensagens, anteriorA, buscandoAntigas, buscarAntigas, buscarAntigasRef } = useMensagensAntigas({ data, base, fim, setError });
+  // Fork (vídeo na conversa): o mesmo vídeo citado em várias mensagens toca só na última.
+  const lugaresDosVideos = useMemo(() => ultimosLugares(mensagens.map(m => ({ n: indiceDaMensagem(m.id), arquivos: m.arquivos }))), [mensagens]);
   const { blocos, separadores, continuacoes } = useBlocos(mensagens);
   const ultimaId = mensagens[mensagens.length - 1]?.id ?? "";
   // Fork (troca-de-contexto): o que mudou desde a sua última olhada, da timeline que já está aqui.
@@ -459,6 +462,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     )}
     {!!timeline?.unavailable_segments.length && <p className="m-aviso">Parte do histórico está indisponível; nenhum transcript foi associado por aproximação.</p>}
 
+    <UltimoLugarDoVideo.Provider value={lugaresDosVideos}>
     <div className="chat" aria-label="Mensagens">
       {!data && <Vazio>Carregando conversa…</Vazio>}
       {data && mensagens.length === 0 && !enviado && !ativo && !timeline?.unavailable_segments.length &&
@@ -516,6 +520,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
       )}
       <div ref={fim} />
     </div>
+    </UltimoLugarDoVideo.Provider>
 
     {novidades && (
       <button type="button" className="chat-novidades" onClick={() => irParaOFim(true)}>Novas mensagens ↓</button>

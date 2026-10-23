@@ -3,6 +3,7 @@ import { iconForPath } from "../features/files/fileIcons";
 import { FolderIcon, LoaderIcon, SaveIcon } from "../components/ui/PixelIcon";
 import { nomeDoCaminho } from "./anexos";
 import { request } from "./api";
+import { ehVideo, VideoDoAgente } from "./VideoDoAgente";
 
 /**
  * Fork: os arquivos que o agente gerou (PDF, planilha, apresentação, página…) como cartões na
@@ -92,7 +93,10 @@ export function ArquivosDoAgente({ conversa, n, caminhos }: ArquivosDaMensagem) 
   if (caminhos.length === 0) return null;
   return (
     <ul className="arquivos-gerados" aria-label="Arquivos gerados pelo agente">
-      {caminhos.map((caminho, k) => <CartaoDeArquivo key={`${caminho}-${k}`} conversa={conversa} n={n} k={k} caminho={caminho} />)}
+      {/* Fork (vídeo na conversa): vídeo toca aqui mesmo; o resto continua cartão. */}
+      {caminhos.map((caminho, k) => ehVideo(caminho)
+        ? <VideoDoAgente key={`${caminho}-${k}`} conversa={conversa} n={n} k={k} caminho={caminho} />
+        : <CartaoDeArquivo key={`${caminho}-${k}`} conversa={conversa} n={n} k={k} caminho={caminho} />)}
     </ul>
   );
 }

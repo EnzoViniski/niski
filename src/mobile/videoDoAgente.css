@@ -1,0 +1,14 @@
+/* Fork (vídeo na conversa): o vídeo que o agente gerou, tocando na conversa (PC e celular). */
+.video-agente { display: flex; flex-direction: column; min-width: 0; max-width: 28rem;
+  background: rgb(var(--c-bg-primary) / .6); border: 2px solid rgb(var(--c-outline) / .6); }
+.video-agente-player { display: block; width: 100%; max-height: 60vh; background: #000; }
+.video-agente-vazio { display: grid; place-items: center; min-height: 7rem; padding: .75rem; font-size: .75rem; text-align: center; opacity: .75; }
+.video-agente-barra { display: flex; align-items: center; gap: .375rem; min-width: 0; padding: .375rem .5rem; }
+.video-agente-nome { flex: 1; min-width: 0; font-size: .75rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.video-agente-botao { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; flex-shrink: 0; cursor: pointer;
+  background: transparent; border: 2px solid rgb(var(--c-outline) / .6); }
+.video-agente-botao:hover, .video-agente-botao:focus-visible { border-color: rgb(var(--c-accent)); }
+.video-agente-botao:disabled { cursor: progress; opacity: .6; }
+.video-agente.is-repetido { flex-direction: row; align-items: center; gap: .375rem; padding: .375rem .5rem; font-size: .75rem; }
+.video-agente.is-repetido span:first-of-type { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.video-agente-dica { opacity: .6; white-space: nowrap; }
