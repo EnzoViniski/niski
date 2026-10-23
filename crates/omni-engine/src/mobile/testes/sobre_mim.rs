@@ -54,7 +54,7 @@ async fn sobre_mim_grava_areas_aceita_sugestao_e_entra_no_contexto_dos_agentes()
     let texto = crate::memoria_compartilhada::texto(&state).unwrap();
     assert!(texto.contains("Sócio da Medza") && texto.contains("propostas.md"));
     let origem = SessionOrigin { provider: Some("claude".into()), ..Default::default() };
-    let comando = crate::memoria_compartilhada::preparar(&state, &origem, Some("claude".into())).unwrap();
+    let comando = crate::memoria_compartilhada::preparar(&state, &origem, Some("claude".into())).0.unwrap();
     assert!(comando.contains("--append-system-prompt-file") && !comando.contains("Medza"));
     assert!(std::fs::read_to_string(dir.path().join("memoria-compartilhada.md")).unwrap().contains("Sócio da Medza"));
     let codex = SessionOrigin { provider: Some("codex".into()), env: vec![("CODEX_HOME".into(), dir.path().to_string_lossy().into_owned())], ..Default::default() };
