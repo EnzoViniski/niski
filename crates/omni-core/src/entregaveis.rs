@@ -61,7 +61,7 @@ pub fn tipo(caminho: &Path) -> Option<&'static str> {
 }
 
 /// `~/x`, `file:///x`, `%20` e relativo à pasta da conversa viram caminho absoluto.
-fn resolver(trecho: &str, cwd: Option<&Path>) -> Option<PathBuf> {
+pub(crate) fn resolver(trecho: &str, cwd: Option<&Path>) -> Option<PathBuf> { // Fork: também usado em `videos_gerados`.
     let trecho = trecho.trim().trim_matches(|c| matches!(c, '<' | '>' | '"' | '\''));
     let trecho = trecho.strip_prefix("file://").unwrap_or(trecho);
     // Link markdown com título (`[a](x.pdf "título")`) e âncora/linha (`x.pdf#L3`) perdem o resto.

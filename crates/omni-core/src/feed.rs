@@ -333,6 +333,16 @@ pub fn items(value: &Value, provider: &str) -> Vec<Item> { items_em(value, provi
 pub fn items_em(value: &Value, provider: &str, cwd: Option<&Path>) -> Vec<Item> {
     if value["isSidechain"] == true { return Vec::new(); }
     let mut saida = Vec::new();
+    // Fork (vídeo na conversa): vídeo que a saída de uma ferramenta cita (o render do HyperFrames grava em
+    // `renders/…` e o agente nem sempre repete o caminho) vira o cartão do vídeo na conversa.
+    if let Some(texto) = crate::videos_gerados::texto_de_saida(value, provider) {
+        let videos = crate::videos_gerados::da_saida(&texto, cwd);
+        if !videos.is_empty() {
+            let nomes = videos.iter().filter_map(|v| v.file_name()).map(|n| n.to_string_lossy().into_owned()).collect::<Vec<_>>().join(", ");
+            saida.push(Item { arquivos: videos.iter().map(|v| v.to_string_lossy().into_owned()).collect(),
+                ..item(Kind::Tool, "assistant", nomes, Some("Vídeo".into()), value) });
+        }
+    }
     match provider {
         "claude" if value["type"] == "user" || value["type"] == "assistant" => {
             let message = &value["message"];
@@ -374,10 +384,13 @@ pub fn items_em(value: &Value, provider: &str, cwd: Option<&Path>) -> Vec<Item> 
                             // Fork: documento escrito pelo agente vira cartão na conversa.
                             let criado = (nome == "Write").then(|| bloco["input"]["file_path"].as_str()).flatten()
                                 .and_then(|c| crate::entregaveis::criado(c, cwd));
+                            // Fork (vídeo na conversa): o vídeo que o comando de render vai escrever (`--output`).
+                            let renderizados = if nome == "Bash" { bloco["input"]["command"].as_str()
+                                .map(|c| crate::videos_gerados::do_comando(c, cwd)).unwrap_or_default() } else { Vec::new() };
                             // Fork: diff, lista de tarefas e plano da chamada.
                             let mut extras = crate::plano_do_agente::extras_claude(&nome, &bloco["input"], bloco["id"].as_str());
                             extras.chamada = bloco["id"].as_str().map(str::to_owned); // Fork (troca-de-contexto): casa com o resultado.
-                            saida.push(Item { arquivos: criado.map(|c| c.to_string_lossy().into_owned()).into_iter().collect(), extras,
+                            saida.push(Item { arquivos: criado.into_iter().chain(renderizados).map(|c| c.to_string_lossy().into_owned()).collect(), extras,
                                 ..item(Kind::Tool, "assistant", detalhe, Some(nome), value) });
                         },
                         _ => {}
