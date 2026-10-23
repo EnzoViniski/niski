@@ -303,7 +303,31 @@ describe("TerminalPane — failover automático de conta", () => {
     await waitFor(() => expect(engine.engineApi).toHaveBeenCalledWith(
       "POST", "/conversas/conv-1/prompt", expect.stringContaining("Mensagem automática do Niski"), expect.anything(),
     ), { timeout: 5_000 });
-    expect(engine.engineApi.mock.calls.filter(([metodo]) => metodo === "POST")).toHaveLength(1);
+    expect(engine.engineApi.mock.calls.filter(([metodo, caminho]) => metodo === "POST" && String(caminho).endsWith("/prompt"))).toHaveLength(1);
+    // Fork (harness, A4): a troca do painel acontece com a reserva e solta no fim.
+    const caminhos = engine.engineApi.mock.calls.map(([, caminho]) => caminho);
+    expect(caminhos).toContain("/conversas/conv-1/troca-de-conta/reservar");
+    expect(caminhos).toContain("/conversas/conv-1/troca-de-conta/soltar");
+  });
+
+  it("Fork (harness, A4): com a troca reservada pelo engine (409), o painel não troca a conta", async () => {
+    engine.accountUsage.mockResolvedValue(null);
+    engine.listProfiles.mockResolvedValue([
+      { id: "pessoal", provider: "claude", name: "Pessoal", config_dir: "C:/a", builtin: true, created_at_ms: 0, last_used_at_ms: 1, authenticated: true },
+      { id: "trabalho", provider: "claude", name: "Trabalho", config_dir: "C:/b", builtin: false, created_at_ms: 1, last_used_at_ms: null, authenticated: true },
+    ]);
+    const sessao = { provider: "claude", conversation_id: "conv-1", external_session_id: "native-1", profile_id: "pessoal" };
+    engine.terminalSnapshot.mockResolvedValue(snapshot(1, { ...sessao, state: "answered", notice: "usage_limit" }));
+    engine.engineApi.mockImplementation(async (_m: string, caminho: string) => caminho.endsWith("/reservar")
+      ? { status: 409, body: "{}" } : { status: 200, body: "{}" });
+
+    renderPane();
+
+    await waitFor(() => expect(engine.engineApi).toHaveBeenCalledWith("POST", "/conversas/conv-1/troca-de-conta/reservar", expect.anything()));
+    await new Promise((r) => setTimeout(r, 300));
+    expect(engine.planSwitch).not.toHaveBeenCalled();
+    expect(engine.stopTerminal).not.toHaveBeenCalled();
+    engine.engineApi.mockReset(); // não vaza o 409 para os testes seguintes
   });
 
   it("tenta de novo depois de 'sem outra conta' e usa a conta conectada nesse meio-tempo", async () => {
