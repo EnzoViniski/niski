@@ -346,3 +346,10 @@ export function linhaEssencial(estado: EstadoAgora, cartao: Pick<OndeParei, "ult
 
 /** Ordem da lista de troca rápida: o que pede você primeiro. */
 export const ORDEM_DO_TOM: readonly Tom[] = ["precisa", "erro", "pronto", "trabalhando", "parado"];
+
+/** Em que bloco da conversa entra a marca "novo desde a sua última olhada": o primeiro com alguma
+ *  mensagem de número `marca` ou maior. `-1`: nenhum. */
+export function blocoDaMarca(blocos: ({ mensagem: Mensagem } | { acoes: Mensagem[] })[], marca: number | null): number {
+  if (marca === null) return -1;
+  return blocos.findIndex((bloco) => ("acoes" in bloco ? bloco.acoes : [bloco.mensagem]).some((m) => indiceDe(m) >= marca));
+}

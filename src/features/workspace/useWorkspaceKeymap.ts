@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Project, WorkspacesAction } from "../../types/workspace";
 import type { AttentionItem } from "../terminal/useAttention";
 import { matchesShortcut } from "../../lib/shortcuts";
+import { irParaOProximo } from "../troca/proximoAgente"; // Fork (troca-de-contexto)
 
 function isTerminalFocused(): boolean {
   return document.activeElement?.closest('[data-omni-context="terminal"]') != null;
@@ -58,10 +59,8 @@ export function useWorkspaceKeymap(
 }
 
 function goToNextAttention(attention: AttentionItem[], dispatch: React.Dispatch<WorkspacesAction>) {
-  // ponytail: pula pro item de atenção de maior prioridade (a lista já vem ordenada por
-  // `useAttention`), não faz round-robin real entre vários pendentes. Adicionar um cursor
-  // "último visitado" se isso incomodar com várias aprovações pendentes ao mesmo tempo.
-  const next = attention[0];
+  // Fork (troca-de-contexto): em roda pelos que precisam de você, com o cartão "onde parei" aberto.
+  const next = irParaOProximo(attention);
   if (!next) return;
   // FOCUS_SESSION e não SELECT_PROJECT + ATTACH_TERMINAL: o projeto pode estar em outro
   // workspace, e aí o SELECT_PROJECT era no-op e o ATTACH grudava a sessão no projeto errado.

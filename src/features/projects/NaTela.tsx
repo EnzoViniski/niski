@@ -8,6 +8,8 @@ import type { TerminalSession } from "../terminal/terminalService";
 import type { AbaNaTela, AreaDoPainel, ContextoDaTela, PainelNaTela } from "./telasAbertas";
 export type { AbaNaTela, PainelNaTela } from "./telasAbertas";
 import "./naTela.css";
+// Fork (troca-de-contexto): o essencial de cada agente embaixo do nome e as novidades desde a sua olhada.
+import { EssencialNaTela, NovasNaTela } from "../troca/EssencialNaTela";
 
 /** Até uma única aba continua acessível quando a pessoa muda de projeto ou abre outra tela. */
 export function deveMostrarNaTela(paineis: PainelNaTela[]): boolean {
@@ -70,14 +72,18 @@ export function NaTela({ paineis, sessoes, naoVistas, onFocar }: {
               <li key={aba.tabId} className={`na-tela-aba${aba.ativa ? " is-ativa" : ""}`}
                 // Fork: a sessão viva já pode ter trocado de agente desde que a aba foi salva.
                 style={{ "--cor-agente": corDoAgente(sessao?.provider ?? aba.provider) } as React.CSSProperties}>
-                <button type="button" data-nav-item aria-current={painel.emFoco && aba.ativa ? "page" : undefined}
+                <button type="button" data-nav-item aria-describedby={sessao ? `essencial-${aba.tabId}` : undefined} aria-current={painel.emFoco && aba.ativa ? "page" : undefined}
                   onClick={() => painel.workspaceId && painel.projectId
                     ? onFocar(painel.paneId, aba.tabId, { workspaceId: painel.workspaceId, projectId: painel.projectId })
                     : onFocar(painel.paneId, aba.tabId)}
                   title={`${contexto(painel, i)} · ${aba.ativa ? "Aberta neste painel" : "Clique para mostrar"}`}>
                   <IconeDaTela aba={aba} provider={sessao?.provider ?? aba.provider} />
-                  <span className="na-tela-nome">{sessao?.name ?? aba.titulo}</span>
+                  <span className="na-tela-texto">
+                    <span className="na-tela-nome">{sessao?.name ?? aba.titulo}</span>
+                    {sessao && (!aba.kind || aba.kind === "agent") && <EssencialNaTela sessao={sessao} id={`essencial-${aba.tabId}`} />}
+                  </span>
                   {aba.projeto && <span className="na-tela-projeto">{aba.projeto}</span>}
+                  {sessao && <NovasNaTela sessao={sessao} />}
                   <IconeDoStatus status={status} className="h-3 w-3" />
                 </button>
               </li>

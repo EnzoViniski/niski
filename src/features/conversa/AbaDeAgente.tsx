@@ -24,6 +24,7 @@ import { rotuloDoEstado } from "../../lib/estadosDaSessao";
 import "../../mobile/mobile.css";
 import "../../web/web.css";
 import { NOME_CURTO } from "../../lib/identidade";
+import { OlhandoContext } from "../troca/useOndeParei"; // Fork (troca-de-contexto)
 
 /**
  * Aba de agente no modo escolhido em Configurações → Aparência → Agentes.
@@ -38,12 +39,15 @@ export function AbaDeAgente({
   children,
   // Fork: entrada para o painel de revisão no layout.
   onRevisao,
+  emFoco = true,
 }: {
   agentView: AgentView;
   sessionId: string | null;
   /** O `TerminalPane` da aba. */
   children: ReactNode;
   onRevisao?: () => void;
+  /** Fork (troca-de-contexto): o painel desta aba é o que está em foco (é para ele que você olha). */
+  emFoco?: boolean;
 }) {
   const [verTerminal, setVerTerminal] = useState(agentView === "terminal");
   useEffect(() => setVerTerminal(agentView === "terminal"), [agentView]);
@@ -68,7 +72,11 @@ export function AbaDeAgente({
       <div className={`min-h-0 flex-1${chatNaTela ? " invisible" : ""}`} aria-hidden={chatNaTela || undefined}>
         {children}
       </div>
-      {chatNaTela && <ChatDaSessao sessionId={sessionId} onVerTerminal={() => setVerTerminal(true)} onRevisao={onRevisao} />}
+      {chatNaTela && (
+        <OlhandoContext.Provider value={emFoco /* Fork (troca-de-contexto) */}>
+          <ChatDaSessao sessionId={sessionId} onVerTerminal={() => setVerTerminal(true)} onRevisao={onRevisao} />
+        </OlhandoContext.Provider>
+      )}
     </div>
   );
 }

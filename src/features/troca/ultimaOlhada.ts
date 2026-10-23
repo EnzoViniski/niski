@@ -36,9 +36,23 @@ function valida(item: unknown): Olhada | null {
   return { n, em, tom: typeof tom === "string" && (TONS as readonly string[]).includes(tom) ? (tom as TomDaOlhada) : null };
 }
 
+// A conversa aberta lê a olhada a cada redesenho: o texto lido por último fica guardado já interpretado.
+let cache: { texto: string | null; olhadas: Record<string, Olhada> } | null = null;
+
+function atuais(): Record<string, Olhada> {
+  let texto: string | null;
+  try { texto = localStorage.getItem(CHAVE_DA_OLHADA); } catch { return {}; }
+  if (!cache || cache.texto !== texto) cache = { texto, olhadas: interpretar(texto) };
+  return cache.olhadas;
+}
+
 export function lerOlhadas(): Record<string, Olhada> {
+  return { ...atuais() };
+}
+
+function interpretar(texto: string | null): Record<string, Olhada> {
   try {
-    const bruto = JSON.parse(localStorage.getItem(CHAVE_DA_OLHADA) ?? "null");
+    const bruto = JSON.parse(texto ?? "null");
     if (!bruto || typeof bruto !== "object" || bruto.v !== 1 || !bruto.conversas || typeof bruto.conversas !== "object") return {};
     const saida: Record<string, Olhada> = {};
     for (const [id, item] of Object.entries(bruto.conversas as Record<string, unknown>)) {
@@ -53,7 +67,7 @@ export function lerOlhadas(): Record<string, Olhada> {
 
 export function lerOlhada(conversaId: string | null | undefined): Olhada | null {
   if (!conversaId) return null;
-  return lerOlhadas()[conversaId] ?? null;
+  return atuais()[conversaId] ?? null;
 }
 
 /** Grava a olhada de uma conversa. Nunca anda para trás no número (uma leitura atrasada da timeline
