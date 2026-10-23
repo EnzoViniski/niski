@@ -64,6 +64,10 @@ fn semana_alvo_no_fim_de_semana_e_a_seguinte() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn planejar_abre_conversa_da_semana_com_briefing_e_reaproveita() {
     let (dir, state, projeto) = fixture();
+    // A pasta da conversa mora ao lado da pasta de dados (fora dela): apagar no fim do teste.
+    struct Limpar(std::path::PathBuf);
+    impl Drop for Limpar { fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.0); } }
+    let _limpar = Limpar(rotina::pasta_da_conversa_em(dir.path()).parent().unwrap().to_path_buf());
     start(state.clone());
     publicar(&state, &projeto, &cli_falsa(dir.path()));
     let EngineResponse::Api { status, body, .. } = local(state.clone(), "POST", "/rotina/conversa",
@@ -76,6 +80,8 @@ async fn planejar_abre_conversa_da_semana_com_briefing_e_reaproveita() {
     let (indice, Some(sessao)) = current(&state, &conversa).unwrap() else { panic!("sem sessão") };
     assert_eq!(indice.project_id, rotina::PROJETO_DA_ROTINA);
     let cwd = sessao.meta.lock().unwrap().cwd.clone();
+    assert!(!Path::new(&cwd).starts_with(dir.path()), "a CLI da rotina não roda dentro da pasta de dados (tokens)");
+    assert_eq!(Path::new(&cwd).file_name().unwrap(), "Rotina");
     assert!(std::fs::read_to_string(Path::new(&cwd).join("CLAUDE.md")).unwrap().contains("Planejamento de domingo"));
     assert!(Path::new(&cwd).join("AGENTS.md").exists());
     assert!(ler_registro(&state).ativo(&conversa), "nasce com o MCP da rotina");

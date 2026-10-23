@@ -262,6 +262,7 @@ async fn responder_botao(state: &Arc<EngineState>, cliente: &impl api::BotApi, t
             match (acao, r) {
                 (_, Ok(Err(e))) => e,
                 (_, Err(_)) => "Falhou. Tente pelo app.".into(),
+                (_, Ok(Ok(v))) if v.get("ja_respondido").is_some() => "Esse lembrete já foi respondido.".into(),
                 ("adiar", _) => "Lembro de novo em 15 minutos.".into(),
                 ("copo" | "feito", Ok(Ok(v))) if v["agua_ml"].is_u64() => format!("Anotado: {} ml hoje.", v["agua_ml"]),
                 ("feito", _) => "Marcado como feito.".into(),
@@ -414,6 +415,11 @@ async fn conectar(State(state): State<Arc<EngineState>>, acesso: Desktop, Json(p
     };
     runtime(&state).geracao.fetch_add(1, Ordering::SeqCst);
     Ok(Json(runtime(&state).status()))
+}
+
+/// O bot dos avisos não pode usar o token do bot da rotina (a recíproca de [`runtime_avisos_usa`]).
+pub(super) fn usa_token(state: &EngineState, token: &str) -> bool {
+    runtime(state).dados.lock().map(|d| !d.config.token.is_empty() && d.config.token == token).unwrap_or(false)
 }
 
 /// O mesmo bot nos dois lugares disputaria o `getUpdates` (o Telegram devolve 409).

@@ -17,8 +17,14 @@ use omni_core::rotina::{self as rotina_core, ajustes::Ajustes as AjustesDaRotina
 
 /// Projeto especial das conversas do agente da rotina (não é projeto da lateral).
 pub(crate) const PROJETO_DA_ROTINA: &str = "rotina";
-/// Pasta da conversa, dentro de `<dados>/rotina/`.
-const PASTA_DA_CONVERSA: &str = "conversa";
+/// Pasta da conversa: **fora** da pasta de dados, ao lado dela (`<dados>-rotina/Rotina`). A CLI do
+/// agente roda ali com acesso a arquivos; dentro da pasta de dados ela ficaria a um `..` dos tokens
+/// (`engine.token`, `telegram.json`, `rotina/telegram-rotina.json`) e dos JSON da rotina, que só
+/// mudam pelas ferramentas (com a trava). O nome final aparece no Histórico como "Rotina".
+pub(crate) fn pasta_da_conversa_em(dados: &std::path::Path) -> std::path::PathBuf {
+    let nome = dados.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "dados".into());
+    dados.with_file_name(format!("{nome}-rotina")).join("Rotina")
+}
 
 fn mensagem_do_erro(erro: ApiError) -> String {
     erro.1 .0["error"].as_str().unwrap_or("Falha").to_owned()
@@ -165,7 +171,7 @@ fn primeira_mensagem(planejar: bool, segunda: chrono::NaiveDate, nova: bool) -> 
 }
 
 fn pasta_da_conversa(state: &EngineState) -> Result<std::path::PathBuf, String> {
-    let pasta = rotina_core::pasta(dir(state)).join(PASTA_DA_CONVERSA);
+    let pasta = pasta_da_conversa_em(dir(state));
     std::fs::create_dir_all(&pasta).map_err(|_| "Não consegui criar a pasta da conversa da rotina".to_owned())?;
     let texto = briefing();
     for nome in ["CLAUDE.md", "AGENTS.md"] {

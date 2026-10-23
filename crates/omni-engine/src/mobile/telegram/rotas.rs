@@ -52,6 +52,10 @@ async fn conectar(
             "Cole o token completo que o BotFather forneceu",
         ));
     }
+    // Fork (Rotina): o bot da rotina é outro; o mesmo token nos dois disputaria o `getUpdates`.
+    if super::rotina::usa_token(&state, &token) {
+        return Err(error(StatusCode::CONFLICT, "Este é o bot da rotina. Use outro bot para os avisos."));
+    }
     let _operacao = state.mobile.telegram.operacao.lock().await;
     let cliente = api::Cliente::novo().map_err(falha)?;
     let bot = cliente
