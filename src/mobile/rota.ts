@@ -6,6 +6,8 @@ export type Rota =
   | { tela: "uso" }
   | { tela: "sobre-mim" } // Fork (Sobre mim).
   | { tela: "roadmaps"; roadmap?: string } // Fork (Roadmaps de estudo).
+  | { tela: "tarefas" } // Fork (Tarefas no celular).
+  | { tela: "rotina" } // Fork (Rotina no celular).
   | { tela: "projeto"; projeto: string }
   | { tela: "conversa"; conversa: string };
 
@@ -14,6 +16,8 @@ export function lerRota(hash = location.hash): Rota {
   if (hash === "#/atividade") return { tela: "atividade" }; // Fork: caixa compartilhada com o PC.
   if (hash === "#/uso") return { tela: "uso" }; // Fork: uso das contas, como no rodapé do PC.
   if (hash === "#/sobre-mim") return { tela: "sobre-mim" }; // Fork (Sobre mim).
+  if (hash === "#/tarefas") return { tela: "tarefas" }; // Fork (Tarefas no celular).
+  if (hash === "#/rotina") return { tela: "rotina" }; // Fork (Rotina no celular).
   // Fork (Roadmaps): `#/roadmaps` e `#/roadmaps/<id>`.
   if (hash === "#/roadmaps") return { tela: "roadmaps" };
   const [, roadmap] = hash.match(/^#\/roadmaps\/([a-z0-9-]{1,64})$/) ?? [];
@@ -30,6 +34,8 @@ export function urlDaRota(rota: Rota): string {
   if (rota.tela === "atividade") return `${base}#/atividade`;
   if (rota.tela === "uso") return `${base}#/uso`;
   if (rota.tela === "sobre-mim") return `${base}#/sobre-mim`;
+  if (rota.tela === "tarefas") return `${base}#/tarefas`;
+  if (rota.tela === "rotina") return `${base}#/rotina`;
   if (rota.tela === "roadmaps") return `${base}#/roadmaps${rota.roadmap ? `/${rota.roadmap}` : ""}`;
   if (rota.tela === "projeto") return `${base}#/p/${encodeURIComponent(rota.projeto)}`;
   if (rota.tela === "conversa") return `${base}#/c/${encodeURIComponent(rota.conversa)}`;

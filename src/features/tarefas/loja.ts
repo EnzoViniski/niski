@@ -189,6 +189,13 @@ export function salvarAjustes(mudanca: Partial<AjustesDasTarefas>) {
   if (mudanca.pastaCompartilhada !== undefined && mudanca.pastaCompartilhada !== anterior.pastaCompartilhada) void recarregar();
 }
 
+/** Fork (Tarefas no celular): o "eu" é o do computador, com o mesmo id (o celular não cria outra pessoa). */
+export function adotarEu(eu: Pessoa) {
+  const ajustes = { ...estado.ajustes, eu };
+  try { localStorage.setItem(CHAVE_DOS_AJUSTES, JSON.stringify(ajustes)); } catch { /* sem localStorage */ }
+  mudar({ ajustes });
+}
+
 /** Grava "quem sou eu" na pasta, para a outra pessoa poder me atribuir tarefas. */
 async function publicarEu() {
   const { eu } = estado.ajustes;

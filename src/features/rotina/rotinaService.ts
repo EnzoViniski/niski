@@ -8,8 +8,13 @@ function corpoDoErro(body: string, padrao: string): string {
   try { return (JSON.parse(body) as { error?: string }).error ?? padrao; } catch { return padrao; }
 }
 
+/** Fork (Rotina no celular): como o pedido chega ao engine. No app do PC, pelo IPC; no celular, pela rede. */
+export type TransporteDaRotina = (metodo: "GET" | "POST", caminho: string, corpo: string | null) => Promise<{ status: number; body: string } | null>;
+let transporte: TransporteDaRotina = (metodo, caminho, corpo) => engineApi(metodo, caminho, corpo);
+export function usarTransporteDaRotina(novo: TransporteDaRotina) { transporte = novo; }
+
 async function pedir<T>(metodo: "GET" | "POST", caminho: string, corpo?: unknown): Promise<T> {
-  const resposta = await engineApi(metodo, caminho, corpo === undefined ? null : JSON.stringify(corpo));
+  const resposta = await transporte(metodo, caminho, corpo === undefined ? null : JSON.stringify(corpo));
   if (!resposta || resposta.status >= 400) {
     const padrao = resposta?.status === 404 ? "Atualize o Niski: este engine ainda não tem a Rotina." : "A rotina não respondeu. Tente de novo.";
     throw new Error(corpoDoErro(resposta?.body ?? "", padrao));

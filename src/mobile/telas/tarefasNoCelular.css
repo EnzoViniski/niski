@@ -1,0 +1,6 @@
+/* Fork (Tarefas no celular): a tela do PC rolando com a página, com margens de celular. */
+.tarefas-no-celular .tarefas { height: auto; min-height: 0; }
+.tarefas-no-celular .tarefas-topo { padding: .5rem .75rem .5rem; }
+.tarefas-no-celular .tarefas-titulo { display: none; }
+.tarefas-no-celular .tarefas-corpo { overflow: visible; padding: .75rem .75rem 2rem; }
+.tarefas-no-celular .tarefas-linha { gap: .375rem; }
