@@ -6,12 +6,14 @@ import { RotinaView } from "./RotinaView";
 import { Treino } from "./Treino";
 import { ouvirPedidosDaRotina } from "./abrirRotina";
 import * as servico from "./rotinaService";
+import { notificarForaDeFoco } from "./notificacaoDaRotina";
 import type { Dia, Treino as DadosDoTreino } from "./tipos";
 
 vi.mock("./rotinaService", () => ({
   lerDia: vi.fn(), lerSemana: vi.fn(), lerTreino: vi.fn(), lerAlimentacao: vi.fn(), lerLembretes: vi.fn(), lerAjustes: vi.fn(),
   lerAvisos: vi.fn(), operar: vi.fn(), conversaAtual: vi.fn(), abrirConversa: vi.fn(), telegramDaRotina: vi.fn(),
 }));
+vi.mock("./notificacaoDaRotina", () => ({ notificarForaDeFoco: vi.fn() }));
 // A conversa de verdade (TerminalPane) precisa do engine; aqui só importa qual sessão ela recebe.
 vi.mock("./ConversaDaRotina", () => ({
   ConversaDaRotina: ({ sessao, abrindo }: { sessao: string | null; abrindo: boolean }) =>
@@ -120,4 +122,21 @@ it("engine sem a Rotina: sem avisos e sem erro", async () => {
   const { container } = render(<AvisosDaRotina intervaloMs={60_000} />);
   await waitFor(() => expect(servico.lerAvisos).toHaveBeenCalled());
   expect(container).toBeEmptyDOMElement();
+});
+
+it("notificação do sistema só para aviso novo, não para os que já existiam ao abrir", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    vi.mocked(notificarForaDeFoco).mockClear();
+    const agora = Date.now();
+    const aviso = (chave: string, titulo: string) => ({ chave, tipo: "lembrete", titulo, texto: "", em_ms: agora, alvo: "", data: "",
+      botoes: ["feito"], enviado_ms: agora, visto: false, resposta: "" });
+    vi.mocked(servico.lerAvisos).mockResolvedValue({ nao_vistos: 1, avisos: [aviso("a", "Antigo")] });
+    render(<AvisosDaRotina intervaloMs={1_000} />);
+    expect(await screen.findByText("Antigo")).toBeInTheDocument();
+    expect(notificarForaDeFoco).not.toHaveBeenCalled();
+    vi.mocked(servico.lerAvisos).mockResolvedValue({ nao_vistos: 2, avisos: [aviso("a", "Antigo"), aviso("b", "Creatina")] });
+    await vi.advanceTimersByTimeAsync(1_100);
+    await waitFor(() => expect(notificarForaDeFoco).toHaveBeenCalledWith([expect.objectContaining({ chave: "b" })]));
+  } finally { vi.useRealTimers(); }
 });

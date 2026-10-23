@@ -2,8 +2,9 @@
 // lançador de Tarefas e do copiloto). O relógio é do engine (sai com a janela fechada); aqui só lê
 // `lembretes-estado.json` a cada 30 s e mostra os que ainda não foram vistos, com os mesmos botões
 // do Telegram.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { pedirAbrirRotina } from "./abrirRotina";
+import { notificarForaDeFoco } from "./notificacaoDaRotina";
 import { lerAvisos, operar } from "./rotinaService";
 import type { Aviso } from "./tipos";
 
@@ -13,13 +14,20 @@ const VALIDADE_MS = 3 * 60 * 60 * 1000;
 
 export function AvisosDaRotina({ intervaloMs = 30_000 }: { intervaloMs?: number }) {
   const [avisos, setAvisos] = useState<Aviso[]>([]);
+  // Chaves já vistas nesta abertura: a primeira leitura não notifica o que já existia.
+  const conhecidos = useRef<Set<string> | null>(null);
   const ler = useCallback(() => {
-    void lerAvisos().then((r) => setAvisos(r.avisos.filter((a) => !a.visto && Date.now() - a.enviado_ms < VALIDADE_MS).slice(0, 3)))
-      .catch(() => setAvisos([])); // Engine antigo (sem a Rotina): sem avisos.
+    void lerAvisos().then((r) => {
+      const validos = r.avisos.filter((a) => !a.visto && Date.now() - a.enviado_ms < VALIDADE_MS);
+      if (conhecidos.current) void notificarForaDeFoco(validos.filter((a) => !conhecidos.current!.has(a.chave)));
+      conhecidos.current = new Set(r.avisos.map((a) => a.chave));
+      setAvisos(validos.slice(0, 3));
+    }).catch(() => setAvisos([])); // Engine antigo (sem a Rotina): sem avisos.
   }, []);
   useEffect(() => {
     ler();
-    const t = window.setInterval(() => { if (!document.hidden) ler(); }, intervaloMs);
+    // Lê também com a janela escondida/minimizada: é aí que a notificação do sistema faz falta.
+    const t = window.setInterval(ler, intervaloMs);
     return () => window.clearInterval(t);
   }, [ler, intervaloMs]);
 
