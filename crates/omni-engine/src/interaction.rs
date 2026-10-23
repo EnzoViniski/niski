@@ -538,6 +538,7 @@ fn motivo_geral(screen: &vt100::Screen, provider: &str, rodando: bool, reservada
     let mut campos = vec![("sessao", sessao), ("provider", provider), ("motivo", motivo.as_str())];
     if !campo.is_empty() { campos.push(("campo", &campo)); }
     omni_core::registro::aviso_sem_repetir(&format!("sem_entrada:{sessao}:{motivo}"), "conversa_sem_entrada", &campos);
+    crate::harness_resumo::sem_entrada(sessao, &motivo); // Fork (harness, A7): conta o motivo uma vez por sessão.
     format!("Entrada não reconhecida: {motivo}")
 }
 

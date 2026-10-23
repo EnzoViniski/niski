@@ -17,6 +17,7 @@ mod encerramento_da_pty; // Fork: solta a CLI/trava da conversa antes de reabrir
 mod conversa_bloqueada; // Fork: permite passar para outro provedor quando a CLI está na tela de trava.
 mod memoria_compartilhada;
 mod notify_codex; // Fork (harness, A2): fim de turno do Codex pelo `notify` oficial.
+mod harness_resumo; // Fork (harness, A7): linha de números por sessão no log.
 mod interaction;
 // Fork (pergunta-da-cli): menu genérico da CLI e "esperando algo no terminal".
 mod pergunta_da_cli;
@@ -699,6 +700,8 @@ fn spawn_reader_thread(state: Arc<EngineState>, session: Arc<LiveSession>, mut r
             }
         }
         let exit_status = session.child.lock().ok().and_then(|mut child| child.try_wait().ok().flatten());
+        // Fork (harness, A7): números do harness desta CLI (uma vez; antes do meta, mesma ordem de travas).
+        if session.meta.lock().is_ok_and(|m| m.pid == watched_pid) { harness_resumo::registrar_da_sessao(&session); }
         if let Ok(meta) = session.meta.lock() {
             if meta.pid == watched_pid {
                 registro::info("sessao_terminou", &[
@@ -1416,6 +1419,8 @@ fn close_session(state: &EngineState, session_id: &str) -> Result<EngineResponse
         .lock()
         .map_err(|_| anyhow!("sessions lock poisoned"))?
         .remove(session_id);
+    // Fork (harness, A7): a linha de números sai antes de os contadores dos ganchos sumirem.
+    if let Some(SessionEntry::Live(sessao)) = &entry { harness_resumo::registrar_da_sessao(sessao); }
     // Fork: token, pedidos e arquivo de ganchos da sessão somem junto.
     ganchos::esquecer(session_id);
     codex_app_server::esquecer(session_id); // Fork: processos e socket da conversa.

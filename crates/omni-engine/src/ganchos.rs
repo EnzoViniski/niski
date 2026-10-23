@@ -456,11 +456,14 @@ pub(crate) fn estado_do_harness(terminal: &str) -> Option<Value> {
     }))
 }
 
-/// Contadores da PTY para o resumo da sessão (A7): (eventos recebidos, turnos por evento, confirmado).
-pub(crate) fn contadores(terminal: &str) -> Option<(usize, u64, bool)> {
+/// Contadores da PTY para o resumo da sessão (A7).
+pub(crate) struct Contadores { pub canal: &'static str, pub eventos: usize, pub turnos: u64, pub compactacoes: u64 }
+
+pub(crate) fn contadores(terminal: &str) -> Option<Contadores> {
     let sessoes = RUNTIME.sessoes.lock().ok()?;
     let e = sessoes.get(terminal)?;
-    Some((e.anel.len(), e.turnos_terminados, e.confirmado))
+    let canal = if e.desligado.is_some() { "desligado" } else if e.codex { "notify" } else if e.injetado { "ganchos" } else { "nenhum" };
+    Some(Contadores { canal, eventos: e.anel.len(), turnos: e.turnos_terminados, compactacoes: e.compactacoes })
 }
 
 async fn codex(State(state): State<Arc<EngineState>>, headers: HeaderMap, corpo: Result<Bytes, BytesRejection>) -> Response {

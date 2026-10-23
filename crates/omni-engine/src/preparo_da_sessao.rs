@@ -7,6 +7,7 @@ use super::*;
 
 pub(crate) fn preparar(state: &Arc<EngineState>, terminal: &str, origem: &SessionOrigin, cwd: &str, comando: Option<String>)
     -> (Option<String>, Vec<(String, String)>) {
+    if origem.provider.is_some() { harness_resumo::iniciar(terminal); } // Fork (harness, A7)
     let (comando, mut ambiente) = mobile::orquestracao::preparar(state, origem.conversation_id.as_deref(), origem.provider.as_deref(), comando);
     let (comando, dos_ganchos) = ganchos::preparar(state, terminal, origem, cwd, comando);
     ambiente.extend(dos_ganchos);
