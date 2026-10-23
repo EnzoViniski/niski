@@ -6,6 +6,8 @@ use std::collections::BTreeSet;
 mod api;
 mod exemplos; // Fork: um exemplo de cada aviso.
 mod rotas;
+// Fork (Rotina): o bot da rotina (lembretes com texto e botões, conversa com o agente da rotina).
+pub(super) mod rotina;
 #[cfg(test)]
 mod testes;
 pub(super) fn rotas() -> Router<Arc<EngineState>> {

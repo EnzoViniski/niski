@@ -55,6 +55,10 @@ import { abrirPainelDeTarefas, alternarListaDoDia, usePainel } from "./features/
 import { JanelaDoCopiloto } from "./features/copiloto/JanelaDoCopiloto";
 import { abrirCopiloto, novaConversaDoCopiloto } from "./features/copiloto/copiloto";
 import { RotinaDaManha } from "./features/manha/RotinaDaManha";
+// Fork (Rotina): tela da rotina semanal e os avisos dos lembretes.
+import { RotinaView } from "./features/rotina/RotinaView";
+import { AvisosDaRotina } from "./features/rotina/AvisosDaRotina";
+import { guardarPedidoPendente, ouvirPedidosDaRotina, pedirAbrirRotina } from "./features/rotina/abrirRotina";
 import { abrirRotinaAgora, useRotinaDaManha } from "./features/manha/useRotinaDaManha";
 // Fork: Edição de vídeo (HyperFrames), carregada só ao abrir a tela.
 import { VideoView } from "./features/video/VideoViewTardio";
@@ -73,7 +77,7 @@ import { useAberturasDaAtividade } from "./features/atividade/navegacao";
 import { usaFormaMinimalista } from "./lib/estiloDaInterface"; // Fork: Minimalista e Vidro sem fundo animado.
 import { useAtividadeDoDesktop } from "./features/atividade/vistas";
 
-type View = "workspace" | "settings" | "history" | "fluxos" | "conversa" | "roadmaps" | "video";
+type View = "workspace" | "settings" | "history" | "fluxos" | "conversa" | "roadmaps" | "video" | "rotina"; // Fork (Rotina).
 
 export function App() { return <AcoesDaPaleta><AppComPaleta /></AcoesDaPaleta>; }
 
@@ -102,6 +106,16 @@ function AppComPaleta() {
   useAcoesDaPaleta("video", [
     { id: "video-continuar", titulo: "Continuar edição de vídeo", executar: () => abrirVideo(true) },
     { id: "video-lista", titulo: "Edição de vídeo", executar: () => abrirVideo(false) },
+  ]);
+  // Fork (Rotina): a tela abre por pedido (lateral, paleta, aviso); o pedido fica guardado até ela montar.
+  useEffect(() => ouvirPedidosDaRotina((pedido) => { guardarPedidoPendente(pedido); setView("rotina"); }), []);
+  useAcoesDaPaleta("rotina", [
+    { id: "rotina-hoje", titulo: "Rotina: hoje", executar: () => pedirAbrirRotina({ aba: "hoje" }) },
+    { id: "rotina-semana", titulo: "Rotina: semana", executar: () => pedirAbrirRotina({ aba: "semana" }) },
+    { id: "rotina-planejar", titulo: "Rotina: planejar a semana", executar: () => pedirAbrirRotina({ aba: "semana", conversa: "planejar" }) },
+    { id: "rotina-conversar", titulo: "Rotina: conversar com a rotina", executar: () => pedirAbrirRotina({ conversa: "conversar" }) },
+    { id: "rotina-treino", titulo: "Rotina: registrar treino", executar: () => pedirAbrirRotina({ aba: "treino" }) },
+    { id: "rotina-alimentacao", titulo: "Rotina: alimentação e água", executar: () => pedirAbrirRotina({ aba: "alimentacao" }) },
   ]);
   // Fork (Tarefas e Manhã): painel de tarefas por cima do app e o aquecimento que cobre a tela no horário escolhido.
   const manha = useRotinaDaManha();
@@ -272,6 +286,7 @@ function AppComPaleta() {
             : view === "fluxos" ? ["Fluxos de agentes"]
             : view === "roadmaps" ? ["Roadmaps"]
             : view === "video" ? ["Edição de vídeo"]
+            : view === "rotina" ? ["Rotina"]
             : [workspaces.find((item) => item.id === activeWorkspaceId)?.name, activeProject?.name].filter((parte): parte is string => Boolean(parte))
         }
         dica={view === "workspace" ? activeProject?.path : undefined}
@@ -343,6 +358,8 @@ function AppComPaleta() {
         showFluxos={view === "fluxos"}
         showTarefas={painelDeTarefas.aberto}
         onOpenTarefas={abrirPainelDeTarefas}
+        showRotina={view === "rotina"} /* Fork (Rotina). */
+        onOpenRotina={() => setView("rotina")}
         showRoadmaps={view === "roadmaps"}
         onOpenRoadmaps={() => abrirRoadmaps(true)}
         showVideo={view === "video"}
@@ -438,6 +455,8 @@ function AppComPaleta() {
         <main className="flex-1 min-h-0">
           {view === "history" ? (
             <HistoryView onResume={resumeHistory} onClose={closeHistory} />
+          ) : view === "rotina" ? ( /* Fork (Rotina). */
+            <RotinaView agentView={settings.agentView} onClose={() => setView("workspace")} />
           ) : view === "roadmaps" ? (
             <RoadmapsView key={aberturaDosRoadmaps.chave} continuar={aberturaDosRoadmaps.continuar} onClose={() => setView("workspace")} />
           ) : view === "video" ? (
@@ -485,6 +504,7 @@ function AppComPaleta() {
         </main>
       </div>
       <JanelaDoCopiloto /> {/* Fork (Copiloto): coluna à direita ou janela flutuante. */}
+      <AvisosDaRotina /> {/* Fork (Rotina): lembretes vencidos, discretos no canto. */}
       </div>
       <BotaoDasTarefas />
       <ListaDoDia />
