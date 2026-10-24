@@ -219,7 +219,8 @@ pub fn executar(dados: &Path, nome: &str, args: &Value, agora: &Agora) -> Result
 fn fontes_e<R>(dados: &Path, f: impl FnOnce(&dia::Fontes) -> R) -> R {
     let (plano, alimentacao, treino, lembretes) = (ler::<Plano>(dados), ler::<Alimentacao>(dados), ler::<Treino>(dados), ler::<Lembretes>(dados));
     let tarefas = tarefas(dados);
-    f(&dia::Fontes { plano: &plano, alimentacao: &alimentacao, treino: &treino, lembretes: &lembretes, tarefas: &tarefas })
+    let google = ler::<super::google::AgendaDoGoogle>(dados); // Fork (Google Agenda)
+    f(&dia::Fontes { plano: &plano, alimentacao: &alimentacao, treino: &treino, lembretes: &lembretes, tarefas: &tarefas, google: &google })
 }
 
 fn ler_dia(dados: &Path, args: &Value, agora: &Agora) -> Result<Value, String> {

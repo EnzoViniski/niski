@@ -266,3 +266,28 @@ fn responder_aviso_duas_vezes_nao_repete_o_efeito() {
     // "visto" continua valendo (só esconde).
     assert!(executar(dir.path(), "responder_aviso", &json!({"chave": "lembrete:l1:2026-10-23", "acao": "visto"}), &a).is_ok());
 }
+
+/// Fork (Google Agenda): a cópia do Google entra no dia e na semana, marca como qualquer item e não
+/// conta como "a fazer" no progresso.
+#[test]
+fn compromissos_do_google_entram_no_dia_e_na_semana() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = agora("2026-10-27", "09:00");
+    let agenda = google::AgendaDoGoogle { conta: "eu@gmail.com".into(), eventos: vec![
+        google::Evento { id: "g1".into(), titulo: "Dentista".into(), data: "2026-10-27".into(), inicio: "14:00".into(), fim: "15:00".into(), ..Default::default() },
+        google::Evento { id: "g2".into(), titulo: "Feriado".into(), data: "2026-10-27".into(), dia_todo: true, ..Default::default() },
+        google::Evento { id: "g3".into(), titulo: "Outro dia".into(), data: "2026-10-28".into(), inicio: "10:00".into(), ..Default::default() },
+    ], ..Default::default() };
+    gravar(dir.path(), &agenda).unwrap();
+    let dia = op(dir.path(), "ler_dia", json!({}), &a);
+    let itens = dia["itens"].as_array().unwrap();
+    let dentista = itens.iter().find(|i| i["id"] == "google:g1").expect("compromisso com hora na linha do tempo");
+    assert_eq!((dentista["tipo"].as_str(), dentista["inicio"].as_str()), (Some("compromisso"), Some("14:00")));
+    assert!(dia["sem_hora"].as_array().unwrap().iter().any(|i| i["id"] == "google:g2"), "dia inteiro vai para sem hora");
+    assert!(!itens.iter().any(|i| i["id"] == "google:g3"));
+    op(dir.path(), "marcar", json!({"item": "google:g1", "estado": "feito"}), &a);
+    let dia = op(dir.path(), "ler_dia", json!({}), &a);
+    assert_eq!(dia["itens"].as_array().unwrap().iter().find(|i| i["id"] == "google:g1").unwrap()["estado"], "feito");
+    let semana = op(dir.path(), "ler_semana", json!({}), &a);
+    assert_eq!(semana["progresso"]["itens_total"], 0, "compromisso não entra no progresso");
+}

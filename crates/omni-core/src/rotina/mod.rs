@@ -17,6 +17,7 @@
 pub mod ajustes;
 pub mod alimentacao;
 pub mod dia;
+pub mod google; // Fork (Google Agenda): cópia local dos compromissos do Google.
 pub mod lembretes;
 pub mod operacoes;
 pub mod plano;

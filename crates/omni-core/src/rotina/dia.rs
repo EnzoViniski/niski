@@ -67,6 +67,8 @@ pub struct Fontes<'a> {
     pub treino: &'a Treino,
     pub lembretes: &'a Lembretes,
     pub tarefas: &'a [Value],
+    /// Fork (Google Agenda): compromissos copiados do Google pelo engine.
+    pub google: &'a super::google::AgendaDoGoogle,
 }
 
 fn somar(h: &str, minutos_a_mais: u64) -> String {
@@ -138,6 +140,15 @@ pub fn montar_dia(f: &Fontes, dia: NaiveDate, hoje: NaiveDate, agora: Option<Nai
         if item.inicio.is_empty() || atrasada { sem_hora.push(item) } else { itens.push(item) }
     }
 
+    // Fork (Google Agenda): compromissos do Google; os de dia inteiro vão para "sem hora".
+    for e in f.google.do_dia(dia) {
+        let id = super::google::chave_do_item(e);
+        let item = Item { estado: estado_de(&id), id, tipo: "compromisso".into(), titulo: e.titulo.clone(), detalhe: e.local.clone(),
+            inicio: e.inicio.clone(), fim: e.fim.clone(), area: String::new(), cor: "#1a73e8".into(), alvo: e.id.clone(),
+            categoria: if e.dia_todo { "dia_todo".into() } else { "google".into() } };
+        if e.dia_todo { sem_hora.push(item) } else { itens.push(item) }
+    }
+
     let registradas = f.alimentacao.dia(dia);
     for r in &f.alimentacao.plano {
         let id = format!("refeicao:{}", r.id);
@@ -205,7 +216,7 @@ pub fn montar_semana(f: &Fontes, qualquer_dia: NaiveDate, hoje: NaiveDate, agora
     let semana = f.plano.semana(segunda);
     // Progresso: só itens até hoje contam (o que ainda vai acontecer não é "não feito").
     let passados: Vec<&Dia> = dias.iter().filter(|d| super::data(&d.data).is_some_and(|x| x <= hoje)).collect();
-    let contaveis = passados.iter().flat_map(|d| d.itens.iter()).filter(|i| i.tipo != "refeicao" && i.categoria != "sono");
+    let contaveis = passados.iter().flat_map(|d| d.itens.iter()).filter(|i| i.tipo != "refeicao" && i.categoria != "sono" && i.tipo != "compromisso"); // Fork: compromisso do Google não é "a fazer"
     let (mut feitos, mut total) = (0, 0);
     for i in contaveis {
         total += 1;
