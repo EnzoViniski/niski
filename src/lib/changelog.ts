@@ -16,6 +16,14 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.32.0",
+    date: "2026-10-24",
+    changes: [
+      "Google Agenda: a Rotina mostra os compromissos de todas as agendas que estão visíveis no seu Google Agenda, inclusive as de outros e-mails compartilhadas com você, feriados e aniversários. Cada um aparece com o nome e a cor da agenda de onde veio.",
+      "Se você conectou o Google Agenda antes desta versão, clique em Desconectar e depois em Conectar para liberar a leitura de todas as agendas.",
+    ],
+  },
+  {
     version: "0.31.2",
     date: "2026-10-24",
     changes: [

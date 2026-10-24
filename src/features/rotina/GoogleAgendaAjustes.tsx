@@ -48,7 +48,7 @@ export function GoogleAgendaCartao() {
   return (
     <Card title="Google Agenda">
       <div className="space-y-3 text-xs">
-        <p className="text-text-secondary">Os compromissos da sua agenda pessoal aparecem em Hoje e na Semana (atualiza a cada 5 minutos), e você cria
+        <p className="text-text-secondary">Os compromissos de todas as agendas que estão visíveis no seu Google Agenda (inclusive as de outros e-mails compartilhadas com você e os aniversários) aparecem em Hoje e na Semana (atualiza a cada 5 minutos), e você cria
           compromissos no Google pelo botão “Novo compromisso”. O agente da rotina também enxerga e cria.</p>
 
         {status && !status.conectado && !status.conectando && <>
