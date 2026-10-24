@@ -105,6 +105,7 @@ export function Semana({ semana, onMudou, onIr, onErro }: {
                 <span role="cell" className="rotina-bloco-hora">{it.inicio}</span>
                 <span role="cell" className="rotina-bloco-titulo">{it.titulo}</span>
                 {it.area && <span role="cell" className="rotina-bloco-area">{nomeDaArea(it.area)}</span>}
+                {it.tipo === "compromisso" && <span role="cell" className="rotina-bloco-area">Google</span>}
               </div>
             ))}
             {dia.sem_hora.filter(() => dia.data === semana.hoje).length > 0 && (

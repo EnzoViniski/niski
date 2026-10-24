@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { Button } from "../../components/ui";
 import { formatarLitros, fracao } from "./dominio";
+import { NovoCompromisso } from "./NovoCompromisso"; // Fork (Google Agenda)
 import { operar } from "./rotinaService";
 import type { Dia, ItemDoDia } from "./tipos";
 
-const ROTULO_DO_TIPO: Record<string, string> = { bloco: "Bloco", treino: "Treino", tarefa: "Tarefa", refeicao: "Refeição" };
+const ROTULO_DO_TIPO: Record<string, string> = { bloco: "Bloco", treino: "Treino", tarefa: "Tarefa", refeicao: "Refeição",
+  compromisso: "Google Agenda" }; // Fork (Google Agenda)
 
 function Item({ item, destaque, onMarcar }: { item: ItemDoDia; destaque: "agora" | "proximo" | null; onMarcar: (estado: "feito" | "pulado" | "nada") => void }) {
   const feito = item.estado === "feito";
@@ -26,7 +28,7 @@ function Item({ item, destaque, onMarcar }: { item: ItemDoDia; destaque: "agora"
           aria-label={feito ? `Desmarcar ${item.titulo}` : `Marcar ${item.titulo} como feito`} onClick={() => onMarcar(feito ? "nada" : "feito")}>
           <svg viewBox="0 0 16 16" aria-hidden><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
-        {!item.estado && item.tipo !== "tarefa" && (
+        {!item.estado && item.tipo !== "tarefa" && item.tipo !== "compromisso" && (
           <button type="button" className="rotina-mini" onClick={() => onMarcar("pulado")} aria-label={`Pular ${item.titulo}`}>Pular</button>
         )}
         {item.estado === "pulado" && <button type="button" className="rotina-mini" onClick={() => onMarcar("nada")}>Desfazer</button>}
@@ -52,6 +54,7 @@ export function Hoje({ dia, onMudou, onTreino, onErro }: { dia: Dia; onMudou: ()
           <h2>Hoje, {dia.dia_da_semana}</h2>
           <span className="rotina-muted">{feitos} de {dia.itens.length} feitos</span>
         </header>
+        <div className="rotina-linha-botoes"><NovoCompromisso onCriado={onMudou} onErro={onErro} /></div>
         {dia.foco && <p className="rotina-foco"><span>Foco da semana</span>{dia.foco}</p>}
         {dia.itens.length === 0 ? (
           <p className="rotina-vazio">Nada marcado para hoje. Use “Planejar a semana” para montar sua rotina com o agente.</p>

@@ -4,7 +4,7 @@ export type EstadoDoItem = "feito" | "pulado" | "";
 
 export interface ItemDoDia {
   id: string;
-  tipo: "bloco" | "treino" | "tarefa" | "refeicao";
+  tipo: "bloco" | "treino" | "tarefa" | "refeicao" | "compromisso"; // Fork (Google Agenda): compromisso do Google
   titulo: string;
   detalhe: string;
   inicio: string;

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button, Card } from "../../components/ui";
 import { listProfiles, type Profile } from "../terminal/terminalService";
+import { GoogleAgendaCartao } from "./GoogleAgendaAjustes"; // Fork (Google Agenda)
 import { lerAjustes, lerLembretes, lerSemana, operar, telegramDaRotina } from "./rotinaService";
 import { NOMES_CURTOS_DOS_DIAS, type AjustesDaRotina as Ajustes, type Lembretes, type TelegramDaRotina } from "./tipos";
 
@@ -203,6 +204,7 @@ export function AjustesDaRotina({ onErro }: { onErro: (e: string) => void }) {
     <div className="rotina-ajustes">
       <Agente onErro={onErro} />
       <AjustesDosLembretes onErro={onErro} />
+      <GoogleAgendaCartao />
       <TelegramDaRotinaCartao />
       <Memoria onErro={onErro} />
     </div>
