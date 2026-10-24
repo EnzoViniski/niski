@@ -24,6 +24,8 @@ struct Falso {
     formularios: Vec<HashMap<String, String>>,
     criados: Vec<Value>,
     recusar_refresh: bool,
+    lista_sem_permissao: bool,
+    consultas: Vec<(String, String)>,
 }
 type Google = Arc<Mutex<Falso>>;
 
@@ -51,14 +53,46 @@ async fn google_falso() -> (Google, String) {
             }
         }
     };
-    let listar = |headers: HeaderMap| async move {
-        if !headers.get("authorization").and_then(|v| v.to_str().ok()).is_some_and(|v| v.starts_with("Bearer at-")) {
-            return (StatusCode::UNAUTHORIZED, Json(json!({})));
+    let autorizado = |headers: &HeaderMap| headers.get("authorization").and_then(|v| v.to_str().ok()).is_some_and(|v| v.starts_with("Bearer at-"));
+    let lista = {
+        let f = falso.clone();
+        move |headers: HeaderMap| {
+            let f = f.clone();
+            async move {
+                if !autorizado(&headers) { return (StatusCode::UNAUTHORIZED, Json(json!({}))); }
+                if f.lock().unwrap().lista_sem_permissao {
+                    return (StatusCode::FORBIDDEN, Json(json!({"error": {"errors": [{"reason": "insufficientPermissions"}]}})));
+                }
+                (StatusCode::OK, Json(json!({"items": [
+                    {"id": "eu@gmail.com", "summary": "eu@gmail.com", "primary": true, "selected": true, "backgroundColor": "#039be5"},
+                    {"id": "trabalho@medza.ai", "summary": "trabalho@medza.ai", "summaryOverride": "Medza", "selected": true, "backgroundColor": "#d50000"},
+                    {"id": "escondida", "summary": "Escondida", "selected": false},
+                    {"id": "sumiu", "summary": "Sumiu", "selected": true},
+                ]})))
+            }
         }
-        (StatusCode::OK, Json(json!({"summary": "eu@gmail.com", "items": [
-            {"id": "g1", "summary": "Consulta", "start": {"date": "2026-11-03"}, "end": {"date": "2026-11-04"}},
-            {"id": "g2", "status": "cancelled", "start": {"date": "2026-11-03"}},
-        ]})))
+    };
+    let listar = {
+        let f = falso.clone();
+        move |RoutePath(agenda): RoutePath<String>, Query(q): Query<HashMap<String, String>>, uri: axum::http::Uri, headers: HeaderMap| {
+            let f = f.clone();
+            async move {
+                if !autorizado(&headers) { return (StatusCode::UNAUTHORIZED, Json(json!({}))); }
+                let _ = q;
+                f.lock().unwrap().consultas.push((agenda.clone(), uri.query().unwrap_or("").to_owned()));
+                match agenda.as_str() {
+                    "primary" | "eu@gmail.com" => (StatusCode::OK, Json(json!({"summary": "eu@gmail.com", "items": [
+                        {"id": "g1", "summary": "Consulta", "start": {"date": "2026-11-03"}, "end": {"date": "2026-11-04"}},
+                        {"id": "g2", "status": "cancelled", "start": {"date": "2026-11-03"}},
+                    ]}))),
+                    "trabalho@medza.ai" => (StatusCode::OK, Json(json!({"summary": "trabalho@medza.ai", "items": [
+                        {"id": "m1", "summary": "Reunião", "start": {"date": "2026-11-04"}, "end": {"date": "2026-11-05"}},
+                        {"id": "copia", "summary": "Consulta", "start": {"date": "2026-11-03"}, "end": {"date": "2026-11-04"}},
+                    ]}))),
+                    _ => (StatusCode::NOT_FOUND, Json(json!({}))),
+                }
+            }
+        }
     };
     let criar = {
         let f = falso.clone();
@@ -70,7 +104,8 @@ async fn google_falso() -> (Google, String) {
     let app = Router::new()
         .route("/token", post(token))
         .route("/revoke", post(|| async { StatusCode::OK }))
-        .route("/calendars/primary/events", get(listar).post(criar));
+        .route("/users/me/calendarList", get(lista))
+        .route("/calendars/{agenda}/events", get(listar).post(criar));
     let ouvinte = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", ouvinte.local_addr().unwrap());
     tokio::spawn(async move { axum::serve(ouvinte, app).await.unwrap() });
@@ -133,11 +168,11 @@ async fn login_no_navegador_guarda_a_credencial_e_traz_os_compromissos() {
     let mut v = Value::Null;
     for _ in 0..50 {
         v = pedir(&state, "GET", "/rotina/google", Value::Null, true).await.1;
-        if v["eventos"].as_u64() == Some(1) { break; }
+        if v["eventos"].as_u64() == Some(2) { break; }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
     assert_eq!((v["conectado"].as_bool(), v["conectando"].as_bool(), v["conta"].as_str(), v["eventos"].as_u64()),
-        (Some(true), Some(false), Some("eu@gmail.com"), Some(1)), "{v}");
+        (Some(true), Some(false), Some("eu@gmail.com"), Some(2)), "{v}");
     let troca = falso.lock().unwrap().formularios[0].clone();
     assert_eq!((troca.get("redirect_uri"), troca["code_verifier"].len()), (Some(&redirecionar), 64));
     assert_eq!(desafio_pkce(&troca["code_verifier"]), parametro(url, "code_challenge"));
@@ -170,7 +205,7 @@ async fn criar_renova_o_token_manda_hora_local_e_ressincroniza() {
     assert!(corpo["end"]["dateTime"].as_str().unwrap().starts_with("2026-11-05T20:00:00"), "1 hora por padrão");
     assert_eq!(ler_credenciais(&dir(&state)).access_token, "at-2", "token renovado e guardado");
     let agenda: AgendaDoGoogle = rotina_core::ler(&dir(&state));
-    assert_eq!(agenda.eventos.len(), 1, "sincronizou depois de criar");
+    assert_eq!(agenda.eventos.len(), 2, "sincronizou depois de criar");
 
     let (s, _) = pedir(&state, "POST", "/rotina/google/evento", json!({"titulo": "Dia todo", "data": "2026-11-06"}), false).await;
     assert_eq!(s, StatusCode::OK);
@@ -186,7 +221,7 @@ async fn acesso_revogado_vira_aviso_curto_e_mantem_os_compromissos() {
     let (falso, base) = google_falso().await;
     apontar(&state, &base);
     conectado_com_token_vencido(&state);
-    assert_eq!(sincronizar(&state).await, Ok(1));
+    assert_eq!(sincronizar(&state).await, Ok(2));
     falso.lock().unwrap().recusar_refresh = true;
     let mut c = ler_credenciais(&dir(&state));
     c.expira_ms = 0;
@@ -194,7 +229,7 @@ async fn acesso_revogado_vira_aviso_curto_e_mantem_os_compromissos() {
     let erro = sincronizar(&state).await.unwrap_err();
     assert!(erro.contains("conectar de novo") && !erro.contains("segredo citado"), "{erro}");
     let v = pedir(&state, "GET", "/rotina/google", Value::Null, true).await.1;
-    assert_eq!((v["eventos"].as_u64(), v["erro"].as_str()), (Some(1), Some(erro.as_str())));
+    assert_eq!((v["eventos"].as_u64(), v["erro"].as_str()), (Some(2), Some(erro.as_str())));
 }
 
 #[tokio::test]
@@ -235,4 +270,36 @@ fn recusa_do_google_diz_o_que_fazer_sem_repetir_a_mensagem() {
     assert!(recusado(403, &sem_escopo).contains("permissão da agenda"));
     assert!(recusado(401, &Value::Null).contains("conectar de novo"));
     assert!(recusado(403, &Value::Null).contains("recusou"));
+}
+
+#[tokio::test]
+async fn le_todas_as_agendas_visiveis_com_nome_e_cor_sem_repetir_convite() {
+    let (_dir, state) = fixture();
+    let (falso, base) = google_falso().await;
+    apontar(&state, &base);
+    conectado_com_token_vencido(&state);
+    assert_eq!(sincronizar(&state).await, Ok(2), "Consulta repetida na agenda da Medza conta uma vez");
+    let agenda: AgendaDoGoogle = rotina_core::ler(&dir(&state));
+    let reuniao = agenda.eventos.iter().find(|e| e.id == "m1").unwrap();
+    assert_eq!((reuniao.agenda.as_str(), reuniao.cor.as_str()), ("Medza", "#d50000"));
+    let consulta = agenda.eventos.iter().find(|e| e.titulo == "Consulta").unwrap();
+    assert_eq!((consulta.id.as_str(), consulta.agenda.as_str()), ("g1", ""), "a da agenda principal fica");
+    assert_eq!(agenda.erro, "");
+    let consultas = falso.lock().unwrap().consultas.clone();
+    let pedidas: Vec<&str> = consultas.iter().map(|(a, _)| a.as_str()).collect();
+    assert_eq!(pedidas, ["eu@gmail.com", "trabalho@medza.ai", "sumiu"], "escondida fica de fora; a que sumiu é pulada");
+    assert!(consultas[0].1.contains("eventTypes=birthday"), "aniversários vêm na principal");
+
+    // Conexão antiga, sem a permissão da lista: só a principal, com o aviso para reconectar.
+    falso.lock().unwrap().lista_sem_permissao = true;
+    assert_eq!(sincronizar(&state).await, Ok(1));
+    let agenda: AgendaDoGoogle = rotina_core::ler(&dir(&state));
+    assert_eq!(agenda.erro, PRECISA_RECONECTAR);
+    let a = omni_core::rotina::operacoes::Agora { ms: 0, hoje: chrono::NaiveDate::from_ymd_opt(2026, 11, 3).unwrap(),
+        hora: chrono::NaiveTime::from_hms_opt(9, 0, 0).unwrap() };
+    falso.lock().unwrap().lista_sem_permissao = false;
+    sincronizar(&state).await.unwrap();
+    let dia = omni_core::rotina::operacoes::executar(&dir(&state), "ler_dia", &json!({"data": "2026-11-04"}), &a).unwrap();
+    let item = dia["sem_hora"].as_array().unwrap().iter().find(|i| i["id"] == "google:m1").cloned().unwrap();
+    assert_eq!((item["detalhe"].as_str(), item["cor"].as_str()), (Some("Medza"), Some("#d50000")));
 }

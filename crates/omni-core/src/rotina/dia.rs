@@ -143,8 +143,10 @@ pub fn montar_dia(f: &Fontes, dia: NaiveDate, hoje: NaiveDate, agora: Option<Nai
     // Fork (Google Agenda): compromissos do Google; os de dia inteiro vão para "sem hora".
     for e in f.google.do_dia(dia) {
         let id = super::google::chave_do_item(e);
-        let item = Item { estado: estado_de(&id), id, tipo: "compromisso".into(), titulo: e.titulo.clone(), detalhe: e.local.clone(),
-            inicio: e.inicio.clone(), fim: e.fim.clone(), area: String::new(), cor: "#1a73e8".into(), alvo: e.id.clone(),
+        let detalhe = [e.local.as_str(), e.agenda.as_str()].into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(" · ");
+        let cor = if e.cor.is_empty() { "#1a73e8".to_owned() } else { e.cor.clone() };
+        let item = Item { estado: estado_de(&id), id, tipo: "compromisso".into(), titulo: e.titulo.clone(), detalhe,
+            inicio: e.inicio.clone(), fim: e.fim.clone(), area: String::new(), cor, alvo: e.id.clone(),
             categoria: if e.dia_todo { "dia_todo".into() } else { "google".into() } };
         if e.dia_todo { sem_hora.push(item) } else { itens.push(item) }
     }

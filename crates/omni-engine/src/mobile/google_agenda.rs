@@ -17,7 +17,10 @@ use sha2::Digest;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 const ARQUIVO: &str = "google.json";
-const ESCOPO: &str = "https://www.googleapis.com/auth/calendar.events";
+/// Eventos (ler e criar) e, desde a 0.32, a lista das agendas para ler todas as visíveis.
+const ESCOPO: &str = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly";
+const AGENDAS_MAXIMAS: usize = 25;
+const PRECISA_RECONECTAR: &str = "Para ver todas as suas agendas (não só a principal), clique em Desconectar e depois em Conectar: o Niski precisa de uma permissão nova.";
 const INTERVALO: std::time::Duration = std::time::Duration::from_secs(300);
 const ESPERA_DO_LOGIN: std::time::Duration = std::time::Duration::from_secs(300);
 const DIAS_ANTES: i64 = 7;
@@ -201,28 +204,73 @@ async fn token_de_acesso(state: &EngineState) -> Result<String, String> {
 
 /* ── Sincronizar ───────────────────────────────────────────────────────────────────────────── */
 
-async fn buscar(state: &EngineState) -> Result<(String, Vec<google::Evento>), String> {
-    let token = token_de_acesso(state).await?;
-    let agora = chrono::Local::now();
-    let (de, ate) = ((agora - chrono::Duration::days(DIAS_ANTES)).to_rfc3339(), (agora + chrono::Duration::days(DIAS_DEPOIS)).to_rfc3339());
-    let base = format!("{}/calendars/primary/events?singleEvents=true&orderBy=startTime&maxResults=2500&timeMin={}&timeMax={}",
-        enderecos(state).api, codificar(&de), codificar(&ate));
-    let http = cliente()?;
-    let (mut itens, mut conta, mut pagina) = (Vec::new(), String::new(), None::<String>);
+/// Uma agenda da lista do usuário.
+struct Agenda {
+    id: String,
+    nome: String,
+    cor: String,
+    principal: bool,
+}
+
+/// Fork (0.32): as agendas marcadas como visíveis no Google Agenda (`selected`) e a principal, a principal
+/// primeiro. Conexão feita antes da 0.32 não tem a permissão da lista: busca só a principal e devolve o aviso.
+async fn agendas(http: &reqwest::Client, token: &str, api: &str) -> Result<(Vec<Agenda>, Option<String>), String> {
+    let principal = || Agenda { id: "primary".into(), nome: String::new(), cor: String::new(), principal: true };
+    let resposta = http.get(format!("{api}/users/me/calendarList?maxResults=250")).bearer_auth(token).send().await
+        .map_err(|_| "Sem conexão com o Google. Tento de novo em alguns minutos.".to_owned())?;
+    let status = resposta.status().as_u16();
+    let valor: Value = resposta.json().await.unwrap_or(Value::Null);
+    if status == 403 && recusado(status, &valor).contains("permissão da agenda") {
+        return Ok((vec![principal()], Some(PRECISA_RECONECTAR.into())));
+    }
+    if status == 401 || status == 403 {
+        return Err(recusado(status, &valor));
+    }
+    if !(200..300).contains(&status) {
+        return Err("O Google Agenda não respondeu. Tento de novo em alguns minutos.".into());
+    }
+    let mut lista: Vec<Agenda> = valor["items"].as_array().into_iter().flatten()
+        .filter(|a| a["selected"] == true || a["primary"] == true)
+        .filter_map(|a| {
+            let id = a["id"].as_str().filter(|i| !i.is_empty())?;
+            let nome = a["summaryOverride"].as_str().or(a["summary"].as_str()).unwrap_or("");
+            let cor = a["backgroundColor"].as_str().filter(|c| c.len() == 7 && c.starts_with('#')).unwrap_or("");
+            Some(Agenda { id: id.into(), nome: nome.chars().take(80).collect(), cor: cor.into(), principal: a["primary"] == true })
+        })
+        .collect();
+    lista.sort_by_key(|a| !a.principal);
+    lista.truncate(AGENDAS_MAXIMAS);
+    if !lista.iter().any(|a| a.principal) {
+        lista.insert(0, principal());
+    }
+    Ok((lista, None))
+}
+
+/// Os eventos de uma agenda no período (com as páginas). `Ok(None)` = agenda que sumiu ou não abre mais (pula).
+async fn eventos_da_agenda(http: &reqwest::Client, token: &str, api: &str, agenda: &Agenda, de: &str, ate: &str)
+    -> Result<Option<(String, Vec<Value>)>, String> {
+    // Aniversários e eventos do Gmail só vêm pedindo os tipos (o padrão do Google deixa os aniversários de fora).
+    let tipos = if agenda.principal { "&eventTypes=default&eventTypes=birthday&eventTypes=fromGmail&eventTypes=outOfOffice&eventTypes=focusTime" } else { "" };
+    let base = format!("{api}/calendars/{}/events?singleEvents=true&orderBy=startTime&maxResults=2500&timeMin={}&timeMax={}{tipos}",
+        codificar(&agenda.id), codificar(de), codificar(ate));
+    let (mut itens, mut nome, mut pagina) = (Vec::new(), String::new(), None::<String>);
     for _ in 0..PAGINAS_MAXIMAS {
         let url = match &pagina { Some(p) => format!("{base}&pageToken={}", codificar(p)), None => base.clone() };
-        let resposta = http.get(&url).bearer_auth(&token).send().await
+        let resposta = http.get(&url).bearer_auth(token).send().await
             .map_err(|_| "Sem conexão com o Google. Tento de novo em alguns minutos.".to_owned())?;
         let status = resposta.status().as_u16();
         let valor: Value = resposta.json().await.unwrap_or(Value::Null);
-        if status == 401 || status == 403 {
+        if status == 401 || (status == 403 && agenda.principal) {
             return Err(recusado(status, &valor));
+        }
+        if matches!(status, 403 | 404 | 410) {
+            return Ok(None);
         }
         if !(200..300).contains(&status) {
             return Err("O Google Agenda não respondeu. Tento de novo em alguns minutos.".into());
         }
-        if conta.is_empty() {
-            conta = valor["summary"].as_str().unwrap_or("").chars().take(120).collect();
+        if nome.is_empty() {
+            nome = valor["summary"].as_str().unwrap_or("").chars().take(120).collect();
         }
         itens.extend(valor["items"].as_array().cloned().unwrap_or_default());
         pagina = valor["nextPageToken"].as_str().map(str::to_owned);
@@ -230,7 +278,38 @@ async fn buscar(state: &EngineState) -> Result<(String, Vec<google::Evento>), St
             break;
         }
     }
-    Ok((conta, google::eventos_de(&itens, &chrono::Local)))
+    Ok(Some((nome, itens)))
+}
+
+/// Devolve (conta, eventos de todas as agendas visíveis, aviso).
+async fn buscar(state: &EngineState) -> Result<(String, Vec<google::Evento>, Option<String>), String> {
+    let token = token_de_acesso(state).await?;
+    let api = enderecos(state).api;
+    let agora = chrono::Local::now();
+    let (de, ate) = ((agora - chrono::Duration::days(DIAS_ANTES)).to_rfc3339(), (agora + chrono::Duration::days(DIAS_DEPOIS)).to_rfc3339());
+    let http = cliente()?;
+    let (lista, aviso) = agendas(&http, &token, &api).await?;
+    let (mut conta, mut eventos) = (String::new(), Vec::new());
+    let mut vistos = std::collections::HashSet::new();
+    for agenda in &lista {
+        let Some((nome, itens)) = eventos_da_agenda(&http, &token, &api, agenda, &de, &ate).await? else { continue };
+        if agenda.principal && conta.is_empty() {
+            conta = nome;
+        }
+        for mut e in google::eventos_de(&itens, &chrono::Local) {
+            // O mesmo convite aparece em mais de uma agenda (a sua e a compartilhada): fica o primeiro.
+            if !vistos.insert((e.titulo.clone(), e.data.clone(), e.inicio.clone())) {
+                continue;
+            }
+            if !agenda.principal {
+                e.agenda = agenda.nome.clone();
+            }
+            e.cor = agenda.cor.clone();
+            eventos.push(e);
+        }
+    }
+    eventos.sort_by(|a, b| (a.data.as_str(), a.inicio.as_str()).cmp(&(b.data.as_str(), b.inicio.as_str())));
+    Ok((conta, eventos, aviso))
 }
 
 /// Por que o Google recusou (401/403), numa frase que diz o que fazer. Lê só os códigos de motivo da
@@ -258,10 +337,10 @@ async fn sincronizar_dentro(state: &EngineState) -> Result<usize, String> {
         let _trava = rotina_core::travar();
         rotina_core::mudar::<AgendaDoGoogle, _>(&dados, |a| {
             match para_gravar {
-                Ok((conta, eventos)) => {
+                Ok((conta, eventos, aviso)) => {
                     if !conta.is_empty() { a.conta = conta; }
                     a.eventos = eventos;
-                    a.erro.clear();
+                    a.erro = aviso.unwrap_or_default();
                     a.sincronizado_ms = now_ms() as i64;
                 }
                 Err(e) => a.erro = e, // os eventos anteriores continuam na tela
@@ -269,7 +348,7 @@ async fn sincronizar_dentro(state: &EngineState) -> Result<usize, String> {
             Ok(())
         })
     }).await.map_err(|_| "Falha interna".to_owned())??;
-    resultado.map(|(_, eventos)| eventos.len())
+    resultado.map(|(_, eventos, _)| eventos.len())
 }
 
 pub(in crate::mobile) async fn sincronizar(state: &EngineState) -> Result<usize, String> {

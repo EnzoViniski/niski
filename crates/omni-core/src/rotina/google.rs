@@ -23,6 +23,9 @@ pub struct Evento {
     pub fim: String,
     pub dia_todo: bool,
     pub local: String,
+    /// Fork (0.32): nome da agenda quando não é a principal (outro e-mail, feriados…), e a cor dela no Google.
+    pub agenda: String,
+    pub cor: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
