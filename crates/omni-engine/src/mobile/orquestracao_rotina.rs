@@ -62,6 +62,9 @@ Fale em português do Brasil, curto e direto. Nada de listas enormes: o plano co
   livre, kcal/proteína só se ele disser (não invente números), água em copos ou ml.
 - **Lembretes** (`ler_lembretes`, `salvar_lembretes`, `salvar_lembrete`): avisos no app e no Telegram da rotina. Metas e
   remédios viram `salvar_lembrete` (tipo meta/remedio).
+- **Google Agenda** (compromissos com `tipo: compromisso` em `ler_dia`/`ler_semana`; `criar_compromisso_google`): a
+  agenda pessoal dele, sincronizada sozinha. Leve em conta ao planejar. Compromisso importante que ele pedir para pôr na
+  agenda vai para o Google com `criar_compromisso_google` (não duplique como tarefa).
 - **Memória da rotina** (`anotar_memoria`, lida em `ler_semana.memoria`): o que você aprendeu e deve lembrar nas próximas
   semanas (horários que funcionam, preferências, o que costuma dar errado). Atualize ao fim de cada planejamento.
 
@@ -128,10 +131,17 @@ pub(super) fn lista() -> Value {
         "inputSchema": {"type": "object", "additionalProperties": true, "properties": {}},
     })).collect();
     itens.extend(super::tarefas_mcp::lista());
+    // Fork (Google Agenda): criar compromisso na agenda pessoal (os do Google já vêm em ler_dia/ler_semana).
+    itens.push(json!({"name": "criar_compromisso_google", "description": "Cria um compromisso no Google Agenda pessoal do usuário: \
+        titulo, data (AAAA-MM-DD), inicio e fim (HH:MM; sem inicio = dia inteiro), local, notas. Só quando ele pedir.",
+        "inputSchema": {"type": "object", "additionalProperties": true, "properties": {}}}));
     Value::Array(itens)
 }
 
 pub(super) async fn chamar(state: &Arc<EngineState>, nome: &str, args: &Value) -> Result<String, String> {
+    if nome == "criar_compromisso_google" {
+        return super::super::google_agenda::criar_pelo_agente(state, args).await; // Fork (Google Agenda)
+    }
     let pasta = dir(state).to_path_buf();
     let (nome, args) = (nome.to_owned(), if args.is_object() { args.clone() } else { json!({}) });
     tokio::task::spawn_blocking(move || {

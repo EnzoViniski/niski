@@ -76,6 +76,7 @@ mod codex_rotas; // Fork: Codex app-server, opção por agente.
 // Fork (trocar agente): "Continuar com…" outro agente na mesma conversa (passagem de bastão).
 mod trocar_agente;
 mod telegram; // Fork: Bot API; avisos no engine mesmo com a janela fechada.
+mod google_agenda; // Fork (Google Agenda): compromissos do Google na Rotina.
 mod rotina_rotas; // Fork (Rotina): dados da rotina e o relógio dos lembretes.
 mod resumo_rota; // Fork (desempenho): só o resumo da conversa, para a faixa da aba de agente.
 mod harness_rota; // Fork (harness, A6): estado do agente pelos eventos, com a fonte de cada parte.
@@ -116,6 +117,8 @@ pub struct MobileRuntime {
     telegram: telegram::Runtime,
     /// Fork (Rotina): o bot da rotina, separado do bot dos avisos.
     rotina_telegram: telegram::rotina::Runtime,
+    /// Fork (Google Agenda): login em andamento e a fila das chamadas ao Google.
+    google_agenda: google_agenda::Runtime,
 }
 
 #[derive(Default)]
@@ -138,7 +141,8 @@ impl MobileRuntime {
             feeds: Mutex::new(omni_core::feed::FeedCache::default()),
             codex_descoberto_em: Mutex::new(0), arquivos: Mutex::new(HashMap::new()),
             orquestracao: orquestracao::Runtime::default(), atividade: Mutex::new(caixa_de_atividade::Registro::abrir(dir)),
-            telegram: telegram::Runtime::abrir(dir), rotina_telegram: telegram::rotina::Runtime::abrir(dir) }
+            telegram: telegram::Runtime::abrir(dir), rotina_telegram: telegram::rotina::Runtime::abrir(dir),
+            google_agenda: google_agenda::Runtime::default() }
     }
 }
 
@@ -148,6 +152,7 @@ pub fn start(state: Arc<EngineState>) {
     telegram::iniciar(state.clone()); // Fork: mensagens só quando o usuário conecta seu bot.
     rotina_rotas::iniciar(state.clone()); // Fork (Rotina): lembretes com a janela fechada.
     telegram::rotina::iniciar(state.clone()); // Fork (Rotina): só age com o bot da rotina conectado.
+    google_agenda::iniciar(state.clone()); // Fork (Google Agenda): só busca com a conta conectada.
     troca_no_limite::iniciar(state.clone()); // Fork (harness, A4): limite de uso em sessão sem painel.
     // A primeira leitura do histórico abre o começo de todo transcript de todas as contas: segundos,
     // numa máquina com muito histórico. Feita já na subida, quando ninguém está esperando, a primeira
@@ -220,6 +225,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .merge(telegram::rotas()) // Fork: configuração exclusiva do IPC do desktop.
         .merge(rotina_rotas::rotas()) // Fork (Rotina): plano, treino, alimentação e lembretes.
         .merge(telegram::rotina::rotas()) // Fork (Rotina): bot da rotina, só pelo desktop.
+        .merge(google_agenda::rotas()) // Fork (Google Agenda): conectar só pelo desktop.
         .route("/projetos",get(projects))
         .route("/painel",get(painel))
         .route("/conversas/{id}/timeline",get(timeline))

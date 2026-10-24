@@ -23,6 +23,7 @@ vt100 = "0.16"
 # Fork: handshake WebSocket do socket Unix (já presentes no lockfile pela casca).
 base64 = "0.22"
 sha1 = "0.10"
+sha2 = "0.10" # Fork (Google Agenda): PKCE do login (já no lockfile pela casca).
 include_dir = "0.7"
 # Fork: Bot API oficial; erros de transporte nunca saem com a URL (ela contém o token).
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls-no-provider"] }
