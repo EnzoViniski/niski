@@ -69,3 +69,23 @@ it("erro do Google vai para a tela e o formulário continua aberto", async () =>
   await waitFor(() => expect(onErro).toHaveBeenCalledWith("Conecte o Google Agenda nos Ajustes da Rotina."));
   expect(screen.getByLabelText("Compromisso")).toHaveValue("Reunião");
 });
+
+it("o app tem permissão de abrir o login do Google e o Google Cloud no navegador", async () => {
+  const { readFileSync } = await import("node:fs");
+  const capacidade = JSON.parse(readFileSync("src-tauri/capabilities/default.json", "utf8")) as { permissions: (string | { identifier: string; allow?: { url: string }[] })[] };
+  const abrir = capacidade.permissions.find((p) => typeof p !== "string" && p.identifier === "opener:allow-open-url") as { allow: { url: string }[] };
+  const urls = abrir.allow.map((a) => a.url);
+  expect(urls).toContain("https://accounts.google.com/*");
+  expect(urls).toContain("https://console.cloud.google.com/*");
+});
+
+it("sem navegador, o link do login fica na tela para copiar", async () => {
+  vi.mocked(servico.conectarGoogleAgenda).mockResolvedValue({ ...desligado, conectando: true, url: "https://accounts.google.com/o/oauth2/v2/auth?x=2" });
+  vi.mocked(openUrl).mockRejectedValueOnce(new Error("not allowed"));
+  render(<GoogleAgendaCartao />);
+  await userEvent.type(await screen.findByLabelText("ID do cliente"), "123.apps.googleusercontent.com");
+  await userEvent.type(screen.getByLabelText("Chave secreta do cliente"), "segredo");
+  await userEvent.click(screen.getByRole("button", { name: "Conectar" }));
+  expect(await screen.findByLabelText("Link para abrir no navegador")).toHaveValue("https://accounts.google.com/o/oauth2/v2/auth?x=2");
+  expect(screen.getByRole("alert")).toHaveTextContent("Copie o link");
+});

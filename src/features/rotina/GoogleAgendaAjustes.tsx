@@ -27,7 +27,12 @@ export function GoogleAgendaCartao() {
     return () => window.clearInterval(t);
   }, [status?.conectando]);
 
-  const abrir = (endereco: string) => void openUrl(endereco).catch(() => setErro("Não consegui abrir o navegador."));
+  // Se o navegador não abrir, o link fica na tela para copiar (0.31.0 não abria o login do Google).
+  const [semNavegador, setSemNavegador] = useState<string | null>(null);
+  const abrir = (endereco: string) => void openUrl(endereco).then(() => setSemNavegador(null), () => {
+    setSemNavegador(endereco);
+    setErro("Não consegui abrir o navegador. Copie o link abaixo e cole no navegador.");
+  });
   const executar = async (acao: () => Promise<GoogleAgenda | null>, mensagem?: string) => {
     setOcupado(true); setErro(null); setAviso(null);
     try { const s = await acao(); if (s) setStatus(s); if (mensagem) setAviso(mensagem); }
@@ -90,6 +95,11 @@ export function GoogleAgendaCartao() {
           </div>
         </>}
 
+        {semNavegador && <div className="space-y-1">
+          <input readOnly aria-label="Link para abrir no navegador" value={semNavegador} onFocus={(e) => e.currentTarget.select()}
+            className="w-full rounded border border-border-subtle bg-bg-elevated p-2" />
+          <Button size="sm" variant="ghost" onClick={() => void navigator.clipboard.writeText(semNavegador).then(() => setAviso("Link copiado."), () => undefined)}>Copiar link</Button>
+        </div>}
         {(erro || status?.erro) && <p className="text-danger" role="alert">{erro || status?.erro}</p>}
         {aviso && <p className="text-text-secondary" role="status">{aviso}</p>}
       </div>

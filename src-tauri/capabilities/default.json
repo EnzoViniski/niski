@@ -40,7 +40,9 @@
       { "url": "https://cursor.com/*" },
       { "url": "https://github.com/Medza-Primos-Organizacao/medza-agentes-releases/releases" },
       { "url": "https://*.ts.net/*" },
-      { "url": "http://100.*/*" }
+      { "url": "http://100.*/*" },
+      { "url": "https://accounts.google.com/*" },
+      { "url": "https://console.cloud.google.com/*" }
     ] }
   ]
 }
