@@ -214,10 +214,10 @@ async fn buscar(state: &EngineState) -> Result<(String, Vec<google::Evento>), St
         let resposta = http.get(&url).bearer_auth(&token).send().await
             .map_err(|_| "Sem conexão com o Google. Tento de novo em alguns minutos.".to_owned())?;
         let status = resposta.status().as_u16();
+        let valor: Value = resposta.json().await.unwrap_or(Value::Null);
         if status == 401 || status == 403 {
-            return Err("O Google recusou o acesso à agenda. Conecte de novo nos Ajustes da Rotina.".into());
+            return Err(recusado(status, &valor));
         }
-        let valor: Value = resposta.json().await.map_err(|_| "Resposta inválida do Google Agenda.".to_owned())?;
         if !(200..300).contains(&status) {
             return Err("O Google Agenda não respondeu. Tento de novo em alguns minutos.".into());
         }
@@ -231,6 +231,23 @@ async fn buscar(state: &EngineState) -> Result<(String, Vec<google::Evento>), St
         }
     }
     Ok((conta, google::eventos_de(&itens, &chrono::Local)))
+}
+
+/// Por que o Google recusou (401/403), numa frase que diz o que fazer. Lê só os códigos de motivo da
+/// resposta (`errors[].reason`, `details[].reason`), nunca a mensagem dela.
+fn recusado(status: u16, valor: &Value) -> String {
+    let motivos: Vec<&str> = valor["error"]["errors"].as_array().into_iter().flatten().chain(valor["error"]["details"].as_array().into_iter().flatten())
+        .filter_map(|e| e["reason"].as_str()).collect();
+    let tem = |nomes: &[&str]| motivos.iter().any(|m| nomes.contains(m));
+    if tem(&["accessNotConfigured", "SERVICE_DISABLED"]) {
+        "A Google Calendar API não está ativada no seu projeto do Google Cloud. Ative-a (passo 2 do guia) e clique em Atualizar agora.".into()
+    } else if tem(&["insufficientPermissions", "ACCESS_TOKEN_SCOPE_INSUFFICIENT"]) {
+        "Faltou marcar a permissão da agenda no login do Google. Desconecte e conecte de novo, marcando o acesso ao Google Agenda.".into()
+    } else if status == 401 {
+        "O Google pediu para conectar de novo. Clique em Desconectar e depois em Conectar.".into()
+    } else {
+        "O Google recusou o acesso à agenda. Desconecte e conecte de novo nos Ajustes da Rotina.".into()
+    }
 }
 
 async fn sincronizar_dentro(state: &EngineState) -> Result<usize, String> {
@@ -341,7 +358,7 @@ pub(in crate::mobile) async fn criar(state: &EngineState, p: NovoCompromisso) ->
     let valor: Value = resposta.json().await.unwrap_or(Value::Null);
     if !(200..300).contains(&status) {
         return Err(if status == 401 || status == 403 {
-            "O Google recusou o acesso à agenda. Conecte de novo nos Ajustes da Rotina.".into()
+            recusado(status, &valor)
         } else {
             "O Google Agenda não aceitou o compromisso. Tente de novo.".into()
         });

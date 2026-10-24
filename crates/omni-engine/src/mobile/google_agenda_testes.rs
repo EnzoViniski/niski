@@ -224,3 +224,15 @@ fn le_os_parametros_da_volta_do_navegador() {
     assert_eq!(decodificar("%E2%9C%93%"), "✓%");
     assert_eq!(codificar("a b/ç"), "a%20b%2F%C3%A7");
 }
+
+#[test]
+fn recusa_do_google_diz_o_que_fazer_sem_repetir_a_mensagem() {
+    let api_desligada = json!({"error": {"code": 403, "message": "Google Calendar API has not been used in project 123",
+        "errors": [{"reason": "accessNotConfigured"}], "status": "PERMISSION_DENIED", "details": [{"reason": "SERVICE_DISABLED"}]}});
+    let texto = recusado(403, &api_desligada);
+    assert!(texto.contains("Calendar API não está ativada") && !texto.contains("123"));
+    let sem_escopo = json!({"error": {"errors": [{"reason": "insufficientPermissions"}], "details": [{"reason": "ACCESS_TOKEN_SCOPE_INSUFFICIENT"}]}});
+    assert!(recusado(403, &sem_escopo).contains("permissão da agenda"));
+    assert!(recusado(401, &Value::Null).contains("conectar de novo"));
+    assert!(recusado(403, &Value::Null).contains("recusou"));
+}

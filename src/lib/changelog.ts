@@ -16,6 +16,13 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.31.2",
+    date: "2026-10-24",
+    changes: [
+      "Google Agenda: quando o Google recusa a leitura da agenda, a Rotina diz o motivo e o que fazer (ativar a Google Calendar API no seu projeto ou marcar a permissão da agenda ao conectar).",
+    ],
+  },
+  {
     version: "0.31.1",
     date: "2026-10-24",
     changes: [
