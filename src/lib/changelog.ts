@@ -16,6 +16,13 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.31.1",
+    date: "2026-10-24",
+    changes: [
+      "Google Agenda: o botão Conectar agora abre a página de login do Google no navegador. Se o navegador não abrir, o link aparece na tela para copiar.",
+    ],
+  },
+  {
     version: "0.31.0",
     date: "2026-10-24",
     changes: [
