@@ -16,6 +16,15 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.31.0",
+    date: "2026-10-24",
+    changes: [
+      "Google Agenda na Rotina: os compromissos da sua agenda pessoal aparecem em Hoje e na Semana e se atualizam sozinhos a cada 5 minutos.",
+      "Novo compromisso: crie um compromisso no seu Google Agenda direto da tela Rotina. O agente da rotina também enxerga a sua agenda e cria compromissos quando você pedir.",
+      "Para ligar, abra Rotina → Ajustes → Google Agenda e siga o passo a passo. Você entra com a sua conta na própria página do Google.",
+    ],
+  },
+  {
     version: "0.30.0",
     date: "2026-10-23",
     changes: [
