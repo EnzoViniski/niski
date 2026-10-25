@@ -1,6 +1,8 @@
 // Fork (Roadmaps de estudo): a tela — lista de roadmaps, entrevista ou trilha do roadmap aberto.
 import { useEffect, useState, type ReactNode } from "react";
-import { Button } from "../../components/ui";
+import { Button, SegmentedControl } from "../../components/ui";
+import { CadernoView } from "../caderno/CadernoView"; // Fork (Caderno)
+import type { SecaoDosRoadmaps } from "../caderno/tipos";
 import { lembrarUltimo, ultimoAberto } from "./armazenamento";
 import { Entrevista } from "./Entrevista";
 import { ListaDeRoadmaps } from "./ListaDeRoadmaps";
@@ -12,8 +14,11 @@ import "./roadmaps.css";
 /** Roadmap aberto na última vez que a tela esteve aberta (nesta execução do app). */
 const ABERTO = "aberto";
 
-export function RoadmapsView({ onClose, continuar = false }: { onClose: () => void; continuar?: boolean }) {
+export function RoadmapsView({ onClose, continuar = false, secao: secaoInicial = "roadmaps", onSecao }: { onClose: () => void; continuar?: boolean; secao?: SecaoDosRoadmaps; onSecao?: (s: SecaoDosRoadmaps) => void }) {
   useLoja();
+  // Fork (Caderno): "Roadmaps | Caderno" no topo; o caderno é uma tela à parte, com os próprios arquivos.
+  const [secao, setSecao] = useState<SecaoDosRoadmaps>(secaoInicial);
+  const trocarSecao = (s: SecaoDosRoadmaps) => { setSecao(s); onSecao?.(s); };
   const [aberto, setAberto] = useState<string | null>(() => (continuar ? lembranca<string>(ABERTO) ?? ultimoAberto() : null));
   const lista = listaAtual();
 
@@ -45,6 +50,7 @@ export function RoadmapsView({ onClose, continuar = false }: { onClose: () => vo
   const tela = useTransicao<HTMLDivElement>(`${aberto ?? "lista"}:${fase}`, aberto ? "frente" : "tras");
   const embrulhar = (conteudo: ReactNode) => <div ref={tela} className="h-full min-h-0">{conteudo}</div>;
 
+  if (secao === "caderno") return <ComAbas secao={secao} onSecao={trocarSecao}><CadernoView continuar={continuar} /></ComAbas>;
   if (aberto) {
     const r = roadmap(aberto);
     const erro = erroDoRoadmap(aberto);
@@ -63,5 +69,18 @@ export function RoadmapsView({ onClose, continuar = false }: { onClose: () => vo
       ? <div className="p-6"><p role="alert" className="roadmap-erro">Não consegui ler os roadmaps: {erro}</p></div>
       : <div className="p-6 font-mono text-xs text-text-muted">Abrindo roadmaps…</div>;
   }
-  return embrulhar(<ListaDeRoadmaps lista={lista} onAbrir={setAberto} onFechar={onClose} />);
+  return <ComAbas secao={secao} onSecao={trocarSecao}>{embrulhar(<ListaDeRoadmaps lista={lista} onAbrir={setAberto} onFechar={onClose} />)}</ComAbas>;
+}
+
+/** Fork (Caderno): a troca entre os Roadmaps e o Caderno (só nas telas de lista, não dentro de um roadmap aberto). */
+function ComAbas({ secao, onSecao, children }: { secao: SecaoDosRoadmaps; onSecao: (s: SecaoDosRoadmaps) => void; children: ReactNode }) {
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex justify-center px-6 pt-3">
+        <SegmentedControl value={secao} onChange={onSecao} grow={false}
+          options={[{ value: "roadmaps", label: "🗺️ Roadmaps" }, { value: "caderno", label: "📓 Caderno" }]} />
+      </div>
+      <div className="min-h-0 flex-1">{children}</div>
+    </div>
+  );
 }

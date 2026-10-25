@@ -1,0 +1,146 @@
+/* Fork (Caderno): cara de caderno de verdade. Estante com capas (lombada, elástico, etiqueta), folha
+   de papel creme com espiral, margem vermelha e pauta que acompanha o texto ao rolar; tinta azul de
+   caneta. Letra à mão usa as fontes que vêm no macOS (Noteworthy, Bradley Hand), sem baixar nada. */
+
+.caderno-estante, .caderno-aberto {
+  --papel: 250 246 236; --pauta: 160 190 220; --margem: 226 110 110; --tinta: 28 44 104; --tinta-suave: 96 104 132;
+  --linha: 32px; --c-r: 6px;
+}
+:root[data-theme="escuro"] .caderno-estante, :root[data-theme="escuro"] .caderno-aberto,
+:root:not([data-theme]) .caderno-aberto { --papel: 236 229 212; --pauta: 150 176 204; }
+:root[data-estilo="minimalista"] .caderno-estante, :root[data-estilo="minimalista"] .caderno-aberto { --c-r: 14px; }
+
+.caderno-estante-titulo { font-family: "Noteworthy", "Bradley Hand", "Chalkboard SE", cursive; font-size: 1.75rem; font-weight: 700; color: rgb(var(--c-text-primary)); }
+
+/* ---- Estante ---- */
+.caderno-prateleira { display: grid; gap: 2.25rem 1.75rem; grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr)); padding-bottom: 2rem; }
+.caderno-item { display: flex; flex-direction: column; gap: .5rem; }
+.caderno-capa { position: relative; display: flex; flex-direction: column; aspect-ratio: 3 / 4; padding: 1.25rem 1rem 1rem 1.75rem; text-align: left;
+  border-radius: 4px 12px 12px 4px; color: #fff;
+  background:
+    linear-gradient(90deg, rgb(0 0 0 / .35) 0, rgb(0 0 0 / .1) 10px, rgb(255 255 255 / .08) 12px, transparent 16px),
+    radial-gradient(120% 80% at 30% 0%, rgb(255 255 255 / .18), transparent 60%),
+    repeating-linear-gradient(45deg, rgb(255 255 255 / .025) 0 2px, transparent 2px 5px),
+    var(--capa);
+  box-shadow: 0 1px 0 rgb(255 255 255 / .15) inset, 6px 8px 0 -2px rgb(var(--papel)), 6px 8px 0 -1px rgb(0 0 0 / .15), 0 22px 40px -22px rgb(0 0 0 / .7);
+  transition: transform .2s cubic-bezier(.2, .8, .2, 1), box-shadow .2s; }
+.caderno-capa:hover { transform: translateY(-4px) rotate(-.6deg); }
+.caderno-capa:focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 4px; }
+.caderno-capa-elastico { position: absolute; top: 0; bottom: 0; right: 1.1rem; width: 7px; background: linear-gradient(90deg, rgb(0 0 0 / .45), rgb(30 30 30 / .9) 40%, rgb(0 0 0 / .5)); box-shadow: 1px 0 2px rgb(0 0 0 / .4); }
+.caderno-capa-etiqueta { display: flex; flex-direction: column; gap: .25rem; margin-top: 18%; margin-right: 1rem; padding: .75rem .875rem;
+  color: rgb(var(--tinta)); background: rgb(var(--papel)); border-radius: 3px; box-shadow: 0 1px 3px rgb(0 0 0 / .35);
+  background-image: repeating-linear-gradient(to bottom, transparent 0 21px, rgb(var(--pauta) / .5) 21px 22px); }
+.caderno-capa-tipo { font-size: .625rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: rgb(var(--tinta-suave)); }
+.caderno-capa-nome { font-family: "Noteworthy", "Bradley Hand", "Chalkboard SE", cursive; font-size: 1.125rem; line-height: 1.25; word-break: break-word; }
+.caderno-capa-autor { font-size: .75rem; color: rgb(var(--tinta-suave)); }
+.caderno-capa-rodape { margin-top: auto; font-size: .6875rem; opacity: .8; }
+.caderno-item-acoes { display: flex; gap: .5rem; justify-content: center; opacity: 0; transition: opacity .15s; }
+.caderno-item:hover .caderno-item-acoes, .caderno-item:focus-within .caderno-item-acoes { opacity: 1; }
+.caderno-mini { display: inline-flex; align-items: center; gap: .25rem; padding: .125rem .5rem; font-size: .6875rem; border-radius: 999px; color: rgb(var(--c-text-secondary)); }
+.caderno-mini:hover { color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .08); }
+.caderno-mini.is-perigo:hover { color: rgb(var(--c-danger)); }
+.caderno-amostra { width: 1.75rem; height: 1.75rem; border-radius: 4px 7px 7px 4px; box-shadow: inset 4px 0 0 rgb(0 0 0 / .25); }
+.caderno-amostra.is-pequena { width: 1.25rem; height: 1.25rem; }
+.caderno-amostra.is-escolhida { outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px; }
+
+/* ---- Caderno aberto ---- */
+.caderno-aberto { display: grid; grid-template-columns: 15rem minmax(0, 1fr); height: 100%; min-height: 0; }
+.caderno-aberto.com-ia { grid-template-columns: 15rem minmax(0, 1fr) minmax(18rem, 24rem); }
+@media (max-width: 1100px) { .caderno-aberto.com-ia { grid-template-columns: 13rem minmax(0, 1fr) 18rem; } }
+
+.caderno-indice { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid rgb(var(--c-border-subtle) / .7); }
+.caderno-indice-topo { display: flex; flex-direction: column; gap: .75rem; padding: 1rem .875rem .75rem; }
+.caderno-voltar { display: inline-flex; align-items: center; gap: .375rem; font-size: .75rem; color: rgb(var(--c-text-secondary)); }
+.caderno-voltar:hover { color: rgb(var(--c-text-primary)); }
+.caderno-indice-capa { display: flex; flex-direction: column; gap: .125rem; padding: .875rem .875rem .875rem 1.125rem; border-radius: 3px 10px 10px 3px; color: #fff;
+  background: linear-gradient(90deg, rgb(0 0 0 / .3), transparent 10px), var(--capa); box-shadow: 0 10px 24px -16px rgb(0 0 0 / .8); }
+.caderno-indice-tipo { font-size: .625rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; opacity: .8; }
+.caderno-indice-nome { font-family: "Noteworthy", "Bradley Hand", "Chalkboard SE", cursive; font-size: 1.125rem; font-weight: 700; line-height: 1.25; text-align: left; }
+.caderno-indice-autor { font-size: .75rem; opacity: .85; }
+.caderno-abas { flex: 1; min-height: 0; overflow-y: auto; padding: .25rem .5rem; display: flex; flex-direction: column; gap: 2px; }
+.caderno-abas li.is-arrastando { opacity: .4; }
+.caderno-aba { display: flex; align-items: baseline; gap: .5rem; width: 100%; padding: .5rem .625rem; text-align: left; font-size: .8125rem;
+  border-radius: 6px; color: rgb(var(--c-text-secondary)); transition: background .15s, color .15s; }
+.caderno-aba:hover { background: rgb(var(--c-overlay) / .06); color: rgb(var(--c-text-primary)); }
+.caderno-aba.is-atual { color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .08); box-shadow: inset 3px 0 0 var(--capa); }
+.caderno-aba-num { min-width: 1.25rem; font-size: .6875rem; font-variant-numeric: tabular-nums; color: rgb(var(--c-text-muted)); }
+.caderno-aba-titulo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.caderno-indice-rodape { display: flex; gap: .5rem; padding: .75rem .875rem; border-top: 1px solid rgb(var(--c-border-subtle) / .6); }
+.caderno-ajustes { display: flex; flex-direction: column; gap: .75rem; max-height: 50%; overflow-y: auto; padding: .75rem .875rem 1rem; border-top: 1px solid rgb(var(--c-border-subtle) / .6); }
+
+.caderno-mesa { position: relative; min-height: 0; overflow-y: auto; padding: 1rem 2rem 3rem;
+  background: radial-gradient(60rem 30rem at 50% 0%, rgb(var(--c-overlay) / .035), transparent 70%); }
+.caderno-alternar-ia { position: absolute; top: 1.125rem; right: 1rem; font-size: .75rem; color: rgb(var(--c-text-secondary)); }
+.caderno-alternar-ia:hover { color: rgb(var(--c-text-primary)); }
+.caderno-vazio { display: flex; flex-direction: column; align-items: center; gap: 1rem; padding-top: 20vh; color: rgb(var(--c-text-secondary)); }
+
+.caderno-folha-area { max-width: 52rem; margin: 0 auto; display: flex; flex-direction: column; gap: .75rem; }
+.caderno-barra { display: flex; align-items: center; gap: .75rem; padding-right: 8rem; }
+
+/* A folha: papel, margem vermelha, furos e espiral. A pauta vai no texto (acompanha a rolagem). */
+.caderno-folha { position: relative; min-height: calc(100vh - 11rem); padding: 1.5rem 2.5rem 3rem 5.5rem; color: rgb(var(--tinta));
+  background-color: rgb(var(--papel)); border-radius: 2px var(--c-r) var(--c-r) 2px;
+  background-image:
+    linear-gradient(90deg, transparent 4.25rem, rgb(var(--margem) / .7) 4.25rem, rgb(var(--margem) / .7) calc(4.25rem + 1px), transparent calc(4.25rem + 1px), transparent calc(4.25rem + 4px), rgb(var(--margem) / .45) calc(4.25rem + 4px), rgb(var(--margem) / .45) calc(4.25rem + 5px), transparent calc(4.25rem + 5px)),
+    radial-gradient(120% 60% at 50% 0%, rgb(255 255 255 / .35), transparent 70%);
+  box-shadow: 0 1px 0 rgb(255 255 255 / .6) inset, 0 2px 4px rgb(0 0 0 / .08), 0 28px 60px -30px rgb(0 0 0 / .55), 4px 4px 0 -1px rgb(var(--papel) / .9), 4px 4px 0 0 rgb(0 0 0 / .08); }
+.caderno-espiral { position: absolute; top: 1rem; bottom: 1rem; left: -.875rem; width: 2.5rem; pointer-events: none;
+  background-image:
+    radial-gradient(circle 5px at 70% 50%, rgb(var(--c-bg-primary)) 0 4px, rgb(0 0 0 / .35) 4.5px, transparent 5.5px),
+    radial-gradient(ellipse 15px 4.5px at 42% 50%, #eef0f3 0, #c4c9cf 40%, #8a9098 62%, rgb(0 0 0 / .25) 72%, transparent 78%);
+  background-size: 100% 28px; background-repeat: repeat-y; }
+
+.caderno-folha-topo { display: flex; align-items: baseline; gap: 1rem; min-height: calc(var(--linha) * 2); }
+.caderno-folha-titulo { flex: 1; min-width: 0; padding: 0; font-size: 1.75rem; font-weight: 700; line-height: calc(var(--linha) * 1.5); color: rgb(var(--tinta));
+  background: transparent; border: 0; outline: none; }
+.caderno-folha-titulo::placeholder { color: rgb(var(--tinta) / .35); }
+.caderno-folha-data { flex: none; font-size: .8125rem; color: rgb(var(--tinta-suave)); }
+
+.caderno-folha-texto { display: block; width: 100%; min-height: calc(100vh - 18rem); margin: 0; padding: 0 0 var(--linha); resize: none; border: 0; outline: none;
+  font-size: 1.125rem; line-height: var(--linha); color: rgb(var(--tinta)); background-color: transparent; background-attachment: local; caret-color: rgb(var(--tinta)); }
+.caderno-folha-texto::placeholder { color: rgb(var(--tinta) / .35); }
+textarea.caderno-folha-texto { field-sizing: content; }
+
+.papel-pautado .caderno-folha-texto { background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--linha) - 1px), rgb(var(--pauta) / .75) calc(var(--linha) - 1px), rgb(var(--pauta) / .75) var(--linha)); }
+.papel-quadriculado .caderno-folha-texto { background-image:
+  repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--linha) / 2 - 1px), rgb(var(--pauta) / .45) calc(var(--linha) / 2 - 1px), rgb(var(--pauta) / .45) calc(var(--linha) / 2)),
+  repeating-linear-gradient(to right, transparent 0, transparent calc(var(--linha) / 2 - 1px), rgb(var(--pauta) / .45) calc(var(--linha) / 2 - 1px), rgb(var(--pauta) / .45) calc(var(--linha) / 2)); }
+.papel-pontilhado .caderno-folha-texto { background-image: radial-gradient(circle 1.2px at 1px calc(var(--linha) - 1px), rgb(var(--pauta)) 0 1.2px, transparent 1.6px); background-size: calc(var(--linha) / 2) var(--linha); }
+
+.letra-manuscrita .caderno-folha-titulo, .letra-manuscrita .caderno-folha-texto { font-family: "Noteworthy", "Bradley Hand", "Chalkboard SE", "Comic Sans MS", cursive; }
+.letra-manuscrita .caderno-folha-texto { font-size: 1.1875rem; }
+.letra-serifa .caderno-folha-titulo, .letra-serifa .caderno-folha-texto { font-family: "Iowan Old Style", "Palatino", Georgia, serif; }
+
+/* Leitura formatada: mantém o ritmo da pauta (tudo múltiplo da linha). */
+.caderno-markdown > * + * { margin-top: 0; }
+.caderno-folha .caderno-markdown h1, .caderno-folha .caderno-markdown h2, .caderno-folha .caderno-markdown h3 { font-weight: 700; line-height: var(--linha); margin: 0; }
+.caderno-folha .caderno-markdown h1 { font-size: 1.5rem; line-height: calc(var(--linha) * 1.5); }
+.caderno-folha .caderno-markdown h2 { font-size: 1.3rem; text-decoration: underline; text-decoration-color: rgb(var(--margem) / .6); text-underline-offset: 4px; }
+.caderno-folha .caderno-markdown p, .caderno-folha .caderno-markdown li { line-height: var(--linha); margin: 0; }
+.caderno-folha .caderno-markdown p + p, .caderno-folha .caderno-markdown ul, .caderno-folha .caderno-markdown ol { margin-top: 0; }
+.caderno-folha .caderno-markdown ul { list-style: disc; padding-left: 1.5rem; }
+.caderno-folha .caderno-markdown ol { list-style: decimal; padding-left: 1.5rem; }
+.caderno-folha .caderno-markdown blockquote { padding-left: 1rem; border-left: 3px solid rgb(var(--margem) / .55); font-style: italic; color: rgb(var(--tinta-suave)); }
+.caderno-folha .caderno-markdown mark, .caderno-folha .caderno-markdown strong { background: linear-gradient(transparent 55%, rgb(255 220 90 / .7) 55%); }
+.caderno-folha .caderno-markdown a { text-decoration: underline; }
+.caderno-folha .caderno-markdown code { font-size: .9em; padding: 0 .25rem; border-radius: 3px; background: rgb(var(--tinta) / .08); }
+
+/* ---- IA ---- */
+.caderno-ia { display: flex; flex-direction: column; gap: .75rem; min-height: 0; padding: 1rem; border-left: 1px solid rgb(var(--c-border-subtle) / .7);
+  background: rgb(var(--c-bg-elevated) / .35); }
+.caderno-ia-topo { display: flex; flex-direction: column; gap: .125rem; font-size: .875rem; color: rgb(var(--c-text-primary)); }
+.caderno-ia-mensagens { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: .625rem; padding-right: .25rem; }
+.caderno-balao { max-width: 100%; padding: .625rem .75rem; font-size: .8125rem; line-height: 1.5; border-radius: 10px; white-space: pre-wrap; word-break: break-word; }
+.caderno-balao.is-eu { align-self: flex-end; max-width: 88%; color: rgb(var(--c-text-primary)); background: rgb(var(--c-accent) / .14); }
+.caderno-balao.is-ia { display: flex; flex-direction: column; align-items: flex-start; gap: .375rem; white-space: normal; color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .05); }
+.caderno-balao .caderno-markdown ul { list-style: disc; padding-left: 1.25rem; }
+.caderno-balao .caderno-markdown ol { list-style: decimal; padding-left: 1.25rem; }
+.caderno-balao .caderno-markdown > * + * { margin-top: .5rem; }
+.caderno-balao .caderno-markdown h1, .caderno-balao .caderno-markdown h2, .caderno-balao .caderno-markdown h3 { font-weight: 600; }
+
+.caderno-sugestoes { display: flex; flex-direction: column; gap: .375rem; }
+.caderno-sugestao { padding: .4rem .625rem; font-size: .75rem; text-align: left; border-radius: 8px; color: rgb(var(--c-text-secondary));
+  border: 1px solid rgb(var(--c-border-subtle)); transition: color .15s, border-color .15s, background .15s; }
+.caderno-sugestao:hover { color: rgb(var(--c-text-primary)); border-color: rgb(var(--c-accent) / .6); background: rgb(var(--c-accent) / .06); }
+
+@media (prefers-reduced-motion: reduce) { .caderno-capa { transition: none; } .caderno-capa:hover { transform: none; } }
