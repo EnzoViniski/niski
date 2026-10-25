@@ -3,6 +3,7 @@ use super::*;
 
 #[test] fn habilitar_gera_token_e_o_desktop_nao_escolhe_o_segredo() {
     let (_dir,state) = fixture();
+    state.mobile.config.lock().unwrap().token.clear(); // primeira vez: ainda sem token
     let forjado = MobileConfig{enabled:true,bind:HOST_LOCAL.clone(),token:"escolhido-pelo-desktop".into(),serve:false,totp_secret:String::new(),totp_confirmed:false};
     settings(&state,Some(forjado),false).unwrap();
     let gerado = state.mobile.config.lock().unwrap().token.clone();

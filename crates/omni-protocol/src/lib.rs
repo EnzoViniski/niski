@@ -145,6 +145,28 @@ pub fn atomic_write_json<T: Serialize>(path: &Path, value: &T) -> io::Result<()>
     fs::rename(temporary, path)
 }
 
+/// Fork (segurança): `atomic_write_json` só legível pelo dono (0600), para arquivos com segredo
+/// (`mobile.json`: token do celular e segredo do Authy). O `.tmp` já nasce 0600, então o segredo
+/// nunca fica um instante com a permissão padrão (0644).
+pub fn atomic_write_json_privado<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let encoded = serde_json::to_vec_pretty(value)?;
+    let temporary = path.with_extension("json.tmp");
+    let _ = fs::remove_file(&temporary);
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut arquivo = fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&temporary)?;
+        arquivo.write_all(&encoded)?;
+    }
+    #[cfg(not(unix))]
+    fs::write(&temporary, encoded)?;
+    fs::rename(temporary, path)
+}
+
 /// Lê um JSON, devolvendo o default quando o arquivo não existe ou está corrompido — todo store
 /// deste app é cache reconstruível, nunca fonte única.
 pub fn read_json_or_default<T: DeserializeOwned + Default>(path: &Path) -> T {

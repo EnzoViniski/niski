@@ -270,16 +270,26 @@ async fn main() -> Result<()> {
 
 async fn serve_client(stream: TcpStream, state: Arc<EngineState>) -> Result<()> {
     let (reader, mut writer) = stream.into_split();
-    let mut lines = BufReader::new(reader).lines();
-    while let Some(line) = lines.next_line().await? {
-        let pedido = serde_json::from_str::<EngineRequest>(&line);
+    // Fork (segurança): linha com teto. Sem ele, qualquer processo local (ou um `fetch` de página web
+    // para a porta) mandava bytes sem `\n` até acabar a memória. 64 MB cabe o maior anexo (25 MB em base64).
+    let mut reader = BufReader::new(reader);
+    let mut buffer = Vec::new();
+    loop {
+        buffer.clear();
+        let lidos = tokio::io::AsyncReadExt::take(&mut reader, LIMITE_DA_LINHA_DO_IPC).read_until(b'\n', &mut buffer).await?;
+        if lidos == 0 { break; }
+        if !buffer.ends_with(b"\n") && lidos as u64 >= LIMITE_DA_LINHA_DO_IPC {
+            return Err(anyhow!("pedido maior que o limite do IPC"));
+        }
+        let line = String::from_utf8_lossy(&buffer);
+        let pedido = serde_json::from_str::<EngineRequest>(line.trim_end());
         let tipo = pedido.as_ref().map(|p| p.tipo()).unwrap_or("invalido");
         let response = match pedido {
             // Assíncrona (é o roteador do axum): não pode ir para o `spawn_blocking` das outras.
-            Ok(EngineRequest::Api { token, method, path, body, body_base64, headers }) if token == state.token => {
+            Ok(EngineRequest::Api { token, method, path, body, body_base64, headers }) if token_do_engine_confere(&token, &state.token) => {
                 mobile::local(state.clone(), &method, &path, body, body_base64, headers).await
             }
-            Ok(request) if request.token() == state.token => {
+            Ok(request) if token_do_engine_confere(request.token(), &state.token) => {
                 let state = state.clone();
                 tokio::task::spawn_blocking(move || handle_request(request, &state)).await?
             },
@@ -920,7 +930,9 @@ fn bifurcar(state: &Arc<EngineState>, source: TerminalSession, provider: &str, h
     let indice = omni_core::conversations::read_index(&dir);
     let original = source.conversation_id.as_deref().and_then(|id| indice.iter().find(|c| c.id == id)).cloned();
     let sessao_externa = source.external_session_id.clone()
-        .or_else(|| original.as_ref().and_then(|c| c.segments.last()).and_then(|s| s.external_session_id.clone()));
+        .or_else(|| original.as_ref().and_then(|c| c.segments.last()).and_then(|s| s.external_session_id.clone()))
+        // Fork (segurança): vai para `--resume <id>`/`fork <id>` no shell.
+        .filter(|id| omni_core::texto_para_o_shell::id_de_sessao_valido(id));
     let base = mobile::comando_do_agente(state, provider);
     let novo = uuid::Uuid::new_v4().to_string();
     let pasta_do_claude = source.env.iter().find(|(chave, _)| chave == "CLAUDE_CONFIG_DIR").map(|(_, valor)| PathBuf::from(valor))
@@ -1004,6 +1016,8 @@ fn comando_ao_reiniciar(meta: &TerminalSession) -> Option<String> {
         return Some(original);
     }
     let Some(id) = meta.external_session_id.as_deref() else { return Some(original) };
+    // Fork (segurança): o id vira texto digitado no shell; fora do alfabeto de id, não retoma com ele.
+    if !omni_core::texto_para_o_shell::id_de_sessao_valido(id) { return Some(original); }
     // Fork (retomar-sempre): procura em todas as contas (e copia para a da sessão) uma vez só.
     let pronto = transcript_claude_existe(meta, id);
     // Fork: reiniciar retoma **a cópia** — repetir o `--fork-session` bifurcaria de novo.
@@ -1493,12 +1507,38 @@ fn load_or_create_token(path: &Path) -> Result<String> {
     if let Ok(token) = fs::read_to_string(path) {
         let token = token.trim();
         if token.len() >= 32 {
+            #[cfg(unix)]
+            { use std::os::unix::fs::PermissionsExt; let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o600)); }
             return Ok(token.to_owned());
         }
     }
     let token = random_token();
-    fs::write(path, &token)?;
+    escrever_privado(path, token.as_bytes())?;
     Ok(token)
+}
+
+/// Fork (segurança): teto de uma linha do IPC (ver `serve_client`).
+const LIMITE_DA_LINHA_DO_IPC: u64 = 64 * 1024 * 1024;
+
+/// Fork (segurança): comparação de tempo constante, como a do celular (`mobile::seguranca`).
+fn token_do_engine_confere(recebido: &str, esperado: &str) -> bool {
+    recebido.len() == esperado.len()
+        && recebido.bytes().zip(esperado.bytes()).fold(0_u8, |acumulado, (a, b)| acumulado | (a ^ b)) == 0
+}
+
+/// Fork (segurança): segredo só legível pelo dono (0600). O `fs::write` criava 0644; no macOS a pasta
+/// `~/Library` já é 0700, mas com `OMNI_DATA_DIR` numa pasta aberta (ou no Linux) qualquer usuário lia o
+/// token e mandava comandos ao engine. Arquivo antigo também volta a 0600.
+pub(crate) fn escrever_privado(path: &Path, conteudo: &[u8]) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        let mut arquivo = fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(path)?;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+        arquivo.write_all(conteudo)
+    }
+    #[cfg(not(unix))]
+    { fs::write(path, conteudo) }
 }
 
 /// 32 bytes aleatórios em hex. Usado pelo token do engine e pelo token de dispositivo do celular.

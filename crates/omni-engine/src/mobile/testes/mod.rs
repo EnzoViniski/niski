@@ -11,6 +11,8 @@ fn fixture() -> (tempfile::TempDir, Arc<EngineState>) {
     let dir = tempfile::tempdir().unwrap();
     let state = Arc::new(EngineState { persist_lock:Mutex::new(()),mobile:MobileRuntime::new(dir.path()),
         token:"test-only".into(),state_file:dir.path().join("sessions.json"),sessions:Mutex::new(HashMap::new()),id_sequence:AtomicU64::new(1) });
+    // Fork (segurança): sem token a API recusa tudo; os testes falam como um celular pareado (`req`).
+    state.mobile.config.lock().unwrap().token = TOKEN_DE_TESTE.into();
     atomic_write_json(&dir.path().join("conversations.json"),&json!({"version":1,"conversations":[{
         "id":"c","project_id":"p","cwd":"C:/test","title":"Teste","created_at_ms":1,"segments":[]
     }]})).unwrap();
@@ -80,8 +82,10 @@ async fn browser_fixture() {
         tokio::select! { _ = stop.notified() => {}, _ = tokio::time::sleep(std::time::Duration::from_secs(600)) => {} }
     }).await.unwrap();
 }
+const TOKEN_DE_TESTE: &str = "token-de-teste";
+
 fn req(method:&str, uri:&str, origin:&str, body:&str) -> Request {
-    Request::builder().method(method).uri(uri).header("host",&*HOST_LOCAL).header("origin",origin)
+    Request::builder().method(method).uri(uri).header("host",&*HOST_LOCAL).header("origin",origin).header("x-omni-token",TOKEN_DE_TESTE)
         .header("content-type","application/json").header("idempotency-key","test-key").body(Body::from(body.to_owned())).unwrap()
 }
 

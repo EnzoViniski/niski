@@ -58,11 +58,11 @@ use super::*;
 #[tokio::test] async fn serve_aceita_o_nome_magicdns_e_mais_nenhum() {
     let (_dir,state) = fixture();
     *state.mobile.config.lock().unwrap() =
-        MobileConfig{enabled:true,bind:HOST_LOCAL.clone(),token:String::new(),serve:true,totp_secret:String::new(),totp_confirmed:false};
+        MobileConfig{enabled:true,bind:HOST_LOCAL.clone(),token:TOKEN_DE_TESTE.into(),serve:true,totp_secret:String::new(),totp_confirmed:false};
     *state.mobile.magic_dns.lock().unwrap() = Some("pc.tail0000.ts.net".into());
     let app = router(state);
     let get = |host:&str| Request::builder().method("GET").uri("/conversas")
-        .header("host",host).body(Body::empty()).unwrap();
+        .header("host",host).header("x-omni-token",TOKEN_DE_TESTE).body(Body::empty()).unwrap();
 
     assert_eq!(app.clone().oneshot(get("pc.tail0000.ts.net")).await.unwrap().status(),StatusCode::OK);
     assert_eq!(app.clone().oneshot(get(&*HOST_LOCAL)).await.unwrap().status(),StatusCode::OK);
@@ -89,4 +89,16 @@ use super::*;
     assert_eq!(tipo_do_arquivo("apple-touch-icon.png"),"image/png");
     assert_eq!(tipo_do_arquivo("manifest.webmanifest"),"application/manifest+json");
     assert_eq!(tipo_do_arquivo("assets/index-abc.js"),"text/javascript; charset=utf-8");
+}
+
+/// Fork (segurança): `mobile.json` ligado e sem token (versão antiga, restaurado) abria a API inteira.
+#[tokio::test] async fn sem_token_a_api_recusa_tudo() {
+    let (_dir,state) = fixture();
+    state.mobile.config.lock().unwrap().token.clear();
+    let app = router(state);
+    let sem_cabecalho = Request::builder().method("GET").uri("/conversas").header("host",&*HOST_LOCAL).body(Body::empty()).unwrap();
+    assert_eq!(app.clone().oneshot(sem_cabecalho).await.unwrap().status(),StatusCode::UNAUTHORIZED);
+    let vazio = Request::builder().method("GET").uri("/terminais").header("host",&*HOST_LOCAL).header("x-omni-token","").body(Body::empty()).unwrap();
+    assert_eq!(app.clone().oneshot(vazio).await.unwrap().status(),StatusCode::UNAUTHORIZED);
+    assert_ne!(app.oneshot(req("GET","/","","")).await.unwrap().status(),StatusCode::UNAUTHORIZED,"a casca continua pública");
 }

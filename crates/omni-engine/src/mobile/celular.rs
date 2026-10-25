@@ -230,6 +230,7 @@ pub fn settings(state: &EngineState, config: Option<MobileConfig>, rotate: bool)
         // tela de configuração não consegue plantar um token escolhido por ela.
         let atual = state.mobile.config.lock().map_err(|_|anyhow!("config poisoned"))?.token.clone();
         config.token = if rotate || (config.enabled && atual.is_empty()) { random_token() } else { atual };
+        if rotate { super::video_rota::esquecer_bilhetes(); } // Fork (segurança)
         // Mesmo motivo do token: o cadastro do Authy é do engine. Uma tela de configuração que
         // mandasse `totp_confirmed: true` não pode pular a confirmação.
         {
@@ -239,7 +240,7 @@ pub fn settings(state: &EngineState, config: Option<MobileConfig>, rotate: bool)
         }
         if config.enabled { preferir_tailscale(&mut config); validate(&config)?; }
         let anterior = state.mobile.config.lock().map_err(|_|anyhow!("config poisoned"))?.clone();
-        atomic_write_json(&state.state_file.with_file_name("mobile.json"),&config)?;
+        omni_protocol::atomic_write_json_privado(&state.state_file.with_file_name("mobile.json"),&config)?;
         if deixou_de_publicar(&anterior,&config) {
             let porta = anterior.bind.rsplit(':').next().and_then(|p|p.parse().ok()).unwrap_or(0);
             // Fora do caminho da tela: a CLI do Tailscale pode demorar, e a resposta não depende disto.
@@ -281,8 +282,26 @@ pub(super) const TOTP_JANELA: i64 = 1;
 pub(super) const MAX_FALHAS: usize = 5;
 pub(super) const TRAVA_MS: u64 = 5 * 60_000;
 
+/// Fork (segurança): erros seguidos (contados também entre reinícios do engine) que desligam o
+/// pareamento pelo Authy até o PC confirmar o Authy de novo. Só a janela de 5 min deixava tentar
+/// para sempre (~1 por minuto: ~12% de acerto em um mês); com o teto, a chance total fica ~5×10⁻⁵.
+pub(super) const MAX_FALHAS_SEGUIDAS: u32 = 15;
+const ARQUIVO_DE_FALHAS: &str = "pareamento-falhas.json";
+
 #[derive(Default)]
-pub struct Pareamento { falhas: VecDeque<u64>, ultimo_passo: u64 }
+pub struct Pareamento { falhas: VecDeque<u64>, ultimo_passo: u64, seguidas: u32 }
+
+impl Pareamento {
+    pub(super) fn abrir(dir: &Path) -> Self {
+        let seguidas = omni_protocol::read_json_or_default::<u32>(&dir.join(ARQUIVO_DE_FALHAS));
+        Self { seguidas, ..Self::default() }
+    }
+}
+
+fn gravar_falhas_seguidas(state: &EngineState, seguidas: u32) {
+    let caminho = state.state_file.with_file_name(ARQUIVO_DE_FALHAS);
+    if seguidas == 0 { let _ = std::fs::remove_file(caminho); } else { let _ = atomic_write_json(&caminho, &seguidas); }
+}
 
 /// Monta o TOTP a partir do segredo guardado. `None` com segredo corrompido.
 pub(super) fn totp_de(secret: &str, conta: Option<&str>) -> Option<totp_rs::TOTP> {
@@ -318,6 +337,7 @@ pub fn totp(state: &EngineState, action: TotpAction) -> Result<EngineResponse> {
                 };
                 config.totp_secret = novo;
                 config.totp_confirmed = false;
+                zerar_falhas(state);
             }
             TotpAction::Confirm { code } => {
                 if config.totp_secret.is_empty() { return Err(anyhow!("Gere o código do Authy primeiro")); }
@@ -325,11 +345,17 @@ pub fn totp(state: &EngineState, action: TotpAction) -> Result<EngineResponse> {
                     return Err(anyhow!("Código do Authy não confere. Confira se leu o QR desta tela e use o código atual."));
                 }
                 config.totp_confirmed = true;
+                zerar_falhas(state);
             }
         }
-        atomic_write_json(&state.state_file.with_file_name("mobile.json"),&*config)?;
+        omni_protocol::atomic_write_json_privado(&state.state_file.with_file_name("mobile.json"),&*config)?;
     }
     settings(state,None,false)
+}
+
+fn zerar_falhas(state: &EngineState) {
+    if let Ok(mut pareamento) = state.mobile.pareamento.lock() { pareamento.seguidas = 0; pareamento.falhas.clear(); }
+    gravar_falhas_seguidas(state, 0);
 }
 
 #[derive(Deserialize)] #[serde(deny_unknown_fields)] pub(super) struct PareamentoBody { codigo: String }
@@ -360,11 +386,24 @@ pub(super) fn parear_em(state: &EngineState, codigo: &str, agora: u64) -> Result
         Some(passo) if passo > pareamento.ultimo_passo => {
             pareamento.ultimo_passo = passo;
             pareamento.falhas.clear();
+            if pareamento.seguidas > 0 { pareamento.seguidas = 0; gravar_falhas_seguidas(state, 0); }
             Ok(Json(json!({"token":config.token})))
         }
         // Passo já usado conta como erro: é exatamente a tentativa de reaproveitar um código visto.
         _ => {
             pareamento.falhas.push_back(agora_ms);
+            pareamento.seguidas += 1;
+            gravar_falhas_seguidas(state, pareamento.seguidas);
+            if pareamento.seguidas >= MAX_FALHAS_SEGUIDAS {
+                // Fork (segurança): desliga o Authy até o PC confirmar de novo (o QR continua valendo).
+                drop(pareamento);
+                if let Ok(mut guardada) = state.mobile.config.lock() {
+                    guardada.totp_confirmed = false;
+                    let _ = omni_protocol::atomic_write_json_privado(&state.state_file.with_file_name("mobile.json"),&*guardada);
+                }
+                registro::aviso("pareamento_desligado", &[("motivo", "tentativas")]);
+                return Err(error(StatusCode::CONFLICT,"Muitas tentativas erradas: o pareamento pelo Authy foi desligado. Confirme o Authy de novo na aba Celular do PC."));
+            }
             Err(error(StatusCode::UNAUTHORIZED,"Código do Authy não confere. Use o código que está aparecendo agora."))
         }
     }

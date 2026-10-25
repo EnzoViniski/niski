@@ -129,13 +129,16 @@ struct MobileHistory {
 }
 impl MobileRuntime {
     pub fn new(dir: &Path) -> Self {
+        // Fork (segurança): `mobile.json` de versão anterior foi gravado 0644; guarda token e segredo do Authy.
+        #[cfg(unix)]
+        { use std::os::unix::fs::PermissionsExt; let _ = std::fs::set_permissions(dir.join("mobile.json"), std::fs::Permissions::from_mode(0o600)); }
         Self { config: Mutex::new(omni_protocol::read_json_or_default(&dir.join("mobile.json"))),
             // Em disco, não só em memória: o engine reinicia sem o desktop aberto (update, crash), e
             // aí a lista sumiria justamente quando o celular é a única via de acesso.
             workspace: Mutex::new(omni_protocol::read_json_or_default(&dir.join("workspace.json"))),
             magic_dns: Mutex::new(None),
             serve_state: Mutex::new((None,None)),
-            pareamento: Mutex::new(Pareamento::default()),
+            pareamento: Mutex::new(Pareamento::abrir(dir)), // Fork (segurança): erros seguidos sobrevivem ao reinício.
             status: Mutex::new((None,None)),changed: Notify::new(),actions: Mutex::new(VecDeque::new()),pending: Notify::new(),
             history: Mutex::new(MobileHistory::default()),
             feeds: Mutex::new(omni_core::feed::FeedCache::default()),
@@ -183,6 +186,16 @@ pub fn start(state: Arc<EngineState>) {
             let config = state.mobile.config.lock().expect("config poisoned").clone();
             *state.mobile.status.lock().expect("status poisoned") = (None,None);
             if !config.enabled { state.mobile.changed.notified().await; continue; }
+            // Fork (segurança): ligado sem token (`mobile.json` antigo, editado ou restaurado) nunca sobe
+            // aberto; o token nasce aqui, e não só quando o desktop salva as configurações.
+            if config.token.is_empty() {
+                let mut guardada = state.mobile.config.lock().expect("config poisoned");
+                if guardada.token.is_empty() {
+                    guardada.token = crate::random_token();
+                    let _ = omni_protocol::atomic_write_json_privado(&state.state_file.with_file_name("mobile.json"),&*guardada);
+                }
+                continue;
+            }
             let mut checked = config.clone();
             let resultado = tokio::task::spawn_blocking(move || {
                 let trocou = preferir_tailscale(&mut checked);
@@ -192,7 +205,7 @@ pub fn start(state: Arc<EngineState>) {
                 Ok((address,atualizada,trocou)) => {
                     if trocou {
                         // Configuração gravada com loopback (a padrão) se corrige sozinha na subida.
-                        let _ = atomic_write_json(&state.state_file.with_file_name("mobile.json"),&atualizada);
+                        let _ = omni_protocol::atomic_write_json_privado(&state.state_file.with_file_name("mobile.json"),&atualizada);
                         *state.mobile.config.lock().expect("config poisoned") = atualizada.clone();
                     }
                     (Ok(address),atualizada)

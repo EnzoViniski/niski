@@ -26,6 +26,11 @@ pub(super) fn rotas() -> Router<Arc<EngineState>> {
         .route("/video/{bilhete}", get(servir))
 }
 
+/// Fork (segurança): trocar o código de acesso derruba também os bilhetes de vídeo já emitidos.
+pub(super) fn esquecer_bilhetes() {
+    if let Ok(mut bilhetes) = BILHETES.lock() { bilhetes.clear(); }
+}
+
 fn novo_bilhete(caminho: PathBuf, tipo: &'static str) -> String {
     let mut bytes = [0_u8; 24];
     rand::RngCore::fill_bytes(&mut rand::rng(), &mut bytes);

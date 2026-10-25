@@ -47,8 +47,9 @@ pub(super) async fn same_origin(State(state): State<Arc<EngineState>>, request: 
     let token = state.mobile.config.lock().expect("config poisoned").token.clone();
     let path = request.uri().path();
     let publico = caminho_publico(path);
-    if !publico && !token.is_empty()
-        && !token_confere(request.headers().get("x-omni-token").and_then(|v|v.to_str().ok()).unwrap_or(""),&token) {
+    // Fork (segurança): token vazio recusa (antes abria a API inteira). `start` gera o token na subida.
+    if !publico && (token.is_empty()
+        || !token_confere(request.headers().get("x-omni-token").and_then(|v|v.to_str().ok()).unwrap_or(""),&token)) {
         return error(StatusCode::UNAUTHORIZED,"Dispositivo não autorizado; leia o QR de novo no PC").into_response();
     }
     let mut response = next.run(request).await;

@@ -271,6 +271,8 @@ pub fn imagem(fontes: &[(PathBuf, String)], n: usize, k: usize, cache: &mut Feed
         // Fork: o caminho já foi achado na leitura (citado no texto ou gerado pelo Codex).
         let arquivo = entrada.item.midia.get(k)?;
         let tipo = crate::entregaveis::tipo(arquivo).filter(|t| t.starts_with("image/"))?;
+        // Fork (segurança): o mesmo teto dos documentos; sem ele, uma "imagem" enorme ia inteira para a memória.
+        if std::fs::metadata(arquivo).ok()?.len() > crate::entregaveis::ARQUIVO_MAX_BYTES { return None; }
         return Some((tipo.to_owned(), base64::engine::general_purpose::STANDARD.encode(std::fs::read(arquivo).ok()?)));
     }
     let uuid = entrada.identity.split_once(':')?.1.rsplit_once('#')?.0.to_owned();
