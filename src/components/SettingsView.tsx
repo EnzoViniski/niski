@@ -19,6 +19,7 @@ import { SkillsManager } from "../features/skills/SkillsManager";
 import { MemoriaCompartilhada } from "../features/memoria/MemoriaCompartilhada";
 import { SobreMimDoDesktop } from "../features/sobreMim/SobreMimDoDesktop"; // Fork (Sobre mim).
 import { AjustesDaManha } from "../features/manha/AjustesDaManha"; // Fork: aquecimento da manhã.
+import { AjustesDaBiblia } from "../features/biblia/AjustesDaBiblia"; // Fork: Bíblia do dia.
 import { AjustesDasTarefas } from "../features/tarefas/AjustesDasTarefas"; // Fork: tarefas.
 import { ExtensoesSettings } from "../features/extensoes/ExtensoesSettings";
 import { MobileSettings } from "../features/mobile/MobileSettings";
@@ -173,7 +174,7 @@ export function SettingsView({ settings, onChange, onReset, initialSection, proj
           {section === "skills" && <SkillsManager projectPath={projectPath} />}
           {section === "memoria" && <MemoriaCompartilhada />}
           {section === "sobre-mim" && <SobreMimDoDesktop />}
-          {section === "manha" && <AjustesDaManha />}
+          {section === "manha" && <div className="space-y-4"><AjustesDaManha /><AjustesDaBiblia /></div>}
           {section === "tarefas" && <AjustesDasTarefas />}
           {section === "mobile" && <MobileSettings accent={settings.accent} />}
           {section === "relatorios" && <RelatoriosIa projectPaths={projectPaths} />}

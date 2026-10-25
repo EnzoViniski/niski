@@ -7,6 +7,7 @@ import { FONTES, registrarRevisao } from "./fontes";
 import { adiar, diaLocal, iniciarSessao, montarQuestoes, pularHoje, responder, sequencia, terminar, useManha } from "./rotina";
 import { montarDia } from "../tarefas/dominio";
 import { useTarefas } from "../tarefas/loja";
+import { abrirLeituraSeForAHora } from "../biblia/useLeituraDoDia"; // Fork (Bíblia do dia)
 import "./manha.css";
 
 const LETRAS = ["A", "B", "C", "D"];
@@ -69,7 +70,7 @@ export function RotinaDaManha({ onFechar, onAbrirTarefas }: { onFechar: () => vo
         ) : preparando || !deHoje ? (
           <div className="manha-card manha-preparando"><span className="manha-pulso" aria-hidden="true" />Preparando as questões de hoje…</div>
         ) : terminou ? (
-          <Resumo onFechar={() => { terminar(); onFechar(); }} onAbrirTarefas={() => { terminar(); onAbrirTarefas(); onFechar(); }} mostrarTarefas={ajustes.tarefasNoFim} />
+          <Resumo onFechar={() => { terminar(); onFechar(); abrirLeituraSeForAHora(); /* Fork (Bíblia do dia): a Palavra vem logo depois. */ }} onAbrirTarefas={() => { terminar(); onAbrirTarefas(); onFechar(); }} mostrarTarefas={ajustes.tarefasNoFim} />
         ) : (
           <Pergunta key={deHoje.questoes[indice].id} indice={indice} total={deHoje.questoes.length}
             onProxima={() => { if (indice + 1 >= deHoje.questoes.length) terminar(); setIndice(indice + 1); }} />

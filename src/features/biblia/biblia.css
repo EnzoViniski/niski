@@ -1,0 +1,60 @@
+/* Fork (Bíblia do dia): tela cheia por cima do app, como o aquecimento da manhã, mas calma: folha
+   cor de papel, letra serifada e o número dos versículos em vermelho (como as rubricas dos missais).
+   Animação só na entrada (para com "reduzir movimento"). */
+
+.biblia { --b-papel: 34 30 25; --b-tinta: 236 228 214; --b-tinta-suave: 168 156 138; --b-rubrica: 232 120 110; --b-linha: 72 63 52;
+  --b-r: 6px; position: fixed; inset: 0; z-index: 91; display: flex; flex-direction: column; overflow: auto;
+  background: rgb(var(--c-bg-primary)); color: rgb(var(--c-text-primary)); }
+:root[data-estilo="minimalista"] .biblia { --b-r: 22px; }
+:root[data-theme="claro"] .biblia { --b-papel: 251 247 238; --b-tinta: 43 36 28; --b-tinta-suave: 110 98 84; --b-rubrica: 166 38 38; --b-linha: 214 200 176; }
+
+.biblia-fundo { position: fixed; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(50rem 28rem at 50% -10%, rgb(255 214 140 / .20), transparent 70%),
+    radial-gradient(40rem 30rem at 50% 120%, rgb(var(--c-accent) / .10), transparent 70%); }
+@keyframes biblia-luz { from { opacity: 0; } to { opacity: 1; } }
+.biblia-fundo { animation: biblia-luz 1.4s ease both; }
+
+.biblia-topo { position: relative; display: flex; align-items: center; gap: .75rem; padding: 2.5rem 2rem .5rem; }
+.biblia-sobre { font-size: .875rem; color: rgb(var(--c-text-secondary)); }
+.biblia-sobre::first-letter { text-transform: uppercase; }
+.biblia-titulo { font-family: "Iowan Old Style", "Palatino", Georgia, serif; font-size: 1.625rem; font-weight: 600; letter-spacing: -.01em; }
+.biblia-selo { padding: .25rem .625rem; font-size: .8125rem; font-weight: 600; border-radius: 999px; background: rgb(var(--c-overlay) / .06); }
+
+.biblia-centro { position: relative; flex: 1; display: flex; justify-content: center; padding: 1rem 1.5rem 0; }
+.biblia-folha { width: min(46rem, 100%); align-self: flex-start; display: flex; flex-direction: column; gap: 2rem; padding: 2.75rem 3rem 2rem;
+  color: rgb(var(--b-tinta)); background: rgb(var(--b-papel)); border-radius: var(--b-r);
+  border: 1px solid rgb(var(--b-linha) / .8);
+  box-shadow: 0 1px 0 rgb(255 255 255 / .5) inset, 0 30px 80px -40px rgb(0 0 0 / .55), 0 2px 6px -2px rgb(0 0 0 / .12); }
+.biblia-aviso { align-self: center; align-items: center; text-align: center; gap: 1rem; font-size: .9375rem; }
+@keyframes biblia-entra { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.biblia-entra { animation: biblia-entra .45s cubic-bezier(.2, .8, .2, 1) both; }
+
+.biblia-trecho { display: flex; flex-direction: column; gap: .5rem; }
+.biblia-trecho + .biblia-trecho { padding-top: 2rem; border-top: 1px solid rgb(var(--b-linha)); }
+.biblia-trecho-topo { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.biblia-trilha { font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: rgb(var(--b-rubrica)); }
+.biblia-progresso { font-size: .6875rem; color: rgb(var(--b-tinta-suave)); }
+.biblia-ref { font-family: "Iowan Old Style", "Palatino", Georgia, serif; font-size: 1.375rem; font-weight: 600; font-variant: small-caps; letter-spacing: .01em; }
+.biblia-texto { font-family: "Iowan Old Style", "Palatino", Georgia, serif; font-size: 1.1875rem; line-height: 1.75; text-align: justify; hyphens: auto; }
+.is-letra-grande .biblia-texto { font-size: 1.4375rem; line-height: 1.7; }
+.biblia-versiculo sup { margin-right: .2em; font-family: ui-sans-serif, system-ui, sans-serif; font-size: .6em; font-weight: 700; color: rgb(var(--b-rubrica)); }
+.biblia-fonte { margin-top: -1rem; font-size: .6875rem; color: rgb(var(--b-tinta-suave)); text-align: right; font-style: italic; }
+.biblia-nota { font-size: .875rem; color: rgb(var(--b-tinta-suave)); text-align: center; }
+.biblia-nota.is-feita { font-weight: 600; color: rgb(var(--c-success)); }
+
+/* Os botões ficam sempre à mão; o texto some num degradê atrás deles em vez de aparecer por baixo. */
+.biblia-acoes { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; padding: 2.25rem 1rem 1.25rem;
+  margin: -1rem -1rem -1.25rem; border-radius: 0 0 var(--b-r) var(--b-r);
+  background: linear-gradient(to bottom, rgb(var(--b-papel) / 0), rgb(var(--b-papel)) 2rem); }
+.biblia-acoes .btn-ghost { color: rgb(var(--b-tinta)); }
+
+.biblia-amem { align-items: center; text-align: center; gap: 1rem; }
+.biblia-amem-titulo { font-family: "Iowan Old Style", "Palatino", Georgia, serif; font-size: 2.25rem; font-weight: 600; }
+.biblia-amem .biblia-acoes { position: static; justify-content: center; margin: 0; padding: 0; background: none; }
+
+.biblia-pulso { width: .75rem; height: .75rem; border-radius: 999px; background: rgb(var(--b-rubrica)); animation: biblia-pulsa 1.2s ease-in-out infinite; }
+@keyframes biblia-pulsa { 50% { transform: scale(1.6); opacity: .4; } }
+
+@media (max-width: 640px) { .biblia-folha { padding: 2rem 1.25rem 1.5rem; } .biblia-texto { text-align: left; } }
+@media (prefers-reduced-motion: reduce) { .biblia-fundo, .biblia-entra, .biblia-pulso { animation: none; } }

@@ -30,6 +30,7 @@ pub const CHAVES: &[&str] = &[
     "medza-escolhas",
     "medza-orquestradoras-recolhidas",
     "medza-manha", // Fork: rotina da manhã (ajustes e sessão do dia).
+    "medza-biblia", // Fork: Bíblia do dia (trilhas, onde parou e o que já foi lido).
     "medza-tarefas-ajustes", // Fork: tarefas (nome, pasta compartilhada, filtros).
     "medza-tarefas-painel", // Fork: painel, botão e lista do dia flutuantes.
     "medza-copiloto", // Fork: janela do copiloto (conversa, pasta, modo, posição).
