@@ -16,6 +16,18 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.34.0",
+    date: "2026-10-25",
+    changes: [
+      "Revisão geral de segurança: o app ficou mais fechado contra ataques ao seu computador, sem mudar nada no jeito de usar.",
+      "Um link ou uma página aberta pelo app (na aba Navegador, numa referência de vídeo ou vinda de um agente) não consegue mais se passar pelo próprio app nem abrir um arquivo do computador como se fosse ele.",
+      "O app não lê nem altera mais as suas chaves de acesso, senhas guardadas e arquivos de inicialização do Mac, mesmo que algo tente pela tela.",
+      "Celular: o acesso agora exige sempre o código do aparelho. Depois de muitas tentativas erradas com o Authy, o pareamento pelo Authy é desligado até você confirmar de novo no computador (ler o QR continua funcionando).",
+      "Agente da rotina: ele usa só as ferramentas da rotina, sem acesso aos seus arquivos, ao terminal ou à internet. Pelo Telegram, a conversa com ele funciona só com o Claude.",
+      "Retomar uma conversa, trocar de conta e abrir arquivos citados pelo agente ficaram mais seguros contra nomes de arquivo e atalhos preparados de propósito.",
+    ],
+  },
+  {
     version: "0.33.0",
     date: "2026-10-25",
     changes: [
