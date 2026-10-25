@@ -2,7 +2,7 @@
 use sha2::{Digest, Sha256};
 use std::{fs::File, io::Read, path::Path};
 
-pub(super) fn conferir(caminho: &Path, bytes: u64, esperado: &str) -> Result<(), String> {
+pub(crate) fn conferir(caminho: &Path, bytes: u64, esperado: &str) -> Result<(), String> {
     let mut arquivo = File::open(caminho).map_err(|e| e.to_string())?;
     if arquivo.metadata().map_err(|e| e.to_string())?.len() != bytes {
         return Err("tamanho diferente do esperado".into());

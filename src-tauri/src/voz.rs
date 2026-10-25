@@ -14,7 +14,7 @@ use std::thread::JoinHandle;
 use std::time::Instant;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 #[path = "integridade_modelo.rs"]
-mod integridade_modelo;
+pub(crate) mod integridade_modelo; // Fork (Bíblia do dia): `biblia.rs` confere o arquivo do mesmo jeito.
 
 const MODELO_ARQUIVO: &str = "ggml-large-v3-turbo-q5_0.bin";
 const MODELO_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin";
