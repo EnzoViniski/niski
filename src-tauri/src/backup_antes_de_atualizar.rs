@@ -130,6 +130,8 @@ pub fn fazer_backup(origem: &Path, versao: &str, interface: &BTreeMap<String, St
     // Fork (Roadmaps): a pasta inteira dos roadmaps, com a mesma regra (lista fechada, sem link).
     arquivos += crate::roadmaps::armazenamento::copiar_tudo(&origem.join(crate::roadmaps::armazenamento::PASTA), &destino.join(crate::roadmaps::armazenamento::PASTA))?;
     // Fork (Editor de vídeo): o texto dos projetos e das pastas de referências; mídia grande fica pelo hash.
+    // Fork (Caderno): páginas, conversa e meta de cada caderno (a lixeira fica de fora).
+    arquivos += crate::cadernos::copiar_tudo(&origem.join(crate::cadernos::PASTA), &destino.join(crate::cadernos::PASTA))?;
     arquivos += crate::videos::projetos::copiar_tudo(&origem.join(crate::videos::projetos::PASTA), &destino.join(crate::videos::projetos::PASTA))?;
 
     let salvas: BTreeMap<&str, &str> = interface.iter()
