@@ -45,6 +45,8 @@ mod jarvis;
 // Fork: Roadmaps de estudo (trilhas, cards de revisão e IA ao lado).
 mod roadmaps;
 mod tarefas; // Fork: tarefas (uma por arquivo, pasta local ou compartilhada).
+mod biblia; // Fork: Bíblia do dia (Ave Maria, baixada uma vez e conferida pelo SHA-256).
+mod cadernos; // Fork: Caderno de anotações (páginas em Markdown e IA ao lado).
 // Fork: Editor de vídeo (projetos HyperFrames, biblioteca, chat do agente, exportar, edição a dois).
 mod videos;
 
@@ -142,6 +144,13 @@ pub fn run() {
             roadmaps::roadmaps_backup_antes_de_migrar,
             roadmaps::ia::roadmaps_ia,
             roadmaps::ia::roadmaps_ia_cancelar,
+            biblia::biblia_ler, // Fork: Bíblia do dia.
+            biblia::biblia_baixar,
+            cadernos::cadernos_listar, // Fork: Caderno.
+            cadernos::cadernos_ler,
+            cadernos::cadernos_gravar,
+            cadernos::cadernos_anexar_conversa,
+            cadernos::cadernos_para_a_lixeira,
             videos::videos_listar, // Fork: Editor de vídeo.
             videos::protocolo::videos_endereco_base,
             videos::agente::videos_agente,

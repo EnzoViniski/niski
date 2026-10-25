@@ -47,6 +47,7 @@ import { HistoryView } from "./features/history/HistoryView";
 import { FluxosView } from "./features/fluxos/FluxosViewTardio";
 // Fork: Roadmaps de estudo, carregados só ao abrir a tela.
 import { RoadmapsView } from "./features/roadmaps/RoadmapsViewTardio";
+import type { SecaoDosRoadmaps } from "./features/caderno/tipos"; // Fork (Caderno)
 // Fork: Tarefas (Meu dia, quadro, semana, lista) e aquecimento da manhã por cima de tudo.
 import { PainelDeTarefas } from "./features/tarefas/PainelDeTarefas";
 import { BotaoDasTarefas, ListaDoDia } from "./features/tarefas/Flutuantes";
@@ -60,6 +61,9 @@ import { RotinaView } from "./features/rotina/RotinaView";
 import { AvisosDaRotina } from "./features/rotina/AvisosDaRotina";
 import { guardarPedidoPendente, ouvirPedidosDaRotina, pedirAbrirRotina } from "./features/rotina/abrirRotina";
 import { abrirRotinaAgora, useRotinaDaManha } from "./features/manha/useRotinaDaManha";
+// Fork (Bíblia do dia): a Palavra do dia depois do aquecimento, ou a qualquer hora.
+import { LeituraDoDia } from "./features/biblia/LeituraDoDia";
+import { abrirLeituraAgora, useLeituraDoDia } from "./features/biblia/useLeituraDoDia";
 // Fork: Edição de vídeo (HyperFrames), carregada só ao abrir a tela.
 import { VideoView } from "./features/video/VideoViewTardio";
 import { definirEstudoEmTelaCheia, definirModoFoco, useEstudoEmTelaCheia, useModoFoco } from "./lib/modoFoco";
@@ -88,8 +92,11 @@ function AppComPaleta() {
   const [view, setView] = useState<View>("workspace");
   // Fork (Roadmaps): cada abertura remonta a tela; `continuar` vai direto ao último roadmap.
   const [aberturaDosRoadmaps, setAberturaDosRoadmaps] = useState({ chave: 0, continuar: true });
-  const abrirRoadmaps = useCallback((continuar: boolean) => {
+  // Fork (Caderno): qual parte dos Roadmaps está na tela (o Caderno mora lá dentro).
+  const [secaoDosRoadmaps, setSecaoDosRoadmaps] = useState<SecaoDosRoadmaps>("roadmaps");
+  const abrirRoadmaps = useCallback((continuar: boolean, secao: SecaoDosRoadmaps = "roadmaps") => {
     setAberturaDosRoadmaps((atual) => ({ chave: atual.chave + 1, continuar }));
+    setSecaoDosRoadmaps(secao);
     setView("roadmaps");
   }, []);
   // Fork (Roadmaps): foco e estudo em tela cheia escondem a lateral e só valem dentro dos Roadmaps.
@@ -99,6 +106,7 @@ function AppComPaleta() {
   useAcoesDaPaleta("roadmaps", [
     { id: "roadmaps-continuar", titulo: "Continuar estudo (Roadmaps)", executar: () => abrirRoadmaps(true) },
     { id: "roadmaps-lista", titulo: "Roadmaps de estudo", executar: () => abrirRoadmaps(false) },
+    { id: "caderno-abrir", titulo: "Caderno: anotações de livros, estudos e vida", executar: () => abrirRoadmaps(true, "caderno") }, // Fork (Caderno)
   ]);
   // Fork (Edição de vídeo): cada abertura remonta a tela; `continuar` volta ao último vídeo aberto.
   const [aberturaDoVideo, setAberturaDoVideo] = useState({ chave: 0, continuar: true });
@@ -119,6 +127,7 @@ function AppComPaleta() {
   ]);
   // Fork (Tarefas e Manhã): painel de tarefas por cima do app e o aquecimento que cobre a tela no horário escolhido.
   const manha = useRotinaDaManha();
+  const leitura = useLeituraDoDia(manha.aberta); // Fork (Bíblia do dia)
   const painelDeTarefas = usePainel();
   useAcoesDaPaleta("tarefas", [
     { id: "tarefas-abrir", titulo: "Tarefas: abrir o painel", executar: abrirPainelDeTarefas },
@@ -126,6 +135,7 @@ function AppComPaleta() {
     { id: "copiloto-abrir", titulo: "Copiloto: abrir", executar: abrirCopiloto },
     { id: "copiloto-nova", titulo: "Copiloto: nova conversa", executar: () => { void novaConversaDoCopiloto(); abrirCopiloto(); } },
     { id: "manha-agora", titulo: "Aquecimento da manhã: fazer agora", executar: abrirRotinaAgora },
+    { id: "biblia-ler", titulo: "Palavra do dia: ler a Bíblia agora", executar: abrirLeituraAgora }, // Fork (Bíblia do dia)
   ]);
   // Fork: pasta do agente em worktree isolada que acabou de ser encerrado (`DialogoDaWorktree`).
   const [worktreeAoFechar, setWorktreeAoFechar] = useState<string | null>(null);
@@ -362,6 +372,8 @@ function AppComPaleta() {
         onOpenRotina={() => setView("rotina")}
         showRoadmaps={view === "roadmaps"}
         onOpenRoadmaps={() => abrirRoadmaps(true)}
+        showCaderno={view === "roadmaps" && secaoDosRoadmaps === "caderno"} /* Fork (Caderno) */
+        onOpenCaderno={() => abrirRoadmaps(true, "caderno")}
         showVideo={view === "video"}
         onOpenVideo={() => abrirVideo(true)}
         onOpenFluxos={() => setView("fluxos")}
@@ -458,7 +470,7 @@ function AppComPaleta() {
           ) : view === "rotina" ? ( /* Fork (Rotina). */
             <RotinaView agentView={settings.agentView} onClose={() => setView("workspace")} />
           ) : view === "roadmaps" ? (
-            <RoadmapsView key={aberturaDosRoadmaps.chave} continuar={aberturaDosRoadmaps.continuar} onClose={() => setView("workspace")} />
+            <RoadmapsView key={aberturaDosRoadmaps.chave} continuar={aberturaDosRoadmaps.continuar} onClose={() => setView("workspace")} secao={secaoDosRoadmaps} onSecao={setSecaoDosRoadmaps} />
           ) : view === "video" ? (
             <VideoView key={aberturaDoVideo.chave} continuar={aberturaDoVideo.continuar} agentView={settings.agentView} onClose={() => setView("workspace")} />
           ) : view === "fluxos" ? (
@@ -510,6 +522,7 @@ function AppComPaleta() {
       <ListaDoDia />
       <PainelDeTarefas onAbrirAjustes={() => { setSettingsSection("tarefas"); if (view !== "settings") setViewBeforeSettings(view); setView("settings"); }} />
       {manha.aberta && <RotinaDaManha onFechar={manha.fechar} onAbrirTarefas={abrirPainelDeTarefas} />}
+      {leitura.aberta && !manha.aberta && <LeituraDoDia onFechar={leitura.fechar} onAjustes={() => { setSettingsSection("manha"); if (view !== "settings") setViewBeforeSettings(view); setView("settings"); }} />}
       {worktreeAoFechar && <DialogoDaWorktree caminho={worktreeAoFechar} onFechar={fecharDialogoDaWorktree} />}
       <RecuperacaoDoWorkspace workspaces={workspaces} sessions={sessions} dispatch={dispatch} mostrarAviso={view === "workspace"} />
     </div>

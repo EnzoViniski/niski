@@ -12,6 +12,7 @@ import {
   CopyIcon,
   DockerIcon,
   FlagIcon,
+  NotebookIcon, // Fork (Caderno).
   CalendarIcon, // Fork (Rotina).
   ClapperboardIcon,
   ClipboardNoteIcon,
@@ -25,6 +26,8 @@ import {
   TerminalIcon,
 } from "./ui/PixelIcon";
 import { ContadorDeHoje } from "../features/tarefas/ContadorDeHoje"; // Fork: tarefas de hoje.
+import { SeloDaLeitura } from "../features/biblia/SeloDaLeitura"; // Fork: Bíblia do dia.
+import { abrirLeituraAgora } from "../features/biblia/useLeituraDoDia";
 import { destaqueDaLinha, EtiquetaDoStatus, IconeDoStatus, rotuloDoStatus, statusDaConversa } from "./ConversaStatus";
 import { conversationKey } from "../features/terminal/useAttention";
 import { useEffect, useRef, useState } from "react";
@@ -129,6 +132,9 @@ interface SidebarProps {
   onOpenRotina?: () => void;
   showRoadmaps?: boolean;
   onOpenRoadmaps?: () => void;
+  /** Fork (Caderno): o caderno mora dentro dos Roadmaps. */
+  showCaderno?: boolean;
+  onOpenCaderno?: () => void;
   /** Fork: Edição de vídeo (abre o último vídeo). */
   showVideo?: boolean;
   onOpenVideo?: () => void;
@@ -192,6 +198,8 @@ export function Sidebar({
   onOpenRotina,
   showRoadmaps = false,
   onOpenRoadmaps,
+  showCaderno = false,
+  onOpenCaderno,
   showVideo = false,
   onOpenVideo,
   onOpenHistory,
@@ -454,12 +462,28 @@ export function Sidebar({
         )}
         {onOpenRoadmaps && (
           <NavItem
-            active={showRoadmaps}
+            active={showRoadmaps && !showCaderno}
             onClick={onOpenRoadmaps}
             icon={<FlagIcon className="w-4 h-4" aria-hidden="true" />}
             label="Roadmaps"
           />
         )}
+        {onOpenCaderno && (
+          <NavItem
+            active={showCaderno}
+            onClick={onOpenCaderno}
+            icon={<NotebookIcon className="w-4 h-4" aria-hidden="true" />}
+            label="Caderno"
+          />
+        )}
+        {/* Fork (Bíblia do dia): abre a leitura a qualquer hora; o selo marca a de hoje ainda não lida. */}
+        <NavItem
+          active={false}
+          onClick={abrirLeituraAgora}
+          icon={<BookIcon className="w-4 h-4" aria-hidden="true" />}
+          label="Palavra do dia"
+          extra={<SeloDaLeitura />}
+        />
         {onOpenVideo && (
           <NavItem
             active={showVideo}
