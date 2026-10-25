@@ -16,7 +16,8 @@ it("token só vai ao conectar e some do campo antes da resposta; pareamento abre
   await userEvent.type(campo,"123:segredo-sintetico");
   vi.mocked(telegram).mockResolvedValue({ ...desligado, bot:"teste_bot", parear_url:"https://t.me/teste_bot?start=desafio" });
   await userEvent.click(screen.getByRole("button",{name:"Conectar bot"}));
-  await screen.findByRole("button",{name:"Abrir Telegram para conectar"});
+  // Fork (Telegram no celular): fora do app do Mac é um link de verdade (abre o app do Telegram).
+  expect(await screen.findByRole("link",{name:"Abrir Telegram para conectar"})).toHaveAttribute("href","https://t.me/teste_bot?start=desafio");
   expect(telegram).toHaveBeenLastCalledWith("/conectar",{token:"123:segredo-sintetico"});
   expect(screen.queryByLabelText("Token do bot")).not.toBeInTheDocument();
   expect(screen.queryByText(/segredo-sintetico/)).not.toBeInTheDocument();

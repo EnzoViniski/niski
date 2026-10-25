@@ -2,9 +2,9 @@
 // contínua), os lembretes (o que lembrar, janela acordado, domingo à noite), lembretes próprios, a
 // memória da rotina e o bot do Telegram da rotina.
 import { useEffect, useState } from "react";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button, Card } from "../../components/ui";
 import { listProfiles, type Profile } from "../terminal/terminalService";
+import { CLASSE_DE_BOTAO, LinkDoTelegram } from "../telegram/LinkDoTelegram"; // Fork (Telegram no celular)
 import { GoogleAgendaCartao } from "./GoogleAgendaAjustes"; // Fork (Google Agenda)
 import { lerAjustes, lerLembretes, lerSemana, operar, telegramDaRotina } from "./rotinaService";
 import { NOMES_CURTOS_DOS_DIAS, type AjustesDaRotina as Ajustes, type Lembretes, type TelegramDaRotina } from "./tipos";
@@ -162,7 +162,7 @@ export function TelegramDaRotinaCartao() {
         <p className="text-text-secondary">Um bot só da rotina, separado do bot dos avisos dos agentes. <strong>Os lembretes vão com o texto</strong> (nome da tarefa,
           da refeição, da meta) e com botões Feito, Adiar 15 min e Pular. O bot dos avisos continua mandando só o tipo de aviso.</p>
         {!status?.conectado && !status?.parear_url && <>
-          <p>Crie outro bot no <button className="text-accent" onClick={() => void openUrl("https://t.me/BotFather").catch(() => setErro("Não consegui abrir o Telegram."))}>@BotFather</button> com /newbot (não use o bot dos avisos) e cole o token.</p>
+          <p>Crie outro bot no <LinkDoTelegram url="https://t.me/BotFather" className="text-accent" onFalha={setErro}>@BotFather</LinkDoTelegram> com /newbot (não use o bot dos avisos) e cole o token.</p>
           <label className="block">Token do bot da rotina
             <input type="password" autoComplete="off" spellCheck={false} aria-label="Token do bot da rotina" className="mt-1 w-full rounded border border-border-subtle bg-bg-elevated p-2"
               value={token} onChange={(e) => setToken(e.target.value)} disabled={ocupado} />
@@ -173,7 +173,7 @@ export function TelegramDaRotinaCartao() {
         </>}
         {status?.parear_url && <div className="space-y-2">
           <p>Abra @{status.bot} e toque em Iniciar. O link vale por 10 minutos e conecta só a sua conversa privada.</p>
-          <Button size="sm" onClick={() => void openUrl(status.parear_url!).catch(() => setErro("Não consegui abrir o Telegram."))}>Abrir Telegram para conectar</Button>
+          <LinkDoTelegram url={status.parear_url} className={CLASSE_DE_BOTAO} onFalha={setErro}>Abrir Telegram para conectar</LinkDoTelegram>
           <p className="text-text-muted" role="status">Aguardando você tocar em Iniciar…</p>
         </div>}
         {status?.conectado && <>

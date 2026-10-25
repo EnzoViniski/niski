@@ -1,28 +1,20 @@
 // Fork (Rotina no celular): a mesma rotina do PC (rotas `/rotina/*` do engine). Hoje, semana, treino e
-// alimentação aqui; ajustes, Telegram e lembretes do sistema continuam no computador. "Conversar" abre a
+// alimentação aqui; o Telegram tem tela própria (`Telegram.tsx`); ajustes e lembretes do sistema
+// continuam no computador. "Conversar" abre a
 // conversa do agente da rotina (no PC) e a mostra no chat do celular.
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, request } from "../api";
+import { pelaRede } from "../transportePelaRede";
 import { Button } from "../../components/ui";
 import { Alimentacao } from "../../features/rotina/Alimentacao";
 import { Hoje } from "../../features/rotina/Hoje";
 import { Semana } from "../../features/rotina/Semana";
 import { Treino } from "../../features/rotina/Treino";
 import { hojeLocal, somarDias, ROTULOS_DAS_ABAS } from "../../features/rotina/dominio";
-import { abrirConversa, lerDia, lerSemana, usarTransporteDaRotina, type TransporteDaRotina } from "../../features/rotina/rotinaService";
+import { abrirConversa, lerDia, lerSemana, usarTransporteDaRotina } from "../../features/rotina/rotinaService";
 import type { Dia, SemanaDaRotina } from "../../features/rotina/tipos";
 import "../../features/rotina/rotina.css";
 import "./rotinaNoCelular.css";
 
-const pelaRede: TransporteDaRotina = async (metodo, caminho, corpo) => {
-  try {
-    const valor = await request<unknown>(caminho, { method: metodo, ...(corpo === null ? {} : { headers: { "Content-Type": "application/json" }, body: corpo }) });
-    return { status: 200, body: JSON.stringify(valor) };
-  } catch (erro) {
-    if (erro instanceof ApiError) return { status: erro.status, body: JSON.stringify({ error: erro.message }) };
-    throw erro;
-  }
-};
 // Dentro do app do computador o transporte continua o IPC (esta tela é do celular/web).
 if (typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)) usarTransporteDaRotina(pelaRede);
 

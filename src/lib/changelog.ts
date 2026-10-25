@@ -16,6 +16,14 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.32.1",
+    date: "2026-10-25",
+    changes: [
+      "Telegram: o botão Abrir Telegram para conectar voltou a funcionar no computador (antes não abria nada), tanto no bot dos avisos quanto no bot da rotina.",
+      "Telegram no celular: na versão web do celular, toque em Telegram no início para conectar os dois bots. Cole o token, toque em Abrir Telegram para conectar e o app do Telegram abre direto no seu celular.",
+    ],
+  },
+  {
     version: "0.32.0",
     date: "2026-10-24",
     changes: [

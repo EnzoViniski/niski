@@ -26,7 +26,7 @@ import { Uso } from "./telas/Uso"; // Fork: uso das contas no celular.
 import { AtualizarPc } from "./telas/AtualizarPc"; // Fork: atualizar o app do PC daqui.
 import { SobreMim } from "./telas/SobreMim"; // Fork (Sobre mim).
 import { RoadmapsNoCelular } from "./telas/RoadmapsTardio"; // Fork (Roadmaps de estudo).
-import { RotinaNoCelular, TarefasNoCelular } from "./telas/TarefasERotinaTardias"; // Fork (Tarefas e Rotina no celular).
+import { RotinaNoCelular, TarefasNoCelular, TelegramNoCelular } from "./telas/TarefasERotinaTardias"; // Fork (Tarefas e Rotina no celular).
 import { useRecarregarComVersaoNova } from "./versaoNova"; // Fork: pega a página nova depois da atualização.
 import { atualizarAtividade, useAtividadeVista } from "../features/atividade/atividadeService";
 import { useEntradaDaTela } from "./entradaDaTela"; // Fork (Vidro): fade curto ao trocar de tela.
@@ -122,6 +122,9 @@ export function MobileApp() {
   } else if (rota.tela === "rotina") { // Fork (Rotina no celular).
     titulo = "Rotina";
     conteudo = <RotinaNoCelular abrirConversaNoChat={abrirConversa} />;
+  } else if (rota.tela === "telegram") { // Fork (Telegram no celular).
+    titulo = "Telegram";
+    conteudo = <TelegramNoCelular />;
   } else if (rota.tela === "sobre-mim") { // Fork (Sobre mim).
     titulo = "Sobre mim";
     conteudo = <SobreMim />;
@@ -177,6 +180,7 @@ export function MobileApp() {
         <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "roadmaps" })}>Roadmaps</button>
         <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "tarefas" })}>Tarefas</button>
         <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "rotina" })}>Rotina</button>
+        <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "telegram" })}>Telegram</button>
       </div>
       {aviso && <p className="m-aviso">{aviso}</p>}
       {/* Painel do início: o que está acontecendo agora, em três números. "Precisa de você" filtra. */}

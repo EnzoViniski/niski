@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button, Card } from "../../components/ui";
 import { ROTULOS_DA_ATIVIDADE, TIPOS_DE_ATIVIDADE } from "../atividade/tipos";
 import { telegram, type TelegramStatus } from "./telegramService";
+import { CLASSE_DE_BOTAO, LinkDoTelegram } from "./LinkDoTelegram"; // Fork (Telegram no celular)
 
 /** Fork: notificações opt-in por bot privado; link para responder pela conversa já autenticada. */
 export function TelegramSettings() {
@@ -39,7 +39,7 @@ export function TelegramSettings() {
       <p className="text-text-secondary">Receba avisos quando um agente terminar, encontrar um erro, atingir o limite ou precisar de você. Funciona com a janela fechada enquanto o Mac e o engine estiverem ligados e com internet.</p>
       <p className="text-text-muted">Para responder, toque em Abrir conversa no Niski no aviso, com o Tailscale conectado e o celular pareado em Acesso remoto.</p>
       {!status?.conectado && !status?.parear_url && <>
-        <p>Crie um bot exclusivo no <button className="text-accent" onClick={() => void openUrl("https://t.me/BotFather").catch(() => setErro("Não consegui abrir o Telegram."))}>@BotFather</button> com /newbot e cole o token abaixo.</p>
+        <p>Crie um bot exclusivo no <LinkDoTelegram url="https://t.me/BotFather" className="text-accent" onFalha={setErro}>@BotFather</LinkDoTelegram> com /newbot e cole o token abaixo.</p>
         <label className="block">Token do bot
           <input type="password" autoComplete="off" spellCheck={false} aria-label="Token do bot" className="mt-1 w-full rounded border border-border-subtle bg-bg-elevated p-2"
             value={token} onChange={e => setToken(e.target.value)} disabled={ocupado} />
@@ -50,7 +50,7 @@ export function TelegramSettings() {
       </>}
       {status?.parear_url && <div className="space-y-2">
         <p>Abra @{status.bot} pelo botão abaixo e toque em Iniciar no Telegram. O link vale por 10 minutos e conecta somente sua conversa privada.</p>
-        <Button size="sm" onClick={() => void openUrl(status.parear_url!).catch(() => setErro("Não consegui abrir o Telegram."))}>Abrir Telegram para conectar</Button>
+        <LinkDoTelegram url={status.parear_url} className={CLASSE_DE_BOTAO} onFalha={setErro}>Abrir Telegram para conectar</LinkDoTelegram>
         <p className="text-text-muted" role="status">Aguardando você tocar em Iniciar…</p>
       </div>}
       {status?.conectado && <>

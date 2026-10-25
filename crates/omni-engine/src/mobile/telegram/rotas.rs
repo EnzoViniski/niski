@@ -1,24 +1,13 @@
 use super::*;
-type Desktop = Option<axum::Extension<orquestracao::jarvis::Desktop>>;
-fn desktop(acesso: &Desktop) -> Result<(), ApiError> {
-    if acesso.is_some() {
-        Ok(())
-    } else {
-        Err(error(
-            StatusCode::FORBIDDEN,
-            "Configure o Telegram pelo app do computador",
-        ))
-    }
-}
+// Fork (Telegram no celular): o celular pareado (token de dispositivo + Tailscale) também configura o
+// bot; antes era só o IPC do desktop. A resposta nunca traz o token.
 fn falha(e: api::Falha) -> ApiError {
     error(StatusCode::BAD_GATEWAY, e.texto)
 }
 
 async fn status(
     State(state): State<Arc<EngineState>>,
-    acesso: Desktop,
 ) -> Result<Json<Value>, ApiError> {
-    desktop(&acesso)?;
     Ok(Json(state.mobile.telegram.status()))
 }
 #[derive(Deserialize)]
@@ -41,10 +30,8 @@ pub(super) fn token_valido(token: &str) -> bool {
 }
 async fn conectar(
     State(state): State<Arc<EngineState>>,
-    acesso: Desktop,
     Json(p): Json<Conectar>,
 ) -> Result<Json<Value>, ApiError> {
-    desktop(&acesso)?;
     let token = p.token.trim().to_owned();
     if !token_valido(&token) {
         return Err(error(
@@ -116,10 +103,8 @@ struct Preferencias {
 }
 async fn preferencias(
     State(state): State<Arc<EngineState>>,
-    acesso: Desktop,
     Json(p): Json<Preferencias>,
 ) -> Result<Json<Value>, ApiError> {
-    desktop(&acesso)?;
     if p.tipos.iter().any(|t| !TIPOS.contains(&t.as_str())) {
         return Err(error(StatusCode::BAD_REQUEST, "Tipo de aviso inválido"));
     }
@@ -145,9 +130,7 @@ async fn preferencias(
 }
 async fn desconectar(
     State(state): State<Arc<EngineState>>,
-    acesso: Desktop,
 ) -> Result<Json<Value>, ApiError> {
-    desktop(&acesso)?;
     let _operacao = state.mobile.telegram.operacao.lock().await;
     salvar(state.state_file.parent().unwrap(), &Config::default())
         .map_err(|_| falha(api::Falha::disco()))?;
@@ -162,9 +145,7 @@ async fn desconectar(
 }
 async fn testar(
     State(state): State<Arc<EngineState>>,
-    acesso: Desktop,
 ) -> Result<Json<Value>, ApiError> {
-    desktop(&acesso)?;
     let _operacao = state.mobile.telegram.operacao.lock().await;
     let config = state
         .mobile
@@ -184,9 +165,7 @@ async fn testar(
 /// Fork: manda um exemplo de cada caso de aviso (`exemplos.rs`).
 async fn exemplos(
     State(state): State<Arc<EngineState>>,
-    acesso: Desktop,
 ) -> Result<Json<Value>, ApiError> {
-    desktop(&acesso)?;
     let _operacao = state.mobile.telegram.operacao.lock().await;
     let config = state.mobile.telegram.dados.lock().expect("telegram poisoned").config.clone();
     if config.chat.is_none() {

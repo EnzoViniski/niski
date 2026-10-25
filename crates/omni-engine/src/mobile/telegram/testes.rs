@@ -109,39 +109,24 @@ fn aviso_sem_conteudo_e_link_sem_token() {
 }
 
 #[tokio::test]
-async fn rotas_so_no_desktop_e_configuracao_nao_expoe_token() {
+async fn rotas_servem_o_celular_pareado_e_configuracao_nao_expoe_token() {
     let (dir, state) = fixture();
-    for (metodo, path, corpo) in [
-        ("GET", "/telegram", ""),
-        (
-            "POST",
-            "/telegram/conectar",
-            r#"{"token":"123:xxxxxxxxxxxxxxxxxxxxxxxxx"}"#,
-        ),
-        ("POST", "/telegram/desconectar", "{}"),
-        ("POST", "/telegram/testar", "{}"),
-        (
-            "POST",
-            "/telegram",
-            r#"{"ativo":false,"tipos":[],"incluir_titulos":false}"#,
-        ),
-    ] {
-        let r = axum::http::Request::builder()
-            .method(metodo)
-            .uri(path)
-            .header("content-type", "application/json")
-            .body(axum::body::Body::from(corpo))
-            .unwrap();
-        assert_eq!(
-            crate::mobile::rotas()
-                .with_state(state.clone())
-                .oneshot(r)
-                .await
-                .unwrap()
-                .status(),
-            StatusCode::FORBIDDEN
-        );
-    }
+    // Fork (Telegram no celular): as rotas do API (atrás do token de dispositivo) respondem ao celular.
+    let c = config();
+    state.mobile.telegram.dados.lock().unwrap().config = c.clone();
+    let r = axum::http::Request::builder()
+        .method("GET")
+        .uri("/telegram")
+        .body(axum::body::Body::empty())
+        .unwrap();
+    let resposta = crate::mobile::rotas()
+        .with_state(state.clone())
+        .oneshot(r)
+        .await
+        .unwrap();
+    assert_eq!(resposta.status(), StatusCode::OK);
+    let corpo = axum::body::to_bytes(resposta.into_body(), 64 * 1024).await.unwrap();
+    assert!(!String::from_utf8_lossy(&corpo).contains(&c.token));
     let c = config();
     state.mobile.telegram.dados.lock().unwrap().config = c.clone();
     let r = local(state.clone(), "GET", "/telegram", None, None, vec![]).await;

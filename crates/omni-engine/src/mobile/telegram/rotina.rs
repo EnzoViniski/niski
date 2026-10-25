@@ -5,7 +5,7 @@
 //! mandado ao bot vai para o agente da rotina e a resposta volta pelo Telegram.
 //!
 //! Token só no engine: arquivo próprio `rotina/telegram-rotina.json` modo 0600, nunca em resposta,
-//! log nem na tela. Cadastro só pelo IPC do desktop. Pareamento por desafio como o bot dos avisos
+//! log nem na tela. Cadastro pelo desktop ou pelo celular pareado. Pareamento por desafio como o bot dos avisos
 //! (`/start <código>` num chat privado, código novo que expira em 10 min). Só o chat pareado manda.
 use super::*;
 use omni_core::rotina::{self as rotina_core, ajustes::Ajustes as AjustesDaRotina, lembretes, operacoes};
@@ -361,12 +361,8 @@ async fn observar(state: Arc<EngineState>, cliente: impl api::BotApi + Clone + '
     }
 }
 
-/* ── Rotas (só o desktop) ──────────────────────────────────────────────────────────────────── */
+/* ── Rotas (desktop e celular pareado) ──────────────────────────────────────────────────────────────── */
 
-type Desktop = Option<axum::Extension<orquestracao::jarvis::Desktop>>;
-fn desktop(acesso: &Desktop) -> Result<(), ApiError> {
-    if acesso.is_some() { Ok(()) } else { Err(error(StatusCode::FORBIDDEN, "Configure o Telegram da rotina pelo app do computador")) }
-}
 fn falha(e: api::Falha) -> ApiError {
     error(StatusCode::BAD_GATEWAY, e.texto)
 }
@@ -379,8 +375,7 @@ pub(in crate::mobile) fn rotas() -> Router<Arc<EngineState>> {
         .route("/rotina/telegram/testar", post(testar))
 }
 
-async fn status(State(state): State<Arc<EngineState>>, acesso: Desktop) -> Result<Json<Value>, ApiError> {
-    desktop(&acesso)?;
+async fn status(State(state): State<Arc<EngineState>>) -> Result<Json<Value>, ApiError> {
     Ok(Json(runtime(&state).status()))
 }
 
@@ -388,8 +383,7 @@ async fn status(State(state): State<Arc<EngineState>>, acesso: Desktop) -> Resul
 #[serde(deny_unknown_fields)]
 struct Conectar { token: String }
 
-async fn conectar(State(state): State<Arc<EngineState>>, acesso: Desktop, Json(p): Json<Conectar>) -> Result<Json<Value>, ApiError> {
-    desktop(&acesso)?;
+async fn conectar(State(state): State<Arc<EngineState>>, Json(p): Json<Conectar>) -> Result<Json<Value>, ApiError> {
     let token = p.token.trim().to_owned();
     if !super::rotas::token_valido(&token) {
         return Err(error(StatusCode::BAD_REQUEST, "Cole o token completo que o BotFather forneceu"));
@@ -431,8 +425,7 @@ fn runtime_avisos_usa(state: &EngineState, token: &str) -> bool {
 #[serde(deny_unknown_fields)]
 struct Preferencias { ativo: bool }
 
-async fn preferencias(State(state): State<Arc<EngineState>>, acesso: Desktop, Json(p): Json<Preferencias>) -> Result<Json<Value>, ApiError> {
-    desktop(&acesso)?;
+async fn preferencias(State(state): State<Arc<EngineState>>, Json(p): Json<Preferencias>) -> Result<Json<Value>, ApiError> {
     let _operacao = runtime(&state).operacao.lock().await;
     let mut d = runtime(&state).dados.lock().expect("telegram da rotina poisoned");
     if p.ativo && d.config.chat.is_none() {
@@ -447,8 +440,7 @@ async fn preferencias(State(state): State<Arc<EngineState>>, acesso: Desktop, Js
     Ok(Json(runtime(&state).status()))
 }
 
-async fn desconectar(State(state): State<Arc<EngineState>>, acesso: Desktop) -> Result<Json<Value>, ApiError> {
-    desktop(&acesso)?;
+async fn desconectar(State(state): State<Arc<EngineState>>) -> Result<Json<Value>, ApiError> {
     let _operacao = runtime(&state).operacao.lock().await;
     salvar_config(state.state_file.parent().unwrap(), &Config::default()).map_err(|_| falha(api::Falha::disco()))?;
     *runtime(&state).dados.lock().expect("telegram da rotina poisoned") = Dados::default();
@@ -456,8 +448,7 @@ async fn desconectar(State(state): State<Arc<EngineState>>, acesso: Desktop) -> 
     Ok(Json(runtime(&state).status()))
 }
 
-async fn testar(State(state): State<Arc<EngineState>>, acesso: Desktop) -> Result<Json<Value>, ApiError> {
-    desktop(&acesso)?;
+async fn testar(State(state): State<Arc<EngineState>>) -> Result<Json<Value>, ApiError> {
     let _operacao = runtime(&state).operacao.lock().await;
     let config = runtime(&state).dados.lock().expect("telegram da rotina poisoned").config.clone();
     let Some(chat) = config.chat else { return Err(error(StatusCode::CONFLICT, "Conecte o bot da rotina primeiro")) };

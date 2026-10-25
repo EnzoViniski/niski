@@ -42,7 +42,8 @@
       { "url": "https://*.ts.net/*" },
       { "url": "http://100.*/*" },
       { "url": "https://accounts.google.com/*" },
-      { "url": "https://console.cloud.google.com/*" }
+      { "url": "https://console.cloud.google.com/*" },
+      { "url": "https://t.me/*" }
     ] }
   ]
 }

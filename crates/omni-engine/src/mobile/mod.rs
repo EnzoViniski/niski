@@ -222,9 +222,9 @@ fn rotas() -> Router<Arc<EngineState>> {
     Router::new().route("/conversas",get(conversations))
         .merge(agendamentos::rotas()) // Fork: agendamentos (3D).
         .merge(caixa_de_atividade::rotas()) // Fork: atividade e vistos, mesma API nos dois transportes.
-        .merge(telegram::rotas()) // Fork: configuração exclusiva do IPC do desktop.
+        .merge(telegram::rotas()) // Fork: configuração pelo desktop e pelo celular pareado.
         .merge(rotina_rotas::rotas()) // Fork (Rotina): plano, treino, alimentação e lembretes.
-        .merge(telegram::rotina::rotas()) // Fork (Rotina): bot da rotina, só pelo desktop.
+        .merge(telegram::rotina::rotas()) // Fork (Rotina): bot da rotina, desktop e celular pareado.
         .merge(google_agenda::rotas()) // Fork (Google Agenda): conectar só pelo desktop.
         .route("/projetos",get(projects))
         .route("/painel",get(painel))
