@@ -16,6 +16,17 @@ export interface EntradaChangelog {
 
 export const CHANGELOG: EntradaChangelog[] = [
   {
+    version: "0.33.0",
+    date: "2026-10-25",
+    changes: [
+      "Palavra do dia: logo depois dos exercícios da manhã aparece uma leitura da Bíblia Sagrada católica (tradução Ave Maria, os 73 livros), com o texto exato e a referência. Por padrão vem um trecho do Evangelho, um Salmo e um de Provérbios e Sabedoria; em Configurações → Manhã você escolhe as trilhas (também Atos e cartas, e o Antigo Testamento) e o tamanho da letra.",
+      "A leitura nunca se repete: cada trilha continua de onde você parou. Toque em Li quando terminar, em Deixar para amanhã se estiver com pressa (a mesma leitura volta amanhã) ou em Ler mais tarde. A qualquer hora, abra pela lateral em Palavra do dia; o ponto ao lado avisa que a de hoje ainda não foi lida.",
+      "Na primeira leitura o app baixa a Bíblia uma vez (6,6 MB) e confere se o arquivo veio inteiro antes de usar.",
+      "Caderno: nos Roadmaps (ou pela lateral, em Caderno) agora há cadernos de anotações com cara de caderno de verdade, com capa, espiral, margem e papel pautado, quadriculado, pontilhado ou liso, e letra à mão. Crie um caderno para um livro, um estudo, a vida ou o que quiser, com quantas páginas precisar.",
+      "Cada caderno tem a IA ao lado: ela lê todas as páginas e conversa sobre o que você escreveu (resumir, fazer perguntas, organizar, refletir). Qualquer resposta vai para a página com Colar na página, e dá para deixar a IA pesquisar na web.",
+    ],
+  },
+  {
     version: "0.32.1",
     date: "2026-10-25",
     changes: [
