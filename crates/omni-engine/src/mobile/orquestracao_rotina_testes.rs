@@ -84,6 +84,12 @@ async fn planejar_abre_conversa_da_semana_com_briefing_e_reaproveita() {
     assert_eq!(Path::new(&cwd).file_name().unwrap(), "Rotina");
     assert!(std::fs::read_to_string(Path::new(&cwd).join("CLAUDE.md")).unwrap().contains("Planejamento de domingo"));
     assert!(Path::new(&cwd).join("AGENTS.md").exists());
+    // Fork (segurança): o Claude da rotina não lê arquivo, não roda comando e não aceita bypass.
+    let travas: Value = serde_json::from_str(&std::fs::read_to_string(Path::new(&cwd).join(".claude/settings.json")).unwrap()).unwrap();
+    for ferramenta in ["Bash", "Read", "Write", "Edit", "WebFetch", "Agent"] {
+        assert!(travas["permissions"]["deny"].as_array().unwrap().iter().any(|f| f == ferramenta), "faltou negar {ferramenta}");
+    }
+    assert_eq!(travas["permissions"]["disableBypassPermissionsMode"], "disable");
     assert!(ler_registro(&state).ativo(&conversa), "nasce com o MCP da rotina");
     let ajustes: omni_core::rotina::ajustes::Ajustes = omni_core::rotina::ler(dir.path());
     assert!(ajustes.conversas.values().any(|c| c == &conversa));
