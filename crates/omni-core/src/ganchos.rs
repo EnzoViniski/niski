@@ -300,7 +300,8 @@ impl Evento {
         let resumo = ferramenta.as_deref().map(|f| resumo_da_ferramenta(f, valor.get("tool_input").unwrap_or(&Value::Null), max));
         Some(Self {
             nome,
-            session_id: texto(valor, "session_id"),
+            // Fork (segurança): o id vira `--resume <id>` digitado no shell; fora do alfabeto de id, some.
+            session_id: texto(valor, "session_id").filter(|id| crate::texto_para_o_shell::id_de_sessao_valido(id)),
             transcript_path: texto(valor, "transcript_path"),
             permission_mode: texto(valor, "permission_mode"),
             esforco: valor.pointer("/effort/level").and_then(Value::as_str).map(str::to_owned),

@@ -159,6 +159,8 @@ pub(super) async fn ajustar(State(state): State<Arc<EngineState>>, RoutePath(id)
 
 /// Linha de comando que retoma a conversa com o modelo e o esforço pedidos.
 pub(super) fn comando_de_retomada(base: &str, provider: &str, sessao: &str, ajustes: &Ajustes, modo: Option<&str>) -> Result<String> {
+    // Fork (segurança): o id vem do histórico (nome de arquivo, id dentro do rollout) e é digitado no shell.
+    if !omni_core::texto_para_o_shell::id_de_sessao_valido(sessao) { return Err(anyhow!("Conversa com id inválido")); }
     // Antigravity: família + esforço viram a variante (`--model gemini-4-argon --effort high`). As
     // opções vão **antes** do `--conversation`: o reinício troca só o que vem depois dele.
     if provider == "antigravity" {

@@ -259,8 +259,11 @@ pub fn plan_switch(
     // Caminho feliz: mesma IA, outra conta. O transcript é o estado da conversa, então levá-lo
     // junto e retomar pelo mesmo id é continuação literal.
     if same_provider && target_provider == "claude" {
+        // Fork (segurança): o id vai para `--resume <id>` digitado no shell.
+        let id_seguro = current.external_session_id.as_ref()
+            .filter(|id| omni_core::texto_para_o_shell::id_de_sessao_valido(id));
         if let (Some(session_id), Some(source), Some(profile)) =
-            (&current.external_session_id, &current.transcript_path, &target_profile)
+            (id_seguro, &current.transcript_path, &target_profile)
         {
             let destination =
                 claude_transcript_path(Path::new(&profile.config_dir), &conversation.cwd, session_id);
@@ -360,7 +363,8 @@ fn copy_codex_transcript(
     let session_id = (meta["type"] == "session_meta")
         .then(|| meta["payload"]["id"].as_str())
         .flatten()
-        .filter(|id| !id.trim().is_empty())
+        // Fork (segurança): o id vai para `resume <id>` digitado no shell.
+        .filter(|id| omni_core::texto_para_o_shell::id_de_sessao_valido(id))
         .ok_or_else(|| "Rollout do Codex sem id de sessão".to_string())?
         .to_owned();
 

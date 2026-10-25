@@ -645,6 +645,8 @@ pub fn abrir_conversa(state: &Arc<EngineState>, id: &str, no: &str) -> Result<Te
     let e = obter(id).ok_or_else(|| anyhow!("Execução não encontrada"))?;
     let n = e.nos.get(no).ok_or_else(|| anyhow!("Nó não encontrado"))?;
     let sid = n.session_id.clone().ok_or_else(|| anyhow!("Este nó ainda não tem sessão para abrir"))?;
+    // Fork (segurança): o id é digitado no shell (`--resume <id>`).
+    if !omni_core::texto_para_o_shell::id_de_sessao_valido(&sid) { return Err(anyhow!("Sessão do nó inválida")); }
     let cli = n.cli.clone().unwrap_or_else(|| "claude".into());
     let dir = state.state_file.parent().ok_or_else(|| anyhow!("engine"))?;
     let perfil = n.conta.as_ref().and_then(|c| omni_core::profiles(dir).into_iter().find(|p| &p.id == c));

@@ -640,6 +640,8 @@ fn confirmar(state: &EngineState, chave: &str) {
 /// ela, e a timeline lê o transcript certo.
 fn atualizar_transcript(state: &EngineState, sessao: &LiveSession, terminal: &str, sid: &str, caminho: &str) {
     if Path::new(caminho).file_stem().and_then(|s| s.to_str()) != Some(sid) { return; }
+    // Fork (segurança): o `sid` entra na linha de comando do reinício; nunca aceitar fora do alfabeto de id.
+    if !omni_core::texto_para_o_shell::id_de_sessao_valido(sid) { return; }
     // Fork (fix-orquestracao, achado 5): a identidade da sessão também troca — reiniciar e bifurcar
     // usavam o id anterior e voltavam ao contexto de antes do `/clear`. O comando de reinício só sabe
     // virar `--resume <id>` quando a linha tem `--session-id <id>` do id da sessão (`comando_ao_reiniciar`):
