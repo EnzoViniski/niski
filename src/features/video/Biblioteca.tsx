@@ -5,6 +5,7 @@ import { Button, SegmentedControl } from "../../components/ui";
 import { AlertIcon, FileIcon, ImageIcon, LinkIcon, MusicIcon, NoteIcon, TrashIcon, VideoIcon } from "../../components/ui/PixelIcon";
 import * as disco from "./armazenamento";
 import { urlDoProjeto } from "./enderecos";
+import { urlSegura } from "../roadmaps/normalizar";
 import { tamanhoLegivel } from "./midiaNoNavegador";
 import { escolherArquivos, useSoltarArquivos } from "./soltarArquivos";
 import { TIPO_DE_ARRASTE_DA_MIDIA } from "./Timeline";
@@ -122,7 +123,7 @@ function AbaDeReferencias({ projeto, acoes, bloqueado }: { projeto: string; acoe
       {aviso && <p className="video-aviso">{aviso}</p>}
       <ul className="video-links">
         {links.map((l: LinkDeReferencia) => (
-          <li key={l.url}><LinkIcon size={12} aria-hidden="true" /><a href={l.url} title={l.url}>{l.url.replace(/^https?:\/\//, "")}</a>{l.nota && <small>{l.nota}</small>}
+          <li key={l.url}><LinkIcon size={12} aria-hidden="true" />{/* Fork (segurança): só http(s) vira link; `asset:`/`file:` abririam arquivo do disco como o app. */}<a href={urlSegura(l.url) ?? undefined} title={l.url}>{l.url.replace(/^https?:\/\//, "")}</a>{l.nota && <small>{l.nota}</small>}
             <button type="button" className="video-mini-botao" disabled={bloqueado} aria-label={`Tirar ${l.url}`} onClick={() => void acoes.mudarLinks(links.filter((x) => x.url !== l.url))}><TrashIcon size={12} /></button>
           </li>
         ))}

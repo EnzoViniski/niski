@@ -81,6 +81,9 @@ impl SshConnection {
             args.push("-i".into());
             args.push(self.key_path.clone());
         }
+        // Fork (segurança): `--` antes do destino; um usuário/host começando com `-` (`-oProxyCommand=…`)
+        // virava opção do ssh e executava comando local.
+        args.push("--".into());
         args.push(self.destination());
         args
     }

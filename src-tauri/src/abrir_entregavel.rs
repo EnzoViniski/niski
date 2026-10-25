@@ -5,14 +5,16 @@
 //! extensão de entregável (`omni_core::entregaveis`). Assim um caminho vindo do texto do agente nunca
 //! abre um `.app`, `.command` ou script — no macOS `open` executaria esses.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-fn validar(caminho: &str) -> Result<&Path, String> {
+fn validar(caminho: &str) -> Result<PathBuf, String> {
     let caminho = Path::new(caminho);
     if !caminho.is_absolute() { return Err("Caminho inválido".into()); }
-    let entregavel = omni_core::entregaveis::eh_documento(caminho) || omni_core::entregaveis::eh_imagem(caminho);
+    // Fork (segurança): a extensão que vale é a do alvo real (link `a.pdf` → `x.command` não abre).
+    let caminho = caminho.canonicalize().map_err(|_| "O arquivo não existe mais (foi movido ou apagado)".to_string())?;
+    let entregavel = omni_core::entregaveis::eh_documento(&caminho) || omni_core::entregaveis::eh_imagem(&caminho);
     if !entregavel { return Err("Este tipo de arquivo não abre pela conversa".into()); }
-    match std::fs::metadata(caminho) {
+    match std::fs::metadata(&caminho) {
         Ok(m) if m.is_file() => Ok(caminho),
         _ => Err("O arquivo não existe mais (foi movido ou apagado)".into()),
     }
@@ -45,5 +47,12 @@ mod tests {
         assert!(validar(script.to_str().unwrap()).is_err());
         assert!(validar(dir.path().join("b.pdf").to_str().unwrap()).is_err());
         assert!(validar("relativo.pdf").is_err());
+        // Fork (segurança): `a.pdf` que é link para um `.command` não abre.
+        #[cfg(unix)]
+        {
+            let disfarce = dir.path().join("disfarce.pdf");
+            std::os::unix::fs::symlink(&script, &disfarce).unwrap();
+            assert!(validar(disfarce.to_str().unwrap()).is_err());
+        }
     }
 }

@@ -242,6 +242,8 @@ pub fn git_branches(project_path: String) -> Result<Vec<GitBranch>, String> {
 /// `create` = `checkout -b`: nasce a partir do HEAD atual, que é o que o rodapé oferece.
 #[tauri::command(async)]
 pub fn git_checkout_branch(project_path: String, branch: String, create: bool) -> Result<(), String> {
+    // Fork (segurança): nome de branch nunca vira opção do git.
+    if branch.starts_with('-') { return Err("Nome de branch inválido".into()); }
     let args = if create { vec!["checkout", "-b", &branch] } else { vec!["checkout", &branch] };
     run_git(&project_path, &args).map(|_| ())
 }

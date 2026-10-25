@@ -20,10 +20,17 @@ struct Endereco { rotulo: String, url: String }
 struct Titulo { rotulo: String, titulo: String }
 
 /// Endereço do próprio app (dev e build), que a janela principal pode carregar.
+///
+/// Fork (segurança, 0.34.0): `asset:`/`ipc:` (e `asset.localhost`/`ipc.localhost` no Windows) saíram.
+/// O Tauri trata esses esquemas como origem local e injeta o IPC: um link `asset://localhost/<arquivo>`
+/// (posto por um agente num `midias.json`, por exemplo) abria um `.html` qualquer do disco **como o
+/// app**, com acesso a `spawn_terminal`. Imagem, vídeo e `fetch` de `asset:` não passam por aqui.
+/// `localhost`/`127.0.0.1` só no dev (servidor do Vite); no app publicado a origem é `tauri://localhost`.
 fn eh_do_app(url: &Url) -> bool {
     match url.scheme() {
-        "tauri" | "asset" | "ipc" | "about" | "data" | "blob" => true,
-        "http" | "https" => matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "tauri.localhost" | "asset.localhost" | "ipc.localhost"))
+        "tauri" | "about" | "data" | "blob" => true,
+        "http" | "https" => url.host_str() == Some("tauri.localhost")
+            || (cfg!(debug_assertions) && matches!(url.host_str(), Some("localhost" | "127.0.0.1")))
             || preview_de_video(url),
         // Fork (Editor de vídeo): o iframe do preview. Esta trava vale também para iframes; sem isto o
         // Tauri cancelava em silêncio a navegação para `medzavideo://` e o preview nunca abria
@@ -46,11 +53,29 @@ fn preview_de_video(url: &Url) -> bool {
 
 fn externo(url: &Url) -> bool { matches!(url.scheme(), "http" | "https") }
 
+/// Fork (segurança): `*.localhost` dos protocolos do app (no Windows o `asset:` vira
+/// `http://asset.localhost/…`) não é site: na aba ou na janela, viraria página com o IPC do app.
+fn protocolo_do_app(url: &Url) -> bool {
+    url.host_str().is_some_and(|host| {
+        let host = host.to_ascii_lowercase();
+        ["asset.localhost", "ipc.localhost", "tauri.localhost", "medzavideo.localhost"].iter()
+            .any(|app| host == *app || host.ends_with(&format!(".{app}")))
+    })
+}
+
+/// Fork (segurança): o que a aba de navegador pode abrir — site (http/https) que não seja protocolo do
+/// app, e `about:blank`. Antes ela aceitava qualquer coisa, e uma página externa fazia
+/// `location = 'asset://localhost/<arquivo>'`: o arquivo abria **dentro da janela do app** com o IPC.
+fn aba_pode_abrir(url: &Url) -> bool {
+    (externo(url) && !protocolo_do_app(url)) || url.as_str() == "about:blank"
+}
+
 /// Plugin com a trava: a janela principal nunca sai do app.
 pub fn plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("navegacao")
         .on_navigation(|webview: &Webview<R>, url: &Url| {
-            if webview.label().starts_with(PREFIXO) || eh_do_app(url) { return true; }
+            if webview.label().starts_with(PREFIXO) { return aba_pode_abrir(url); }
+            if eh_do_app(url) { return true; }
             if externo(url) {
                 omni_core::registro::info("link_aberto_em_aba", &[]);
                 let _ = webview.app_handle().emit_to("main", "abrir-link", url.as_str());
@@ -68,7 +93,7 @@ fn rotulo_valido(rotulo: &str) -> Result<(), String> {
 
 fn url_valida(url: &str) -> Result<Url, String> {
     let url = Url::parse(url).map_err(|_| "Endereço inválido".to_string())?;
-    if externo(&url) { Ok(url) } else { Err("Só endereços http e https abrem na aba".into()) }
+    if externo(&url) && !protocolo_do_app(&url) { Ok(url) } else { Err("Só endereços http e https abrem na aba".into()) }
 }
 
 /// Abre (ou reposiciona e mostra) o webview da aba `rotulo` no retângulo dado, em pixels lógicos.
@@ -92,6 +117,7 @@ pub fn navegador_abrir<R: Runtime>(app: tauri::AppHandle<R>, rotulo: String, url
     let rotulo_nova = rotulo.clone();
     let builder = WebviewBuilder::new(&rotulo, WebviewUrl::External(url))
         .on_navigation(move |destino| {
+            if !aba_pode_abrir(destino) { return false; } // Fork (segurança)
             let _ = app_url.emit_to("main", "navegador-endereco", Endereco { rotulo: rotulo_url.clone(), url: destino.to_string() });
             true
         })
@@ -102,7 +128,9 @@ pub fn navegador_abrir<R: Runtime>(app: tauri::AppHandle<R>, rotulo: String, url
         .on_new_window(move |destino, _| {
             let (app, rotulo) = (app_nova.clone(), rotulo_nova.clone());
             // Fora do callback: navegar de dentro dele reentra no webview.
-            std::thread::spawn(move || { if let Some(w) = app.get_webview(&rotulo) { let _ = w.navigate(destino); } });
+            if aba_pode_abrir(&destino) { // Fork (segurança)
+                std::thread::spawn(move || { if let Some(w) = app.get_webview(&rotulo) { let _ = w.navigate(destino); } });
+            }
             tauri::webview::NewWindowResponse::Deny
         });
     janela.add_child(builder, posicao, tamanho).map_err(|e| e.to_string())?;
@@ -183,6 +211,23 @@ mod tests {
         assert!(rotulo_valido("nav-tab-abc_1").is_ok());
         assert!(rotulo_valido("main").is_err());
         assert!(rotulo_valido("nav-../x").is_err());
+    }
+
+    /// Fork (segurança): arquivo do disco (`asset:`) nunca vira página com o IPC do app.
+    #[test]
+    fn asset_e_ipc_nao_abrem_na_janela_nem_na_aba() {
+        for url in ["asset://localhost/%2FUsers%2Fx%2Fa.html", "ipc://localhost/x", "http://asset.localhost/C%3A%2Fx.html",
+            "https://asset.localhost/x", "http://ipc.localhost/x"] {
+            let url = Url::parse(url).unwrap();
+            assert!(!eh_do_app(&url), "{url}");
+            assert!(!aba_pode_abrir(&url), "{url}");
+        }
+        assert!(url_valida("http://asset.localhost/C%3A%2Fx.html").is_err());
+        assert!(url_valida("http://x.asset.localhost/").is_err());
+        assert!(url_valida("http://localhost:3000/").is_ok(), "preview de dev continua abrindo na aba");
+        assert!(aba_pode_abrir(&Url::parse("about:blank").unwrap()));
+        assert!(!aba_pode_abrir(&Url::parse("file:///etc/passwd").unwrap()));
+        assert!(!aba_pode_abrir(&Url::parse("tauri://localhost/index.html").unwrap()));
     }
 
     #[test]

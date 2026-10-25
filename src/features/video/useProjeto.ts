@@ -34,7 +34,8 @@ export function normalizarMidias(m: Partial<Midias> | null | undefined): Midias 
   return {
     versao: 1,
     itens: Array.isArray(m?.itens) ? m!.itens.filter((i) => i && typeof i.arquivo === "string") : [],
-    links: Array.isArray(m?.links) ? m!.links.filter((l) => l && typeof l.url === "string") : [],
+    // Fork (segurança): o `midias.json` vem do agente ou do colaborador; link que não é http(s) some.
+    links: Array.isArray(m?.links) ? m!.links.filter((l) => l && typeof l.url === "string" && /^https?:\/\//i.test(l.url)) : [],
   };
 }
 

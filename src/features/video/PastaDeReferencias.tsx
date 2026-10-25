@@ -5,6 +5,7 @@ import { ArrowLeftIcon, LinkIcon, TrashIcon } from "../../components/ui/PixelIco
 import * as disco from "./armazenamento";
 import { Miniatura } from "./Biblioteca";
 import { carregarEndereco, urlDaPasta } from "./enderecos";
+import { urlSegura } from "../roadmaps/normalizar";
 import { tamanhoLegivel } from "./midiaNoNavegador";
 import { escolherArquivos, useSoltarArquivos } from "./soltarArquivos";
 import type { Papel, PastaDeReferencia } from "./tipos";
@@ -69,7 +70,7 @@ export function PastaDeReferencias({ id, onVoltar, onNovoVideo }: { id: string; 
               <Button size="sm" variant="glass" disabled={!/^https?:\/\//i.test(url.trim())} onClick={() => { void editar({ links: [...pasta.links, { url: url.trim(), nota: "" }] }); setUrl(""); }}>Adicionar</Button>
             </div>
             <ul className="video-links">{pasta.links.map((l) => (
-              <li key={l.url}><LinkIcon size={12} aria-hidden="true" /><a href={l.url}>{l.url.replace(/^https?:\/\//, "")}</a>
+              <li key={l.url}><LinkIcon size={12} aria-hidden="true" /><a href={urlSegura(l.url) ?? undefined}>{l.url.replace(/^https?:\/\//, "")}</a>
                 <button type="button" className="video-mini-botao" aria-label={`Tirar ${l.url}`} onClick={() => void editar({ links: pasta.links.filter((x) => x.url !== l.url) })}><TrashIcon size={12} /></button>
               </li>
             ))}</ul>

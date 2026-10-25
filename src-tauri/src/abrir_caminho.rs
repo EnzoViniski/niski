@@ -41,6 +41,9 @@ fn extensao(caminho: &Path) -> String {
 
 fn decidir(trecho: &str, cwd: Option<&str>) -> Result<Acao, String> {
     let caminho = resolver(trecho, cwd).ok_or("Caminho inválido")?;
+    // Fork (segurança): decide pelo alvo real. Um `notas.md` que é link para `x.command` ou um `.app`
+    // passava como texto e o `open` executava o alvo.
+    let caminho = caminho.canonicalize().map_err(|_| "Não achei esse arquivo ou pasta".to_string())?;
     let meta = std::fs::metadata(&caminho).map_err(|_| "Não achei esse arquivo ou pasta".to_string())?;
     let ext = extensao(&caminho);
     if meta.is_dir() {
@@ -70,12 +73,22 @@ mod tests {
         for nome in ["notas.md", "script.sh", "relatorio.pdf"] { std::fs::write(dir.path().join(nome), "x").unwrap(); }
         std::fs::create_dir(dir.path().join("src")).unwrap();
         std::fs::create_dir(dir.path().join("Outro.app")).unwrap();
+        // Fork (segurança): a decisão é pelo caminho real (no macOS o temporário fica em `/private/var`).
+        let real = dir.path().canonicalize().unwrap();
 
-        assert_eq!(decidir("notas.md:12", Some(base)), Ok(Acao::Abrir(dir.path().join("notas.md"))));
-        assert_eq!(decidir("relatorio.pdf", Some(base)), Ok(Acao::Abrir(dir.path().join("relatorio.pdf"))));
-        assert_eq!(decidir("src", Some(base)), Ok(Acao::Abrir(dir.path().join("src"))));
-        assert_eq!(decidir("script.sh", Some(base)), Ok(Acao::Mostrar(dir.path().join("script.sh"))));
-        assert_eq!(decidir(&format!("{base}/Outro.app"), None), Ok(Acao::Mostrar(dir.path().join("Outro.app"))));
+        assert_eq!(decidir("notas.md:12", Some(base)), Ok(Acao::Abrir(real.join("notas.md"))));
+        assert_eq!(decidir("relatorio.pdf", Some(base)), Ok(Acao::Abrir(real.join("relatorio.pdf"))));
+        assert_eq!(decidir("src", Some(base)), Ok(Acao::Abrir(real.join("src"))));
+        assert_eq!(decidir("script.sh", Some(base)), Ok(Acao::Mostrar(real.join("script.sh"))));
+        assert_eq!(decidir(&format!("{base}/Outro.app"), None), Ok(Acao::Mostrar(real.join("Outro.app"))));
+        // Link com nome de texto para um script ou um `.app`: só mostra o alvo, nunca executa.
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(dir.path().join("script.sh"), dir.path().join("leia.md")).unwrap();
+            std::os::unix::fs::symlink(dir.path().join("Outro.app"), dir.path().join("pasta")).unwrap();
+            assert_eq!(decidir("leia.md", Some(base)), Ok(Acao::Mostrar(real.join("script.sh"))));
+            assert_eq!(decidir("pasta", Some(base)), Ok(Acao::Mostrar(real.join("Outro.app"))));
+        }
         assert!(decidir("nao-existe.md", Some(base)).is_err());
         assert!(decidir("relativo.md", None).is_err());
         assert!(decidir("https://exemplo.com/a.md", None).is_err());

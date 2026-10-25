@@ -721,8 +721,12 @@ fn spawn_engine() -> Result<(), String> {
 }
 
 pub(crate) fn engine_executable() -> Result<PathBuf, String> {
-    if let Some(path) = env::var_os("OMNI_ENGINE_PATH") {
-        return Ok(PathBuf::from(path));
+    // Fork (segurança): só em dev. No app publicado, um `launchctl setenv` de qualquer processo do
+    // usuário faria o app subir outro binário como engine (e entregar a ele o token).
+    if cfg!(debug_assertions) {
+        if let Some(path) = env::var_os("OMNI_ENGINE_PATH") {
+            return Ok(PathBuf::from(path));
+        }
     }
 
     let extension = if cfg!(windows) { ".exe" } else { "" };
