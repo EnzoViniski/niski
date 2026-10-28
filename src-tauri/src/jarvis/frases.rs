@@ -1,4 +1,4 @@
-//! Fork: Jarvis. Corta a resposta do Claude, que chega aos pedaços, em frases para falar. A voz
+//! Jarvis. Corta a resposta do Claude, que chega aos pedaços, em frases para falar. A voz
 //! começa na primeira frase pronta, sem esperar a resposta inteira. Também tira a marcação que não
 //! se fala (asteriscos, crases, títulos, marcadores de lista).
 

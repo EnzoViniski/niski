@@ -3,7 +3,7 @@ import { ATUALIZACAO_AUTOMATICA } from "../lib/identidade";
 import { useAtualizacaoRemota } from "../lib/atualizacaoRemota";
 
 // Fork (Sobre mim): a paleta (⌘K) também abre a seção "Sobre mim".
-export type SettingsSection = "sobre" | "sobre-mim" | "manha" | "tarefas"; // Fork: manhã e tarefas abrem a própria seção.
+export type SettingsSection = "sobre" | "sobre-mim" | "manha" | "tarefas"; // Manhã e tarefas abrem a própria seção.
 
 export interface Notificacao {
   id: string;

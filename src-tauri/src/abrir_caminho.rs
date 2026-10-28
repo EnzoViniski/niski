@@ -1,4 +1,4 @@
-//! Fork: caminho citado pelo agente na Conversa (`~/omni/x.md`, `src/App.tsx:12`) vira link.
+//! Caminho citado pelo agente na Conversa (`~/omni/x.md`, `src/App.tsx:12`) vira link.
 //!
 //! Clicar abre a pasta no Finder ou o arquivo no app padrão — mas só o que não executa nada:
 //! documento, imagem e texto abrem direto; pasta comum abre no Finder; qualquer outra coisa (script,

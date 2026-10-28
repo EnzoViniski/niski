@@ -537,7 +537,7 @@
     outline: 2px solid rgb(var(--c-accent));
     outline-offset: 2px;
   }
-  /* Fork: canto reto no foco só no Clássico; o Minimalista mantém o canto do elemento. O :where()
+  /* Canto reto no foco só no Clássico; o Minimalista mantém o canto do elemento. O :where()
      deixa a especificidade igual à de antes (só a do :focus-visible). */
   :where(:root:not([data-estilo="minimalista"])) :focus-visible {
     border-radius: 0;
@@ -960,7 +960,7 @@
 .titlebar-acao svg { color: rgb(var(--c-accent) / .8); }
 .titlebar-acao:hover, .titlebar-acao.is-aberto { color: rgb(var(--c-text-primary)); background: rgb(var(--c-overlay) / .06); }
 .titlebar-acao:focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: -2px; }
-/* Fork: "Reiniciar para atualizar" (AvisoDeAtualizacao.tsx) chama a atenção na cor de destaque. */
+/* "Reiniciar para atualizar" (AvisoDeAtualizacao.tsx) chama a atenção na cor de destaque. */
 .titlebar-atualizar { color: rgb(var(--c-accent)); background: rgb(var(--c-accent) / .12); }
 .titlebar-atualizar:hover { color: rgb(var(--c-text-primary)); background: rgb(var(--c-accent) / .22); }
 

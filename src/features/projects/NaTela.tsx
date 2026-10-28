@@ -1,4 +1,4 @@
-// Fork: "Na tela" reúne todas as abas abertas, inclusive em outros projetos e workspaces.
+// "Na tela" reúne todas as abas abertas, inclusive em outros projetos e workspaces.
 import { AGENT_ICON, AgentIcon } from "../../components/ui/AgentIcon";
 import { BlocksIcon, ChatIcon, GitBranchIcon, GlobeIcon, KanbanIcon, ListIcon, TerminalIcon } from "../../components/ui/PixelIcon";
 import { IconeDoStatus, statusDaConversa } from "../../components/ConversaStatus";
@@ -31,7 +31,7 @@ export function NaTela({ paineis, sessoes, naoVistas, onFocar }: {
     variosProjetos ? painel.projeto : undefined,
     `Painel ${painel.posicao ?? indice + 1}`,
   ].filter(Boolean).join(" · ");
-  // Fork: painéis do mesmo layout ficam juntos num cartão de "tela", com o mini mapa da divisão.
+  // Painéis do mesmo layout ficam juntos num cartão de "tela", com o mini mapa da divisão.
   const telas: { chave: string; paineis: { painel: PainelNaTela; i: number }[] }[] = [];
   comConversa.forEach((painel, i) => {
     const chave = `${painel.workspaceId ?? ""}:${painel.projectId ?? ""}`;
@@ -70,7 +70,7 @@ export function NaTela({ paineis, sessoes, naoVistas, onFocar }: {
             const status = sessao ? statusDaConversa(sessao, naoVistas.has(sessao.conversation_id || sessao.id)) : "neutro";
             return (
               <li key={aba.tabId} className={`na-tela-aba${aba.ativa ? " is-ativa" : ""}`}
-                // Fork: a sessão viva já pode ter trocado de agente desde que a aba foi salva.
+                // A sessão viva já pode ter trocado de agente desde que a aba foi salva.
                 style={{ "--cor-agente": corDoAgente(sessao?.provider ?? aba.provider) } as React.CSSProperties}>
                 <button type="button" data-nav-item aria-describedby={sessao ? `essencial-${aba.tabId}` : undefined} aria-current={painel.emFoco && aba.ativa ? "page" : undefined}
                   onClick={() => painel.workspaceId && painel.projectId

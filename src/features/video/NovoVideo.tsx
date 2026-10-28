@@ -26,7 +26,7 @@ function tipoDoCaminho(c: string) {
 export function NovoVideo({ onCriado, onCancelar, pastaInicial, computadorInicial }: { onCriado: (id: string, aviso?: string) => void; onCancelar: () => void; pastaInicial?: string; computadorInicial?: string }) {
   const [nome, setNome] = useState("");
   const [b, setB] = useState<Briefing>(BRIEFING_VAZIO);
-  // Fork: a IA se escolhe no chat do editor (conversa normal do app). Aqui, a pasta do computador.
+  // A IA se escolhe no chat do editor (conversa normal do app). Aqui, a pasta do computador.
   const [computador, setComputador] = useState<string | null>(computadorInicial ?? null);
   const [arquivos, setArquivos] = useState<ArquivoPendente[]>([]);
   const [papel, setPapel] = useState<Papel>("referencia");
@@ -70,7 +70,7 @@ export function NovoVideo({ onCriado, onCancelar, pastaInicial, computadorInicia
         setCriando(`Copiando referências (${i + 1} de ${arquivos.length})…`);
         try { await disco.importarMidia(id, a.caminho, a.papel); } catch (e) { falhas.push(`${nomeDoCaminho(a.caminho)}: ${String(e)}`); }
       }
-      // Fork: as pastas (do computador e de referências) ficam ligadas, sem copiar: o agente lê de lá.
+      // As pastas (do computador e de referências) ficam ligadas, sem copiar: o agente lê de lá.
       setCriando("Ligando as pastas ao agente…");
       try { await disco.configurarPastas(id, computador, escolhidas); } catch (e) { falhas.push(`pastas: ${String(e)}`); }
       // Links e a seção de referências do BRIEF.md com tudo o que entrou.

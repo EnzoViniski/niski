@@ -21,7 +21,7 @@ beforeEach(() => { vi.useFakeTimers(); setHidden(false); });
 afterEach(() => { vi.useRealTimers(); });
 
 describe("usePoll", () => {
-  it("Fork: notificador do desktop continua consultando com a janela minimizada", async () => {
+  it("Notificador do desktop continua consultando com a janela minimizada", async () => {
     setHidden(true);
     const run = vi.fn().mockResolvedValue(undefined);
     function Notificador() { usePoll(run, () => undefined, [], 2_000, true); return null; }

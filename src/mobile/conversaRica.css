@@ -1,5 +1,5 @@
 /*
-  Fork: conversa rica — lista de tarefas acima do campo, mini-diff das edições, cartão do plano e
+  Conversa rica — lista de tarefas acima do campo, mini-diff das edições, cartão do plano e
   selo do modo de permissão. Mesma linguagem do resto do chat (mobile.css): tokens de cor do tema,
   bordas de 1–2 px, cantos retos. Nada de `style` inline no JSX (o celular manda `style-src 'self'`).
 */

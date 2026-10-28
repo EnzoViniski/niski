@@ -1,4 +1,4 @@
-//! Fork: abre no app padrão do Mac (Visualização, Numbers, Keynote, navegador…) o arquivo que o
+//! Abre no app padrão do Mac (Visualização, Numbers, Keynote, navegador…) o arquivo que o
 //! agente gerou e a Conversa mostra como cartão.
 //!
 //! Comando próprio em vez do `opener:allow-open-path` do webview: aqui só passa arquivo comum com

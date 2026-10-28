@@ -1,4 +1,4 @@
-// Fork: lista do `/` no campo da Conversa (sem engine: a lista vem de uma função falsa).
+// Lista do `/` no campo da Conversa (sem engine: a lista vem de uma função falsa).
 import { describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

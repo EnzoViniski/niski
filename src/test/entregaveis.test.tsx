@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { MessageBubble } from "../mobile/Chat";
 import { modeloDaLista } from "../mobile/AjustesDaConversa";
 
-// Fork: arquivos gerados pelo agente na conversa e modelos do Claude com versão.
+// Arquivos gerados pelo agente na conversa e modelos do Claude com versão.
 describe("arquivos gerados pelo agente", () => {
   it("viram cartões com nome e pasta na resposta", () => {
     render(<MessageBubble lado="agent" provider="codex" texto="Pronto, gerei os dois."

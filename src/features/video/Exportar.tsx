@@ -78,7 +78,7 @@ export function Exportar({ projeto, nome, pastaDoComputador = null, onFechar }: 
         )}
         {estado === "pronto" && arquivo && (
           <div className="video-ok" role="status"><CheckIcon size={14} aria-hidden="true" /> Pronto: {arquivo.split(/[\\/]/).pop()}
-            {/* Fork: pelo Rust (o opener do webview recusava a pasta do projeto: "Not allowed to open path"). */}
+            {/* Pelo Rust (o opener do webview recusava a pasta do projeto: "Not allowed to open path"). */}
             <Button size="sm" variant="glass" onClick={() => void disco.abrirRender(projeto, arquivo, true).catch((e) => setMensagem(String(e)))}>Mostrar no Finder</Button>
             <Button size="sm" variant="ghost" onClick={() => void disco.abrirRender(projeto, arquivo, false).catch((e) => setMensagem(String(e)))}>Abrir</Button>
             {pastaDoComputador && (copiado

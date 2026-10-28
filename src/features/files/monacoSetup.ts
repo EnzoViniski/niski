@@ -10,7 +10,7 @@ import TypeScriptWorker from "monaco-editor/language/typescript/ts.worker.js?wor
 // Aponta pro pacote já bundlado no build do Vite.
 loader.config({ monaco });
 
-// Fork: o Vite não resolve um pacote npm em `new URL("monaco-editor/…", import.meta.url)`.
+// O Vite não resolve um pacote npm em `new URL("monaco-editor/…", import.meta.url)`.
 // `?worker` cria bundles locais dos workers, incluindo suas dependências, no build de produção.
 // Os exports do Monaco 0.56 já apontam para `esm/vs`: repetir esse prefixo duplicaria o caminho.
 

@@ -1,12 +1,12 @@
 import { emptyWorkspace } from "../../services/workspaceService";
 import type { WorkspaceCollection, WorkspacesAction } from "../../types/workspace";
 import { collectResourceIds, workspaceReducer } from "./workspaceReducer";
-import { abrirEmPainelProprio } from "./abrirEmPainelProprio"; // Fork: conversa da lateral em painel próprio.
-// Fork: restaurar backup e adotar projetos de sessões órfãs/conversas recentes.
+import { abrirEmPainelProprio } from "./abrirEmPainelProprio"; // Conversa da lateral em painel próprio.
+// Restaurar backup e adotar projetos de sessões órfãs/conversas recentes.
 import { adotarProjetos, restaurarColecao } from "./recuperarWorkspace";
-// Fork: a troca de agente atualiza também a marca salva nas abas.
+// A troca de agente atualiza também a marca salva nas abas.
 import { sincronizarIdentidadeDasAbas } from "./identidadeDasAbas";
-// Fork: "Na tela" alcança uma aba de qualquer workspace/projeto numa transição só.
+// "Na tela" alcança uma aba de qualquer workspace/projeto numa transição só.
 import { focarTelaAberta } from "../projects/telasAbertas";
 
 let sequence = 0;
@@ -67,7 +67,7 @@ export function workspacesReducer(state: WorkspaceCollection, action: Workspaces
       // Sem o projeto dentro do workspace alvo, o SELECT_PROJECT abaixo viraria no-op e o
       // ATTACH_TERMINAL grudaria a sessão no projeto errado — o bug que essa ação existe pra matar.
       if (!target?.projects.some((project) => project.id === action.projectId)) return state;
-      // Fork: conversa já aberta no layout de outro projeto (arrastada para lá pela lateral) é
+      // Conversa já aberta no layout de outro projeto (arrastada para lá pela lateral) é
       // focada onde está — abrir de novo no projeto dela deixaria duas abas na mesma sessão.
       const ondeEsta = target.projects.find((project) => collectResourceIds(project.layout).includes(action.sessionId));
       const selected = workspaceReducer(target, { type: "SELECT_PROJECT", projectId: ondeEsta?.id ?? action.projectId });

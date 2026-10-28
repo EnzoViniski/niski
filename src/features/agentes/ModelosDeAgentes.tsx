@@ -64,7 +64,7 @@ export function ModelosDeAgentes({ projectPath }: { projectPath: string | null }
     setSalvando(true); setErro(null);
     try {
       const { escopo, nomeAnterior, escopoAnterior } = edicao;
-      // Fork: normalize só ao salvar para preservar o hífen durante a digitação; o backend valida o nome.
+      // Normalize só ao salvar para preservar o hífen durante a digitação; o backend valida o nome.
       const modelo = { ...edicao.modelo, name: nomeDeArquivo(edicao.modelo.name) };
       // Mudou de escopo: grava no novo e tira do antigo, para não ficar duplicado.
       await salvarAgente(escopo, projectPath, modelo, escopoAnterior === escopo ? nomeAnterior : undefined);

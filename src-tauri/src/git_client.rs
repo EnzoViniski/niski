@@ -40,7 +40,7 @@ fn fora_de_repositorio(erro: &str) -> bool {
 /// Projeto dentro do WSL ou num servidor roda o **git de lá**. O git do Windows até abre a pasta
 /// pela rede, mas é outro git: outro `core.autocrlf`, outro `filemode` e outro `safe.directory` —
 /// commitar por ele suja um repositório Linux com finais de linha e bit de permissão trocados.
-// Fork: revisão reutiliza o mesmo roteamento para aplicar patches por stdin.
+// Revisão reutiliza o mesmo roteamento para aplicar patches por stdin.
 pub(crate) fn git_invocation(cwd: &str, args: &[&str]) -> (String, Vec<String>) {
     let conexoes = crate::ssh::connections();
     let alvo = omni_core::targets::resolve(cwd, &conexoes);
@@ -55,7 +55,7 @@ pub(crate) fn git_invocation(cwd: &str, args: &[&str]) -> (String, Vec<String>) 
         .unwrap_or_else(|| ("git".into(), args.iter().map(|arg| (*arg).to_owned()).collect()))
 }
 
-// Fork: operações de leitura do painel de revisão usam este cliente.
+// Operações de leitura do painel de revisão usam este cliente.
 pub(crate) fn run_git(cwd: &str, args: &[&str]) -> Result<String, String> {
     let (programa, argumentos) = git_invocation(cwd, args);
     let remoto = programa != "git";
@@ -416,8 +416,8 @@ mod tests {
 
     #[test]
     fn login_do_gh_nas_duas_versoes_e_nunca_o_token() {
-        let nova = "github.com\n  ✓ Logged in to github.com account FelipeCamposM (keyring)\n  - Token: gho_****";
-        assert_eq!(login_do_gh(nova).as_deref(), Some("FelipeCamposM"));
+        let nova = "github.com\n  ✓ Logged in to github.com account usuario-exemplo (keyring)\n  - Token: gho_****";
+        assert_eq!(login_do_gh(nova).as_deref(), Some("usuario-exemplo"));
         assert_eq!(login_do_gh("✓ Logged in to github.com as ana (oauth_token)").as_deref(), Some("ana"));
         assert_eq!(login_do_gh("You are not logged into any GitHub hosts."), None);
     }

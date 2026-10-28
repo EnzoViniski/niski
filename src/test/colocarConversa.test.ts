@@ -3,7 +3,7 @@ import { workspaceReducer } from "../features/workspace/workspaceReducer";
 import { emptyWorkspace } from "../services/workspaceService";
 import type { LayoutNode, PaneNode, WorkspaceState } from "../types/workspace";
 
-// Fork: conversa arrastada da lateral para o layout (`PLACE_SESSION`).
+// Conversa arrastada da lateral para o layout (`PLACE_SESSION`).
 function panes(node: LayoutNode): PaneNode[] {
   return node.type === "pane" ? [node] : [...panes(node.first), ...panes(node.second)];
 }

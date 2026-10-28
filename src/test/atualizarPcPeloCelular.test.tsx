@@ -6,7 +6,7 @@ import { arquivoDestaVersao, versaoMudou } from "../mobile/versaoNova";
 import { AtualizarPc } from "../mobile/telas/AtualizarPc";
 
 /*
- * Fork: "Atualizar o PC" pelo celular. O celular pede, o engine deixa o pedido, o app do PC faz o
+ * "Atualizar o PC" pelo celular. O celular pede, o engine deixa o pedido, o app do PC faz o
  * mesmo que o "Atualizar agora" da barra, e o celular recarrega quando o engine novo serve a página nova.
  */
 

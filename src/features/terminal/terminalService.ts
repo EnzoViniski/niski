@@ -222,12 +222,12 @@ export function selectFailoverProfile(
 export interface AgentLaunch {
   agent: AgentCliStatus;
   profile: Profile | null;
-  /** Fork: escolha deste lançamento, sem depender do último modelo salvo por outra aba. */
+  /** Escolha deste lançamento, sem depender do último modelo salvo por outra aba. */
   ajustes?: import("../../lib/escolhasSalvas").AjustesSalvos;
   /** Já preenchido quando o lançamento veio de uma troca de conta/IA: a conversa existe, então
    *  não se abre outra. Ausente no primeiro lançamento. */
   conversationId?: string;
-  /** Fork: pasta onde o agente roda quando não é a do projeto (worktree de outra branch). */
+  /** Pasta onde o agente roda quando não é a do projeto (worktree de outra branch). */
   cwd?: string;
 }
 
@@ -252,7 +252,7 @@ export interface PublishedTheme {
   theme: string;
   background: string;
   glass: string;
-  /** Fork: estilo da interface, para o celular seguir o PC. */
+  /** Estilo da interface, para o celular seguir o PC. */
   estilo: string;
 }
 

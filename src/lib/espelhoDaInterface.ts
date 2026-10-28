@@ -1,5 +1,5 @@
 /*
- * Fork: o localStorage do WebKit guarda aparência, workspaces, abas e a ordem da lateral, mas perde
+ * O localStorage do WebKit guarda aparência, workspaces, abas e a ordem da lateral, mas perde
  * as últimas gravações quando o processo sai sem esperar o WebKit (reinício da atualização, app
  * derrubado) e some inteiro se a pasta do WebKit for limpa. Por isso a interface espelha essas chaves
  * num arquivo da pasta de dados (`src-tauri/src/estado_da_interface.rs`) e, ao abrir, restaura de lá
@@ -24,11 +24,11 @@ export const CHAVES_ESPELHADAS = [
   "omni-todo",
   "medza-escolhas",
   "medza-orquestradoras-recolhidas",
-  "medza-manha", // Fork: rotina da manhã.
-  "medza-biblia", // Fork: Bíblia do dia.
-  "medza-tarefas-ajustes", // Fork: tarefas.
-  "medza-tarefas-painel", // Fork: painel, botão e lista do dia flutuantes.
-  "medza-copiloto", // Fork: janela do copiloto (conversa, pasta, modo, posição).
+  "medza-manha", // Rotina da manhã.
+  "medza-biblia", // Bíblia do dia.
+  "medza-tarefas-ajustes", // Tarefas.
+  "medza-tarefas-painel", // Painel, botão e lista do dia flutuantes.
+  "medza-copiloto", // Janela do copiloto (conversa, pasta, modo, posição).
   "medza-ultima-olhada", // Fork (troca-de-contexto): até onde você viu cada conversa (só números).
 ] as const;
 

@@ -1,4 +1,4 @@
-// Fork: índice das telas abertas em todos os layouts, sem consultar nem iniciar agentes.
+// Índice das telas abertas em todos os layouts, sem consultar nem iniciar agentes.
 import type { LayoutNode, PaneKind, PaneNode, WorkspaceCollection, WorkspaceState } from "../../types/workspace";
 import { findPane, workspaceReducer } from "../workspace/workspaceReducer";
 
@@ -11,16 +11,16 @@ export interface AbaNaTela {
 export interface PainelNaTela {
   paneId: string; emFoco: boolean; abas: AbaNaTela[];
   workspaceId?: string; projectId?: string; workspace?: string; projeto?: string; posicao?: number;
-  /** Fork: a tela (layout do projeto) deste painel está à vista agora. */
+  /** A tela (layout do projeto) deste painel está à vista agora. */
   telaVisivel?: boolean;
-  /** Fork: onde cada painel da mesma tela fica (frações 0–1), para o mini mapa da lateral. */
+  /** Onde cada painel da mesma tela fica (frações 0–1), para o mini mapa da lateral. */
   mapaDaTela?: AreaDoPainel[];
 }
 
 /** Retângulo de um painel no layout, em frações da tela. */
 export interface AreaDoPainel { paneId: string; posicao: number; x: number; y: number; w: number; h: number }
 
-/** Fork: posição de cada painel, seguindo a divisão salva (horizontal = lado a lado). */
+/** Posição de cada painel, seguindo a divisão salva (horizontal = lado a lado). */
 export function mapaDoLayout(node: LayoutNode): AreaDoPainel[] {
   const areas: AreaDoPainel[] = [];
   const andar = (n: LayoutNode, x: number, y: number, w: number, h: number) => {

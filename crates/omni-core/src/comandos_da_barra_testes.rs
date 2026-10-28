@@ -1,4 +1,4 @@
-//! Fork: pastas sintéticas em tempdir; nenhuma conta ou CLI real.
+//! Pastas sintéticas em tempdir; nenhuma conta ou CLI real.
 use super::*;
 use std::fs;
 

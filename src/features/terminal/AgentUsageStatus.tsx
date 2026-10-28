@@ -13,7 +13,7 @@ import { UsoDeTodasAsContas } from "./UsoDeTodasAsContas";
 import { AGENTES_COM_USO } from "../../mobile/api";
 import { haQuantoTempo } from "../../lib/tempo";
 
-// Fork: o "há quanto tempo" é um só (`lib/tempo.ts`); `timeAgo` fica como o nome de sempre.
+// O "há quanto tempo" é um só (`lib/tempo.ts`); `timeAgo` fica como o nome de sempre.
 export function timeAgo(ms: number, now: number) {
   return haQuantoTempo(ms, now, "longo");
 }

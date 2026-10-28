@@ -1,5 +1,5 @@
 /**
- * Fork: economia de energia (2026-10-19).
+ * Economia de energia (2026-10-19).
  *
  * O macOS acusava o app de "usar muita energia" parado: animações CSS infinitas (brilho da nav,
  * reflexo do botão enviar, pulsos) e os fundos WebGL repintam a 60 quadros por segundo mesmo com

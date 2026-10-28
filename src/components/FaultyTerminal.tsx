@@ -1,6 +1,6 @@
 import { Renderer, Program, Mesh, Color, Triangle } from 'ogl';
 import React, { useEffect, useRef, useMemo, useCallback } from 'react';
-// Fork: pausa de energia (janela oculta/sem foco/parada) — `src/lib/energia.ts`.
+// Pausa de energia (janela oculta/sem foco/parada) — `src/lib/energia.ts`.
 import { cancelarQuadro, proximoQuadro } from '../lib/energia';
 
 type Vec2 = [number, number];

@@ -6,11 +6,11 @@ import { useSession } from "../terminal/sessionProviders";
 import { workspaceReducer } from "./workspaceReducer";
 import { EtiquetaDoProjeto, useProjetoDeFora } from "./projetosDasAbas";
 import { TAB_DRAG_EVENT, type TabDragState } from "./tabPointerDrag";
-// Fork: a prévia usa a mesma identidade atual da aba real.
+// A prévia usa a mesma identidade atual da aba real.
 import { providerDaAba } from "./identidadeDasAbas";
 
 /**
- * Fork: prévia do layout **final** enquanto se arrasta uma aba ou uma conversa da lateral.
+ * Prévia do layout **final** enquanto se arrasta uma aba ou uma conversa da lateral.
  *
  * Em vez de só pintar a metade do painel onde a aba vai cair, mostra todos os painéis já na posição
  * que vão ficar — os que estavam lá encolhem para o lado, e o novo aparece no lugar dele, destacado.

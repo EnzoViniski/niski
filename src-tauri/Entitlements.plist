@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Fork: voz no chat. Com hardened runtime, sem isto o macOS entrega silêncio no microfone sem perguntar. -->
+	<!-- Voz no chat. Com hardened runtime, sem isto o macOS entrega silêncio no microfone sem perguntar. -->
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
 </dict>

@@ -42,7 +42,7 @@ pub struct EstadoDoNo {
     /// O que o agente está fazendo agora (última ação ou fala), para a tela mostrar ao vivo.
     #[serde(default)]
     pub atividade: String,
-    /// Fork: prazo da próxima iteração, persistido para pausa/retomada.
+    /// Prazo da próxima iteração, persistido para pausa/retomada.
     #[serde(default)]
     pub proxima_ms: u64,
     /// Modelo e esforço com que rodou.
@@ -76,7 +76,7 @@ pub struct Execucao {
     pub atualizado_ms: u64,
     pub nos: HashMap<String, EstadoDoNo>,
     pub fila: Vec<Passo>,
-    /// Fork: passo removido da fila, recuperável se o engine parar durante a execução.
+    /// Passo removido da fila, recuperável se o engine parar durante a execução.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub passo_ativo: Option<Passo>,
     #[serde(default)]
@@ -85,7 +85,7 @@ pub struct Execucao {
     pub custo_usd: f64,
 }
 
-// Fork: blocos e testes novos fora do executor original.
+// Blocos e testes novos fora do executor original.
 #[path = "fluxos_blocos.rs"]
 mod blocos;
 
@@ -190,7 +190,7 @@ fn mexer<T>(state: &EngineState, v: &Viva, f: impl FnOnce(&mut Execucao) -> T) -
 }
 
 fn executar(state: &Arc<EngineState>, id: &str) {
-    let trava = blocos::trava_do_executor(id); // Fork: retomar espera o worker anterior sair.
+    let trava = blocos::trava_do_executor(id); // Retomar espera o worker anterior sair.
     let _worker = trava.lock().expect("worker");
     let Ok(v) = viva(id) else { return };
     loop {
@@ -221,7 +221,7 @@ fn executar(state: &Arc<EngineState>, id: &str) {
             });
             break;
         }
-        mexer(state, &v, |e| e.passo_ativo = None); // Fork: só esquece o passo depois de seguir.
+        mexer(state, &v, |e| e.passo_ativo = None); // Só esquece o passo depois de seguir.
     }
 }
 
@@ -250,7 +250,7 @@ fn processar(state: &Arc<EngineState>, v: &Viva, passo: &Passo) -> Result<()> {
             definir_saida(state, v, &no.id, r);
             String::new()
         }
-        // Fork: goal oficial e repetição limitada no próprio executor.
+        // Goal oficial e repetição limitada no próprio executor.
         TipoDeNo::Objetivo => {
             let prompt = fluxos::blocos::prompt_objetivo(&no, &ctx).map_err(|e| anyhow!(e))?;
             let ajuste = Ajuste { modelo: texto_de(&no.config, "modelo"), esforco: texto_de(&no.config, "esforco"), max_turnos: no.config["max_turnos"].as_u64() };
@@ -290,7 +290,7 @@ fn seguir(state: &EngineState, v: &Viva, no: &str, saida: &str) {
     mexer(state, v, |e| {
         if let Some(n) = e.nos.get_mut(no) { if !saida.is_empty() { n.caminho = Some(saida.to_owned()); } }
         let proximos: Vec<String> = fluxos::proximos(&e.fluxo, no, saida).into_iter().map(|n| n.id.clone()).collect();
-        e.passo_ativo = None; // Fork: a transição e a fila seguinte são gravadas juntas.
+        e.passo_ativo = None; // A transição e a fila seguinte são gravadas juntas.
         for p in proximos {
             // Voltar a um nó (loop QA → dev): ele roda de novo do zero, sem retomar a sessão anterior.
             if let Some(n) = e.nos.get_mut(&p) { n.status = "pendente".into(); n.session_id = None; n.saida.clear(); }
@@ -390,7 +390,7 @@ fn rodar_agente_na_conta(state: &EngineState, v: &Viva, no: &str, agente: &str, 
     rodar_modelo(state, v, no, modelo, &exe, prompt, retomar, pasta, ajuste, perfil_da_fila)
 }
 
-// Fork: recebe o executável resolvido; testes usam um script falso sem trocar o PATH global.
+// Recebe o executável resolvido; testes usam um script falso sem trocar o PATH global.
 // `perfil_da_fila` (3B) vence a conta do modelo quando a Fila de contas escolheu uma.
 #[allow(clippy::too_many_arguments)]
 fn rodar_modelo(state: &EngineState, v: &Viva, no: &str, mut modelo: omni_core::agentes::ModeloDeAgente, exe: &Path, prompt: &str, retomar: Option<&str>, pasta: &str, ajuste: &Ajuste,
@@ -444,12 +444,12 @@ fn rodar_modelo(state: &EngineState, v: &Viva, no: &str, mut modelo: omni_core::
     ambiente_da_cli_sem_tela(&mut c, &env_do_perfil, herdou_sessao_do_claude(|nome| env::var_os(nome).is_some()));
     c.current_dir(pasta).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     sem_janela(&mut c);
-    #[cfg(unix)] { use std::os::unix::process::CommandExt; c.process_group(0); } // Fork: parar também os descendentes.
+    #[cfg(unix)] { use std::os::unix::process::CommandExt; c.process_group(0); } // Parar também os descendentes.
     if !v.lock().is_ok_and(|e| e.status == "rodando") { return Err(anyhow!(PAUSADO)); } // Fork
     let mut filho = c.spawn().with_context(|| format!("não consegui abrir {}", modelo.cli))?;
     let run_id = v.lock().map_err(|_| anyhow!("execucao"))?.id.clone();
     processos().lock().expect("processos").insert(run_id.clone(), filho.id());
-    if !v.lock().is_ok_and(|e| e.status == "rodando") { matar_processo(&run_id); } // Fork: pausa durante spawn.
+    if !v.lock().is_ok_and(|e| e.status == "rodando") { matar_processo(&run_id); } // Pausa durante spawn.
     mexer(state, v, |e| if let Some(n) = e.nos.get_mut(no) {
         n.cli = Some(modelo.cli.clone()); n.conta = perfil.as_ref().map(|p| p.id.clone());
         n.modelo = (!modelo.modelo.is_empty()).then(|| modelo.modelo.clone()); n.esforco = (!modelo.esforco.is_empty()).then(|| modelo.esforco.clone());
@@ -457,7 +457,7 @@ fn rodar_modelo(state: &EngineState, v: &Viva, no: &str, mut modelo: omni_core::
     });
     {
         let mut stdin = filho.stdin.take().ok_or_else(|| anyhow!("sem stdin"))?;
-        let texto = if ajuste.max_turnos.is_some() { prompt.to_owned() } // Fork: retomar reativa /goal nativo.
+        let texto = if ajuste.max_turnos.is_some() { prompt.to_owned() } // Retomar reativa /goal nativo.
             else if retomar.is_some() { "Continue de onde parou.".to_owned() }
             else if modelo.cli == "codex" { format!("{}\n\n---\n\n{prompt}", modelo.instrucoes) } else { prompt.to_owned() };
         stdin.write_all(texto.as_bytes())?;
@@ -468,7 +468,7 @@ fn rodar_modelo(state: &EngineState, v: &Viva, no: &str, mut modelo: omni_core::
     let mut arquivo = fs::OpenOptions::new().create(true).append(true).open(log.join(format!("{no}.log")))?;
     let mut final_texto = String::new();
     let mut erro_cli: Option<String> = None;
-    let mut teve_resultado = false; // Fork: /goal não pode terminar silenciosamente sem resultado.
+    let mut teve_resultado = false; // /goal não pode terminar silenciosamente sem resultado.
     let stdout = filho.stdout.take().ok_or_else(|| anyhow!("sem stdout"))?;
     let stderr = filho.stderr.take().map(esvaziar_em_segundo_plano);
     for linha in std::io::BufReader::new(stdout).lines().map_while(std::result::Result::ok) {
@@ -496,7 +496,7 @@ fn rodar_modelo(state: &EngineState, v: &Viva, no: &str, mut modelo: omni_core::
     processos().lock().expect("processos").remove(&run_id);
     if v.lock().map(|e| e.status != "rodando").unwrap_or(true) { return Err(anyhow!(PAUSADO)); }
     if let Some(erro) = erro_cli { return Err(anyhow!(erro)); }
-    if !status.success() { // Fork: texto parcial não transforma falha em sucesso.
+    if !status.success() { // Texto parcial não transforma falha em sucesso.
         let erro = stderr.and_then(|t| t.join().ok()).unwrap_or_default();
         return Err(anyhow!("{} saiu com erro: {}", modelo.cli, erro.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("sem detalhe")));
     }
@@ -571,7 +571,7 @@ pub fn retomar(state: &Arc<EngineState>, id: &str) -> Result<()> {
     if !viva(id)?.lock().is_ok_and(|e| matches!(e.status.as_str(), "pausado" | "falhou")) {
         return Err(anyhow!("Só dá para retomar uma execução pausada ou que falhou"));
     }
-    let trava = blocos::trava_do_executor(id); // Fork: não sobrepor workers durante pausa/retomada.
+    let trava = blocos::trava_do_executor(id); // Não sobrepor workers durante pausa/retomada.
     let _worker = trava.lock().map_err(|_| anyhow!("worker"))?;
     let v = viva(id)?;
     mexer(state, &v, |e| {

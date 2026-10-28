@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { AgentLauncher } from "../features/terminal/AgentLauncher";
 
-// Fork: escolher a branch ao abrir o agente. Outra branch roda numa worktree própria.
+// Escolher a branch ao abrir o agente. Outra branch roda numa worktree própria.
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 describe("AgentLauncher — branch", () => {

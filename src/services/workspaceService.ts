@@ -1,5 +1,5 @@
 import type { WorkspaceCollection, WorkspaceState } from "../types/workspace";
-// Fork: leitura tolerante (conserta em vez de descartar) e backup do JSON cru antes de mexer.
+// Leitura tolerante (conserta em vez de descartar) e backup do JSON cru antes de mexer.
 import {
   consertarColecao,
   consertarWorkspace,
@@ -12,14 +12,14 @@ import {
 import { guardarBackup, registrarEventoDoWorkspace } from "./backupDoWorkspace";
 
 export const WORKSPACE_STORAGE_KEY = "omni-agents-workspace";
-// Fork: a lista de kinds mora em `consertarWorkspace.ts` (fonte única tipada por `PaneKind`).
+// A lista de kinds mora em `consertarWorkspace.ts` (fonte única tipada por `PaneKind`).
 export { PANE_KINDS } from "./consertarWorkspace";
 
 export function emptyWorkspace(): WorkspaceState {
   return workspaceVazio();
 }
 
-/** Fork: lê o JSON cru; `undefined` = chave ausente, `{ ilegivel }` = texto que não é JSON. */
+/** Lê o JSON cru; `undefined` = chave ausente, `{ ilegivel }` = texto que não é JSON. */
 function lerBruto(chave: string): { bruto: string; valor: unknown; ilegivel: boolean } | undefined {
   let bruto: string | null;
   try {
@@ -35,7 +35,7 @@ function lerBruto(chave: string): { bruto: string; valor: unknown; ilegivel: boo
   }
 }
 
-/** Fork: antes de qualquer descarte ou conserto, guarda o original e registra só as contagens. */
+/** Antes de qualquer descarte ou conserto, guarda o original e registra só as contagens. */
 function avisarConserto(chave: string, bruto: string, relatorio: RelatorioDoConserto | null): void {
   if (!relatorio) {
     guardarBackup(chave, bruto, "ilegivel");
@@ -80,7 +80,7 @@ function migrateLegacyWorkspace(): WorkspaceCollection {
 export function loadWorkspaces(): WorkspaceCollection {
   const lido = lerBruto(WORKSPACES_STORAGE_KEY);
   if (lido) {
-    // Fork: cada nível conserta o que dá (`consertarColecao`); só sem lista de workspaces nenhuma
+    // Cada nível conserta o que dá (`consertarColecao`); só sem lista de workspaces nenhuma
     // é que cai na chave legada — e aí o original já ficou guardado no backup.
     const relatorio = relatorioVazio();
     const colecao = lido.ilegivel ? null : consertarColecao(lido.valor, relatorio);

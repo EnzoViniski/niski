@@ -1,4 +1,4 @@
-/* Fork: anima top sem transform, preservando as gavetas position: fixed da TitleBar.
+/* Anima top sem transform, preservando as gavetas position: fixed da TitleBar.
    O nativo fornece a curva/duração do próprio AppKit; amostras intermediárias usam duração zero. */
 html.medza-tela-cheia .titlebar-mac,
 html.medza-tela-cheia .gaveta-uso,

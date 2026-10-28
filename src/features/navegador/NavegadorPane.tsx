@@ -5,7 +5,7 @@ import { TAB_DRAG_EVENT, type TabDragState } from "../workspace/tabPointerDrag";
 import { marcarDesenhada } from "./registroDoNavegador";
 
 /**
- * Fork: aba "Navegador". A página é um webview nativo filho da janela (`src-tauri/src/navegador.rs`),
+ * Aba "Navegador". A página é um webview nativo filho da janela (`src-tauri/src/navegador.rs`),
  * desenhado por cima do retângulo `area` deste componente. Aqui só ficam a barra (voltar, avançar,
  * recarregar, endereço, abrir fora) e a sincronia de posição:
  *
@@ -35,7 +35,7 @@ export function NavegadorPane({ tab, onTitulo }: { tab: WorkspaceTab; onTitulo?:
 
   useEffect(() => {
     if (!NO_PC) return;
-    // Fork: a conferência do `useLinksEmAba` só deixa à vista a página de quem está montado.
+    // A conferência do `useLinksEmAba` só deixa à vista a página de quem está montado.
     const desmarcar = marcarDesenhada(rotulo);
     let vivo = true;
     let aberto = false;
@@ -43,7 +43,7 @@ export function NavegadorPane({ tab, onTitulo }: { tab: WorkspaceTab; onTitulo?:
     let ultimo = "";
     const sincronizar = () => {
       const caixa = area.current?.getBoundingClientRect();
-      // Fork: área escondida por CSS (`visibility`/`display` de quem está em volta) também tira a página da tela.
+      // Área escondida por CSS (`visibility`/`display` de quem está em volta) também tira a página da tela.
       const aVista = !area.current?.checkVisibility || area.current.checkVisibility({ visibilityProperty: true });
       const visivel = Boolean(caixa && caixa.width > 4 && caixa.height > 4 && aVista && !arrastando && !document.body.classList.contains("lateral-arrastando"));
       const chave = caixa ? `${visivel}|${Math.round(caixa.left)}|${Math.round(caixa.top)}|${Math.round(caixa.width)}|${Math.round(caixa.height)}` : "oculto";

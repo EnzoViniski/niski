@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { Select } from "../components/ui/Select";
 
-// Fork: a lista do Select sai do painel (portal no body, posição fixa) — antes era cortada pelo
+// A lista do Select sai do painel (portal no body, posição fixa) — antes era cortada pelo
 // `overflow` do painel e o seletor de modelo/esforço do chat sumia atrás do painel de baixo.
 describe("Select dentro de painel com overflow", () => {
   it("abre a lista no body, presa ao botão, e para cima quando falta espaço embaixo", () => {

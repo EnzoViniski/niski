@@ -1,5 +1,5 @@
 export type PaneKind =
-  // Fork: conversa arquivada, sem criar PTY ao abrir pela paleta.
+  // Conversa arquivada, sem criar PTY ao abrir pela paleta.
   | "conversa-historica"
   | "agent"
   | "terminal"
@@ -7,15 +7,15 @@ export type PaneKind =
   | "file"
   | "markdown"
   | "git-diff"
-  /** Fork: revisão do projeto/worktree da sessão em resourceId. */
+  /** Revisão do projeto/worktree da sessão em resourceId. */
   | "revisao"
   | "git-graph"
   | "kanban"
   | "logs"
   | "docker-logs"
-  /** Fork: página da web aberta de um link (`features/navegador`). `resourceId` = endereço. */
+  /** Página da web aberta de um link (`features/navegador`). `resourceId` = endereço. */
   | "web"
-  /** Fork: fluxo ao vivo de uma conversa orquestradora (`features/orquestracao`). `resourceId` = id da conversa. */
+  /** Fluxo ao vivo de uma conversa orquestradora (`features/orquestracao`). `resourceId` = id da conversa. */
   | "orquestracao";
 
 export interface WorkspaceTab {
@@ -26,10 +26,10 @@ export interface WorkspaceTab {
   /** CLI que roda nesta aba (`claude`, `codex`, `cursor`). Só existe em aba de agente e é o que
    *  troca o ícone da aba pela marca do provider. */
   provider?: string;
-  /** Fork: projeto da aba quando não é o dono do layout (agente novo aberto pelo "+" num painel que
+  /** Projeto da aba quando não é o dono do layout (agente novo aberto pelo "+" num painel que
    *  mostra conversa de outro projeto). Ausente = projeto do layout. */
   projectId?: string;
-  /** Fork: marca antiga do "+" da pasta, preservada ao ler estado salvo. Desde 0.9.2 o lançador
+  /** Marca antiga do "+" da pasta, preservada ao ler estado salvo. Desde 0.9.2 o lançador
    *  sempre aguarda a escolha, inclusive quando esta marca estiver presente. */
   iniciarDireto?: boolean;
 }
@@ -89,7 +89,7 @@ export type WorkspaceAction =
   | { type: "FOCUS_PANE"; paneId: string }
   | { type: "SELECT_TAB"; paneId: string; tabId: string }
   | { type: "CREATE_TAB"; paneId: string; kind?: PaneKind; title?: string; resourceId?: string; projectId?: string; iniciarDireto?: boolean }
-  /** Fork: "+" da pasta — conversa nova do projeto num painel próprio (`abrirEmPainelProprio.ts`). */
+  /** "+" da pasta — conversa nova do projeto num painel próprio (`abrirEmPainelProprio.ts`). */
   | { type: "NEW_CONVERSATION_OWN_PANE"; projectId: string }
   | { type: "BIND_TAB_RESOURCE"; paneId: string; tabId: string; resourceId: string; title?: string; provider?: string }
   | { type: "ATTACH_TERMINAL"; sessionId: string; title: string }
@@ -118,12 +118,12 @@ export type WorkspaceAction =
     }
   | { type: "SWAP_PANE"; sourcePaneId: string; targetPaneId: string }
   | { type: "APPLY_LAYOUT_PRESET"; preset: LayoutPreset }
-  /** Fork: conversa arrastada da lateral para um painel (`features/workspace/colocarConversa.ts`). */
-  /** Fork: link clicado abre numa aba de navegador ao lado (`features/workspace/abrirLink.ts`). */
+  /** Conversa arrastada da lateral para um painel (`features/workspace/colocarConversa.ts`). */
+  /** Link clicado abre numa aba de navegador ao lado (`features/workspace/abrirLink.ts`). */
   | { type: "ABRIR_LINK"; url: string; title: string; paneId?: string }
-  /** Fork: fluxo do orquestrador numa aba ao lado (`features/orquestracao/abrirFluxo.ts`). */
+  /** Fluxo do orquestrador numa aba ao lado (`features/orquestracao/abrirFluxo.ts`). */
   | { type: "ABRIR_FLUXO"; orquestrador: string; title: string; paneId?: string }
-  /** Fork: revisão ao lado do agente de origem. */
+  /** Revisão ao lado do agente de origem. */
   | { type: "ABRIR_REVISAO"; sessionId: string; paneId: string; projectId?: string }
   | { type: "PLACE_SESSION"; sessionId: string; title: string; targetPaneId: string; zone: "center" | "left" | "right" | "top" | "bottom" };
 
@@ -131,7 +131,7 @@ export type WorkspaceAction =
  * `workspaceReducer.ts` monta a árvore de splits correspondente a partir das panes atuais. */
 export type LayoutPreset = "columns-2" | "rows-2" | "grid-2x2" | "main-plus-side";
 
-/** Fork: projeto que volta ao workspace com as abas das sessões dele (sessões órfãs ou conversas
+/** Projeto que volta ao workspace com as abas das sessões dele (sessões órfãs ou conversas
  *  recentes, `features/workspace/recuperarWorkspace.ts`). `id` = o `project_id` das sessões, para a
  *  lateral reencontrá-las. */
 export interface ProjetoParaAdotar {
@@ -141,14 +141,14 @@ export interface ProjetoParaAdotar {
 }
 
 export type WorkspacesAction =
-  /** Fork: navega para uma aba aberta de qualquer projeto/workspace, inclusive sem sessão. */
+  /** Navega para uma aba aberta de qualquer projeto/workspace, inclusive sem sessão. */
   | { type: "FOCUS_OPEN_TAB"; destino: import("../features/projects/telasAbertas").DestinoDaTela }
-  /** Fork: marca/nome vivos persistidos em todas as abas, inclusive fora do workspace ativo. */
+  /** Marca/nome vivos persistidos em todas as abas, inclusive fora do workspace ativo. */
   | { type: "SYNC_SESSION_IDENTITIES"; sessions: import("../features/workspace/identidadeDasAbas").IdentidadeDaSessao[] }
   | { type: "ADD_WORKSPACE"; name?: string }
-  /** Fork: volta um backup inteiro do workspace (`features/workspace/RecuperacaoDoWorkspace.tsx`). */
+  /** Volta um backup inteiro do workspace (`features/workspace/RecuperacaoDoWorkspace.tsx`). */
   | { type: "RESTAURAR_COLECAO"; colecao: WorkspaceCollection }
-  /** Fork: adiciona ao workspace ativo projetos de sessões órfãs ou de conversas recentes. */
+  /** Adiciona ao workspace ativo projetos de sessões órfãs ou de conversas recentes. */
   | { type: "ADOTAR_PROJETOS"; projetos: ProjetoParaAdotar[] }
   | { type: "SELECT_WORKSPACE"; workspaceId: string }
   | { type: "CLOSE_WORKSPACE"; workspaceId: string }
@@ -158,7 +158,7 @@ export type WorkspacesAction =
    *  roteadas só pro workspace ativo (`workspacesReducer`), que é exatamente o que impede
    *  alcançar um agente de outro workspace. */
   | { type: "FOCUS_SESSION"; workspaceId: string; projectId: string; sessionId: string; title: string }
-  /** Fork: clique na lateral — como FOCUS_SESSION, mas conversa que não está na tela ganha painel
+  /** Clique na lateral — como FOCUS_SESSION, mas conversa que não está na tela ganha painel
    *  próprio ao lado do ativo (`abrirEmPainelProprio.ts`). */
   | { type: "OPEN_SESSION_OWN_PANE"; workspaceId: string; projectId: string; sessionId: string; title: string }
   | WorkspaceAction;

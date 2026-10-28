@@ -54,7 +54,7 @@ export function GitPanel({ projectPath, onOpenDiff, onOpenGraph }: GitPanelProps
   useEffect(() => {
     refresh();
     // Projeto remoto: cada leitura é um `wsl`/`ssh`, então o ritmo cai.
-    // Fork: janela oculta (minimizada/coberta) não roda `git status`; o `focus` abaixo relê ao voltar.
+    // Janela oculta (minimizada/coberta) não roda `git status`; o `focus` abaixo relê ao voltar.
     const timer = window.setInterval(() => { if (!document.hidden) refresh(true); }, isRemoteProject(projectPath) ? 10_000 : 3_000);
     const onFocus = () => refresh(true, true); // Fork (desempenho): voltar à janela lê na hora.
     window.addEventListener("focus", onFocus);

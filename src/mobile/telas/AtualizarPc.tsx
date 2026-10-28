@@ -1,4 +1,4 @@
-// Fork: "Atualizar o PC" pelo celular. O PC confere o pedido em até ~15 s e faz o mesmo que o botão
+// "Atualizar o PC" pelo celular. O PC confere o pedido em até ~15 s e faz o mesmo que o botão
 // "Atualizar agora" da barra; quando o engine novo sobe, esta página volta sozinha com a versão nova.
 import { useState } from "react";
 import { request } from "../api";

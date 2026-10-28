@@ -1,4 +1,4 @@
-/* Fork: fluxo ao vivo do orquestrador (`FluxoAoVivo.tsx`). Os nós usam o visual `fx-no` dos Fluxos. */
+/* Fluxo ao vivo do orquestrador (`FluxoAoVivo.tsx`). Os nós usam o visual `fx-no` dos Fluxos. */
 
 .orq-fluxo { display: flex; flex-direction: column; height: 100%; min-height: 0; background: rgb(var(--c-bg-surface)); }
 .orq-topo { display: flex; align-items: center; gap: .5rem; min-height: 2.5rem; padding: .375rem .75rem; border-bottom: 2px solid rgb(var(--c-border-subtle)); background: rgb(var(--c-bg-elevated) / .55); flex-shrink: 0; font-size: .6875rem; }

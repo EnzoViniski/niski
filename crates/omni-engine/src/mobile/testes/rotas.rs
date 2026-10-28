@@ -1,4 +1,4 @@
-//! Testes do protocolo local (`local`), do base64 e da tabela de rotas. Fork: saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
+//! Testes do protocolo local (`local`), do base64 e da tabela de rotas. Saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
 use super::*;
 
 /// `/painel` junta lista e catálogo; com o `ETag` de volta e nada mudado, responde 304 sem corpo.

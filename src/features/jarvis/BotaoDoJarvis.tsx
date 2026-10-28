@@ -1,9 +1,9 @@
-// Fork: Jarvis. Botão na barra do topo, ao lado de Layouts: abre e fecha a janela flutuante (o mesmo
+// Jarvis. Botão na barra do topo, ao lado de Layouts: abre e fecha a janela flutuante (o mesmo
 // que ⌃⌥J). Fica aceso enquanto o Jarvis está aberto.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
-// Fork: a janela flutuante pede para abrir a equipe no layout principal.
+// A janela flutuante pede para abrir a equipe no layout principal.
 import { pedirAbrirFluxo } from "../orquestracao/abrirFluxo";
 
 export function BotaoDoJarvis() {

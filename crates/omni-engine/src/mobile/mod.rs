@@ -11,19 +11,19 @@ use std::{
 use tokio::sync::Notify;
 
 
-// Fork: orquestrador de agentes (servidor MCP + rotas do fluxo). Filho deste módulo para chamar as
+// Orquestrador de agentes (servidor MCP + rotas do fluxo). Filho deste módulo para chamar as
 // rotas e planos daqui (spawn, fila, timeline) sem torná-los públicos.
 pub(crate) mod orquestracao;
-// Fork: busca do histórico em módulo isolado, com prazo e limites.
+// Busca do histórico em módulo isolado, com prazo e limites.
 mod busca_historico;
-// Fork: teto de sessões ativas (agentes e terminais rodando comando), configurável. Sem ele, um toque
+// Teto de sessões ativas (agentes e terminais rodando comando), configurável. Sem ele, um toque
 // repetido no botão do celular enche o PC de PTYs.
 pub(crate) mod limite_de_sessoes;
-// Fork: caixa única de atividade do engine, compartilhada por PC e celular.
+// Caixa única de atividade do engine, compartilhada por PC e celular.
 #[path = "../atividade.rs"]
 mod caixa_de_atividade;
 #[path = "../agendamentos.rs"]
-mod agendamentos; // Fork: executor e rotas de agendamentos.
+mod agendamentos; // Executor e rotas de agendamentos.
 // Fork (3B): fila de contas (`routing.json`, escolha com explicação, queda só sem tela).
 #[path = "../roteamento.rs"]
 pub(crate) mod roteamento;
@@ -42,7 +42,7 @@ mod extensoes_rotas;
 use extensoes_rotas::*;
 mod contas;
 use contas::*;
-mod atualizar_pc; // Fork: "Atualizar o PC" pelo celular.
+mod atualizar_pc; // "Atualizar o PC" pelo celular.
 mod anexos;
 use anexos::*;
 mod terminais;
@@ -62,20 +62,20 @@ mod retomada_rotas;
 mod memoria_rotas;
 mod sobre_mim_rotas; // Fork (Sobre mim): áreas, ajustes e sugestões dos agentes.
 mod roadmaps_rotas; // Fork (Roadmaps de estudo): os mesmos arquivos do app, para o celular.
-// Fork: comandos oficiais e modo de permissão da Conversa (frente 2C).
+// Comandos oficiais e modo de permissão da Conversa (frente 2C).
 mod comandos;
-mod modo_codex; // Fork: aprovação/sandbox do Codex pelo seletor da Conversa.
-mod video_rota; // Fork: vídeo do agente em pedaços, por bilhete.
-mod tarefas_rotas; // Fork: as tarefas do PC no celular.
-mod barra; // Fork: lista e envio do `/` no campo da Conversa.
+mod modo_codex; // Aprovação/sandbox do Codex pelo seletor da Conversa.
+mod video_rota; // Vídeo do agente em pedaços, por bilhete.
+mod tarefas_rotas; // As tarefas do PC no celular.
+mod barra; // Lista e envio do `/` no campo da Conversa.
 mod fila;
 use fila::*;
 // Fork (Onda 2): "Responder no terminal" e os ajustes dos ganchos do Claude.
 mod ganchos_rotas;
-mod codex_rotas; // Fork: Codex app-server, opção por agente.
+mod codex_rotas; // Codex app-server, opção por agente.
 // Fork (trocar agente): "Continuar com…" outro agente na mesma conversa (passagem de bastão).
 mod trocar_agente;
-mod telegram; // Fork: Bot API; avisos no engine mesmo com a janela fechada.
+mod telegram; // Bot API; avisos no engine mesmo com a janela fechada.
 mod google_agenda; // Fork (Google Agenda): compromissos do Google na Rotina.
 mod rotina_rotas; // Fork (Rotina): dados da rotina e o relógio dos lembretes.
 mod resumo_rota; // Fork (desempenho): só o resumo da conversa, para a faixa da aba de agente.
@@ -111,7 +111,7 @@ pub struct MobileRuntime {
     codex_descoberto_em: Mutex<u64>,
     /// Arquivos de cada pasta de projeto para o `@` do composer: (lido em, lista). Ver `arquivos_da_conversa`.
     arquivos: Mutex<HashMap<String, (u64, Arc<Vec<String>>)>>,
-    /// Fork: tokens e pendências do orquestrador, só em memória (`orquestracao.rs`).
+    /// Tokens e pendências do orquestrador, só em memória (`orquestracao.rs`).
     orquestracao: orquestracao::Runtime,
     atividade: Mutex<caixa_de_atividade::Registro>,
     telegram: telegram::Runtime,
@@ -150,9 +150,9 @@ impl MobileRuntime {
 }
 
 pub fn start(state: Arc<EngineState>) {
-    agendamentos::iniciar(state.clone()); // Fork: continua com a janela fechada.
-    caixa_de_atividade::iniciar(state.clone()); // Fork: observa mesmo sem clientes conectados.
-    telegram::iniciar(state.clone()); // Fork: mensagens só quando o usuário conecta seu bot.
+    agendamentos::iniciar(state.clone()); // Continua com a janela fechada.
+    caixa_de_atividade::iniciar(state.clone()); // Observa mesmo sem clientes conectados.
+    telegram::iniciar(state.clone()); // Mensagens só quando o usuário conecta seu bot.
     rotina_rotas::iniciar(state.clone()); // Fork (Rotina): lembretes com a janela fechada.
     telegram::rotina::iniciar(state.clone()); // Fork (Rotina): só age com o bot da rotina conectado.
     google_agenda::iniciar(state.clone()); // Fork (Google Agenda): só busca com a conta conectada.
@@ -233,9 +233,9 @@ pub fn start(state: Arc<EngineState>) {
 /// ao servidor HTTP (`router`) e ao desktop (`local`).
 fn rotas() -> Router<Arc<EngineState>> {
     Router::new().route("/conversas",get(conversations))
-        .merge(agendamentos::rotas()) // Fork: agendamentos (3D).
-        .merge(caixa_de_atividade::rotas()) // Fork: atividade e vistos, mesma API nos dois transportes.
-        .merge(telegram::rotas()) // Fork: configuração pelo desktop e pelo celular pareado.
+        .merge(agendamentos::rotas()) // Agendamentos (3D).
+        .merge(caixa_de_atividade::rotas()) // Atividade e vistos, mesma API nos dois transportes.
+        .merge(telegram::rotas()) // Configuração pelo desktop e pelo celular pareado.
         .merge(rotina_rotas::rotas()) // Fork (Rotina): plano, treino, alimentação e lembretes.
         .merge(telegram::rotina::rotas()) // Fork (Rotina): bot da rotina, desktop e celular pareado.
         .merge(google_agenda::rotas()) // Fork (Google Agenda): conectar só pelo desktop.
@@ -244,7 +244,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/conversas/{id}/timeline",get(timeline))
         .route("/conversas/{id}/terminal",get(terminal))
         .route("/conversas/{id}/imagens/{n}/{k}",get(imagem_da_mensagem))
-        // Fork: documento que o agente gerou (PDF, planilha…), para o celular baixar.
+        // Documento que o agente gerou (PDF, planilha…), para o celular baixar.
         .route("/conversas/{id}/arquivos/{n}/{k}",get(arquivo_da_mensagem))
         .route("/conversas/{id}/teclas",post(teclas))
         .route("/conversas/{id}/destravar",post(destravar_rota))
@@ -260,8 +260,8 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/fluxos/execucoes/{id}/nos/{no}/aprovar",post(fluxos_aprovar))
         .route("/fluxos/execucoes/{id}/nos/{no}/conversa",post(fluxos_conversa))
         .route("/conversas/{id}/bifurcar",post(bifurcar_rota))
-        .merge(comandos::rotas()) // Fork: /comando e os quatro modos oficiais (2C).
-        .merge(barra::rotas()) // Fork: `/` no campo — skills e comandos da conversa.
+        .merge(comandos::rotas()) // /comando e os quatro modos oficiais (2C).
+        .merge(barra::rotas()) // `/` no campo — skills e comandos da conversa.
         .route("/conversas/{id}/opcoes",get(opcoes))
         .route("/conversas/{id}/ajustes",post(ajustar))
         .route("/conversas/{id}/retomar",post(retomar_rota))
@@ -269,7 +269,7 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/contas/{id}/uso",post(atualizar_uso))
         .route("/pc/atualizar",post(atualizar_pc::pedir_atualizacao))
         .route("/historico/levar",post(levar_do_historico))
-        .route("/historico/buscar",post(busca_historico::rota)) // Fork: busca textual limitada.
+        .route("/historico/buscar",post(busca_historico::rota)) // Busca textual limitada.
         .route("/extensoes",get(extensoes))
         .route("/extensoes/compartilhar",post(compartilhar_extensoes))
         .route("/extensoes/principal",post(definir_principal))
@@ -284,21 +284,21 @@ fn rotas() -> Router<Arc<EngineState>> {
         .route("/atencao",get(attention))
         .route("/sessoes",post(create_session))
         .route("/parear",post(parear))
-        // Fork: fluxo do orquestrador (`orquestracao.rs`).
+        // Fluxo do orquestrador (`orquestracao.rs`).
         .merge(orquestracao::rotas())
-        .merge(orquestracao::revisao_por_agente::rotas()) // Fork: revisão em agente separado (3C).
-        // Fork: modo com que o app abre o Antigravity (`antigravity_permissoes.rs`).
+        .merge(orquestracao::revisao_por_agente::rotas()) // Revisão em agente separado (3C).
+        // Modo com que o app abre o Antigravity (`antigravity_permissoes.rs`).
         .merge(crate::antigravity_permissoes::rotas())
         .merge(ganchos_rotas::rotas()) // Fork (Onda 2): ganchos do Claude.
         .merge(roteamento::rotas()) // Fork (3B): fila de contas.
-        .merge(codex_rotas::rotas()) // Fork: 3A.
+        .merge(codex_rotas::rotas()) // 3A.
         .merge(retomada_rotas::rotas()) // Fork (retomar-sempre).
         .merge(trocar_agente::rotas()) // Fork (trocar agente).
         .merge(memoria_rotas::rotas())
         .merge(sobre_mim_rotas::rotas()) // Fork (Sobre mim).
         .merge(roadmaps_rotas::rotas()) // Fork (Roadmaps).
-        .merge(video_rota::rotas()) // Fork: vídeo do agente tocando na conversa do celular.
-        .merge(tarefas_rotas::rotas()) // Fork: Tarefas no celular.
+        .merge(video_rota::rotas()) // Vídeo do agente tocando na conversa do celular.
+        .merge(tarefas_rotas::rotas()) // Tarefas no celular.
         .merge(resumo_rota::rotas()) // Fork (desempenho).
         .merge(harness_rota::rotas()) // Fork (harness, A6).
         .merge(troca_no_limite::rotas()) // Fork (harness, A4).
@@ -330,7 +330,7 @@ pub async fn local(state: Arc<EngineState>, method: &str, path: &str, body: Opti
         request = request.header("content-type","application/json");
     }
     for (nome, valor) in &headers { request = request.header(nome.as_str(), valor.as_str()); }
-    // Fork: capacidade em memória do IPC; o HTTP do celular nunca recebe esta extensão.
+    // Capacidade em memória do IPC; o HTTP do celular nunca recebe esta extensão.
     let request = request.extension(orquestracao::jarvis::Desktop).body(corpo);
     let Ok(request) = request else {
         return EngineResponse::Error { code: "INVALID_REQUEST".into(), message: format!("requisição inválida: {method} {path}") };

@@ -1,4 +1,4 @@
-// Fork: conta, modelo e voz do Jarvis em um painel compacto da própria janela.
+// Conta, modelo e voz do Jarvis em um painel compacto da própria janela.
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState, type FormEvent } from "react";
 

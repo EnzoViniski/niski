@@ -1,4 +1,4 @@
-//! Fork: o que aparece quando o usuário digita `/` no campo da Conversa — comandos que o chat sabe
+//! O que aparece quando o usuário digita `/` no campo da Conversa — comandos que o chat sabe
 //! rodar, skills e comandos personalizados da conta e do projeto.
 //!
 //! Só leitura de disco (nome e descrição do frontmatter); nada daqui é executado. Como cada CLI

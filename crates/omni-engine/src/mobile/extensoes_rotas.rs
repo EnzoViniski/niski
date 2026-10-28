@@ -1,5 +1,5 @@
 //! Rotas da aba Extensões: MCPs/plugins por conta, compartilhar e conta principal.
-//! Fork: saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
+//! Saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
 use super::*;
 
 /// MCPs, plugins e conectores por IA e conta (a aba Extensões, na web). Já vem sem segredos (ver

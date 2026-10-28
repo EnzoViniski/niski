@@ -3,7 +3,7 @@ import { request, type Conversation } from "../../mobile/api";
 import { energiaPausada } from "../../lib/energia";
 
 /**
- * Fork: orquestrador de agentes. Uma conversa vira orquestradora pelo botão "Tornar orquestradora":
+ * Orquestrador de agentes. Uma conversa vira orquestradora pelo botão "Tornar orquestradora":
  * o engine reabre a CLI com um servidor MCP só daquela sessão (`crates/omni-engine/src/orquestracao.rs`)
  * e ela passa a criar e comandar subagentes. Aqui ficam as rotas que a tela usa (pelo protocolo local
  * do engine, como o chat) e o resumo compartilhado pela faixa da conversa e pela lateral.

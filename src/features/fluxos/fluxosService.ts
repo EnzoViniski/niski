@@ -37,7 +37,7 @@ export interface ItemDoHistorico { kind: "text" | "tool" | "command" | "notice";
 
 /** Saídas de cada tipo, na ordem em que aparecem no nó ("" = a saída normal). */
 export const SAIDAS: Record<TipoDeNo, string[]> = {
-  objetivo: [""], repetir: ["corpo", "fim"], // Fork: blocos nativos/limitados.
+  objetivo: [""], repetir: ["corpo", "fim"], // Blocos nativos/limitados.
   entrada: [""], agente: [""], sala: [""], pr: [""], fim: [],
   condicao: ["sim", "nao", "esgotado"], aprovacao: ["sim", "nao"],
 };

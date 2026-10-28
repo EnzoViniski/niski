@@ -1,4 +1,4 @@
-/** Fork: nome e cor de cada plataforma de agente num lugar só. Antes eram oito mapas espalhados
+/** Nome e cor de cada plataforma de agente num lugar só. Antes eram oito mapas espalhados
  *  (celular, web, chat, uso das contas, skills, fluxo do orquestrador, cores), e metade deles sem o
  *  Antigravity ou sem o Cursor — o agente aparecia com o id cru ("antigravity") na tela. */
 

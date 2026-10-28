@@ -1,4 +1,4 @@
-// Fork: orbe de partículas. Transforma o símbolo do Niski em partículas: a silhueta vem da versão
+// Orbe de partículas. Transforma o símbolo do Niski em partículas: a silhueta vem da versão
 // preta chapada (`niski-simbolo-preto.png`, alfa), a cor de cada partícula vem do mesmo ponto da
 // versão com brilho (`niski-simbolo.png`). Mais partículas no contorno deixam a forma nítida mesmo
 // tremendo; uma poeira em volta reage à voz. Amostragem pura e determinística (semente fixa),

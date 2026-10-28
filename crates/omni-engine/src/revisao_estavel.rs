@@ -1,4 +1,4 @@
-//! Fork: o texto da tela que entra na "versão" (`Interaction::revision`, o `If-Match` do chat).
+//! O texto da tela que entra na "versão" (`Interaction::revision`, o `If-Match` do chat).
 //!
 //! A versão existe para nunca digitar ou aprovar numa tela que o usuário não viu (um diálogo novo, outro
 //! pedido). Mas o Codex 0.163 ocioso fica girando um indicador braille na linha de status

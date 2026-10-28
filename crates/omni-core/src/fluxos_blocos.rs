@@ -1,4 +1,4 @@
-//! Fork: Objetivo usa /goal nativo; Repetir controla um ramo que retorna ao controlador.
+//! Objetivo usa /goal nativo; Repetir controla um ramo que retorna ao controlador.
 use super::{Fluxo, No};
 
 pub fn validar_objetivo(no: &No) -> Result<(), String> {

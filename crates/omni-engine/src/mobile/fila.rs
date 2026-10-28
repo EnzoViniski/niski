@@ -1,5 +1,5 @@
 //! Fila de ações do chat (`Action`, `enqueue`, `execute`, `execute_checked`) e as rotas que entram nela: prompt, aprovar, escolher, modo, teclas e destravar.
-//! Fork: saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
+//! Saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
 use super::*;
 
 #[derive(Clone, Serialize)]
@@ -12,7 +12,7 @@ pub(super) struct Action {
 }
 #[derive(Clone, PartialEq)]
 pub(super) enum ActionKind { Prompt(String), Approval(bool), Spawn(SpawnPlan), Modo(String), Ajustes(Ajustes), Retomar(Retomada),
-    Comando(comandos::Pedido), // Fork: comandos oficiais da Conversa (frente 2C).
+    Comando(comandos::Pedido), // Comandos oficiais da Conversa (frente 2C).
     /// Mensagem mandada com o agente no meio de um turno: entra na fila da CLI.
     Fila(String),
     /// Resposta a um menu da CLI (`interaction::escolha`).
@@ -46,7 +46,7 @@ pub(super) async fn teclas(State(state): State<Arc<EngineState>>, RoutePath(id):
         Ok(Json(json!({"ok":true})))
     }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao enviar teclas"))?
 }
-/// Fork: deixa a conversa pronta para receber mensagem quando a tela não foi reconhecida ("Entrada não
+/// Deixa a conversa pronta para receber mensagem quando a tela não foi reconhecida ("Entrada não
 /// reconhecida"). Com o agente trabalhando ou perguntando algo, recusa (interromper mataria o turno).
 /// 1. Agente fora do ar no terminal: reabre a sessão (`--resume`, mesma conversa).
 /// 2. Senão, um Ctrl+C limpa o campo (rascunho digitado no terminal, menu perdido).
@@ -115,7 +115,7 @@ pub(super) async fn prompt(State(state): State<Arc<EngineState>>, RoutePath(id):
 pub(super) async fn approve(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<ApprovalBody>) -> Result<(StatusCode,Json<Value>),ApiError> {
     // Fork (perguntas na Conversa): opção do diálogo da tela; o pedido do gancho/app-server tem cartão próprio.
     if let (Some(n), None) = (body.opcao, body.pedido.as_ref()) { return enqueue_async(state,id,headers,ActionKind::OpcaoDaPermissao(n)).await; }
-    if let Some(r) = codex_rotas::aprovar(&state,&id,body.permitir,body.pedido.as_deref()).await { return r; } // Fork: 3A, mesma rota.
+    if let Some(r) = codex_rotas::aprovar(&state,&id,body.permitir,body.pedido.as_deref()).await { return r; } // 3A, mesma rota.
     // Fork (Onda 2): pedido segurado pelo gancho responde direto, sem tecla nem fila.
     if let Some(resposta) = ganchos_rotas::responder_pelo_gancho(&state,&id,body.permitir,body.pedido.clone(),body.mensagem.clone()).await { return resposta; }
     enqueue_async(state,id,headers,ActionKind::Approval(body.permitir)).await
@@ -172,7 +172,7 @@ pub(super) fn enqueue(state:&Arc<EngineState>,id:&str,headers:&HeaderMap,kind:Ac
         // reconhecida). Com o agente no meio de um turno, o shift+tab não é para ele.
         // Reabrir no meio de um turno mataria o trabalho em andamento.
         ActionKind::Prompt(_) | ActionKind::Modo(_) | ActionKind::Ajustes(_) => capability.prompt,
-        ActionKind::Comando(_) => capability.prompt, // Fork: comandos oficiais (frente 2C).
+        ActionKind::Comando(_) => capability.prompt, // Comandos oficiais (frente 2C).
         // Fila vale com o agente parado (vira um prompt comum) ou trabalhando com o campo livre.
         ActionKind::Fila(_) => capability.prompt || capability.enfileirar,
         ActionKind::Approval(_) => capability.approve,
@@ -188,7 +188,7 @@ pub(super) fn enqueue(state:&Arc<EngineState>,id:&str,headers:&HeaderMap,kind:Ac
     // Fila não confere a versão da tela: com o agente trabalhando ela muda a cada quadro do spinner,
     // e a trava recusaria quase todo envio. O que protege a fila é o campo vazio, conferido de novo
     // na execução — colar no meio de um rascunho continua impossível.
-    // Fork: mensagem nova e trocar conta/modelo/esforço ou modo não respondem a nenhum diálogo — vão para um estado
+    // Mensagem nova e trocar conta/modelo/esforço ou modo não respondem a nenhum diálogo — vão para um estado
     // absoluto e só passa com o agente parado e o campo livre (`capability.prompt`, logo acima). A versão
     // da tela vinda da faixa do terminal tem até 3 s e caía em 412 com qualquer redesenho.
     let sem_versao = match &kind { ActionKind::Fila(_) | ActionKind::Ajustes(_) | ActionKind::Modo(_) => true, ActionKind::Prompt(texto) => mensagem_comum(texto), _ => false };
@@ -214,12 +214,12 @@ pub(super) fn execute(state:&Arc<EngineState>, action:&Action) -> Result<()> {
         }
         ActionKind::Ajustes(ajustes) => reabrir_com(state,&action.conversation_id,ajustes),
         ActionKind::Retomar(plano) => retomar(state,action,plano),
-        ActionKind::Comando(pedido) => comandos::executar(state,action,pedido), // Fork: frente 2C.
+        ActionKind::Comando(pedido) => comandos::executar(state,action,pedido), // Frente 2C.
         _ => execute_checked(state,action,interaction::provider_running),
     }
 }
 
-/// Fork: mensagem do usuário, não comando da CLI (`/fast`, `/compact`… vêm da lista fechada e seguem presos
+/// Mensagem do usuário, não comando da CLI (`/fast`, `/compact`… vêm da lista fechada e seguem presos
 /// à versão da tela). A rota de prompt já recusa texto começando com `/`.
 fn mensagem_comum(texto: &str) -> bool { !texto.trim_start().starts_with('/') }
 
@@ -227,12 +227,12 @@ pub(super) fn execute_checked(state:&Arc<EngineState>, action:&Action, is_runnin
     if now_ms().saturating_sub(action.created_at_ms) >= 60_000 { return Err(anyhow!("Ação expirada")); }
     let (_,current_session) = current(state,&action.conversation_id).map_err(|_|anyhow!("Conversa removida"))?;
     let session = current_session.ok_or_else(||anyhow!("Sessão encerrada"))?;
-    if let Some(r) = codex_rotas::executar(state,action,&session) { return r; } // Fork: 3A, turn/start ou turn/steer.
+    if let Some(r) = codex_rotas::executar(state,action,&session) { return r; } // 3A, turn/start ou turn/steer.
     // Hold the sessions registry through validation/write so close cannot replace this session.
     let sessions = state.sessions.lock().map_err(|_|anyhow!("sessions poisoned"))?;
     if !matches!(sessions.get(&action.session_id),Some(SessionEntry::Live(s)) if Arc::ptr_eq(s,&session)) { return Err(anyhow!("Sessão trocada")); }
     let mut context = session.interaction.lock().map_err(|_|anyhow!("screen poisoned"))?;
-    // Fork: mensagem nova (Prompt) também não exige a mesma versão da tela: o que a protege é o campo
+    // Mensagem nova (Prompt) também não exige a mesma versão da tela: o que a protege é o campo
     // vazio sem diálogo (`interaction::ready`, conferido logo abaixo). A CLI redesenha a linha de status
     // logo depois de abrir e o primeiro envio caía em "Contexto mudou". Aprovação e menu continuam presos à
     // tela exata que o usuário viu.

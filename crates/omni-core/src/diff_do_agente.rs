@@ -1,4 +1,4 @@
-//! Fork: o que o agente mudou num arquivo, como um mini-diff para a conversa.
+//! O que o agente mudou num arquivo, como um mini-diff para a conversa.
 //!
 //! Antes a ação de editar mostrava só o caminho ("Editou src/a.ts"); no terminal do PC e nos apps
 //! do Claude Code/Codex dá para ver as linhas. As fontes, todas do próprio transcript:

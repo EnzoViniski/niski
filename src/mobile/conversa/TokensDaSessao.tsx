@@ -1,4 +1,4 @@
-// Fork: total de tokens da conversa no topo da aba (pedido do Enzo, 21/10/2026). O engine soma o uso
+// Total de tokens da conversa no topo da aba (pedido do Enzo, 21/10/2026). O engine soma o uso
 // que a CLI grava (Claude: `usage` de cada resposta; Codex: o acumulado `token_count`) —
 // `omni-core/src/tokens_da_sessao.rs`. Entrada inclui o que veio do cache.
 export interface TokensDaSessao { total: number; entrada: number; cache: number; saida: number }

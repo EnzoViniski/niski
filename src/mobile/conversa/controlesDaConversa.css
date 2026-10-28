@@ -1,4 +1,4 @@
-/* Fork: controles compactos e terminal oficial sobre a Conversa. */
+/* Controles compactos e terminal oficial sobre a Conversa. */
 .conversa-controles { display: flex; align-items: center; gap: .25rem; position: relative; flex-wrap: wrap; }
 .conversa-controle-modo select { max-width: 10rem; padding: .35rem; font: inherit; font-size: .75rem; color: rgb(var(--c-text-primary)); background: rgb(var(--c-bg-surface)); border: 1px solid rgb(var(--c-outline)); }
 .conversa-controles-menu { position: absolute; right: 0; bottom: calc(100% + .5rem); z-index: 40; min-width: 12rem; display: flex; flex-direction: column; padding: .25rem; background: rgb(var(--c-bg-elevated)); border: 1px solid rgb(var(--c-outline)); box-shadow: 0 4px 16px rgb(0 0 0 / .3); }

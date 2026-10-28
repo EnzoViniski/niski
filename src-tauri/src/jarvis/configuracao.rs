@@ -1,4 +1,4 @@
-//! Fork: preferências sem segredos; histórico e anexos nunca são persistidos aqui.
+//! Preferências sem segredos; histórico e anexos nunca são persistidos aqui.
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 

@@ -1,6 +1,6 @@
 {
   "identifier": "jarvis",
-  "description": "Fork: janela flutuante do Jarvis (src-tauri/src/jarvis/janela.rs). Só o básico: eventos e arrastar.",
+  "description": "Janela flutuante do Jarvis (src-tauri/src/jarvis/janela.rs). Só o básico: eventos e arrastar.",
   "windows": [
     "jarvis"
   ],

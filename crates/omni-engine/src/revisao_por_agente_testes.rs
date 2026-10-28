@@ -143,7 +143,7 @@ printf 'Revisão falsa concluída\n'
         .status(),
         StatusCode::CONFLICT
     );
-    // Fork: com a suíte inteira em paralelo a CLI falsa demora mais que 2 s; espera os dois arquivos.
+    // Com a suíte inteira em paralelo a CLI falsa demora mais que 2 s; espera os dois arquivos.
     for _ in 0..500 {
         if perfil.join("sessions/rollout-falso.jsonl").exists() && dir.path().join("pasta").exists() {
             break;

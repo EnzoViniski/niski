@@ -1,4 +1,4 @@
-// Fork: regressões reais do + da pasta, marca após troca e fechamento de workspace.
+// Regressões reais do + da pasta, marca após troca e fechamento de workspace.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

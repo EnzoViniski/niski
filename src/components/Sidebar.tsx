@@ -1,6 +1,6 @@
-// Fork: navegação publicada na paleta, reaproveitando os callbacks da lateral.
-import { NaTela, type PainelNaTela } from "../features/projects/NaTela"; // Fork: conversas agrupadas por painel.
-import type { ContextoDaTela } from "../features/projects/telasAbertas"; // Fork: destino exato fora do projeto atual.
+// Navegação publicada na paleta, reaproveitando os callbacks da lateral.
+import { NaTela, type PainelNaTela } from "../features/projects/NaTela"; // Conversas agrupadas por painel.
+import type { ContextoDaTela } from "../features/projects/telasAbertas"; // Destino exato fora do projeto atual.
 import { useAcoesDaPaleta } from "../features/paleta/acoes";
 import {
   BookIcon,
@@ -25,8 +25,8 @@ import {
   SlidersIcon as Sliders,
   TerminalIcon,
 } from "./ui/PixelIcon";
-import { ContadorDeHoje } from "../features/tarefas/ContadorDeHoje"; // Fork: tarefas de hoje.
-import { SeloDaLeitura } from "../features/biblia/SeloDaLeitura"; // Fork: Bíblia do dia.
+import { ContadorDeHoje } from "../features/tarefas/ContadorDeHoje"; // Tarefas de hoje.
+import { SeloDaLeitura } from "../features/biblia/SeloDaLeitura"; // Bíblia do dia.
 import { abrirLeituraAgora } from "../features/biblia/useLeituraDoDia";
 import { destaqueDaLinha, EtiquetaDoStatus, IconeDoStatus, rotuloDoStatus, statusDaConversa } from "./ConversaStatus";
 import { conversationKey } from "../features/terminal/useAttention";
@@ -53,7 +53,7 @@ import { SkillsList } from "./SkillsList";
 import { PastasDeProjetos } from "../features/projects/PastasDeProjetos";
 import type { DropZone } from "../features/workspace/tabPointerDrag";
 import type { HistoryEntry } from "../features/history/historyService";
-// Fork: "agora", "5 min", "3 h", "2 d" — o mesmo da web e do celular (`lib/tempo.ts`).
+// "agora", "5 min", "3 h", "2 d" — o mesmo da web e do celular (`lib/tempo.ts`).
 import { haQuantoTempo } from "../lib/tempo";
 /* O mesmo arquivo que o Tauri usa como ícone do app (tauri.conf.json →
    bundle.icon). Importado em vez de copiado para src/assets: uma cópia
@@ -111,11 +111,11 @@ interface SidebarProps {
   agentSessions?: TerminalSession[];
   /** Sessão da aba em foco: a linha dela fica marcada na lista. */
   activeSessionId?: string | null;
-  /** Fork: conversas visíveis no layout agora (aba em foco de cada painel). */
+  /** Conversas visíveis no layout agora (aba em foco de cada painel). */
   sessoesNaTela?: string[];
-  /** Fork: todos os layouts abertos, com suas abas ("Na tela"). */
+  /** Todos os layouts abertos, com suas abas ("Na tela"). */
   paineisNaTela?: PainelNaTela[];
-  /** Fork: sessões de todos os layouts, incluindo terminais puros e tentativas ainda em abas. */
+  /** Sessões de todos os layouts, incluindo terminais puros e tentativas ainda em abas. */
   sessoesDasTelas?: TerminalSession[];
   onFocarAba?: (paneId: string, tabId: string, contexto?: ContextoDaTela) => void;
   showSettings: boolean;
@@ -123,10 +123,10 @@ interface SidebarProps {
   /** Tela de fluxos de agentes (editor estilo n8n e execuções). */
   showFluxos?: boolean;
   onOpenFluxos?: () => void;
-  /** Fork: Tarefas (Meu dia, quadro, semana). */
+  /** Tarefas (Meu dia, quadro, semana). */
   showTarefas?: boolean;
   onOpenTarefas?: () => void;
-  /** Fork: Roadmaps de estudo (abre onde parou). */
+  /** Roadmaps de estudo (abre onde parou). */
   /** Fork (Rotina): tela Rotina (semana, treino, alimentação). */
   showRotina?: boolean;
   onOpenRotina?: () => void;
@@ -135,7 +135,7 @@ interface SidebarProps {
   /** Fork (Caderno): o caderno mora dentro dos Roadmaps. */
   showCaderno?: boolean;
   onOpenCaderno?: () => void;
-  /** Fork: Edição de vídeo (abre o último vídeo). */
+  /** Edição de vídeo (abre o último vídeo). */
   showVideo?: boolean;
   onOpenVideo?: () => void;
   onOpenHistory: () => void;
@@ -144,12 +144,12 @@ interface SidebarProps {
   onAddProject: (path: string) => void;
   onSelectProject: (projectId: string) => void;
   onCloseProject: (projectId: string) => void;
-  /** Fork: "+" da pasta — conversa nova nesse projeto. */
+  /** "+" da pasta — conversa nova nesse projeto. */
   onNovaConversaNoProjeto?: (projectId: string) => void;
   onAttachTerminal: (sessionId: string, title: string) => void;
   /** Abre uma conversa de qualquer projeto (pasta) — seleciona o projeto e foca a aba dela. */
   onAbrirConversa?: (projectId: string, sessionId: string, title: string) => void;
-  /** Fork: conversa arrastada da lateral para um painel (centro abre ali, borda divide). */
+  /** Conversa arrastada da lateral para um painel (centro abre ali, borda divide). */
   onSoltarConversaNoLayout?: (sessionId: string, title: string, paneId: string, zone: DropZone) => void;
   /** Fork (histórico na lateral): retoma uma conversa anterior da pasta (`resumeHistory` do App). */
   onRetomarConversaAnterior?: (entry: HistoryEntry) => Promise<void> | void;
@@ -314,7 +314,7 @@ export function Sidebar({
           onRename={onRenameWorkspace}
         />
 
-        {/* Fork: todas as telas abertas, inclusive em outros workspaces/projetos. */}
+        {/* Todas as telas abertas, inclusive em outros workspaces/projetos. */}
         {onFocarAba && <NaTela paineis={paineisNaTela} sessoes={sessoesDasTelas} naoVistas={naoVistas} onFocar={onFocarAba} />}
 
         <div className="space-y-1">
@@ -329,7 +329,7 @@ export function Sidebar({
               <FolderPlus className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
-          {/* Fork: projetos como pastas que abrem e mostram as conversas (cor = agente). */}
+          {/* Projetos como pastas que abrem e mostram as conversas (cor = agente). */}
           <PastasDeProjetos
             projects={projects}
             activeProjectId={activeProjectId}
@@ -359,7 +359,7 @@ export function Sidebar({
           <TodoList {...todos} />
         </SidebarSection>
 
-        {/* Fork: sem CHATS — as conversas ficam dentro da pasta de cada projeto (PastasDeProjetos). */}
+        {/* Sem CHATS — as conversas ficam dentro da pasta de cada projeto (PastasDeProjetos). */}
         {SECTIONS.filter((section): section is (typeof SECTIONS)[number] => section !== "CHATS").map((section) => (
           <SidebarSection key={section} label={section} icon={SECTION_ICON[section]} disabled={!activeProjectId}
             contagem={section === "CHATS" || section === "TERMINALS"
@@ -672,7 +672,7 @@ function NavItem({
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
-  /** Fork: selo à direita (contador das tarefas de hoje). */
+  /** Selo à direita (contador das tarefas de hoje). */
   extra?: React.ReactNode;
 }) {
   const barRef = useRef<HTMLSpanElement>(null);

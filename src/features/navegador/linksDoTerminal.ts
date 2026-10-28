@@ -2,7 +2,7 @@ import type { IBufferCellPosition, ILink, ILinkHandler, ILinkProvider, Terminal 
 import { abrirLinkNoApp } from "./registroDoNavegador";
 
 /**
- * Fork: links no terminal abrem numa aba de navegador do app, como os da Conversa.
+ * Links no terminal abrem numa aba de navegador do app, como os da Conversa.
  *
  * - Link "de verdade" (OSC 8, o que o Claude Code e outras CLIs imprimem): o xterm, sem `linkHandler`,
  *   pedia `confirm()` e chamava `window.open()` — no app nenhum dos dois funciona, e o clique não fazia

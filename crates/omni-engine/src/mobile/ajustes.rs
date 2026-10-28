@@ -1,5 +1,5 @@
 //! Conta, modelo e esforço da conversa: opções, ajustes, retomada (`--resume`), `reabrir_com` e levar o transcript para outra conta.
-//! Fork: saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
+//! Saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
 use super::*;
 
 /// Uma conversa sem sessão aberta (do índice do OMNI ou só do histórico da CLI) e como reabri-la.
@@ -124,7 +124,7 @@ pub(super) fn opcoes_da_conversa(state: &EngineState, id: &str) -> Result<Value,
         _ => (None, None),
     };
     let modelos: Vec<Value> = match segmento.provider.as_str() {
-        // Fork: apelidos e versões fixas, cada um com os esforços que aceita (`omni_core::modelos_claude`).
+        // Apelidos e versões fixas, cada um com os esforços que aceita (`omni_core::modelos_claude`).
         "claude" => omni_core::modelos_claude::MODELOS.iter().map(|(id,label,esforcos)| json!({"id":id,"label":label,"efforts":esforcos})).collect(),
         "codex" => atual.map(|perfil| modelos_codex(Path::new(&perfil.config_dir))).unwrap_or_default(),
         "antigravity" => omni_core::antigravity::familias(&saida_agy).into_iter()
@@ -182,9 +182,9 @@ pub(super) fn comando_de_retomada(base: &str, provider: &str, sessao: &str, ajus
         // usa o texto cru — e aspas mudariam de sentido entre bash e PowerShell.
         comando += &if provider == "claude" { format!(" --effort {esforco}") } else { format!(" -c model_reasoning_effort={esforco}") };
     }
-    // Fork: modo confirmado por conversa, preservado na retomada sem mudar o padrão global.
+    // Modo confirmado por conversa, preservado na retomada sem mudar o padrão global.
     if provider == "claude" {
-        // Fork: valor só do Codex (conversa que trocou de agente) não é do Claude; o resto é conferido.
+        // Valor só do Codex (conversa que trocou de agente) não é do Claude; o resto é conferido.
         if let Some(modo) = modo.filter(|m| !omni_core::modo_do_codex::valido(m) || omni_core::comandos_oficiais::modo_valido(m)) {
             comando = comandos::com_modo(&comando,modo)?;
         }
@@ -312,7 +312,7 @@ pub(super) async fn retomar_rota(State(state): State<Arc<EngineState>>, RoutePat
         // Fork (retomar-sempre): conversa viva foca; processo que saiu ou aba que o engine anterior
         // deixou volta na mesma sessão. Antes: "Esta conversa já está aberta no PC".
         if let Some(resposta) = retomada_rotas::reabrir_se_ja_existe(&state, &id, &ajustes)? { return Ok(resposta); }
-        limite_de_sessoes::conferir(&state)?; // Fork: teto único e configurável.
+        limite_de_sessoes::conferir(&state)?; // Teto único e configurável.
         let plano = plano_de_retomada_em(&state,&id,ajustes,body.pasta.as_deref())?;
         let conversa = plano.conversation_id.clone();
         enqueue(&state,&conversa,&headers,ActionKind::Retomar(plano))

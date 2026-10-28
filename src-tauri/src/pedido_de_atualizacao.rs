@@ -1,4 +1,4 @@
-//! Fork: pedido de "Atualizar o PC" deixado pelo celular (`omni-engine/src/mobile/atualizar_pc.rs`).
+//! Pedido de "Atualizar o PC" deixado pelo celular (`omni-engine/src/mobile/atualizar_pc.rs`).
 //! A interface pergunta a cada poucos segundos (`src/lib/pedidoDeAtualizacao.ts`); o pedido é lido
 //! uma vez só (o arquivo some) e pedido velho não vale, para um pedido esquecido não reiniciar o app
 //! dias depois.

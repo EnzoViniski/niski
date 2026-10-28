@@ -1,4 +1,4 @@
-//! Fork: calendário puro. O fuso é injetado; o engine usa o fuso local do computador.
+//! Calendário puro. O fuso é injetado; o engine usa o fuso local do computador.
 use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 

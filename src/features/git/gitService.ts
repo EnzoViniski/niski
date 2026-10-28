@@ -90,7 +90,7 @@ export async function gitBranches(projectPath: string): Promise<GitBranch[]> {
 }
 
 /** `create`: cria a branch a partir da atual (`checkout -b`) em vez de trocar para uma existente. */
-/** Fork: pasta (worktree) onde um agente novo roda na `branch` sem trocar a da pasta do projeto. */
+/** Pasta (worktree) onde um agente novo roda na `branch` sem trocar a da pasta do projeto. */
 export async function gitWorktreeDaBranch(projectPath: string, branch: string, criar: boolean): Promise<string> {
   return invoke<string>("git_worktree_da_branch", { projectPath, branch, criar });
 }

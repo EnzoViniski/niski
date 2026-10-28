@@ -1,7 +1,7 @@
 import type { LayoutNode, PaneNode, WorkspaceAction, WorkspaceState } from "../../types/workspace";
 
 /**
- * Fork: link clicado no app (`ABRIR_LINK`) abre numa aba de navegador do layout, nunca na janela.
+ * Link clicado no app (`ABRIR_LINK`) abre numa aba de navegador do layout, nunca na janela.
  *
  * - Já existe painel com aba de navegador: a página nova entra nele, como outra aba.
  * - Senão, o painel de onde veio o clique (ou o ativo) se divide e o navegador fica **à direita**

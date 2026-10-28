@@ -8,7 +8,7 @@ import { TAB_DRAG_EVENT, type TabDragState } from "../features/workspace/tabPoin
 import { emptyWorkspace } from "../services/workspaceService";
 import type { LayoutNode, PaneNode, WorkspaceState } from "../types/workspace";
 
-// Fork: prévia do layout final, conversas de outro projeto no layout e a aba duplicada na mesma sessão.
+// Prévia do layout final, conversas de outro projeto no layout e a aba duplicada na mesma sessão.
 function panes(node: LayoutNode): PaneNode[] {
   return node.type === "pane" ? [node] : [...panes(node.first), ...panes(node.second)];
 }

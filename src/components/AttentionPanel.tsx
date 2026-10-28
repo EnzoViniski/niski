@@ -43,7 +43,7 @@ export function AttentionPanel({
     <div className="space-y-0.5">
       <div className="flex items-center justify-between gap-2 px-3 pt-1">
         <p className="text-text-muted text-[10px] font-medium uppercase tracking-wider">Atenção</p>
-        {/* Fork: dispensar todos de uma vez (cada um volta sozinho no próximo evento, como no X). */}
+        {/* Dispensar todos de uma vez (cada um volta sozinho no próximo evento, como no X). */}
         <button
           type="button"
           onClick={() => { for (const item of items) onDismiss(item); }}

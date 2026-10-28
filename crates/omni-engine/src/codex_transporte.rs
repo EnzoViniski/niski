@@ -1,4 +1,4 @@
-//! Fork: WebSocket sobre socket Unix, sem listener TCP nem daemon global.
+//! WebSocket sobre socket Unix, sem listener TCP nem daemon global.
 //! O `app-server proxy` 0.163.0 só retransmite bytes: não é um adaptador JSONL.
 use super::*;
 use omni_core::codex_protocolo::MENSAGEM_MAX;
@@ -157,7 +157,7 @@ mod testes {
     use super::*;
     #[cfg(unix)]
     #[test]
-    // Fork: dentro do sandbox do Codex o `bind` Unix é negado; fora dele (verificação integrada) roda.
+    // Dentro do sandbox do Codex o `bind` Unix é negado; fora dele (verificação integrada) roda.
     fn handshake_unix_sintetico_confere_desafio_e_recebe_texto() {
         use base64::{engine::general_purpose::STANDARD, Engine};
         use sha1::{Digest, Sha1};

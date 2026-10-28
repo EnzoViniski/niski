@@ -39,7 +39,7 @@ vi.mock("@xterm/xterm", () => ({
     dispose() {}
     onData() { return { dispose() {} }; }
     attachCustomKeyEventHandler() {}
-    registerLinkProvider() { return { dispose() {} }; } // Fork: links do terminal.
+    registerLinkProvider() { return { dispose() {} }; } // Links do terminal.
     hasSelection() { return false; }
     getSelection() { return ""; }
   },

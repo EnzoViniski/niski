@@ -1,5 +1,5 @@
 //! Terminal da conversa (espelho da PTY) e terminais sem agente (shells) abertos pela web.
-//! Fork: saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
+//! Saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
 use super::*;
 
 /// Quanto do histórico do terminal vai na primeira leitura. O engine guarda até 5 MB; mandar tudo
@@ -101,7 +101,7 @@ pub(super) async fn abrir_terminal(State(state): State<Arc<EngineState>>, Json(b
         let projeto = known_projects(&state).into_iter().find(|projeto| projeto.id == body.project_id && !projeto.path.is_empty())
             .ok_or_else(||error(StatusCode::NOT_FOUND,"Projeto não encontrado neste PC"))?;
         if !Path::new(&projeto.path).is_dir() { return Err(error(StatusCode::CONFLICT,"A pasta do projeto não existe mais neste PC")); }
-        limite_de_sessoes::conferir(&state)?; // Fork: teto único e configurável.
+        limite_de_sessoes::conferir(&state)?; // Teto único e configurável.
         // Headless: ninguém exibe esta PTY num terminal de verdade até o desktop abrir a aba.
         let resposta = spawn_terminal(&state, projeto.id, "Terminal".into(), projeto.path, None, None, 32, 120,
             SessionOrigin { headless: true, ..SessionOrigin::default() })

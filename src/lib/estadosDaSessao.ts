@@ -1,4 +1,4 @@
-/** Fork: rótulo e tom de cada estado da sessão num lugar só. Antes cada tela tinha o seu mapa
+/** Rótulo e tom de cada estado da sessão num lugar só. Antes cada tela tinha o seu mapa
  *  (celular, web, aba Conversa do PC, avisos). Os textos continuam os de cada tela — a web diz
  *  "Esperando você" onde o celular diz "Resposta disponível" — mas agora moram juntos, e um estado
  *  novo só precisa entrar aqui. */

@@ -1,4 +1,4 @@
-//! Fork: regra pura do orquestrador de agentes (sem I/O de rede).
+//! Regra pura do orquestrador de agentes (sem I/O de rede).
 //!
 //! Uma conversa vira **orquestradora** pelo botão "Tornar orquestradora": a CLI dela é reaberta com
 //! um servidor MCP do engine (`crates/omni-engine/src/orquestracao.rs`) e ganha ferramentas para
@@ -70,7 +70,7 @@ pub struct Agente {
     pub editar: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub criar: Vec<String>,
-    /// Fork: worktree isolada onde ele roda (`criar_agente` com `worktree`), e a branch dela. Sem isso,
+    /// Worktree isolada onde ele roda (`criar_agente` com `worktree`), e a branch dela. Sem isso,
     /// roda na pasta do orquestrador.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub worktree: Option<String>,

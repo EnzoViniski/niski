@@ -3,7 +3,7 @@ import { BoxIcon, CloseIcon, EditIcon, FolderPlusIcon } from "./ui/PixelIcon";
 import { ResumoDeAgentes } from "./ConversaStatus";
 import type { TerminalSession } from "../features/terminal/terminalService";
 import type { WorkspaceState } from "../types/workspace";
-// Fork: confirmação antes de fechar abas e encerrar as sessões do workspace.
+// Confirmação antes de fechar abas e encerrar as sessões do workspace.
 import { ConfirmarFechamentoDoWorkspace } from "../features/workspace/ConfirmarFechamentoDoWorkspace";
 
 interface WorkspaceListProps {

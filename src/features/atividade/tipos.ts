@@ -1,7 +1,7 @@
 export const TIPOS_DE_ATIVIDADE = ["precisa_de_voce", "terminou", "erro", "limite", "subagente_terminou", "agendamento"] as const;
 export type TipoDeAtividade = typeof TIPOS_DE_ATIVIDADE[number];
 export const ROTULOS_DA_ATIVIDADE: Record<TipoDeAtividade, string> = {
-  agendamento: "Agendamento", // Fork: execução da agenda (3D).
+  agendamento: "Agendamento", // Execução da agenda (3D).
   precisa_de_voce: "Precisa de você", terminou: "Terminou o turno", erro: "Erro",
   limite: "Limite de uso", subagente_terminou: "Subagente terminou",
 };

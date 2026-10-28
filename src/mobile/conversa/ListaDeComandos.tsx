@@ -1,4 +1,4 @@
-// Fork: a lista que abre acima do campo ao digitar `/` (mesmo visual da lista de arquivos do `@`).
+// A lista que abre acima do campo ao digitar `/` (mesmo visual da lista de arquivos do `@`).
 import type { ItemDaBarra } from "./comandosDaBarra";
 
 const ROTULO_DO_TIPO: Record<ItemDaBarra["tipo"], string> = { cli: "Comando", skill: "Skill", comando: "Personalizado" };

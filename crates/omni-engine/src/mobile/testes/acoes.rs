@@ -1,4 +1,4 @@
-//! Testes da fila e das rotas com uma PTY falsa (só no Windows). Fork: o antigo `mod actions` do
+//! Testes da fila e das rotas com uma PTY falsa (só no Windows). O antigo `mod actions` do
 //! `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
 use super::*;
 #[derive(Debug)] struct FakeChild;

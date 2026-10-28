@@ -116,7 +116,7 @@ fn viva(state: &EngineState, id: &str) -> Arc<LiveSession> {
 /// Conversa sem sessão aberta: a troca abre uma PTY nova já com o agente novo.
 #[tokio::test] async fn conversa_fechada_abre_sessao_nova_com_o_agente_novo() {
     let (dir, state) = fixture();
-    // Fork: id próprio para as fixtures paralelas não disputarem a trava global de troca.
+    // Id próprio para as fixtures paralelas não disputarem a trava global de troca.
     conversa_viva(dir.path(), &state, "fechada");
     let _ = close_session(&state, "t1");
     let (status, corpo) = chamar(&state, "POST", "/conversas/fechada/trocar-agente", Some(json!({"provider":"codex"}))).await;

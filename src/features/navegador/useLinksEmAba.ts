@@ -5,7 +5,7 @@ import { rotuloDoNavegador } from "./NavegadorPane";
 import { EVENTO_ABRIR_LINK, rotulosDesenhados, rotulosPresos, type PedidoDeLink } from "./registroDoNavegador";
 
 /**
- * Fork: links do app abrem numa aba de navegador do layout (`ABRIR_LINK`), nunca na janela.
+ * Links do app abrem numa aba de navegador do layout (`ABRIR_LINK`), nunca na janela.
  *
  * - Clique em `<a href="http…">` (conversa, markdown, qualquer tela) é interceptado aqui, antes de o
  *   webview navegar. O painel de onde veio o clique decide onde a aba nasce (à direita dele).
@@ -44,7 +44,7 @@ export function useLinksEmAba(workspaces: WorkspaceState[], dispatch: (action: W
     };
     document.addEventListener("click", clique, true);
     document.addEventListener("auxclick", clique, true);
-    // Fork: link que não é `<a>` do DOM (o terminal, `linksDoTerminal.ts`).
+    // Link que não é `<a>` do DOM (o terminal, `linksDoTerminal.ts`).
     const pedido = (evento: Event) => {
       const { url, paneId } = (evento as CustomEvent<PedidoDeLink>).detail ?? {};
       if (url && /^https?:\/\//i.test(url)) abrir(url, paneId);
@@ -66,7 +66,7 @@ export function useLinksEmAba(workspaces: WorkspaceState[], dispatch: (action: W
     };
   }, [dispatch]);
 
-  // Fork: conferência periódica — página de navegador sem aba fecha, a de aba fora da tela some. Pega o que
+  // Conferência periódica — página de navegador sem aba fecha, a de aba fora da tela some. Pega o que
   // escapar do fechar abaixo e do esconder do `NavegadorPane` (o quadrado branco que não saía).
   const abasRef = useRef<string[]>([]);
   abasRef.current = workspaces.flatMap((w) => w.projects.flatMap((p) => abasWeb(p.layout))).map(rotuloDoNavegador);

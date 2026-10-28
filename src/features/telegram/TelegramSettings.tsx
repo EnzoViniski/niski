@@ -4,7 +4,7 @@ import { ROTULOS_DA_ATIVIDADE, TIPOS_DE_ATIVIDADE } from "../atividade/tipos";
 import { telegram, type TelegramStatus } from "./telegramService";
 import { CLASSE_DE_BOTAO, LinkDoTelegram } from "./LinkDoTelegram"; // Fork (Telegram no celular)
 
-/** Fork: notificações opt-in por bot privado; link para responder pela conversa já autenticada. */
+/** Notificações opt-in por bot privado; link para responder pela conversa já autenticada. */
 export function TelegramSettings() {
   const [status, setStatus] = useState<TelegramStatus | null>(null);
   const [token, setToken] = useState("");
@@ -64,7 +64,7 @@ export function TelegramSettings() {
         </fieldset>
         <p className="text-text-muted">Por padrão, o Telegram recebe apenas o agente, o tipo de aviso e o link. Textos das conversas e pedidos de permissão ficam no Niski.</p>
         <Button size="sm" disabled={ocupado} onClick={() => void executar(async () => { await telegram("/testar", {}); return telegram(); }, "Teste enviado ao Telegram.")}>Enviar teste</Button>
-        {/* Fork: um exemplo de cada caso (erro, limite, pergunta…) para ver como chega no Telegram. */}
+        {/* Um exemplo de cada caso (erro, limite, pergunta…) para ver como chega no Telegram. */}
         <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => void executar(async () => { await telegram("/exemplos", {}); return telegram(); }, "Exemplos enviados: um de cada aviso.")}>Enviar exemplo de cada aviso</Button>
       </>}
       {(status?.conectado || status?.parear_url) && <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => void executar(() => telegram("/desconectar", {}), "Telegram desconectado.")}>Desconectar Telegram</Button>}

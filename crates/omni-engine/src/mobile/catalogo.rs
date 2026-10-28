@@ -1,5 +1,5 @@
 //! Workspace publicado pelo desktop (projetos, agentes, tema) e o catálogo que o celular lê.
-//! Fork: saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
+//! Saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
 use super::*;
 
 pub fn publish(state: &EngineState, projects: Vec<PublishedProject>, agents: Vec<PublishedAgent>, theme: Option<PublishedTheme>) -> Result<EngineResponse> {

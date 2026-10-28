@@ -68,7 +68,7 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
   const preview = useRef<ControleDoPreview>(null);
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [duracoes, setDuracoes] = useState<Record<string, number>>({});
-  // Fork: largura do chat (arrastável, lembrada).
+  // Largura do chat (arrastável, lembrada).
   const [larguraDoChat, setLarguraDoChat] = useTamanhoSalvo("video-chat", 440, 300, 960);
   const [aviso, setAviso] = useState<string | null>(null);
   const [erroDoPreview, setErroDoPreview] = useState<string | null>(null);
@@ -90,7 +90,7 @@ export function Editor({ id, onVoltar, agentView = "conversa" }: { id: string; o
     try { return lerComposicao(estado.html ?? ""); } catch { return { raiz: null, clipes: [] }; }
   }, [estado.html]);
   const clipe = comp.clipes.find((c) => c.chave === selecionado) ?? null;
-  // Fork: o agente trabalhando não trava mais o editor (antes só o agente conseguia editar).
+  // O agente trabalhando não trava mais o editor (antes só o agente conseguia editar).
   const bloqueado = !!estado.ocupado;
   const agente = useAgenteNoProjeto(id, estado.projeto?.chat?.sessao, {
     aoComecar: () => { void acoesDoDisco.guardarVersao("Antes do pedido ao agente"); colaboracao?.pegarAgente?.(); },

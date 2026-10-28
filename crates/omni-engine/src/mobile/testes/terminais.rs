@@ -1,4 +1,4 @@
-//! Testes do terminal da conversa. Fork: saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
+//! Testes do terminal da conversa. Saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
 use super::*;
 
 /// Sem sessão aberta no PC não há terminal para espelhar nem para receber teclas.

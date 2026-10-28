@@ -1,4 +1,4 @@
-/* Fork: trabalho do pedido recolhido (`TrabalhoRecolhido.tsx`). Na Conversa o turno do agente começa
+/* Trabalho do pedido recolhido (`TrabalhoRecolhido.tsx`). Na Conversa o turno do agente começa
    depois da coluna do avatar (`mobile.css`), então o cabeçalho também. */
 .trabalho { display: flex; flex-direction: column; gap: .5rem; align-self: stretch; }
 .chat .trabalho { margin-left: 2.5rem; max-width: min(calc(100% - 2.5rem), 46rem); }

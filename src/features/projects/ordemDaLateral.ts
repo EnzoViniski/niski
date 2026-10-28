@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 
 /**
- * Fork: a ordem que a pessoa escolheu, arrastando, para os projetos da lateral e para as conversas
+ * A ordem que a pessoa escolheu, arrastando, para os projetos da lateral e para as conversas
  * de cada projeto. Sem ordem salva vale a natural (projetos na ordem em que foram adicionados,
  * conversas da mais antiga para a mais nova); item novo entra no fim.
  */

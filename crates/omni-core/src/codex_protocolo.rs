@@ -1,4 +1,4 @@
-//! Fork: JSON-RPC sem cabeçalho `jsonrpc`, conforme app-server 0.163.0.
+//! JSON-RPC sem cabeçalho `jsonrpc`, conforme app-server 0.163.0.
 //! Fontes e limites de compatibilidade em docs/fork/codex-app-server.md.
 use serde::Deserialize;
 use serde_json::{json, Value};

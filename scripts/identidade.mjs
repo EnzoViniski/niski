@@ -2,8 +2,8 @@
 /**
  * Identidade do produto (`identidade.json` na raiz) → sobreposição do `tauri.conf.json`.
  *
- * O `tauri.conf.json` fica como o autor do upstream deixou (merge sem conflito a cada release
- * dele); nome, bundle id, título da janela e updater do nosso produto entram por
+ * O `tauri.conf.json` fica com os valores da base (assim ele quase nunca muda);
+ * nome, bundle id, título da janela e updater do nosso produto entram por
  * `tauri build --config target-tauri/tauri.identidade.conf.json`. Rust e interface leem o mesmo
  * arquivo por conta própria (`crates/omni-protocol/build.rs`, `src/lib/identidade.ts`).
  *
@@ -36,7 +36,7 @@ function janelas(titulo) {
   return base.app.windows.map((janela) => (janela.label === "main" ? { ...janela, title: titulo } : janela));
 }
 
-/** Fork: no Mac, o auxiliar de voz do Jarvis vai junto do engine e do shim (`build-voz-do-jarvis.mjs`).
+/** No Mac, o auxiliar de voz do Jarvis vai junto do engine e do shim (`build-voz-do-jarvis.mjs`).
  *  Fica fora do `tauri.conf.json` para o `cargo test` não exigir o binário compilado. */
 function binariosExtras() {
   if (process.platform !== "darwin") return {};
@@ -47,7 +47,7 @@ function binariosExtras() {
 /** Sobreposição para `tauri build --config`. `ajuste` permite derivar variantes (build local). */
 export function sobreposicaoDoTauri(id, ajuste = {}) {
   const nome = ajuste.nome ?? id.nome;
-  // Sem chave própria, distribuição manual. Nunca herdar a chave/endpoint do upstream.
+  // Sem chave própria, distribuição manual. Nunca herdar uma chave/endpoint de outra distribuiÃ§Ã£o.
   const assinado = Boolean(id.updater?.pubkey && id.updater?.endpoint);
   const updater = ajuste.updater ?? { endpoints: assinado ? [id.updater.endpoint] : [], pubkey: id.updater?.pubkey ?? "" };
   return {

@@ -19,15 +19,15 @@ export type Background =
   | (string & {});
 export type GlassLevel = "sutil" | "medio" | "forte";
 export type MotionLevel = "completas" | "reduzidas" | "desligadas";
-/** Fork: "classico" é o visual pixel/vidro de sempre; "minimalista" troca só o visual
+/** "classico" é o visual pixel/vidro de sempre; "minimalista" troca só o visual
  *  (`src/styles/minimalista.css`, ativado por `data-estilo` no `<html>`). */
-/** Fork: "vidro" é o Minimalista com fundo preto e vidro (`src/styles/vidro.css`, `src/lib/estiloDaInterface.ts`). */
+/** "vidro" é o Minimalista com fundo preto e vidro (`src/styles/vidro.css`, `src/lib/estiloDaInterface.ts`). */
 export type EstiloDaInterface = "classico" | "minimalista" | "vidro";
 
 /** Preferências visuais do shell. Cada workspace/pane herda daqui. */
 export interface AppSettings {
   theme: Theme;
-  /** Fork: estilo da interface. Configuração antiga sem o campo cai no clássico. */
+  /** Estilo da interface. Configuração antiga sem o campo cai no clássico. */
   estilo: EstiloDaInterface;
 
   /**
@@ -51,7 +51,7 @@ export interface AppSettings {
 
   /** Toast do Windows + piscar na barra quando um agente pede atenção com o app fora de foco. */
   notifyAttention: boolean;
-  /** Fork: cada tipo tem sua regra de foco e seu som. */
+  /** Cada tipo tem sua regra de foco e seu som. */
   avisos: PreferenciasDeAvisos;
 
   /** Como a aba de um agente aparece. Shells sem IA continuam sempre terminal. */

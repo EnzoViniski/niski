@@ -1,4 +1,4 @@
-// Fork: o seletor oficial da CLI sobre a Conversa, na mesma PTY.
+// O seletor oficial da CLI sobre a Conversa, na mesma PTY.
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import "./controlesDaConversa.css";

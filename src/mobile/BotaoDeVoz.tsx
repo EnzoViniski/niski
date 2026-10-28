@@ -3,7 +3,7 @@ import { CloseIcon, LoaderIcon, MicIcon } from "../components/ui/PixelIcon";
 import { VisualizadorDaVoz } from "./VisualizadorDaVoz";
 
 /*
- * Fork: voz no chat (só no app do desktop). Clique grava, clique de novo transcreve com o
+ * Voz no chat (só no app do desktop). Clique grava, clique de novo transcreve com o
  * whisper.cpp local (`src-tauri/src/voz.rs`) e o texto entra no campo, sem enviar — dá para
  * revisar antes. No navegador do celular não há Rust por trás, então o botão nem aparece.
  * Desde a 0.8.6 a prévia aparece dentro do próprio campo, em cinza (o Composer desenha a partir de

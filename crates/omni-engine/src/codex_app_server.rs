@@ -14,7 +14,7 @@ const AJUSTES: &str = "codex-app-server.json";
 static CLIENTES: LazyLock<Mutex<HashMap<String, Arc<Cliente>>>> = LazyLock::new(Default::default);
 static FALLBACK: LazyLock<Mutex<HashMap<String, std::thread::ThreadId>>> =
     LazyLock::new(Default::default);
-// Fork: parada, preparação e fallback do mesmo terminal compartilham a trava até o fim do reinício.
+// Parada, preparação e fallback do mesmo terminal compartilham a trava até o fim do reinício.
 static CICLOS: LazyLock<Mutex<HashMap<String, std::sync::Weak<Mutex<()>>>>> =
     LazyLock::new(Default::default);
 
@@ -141,7 +141,7 @@ impl Cliente {
                     .as_str()
                     .or_else(|| p["reason"].as_str())
                     .unwrap_or("Alterar arquivos");
-                // Fork: o risco olha o comando inteiro; só o texto da tela é cortado (como nos ganchos).
+                // O risco olha o comando inteiro; só o texto da tela é cortado (como nos ganchos).
                 let arriscado = omni_core::orquestracao::briefing::pedido_arriscado(completo);
                 let resumo = completo.chars().take(500).collect::<String>();
                 let id = format!("codex-{}-{}", self.geracao, uuid::Uuid::new_v4());
@@ -321,7 +321,7 @@ pub(crate) fn ativo(id: &str) -> bool {
     obter(id).is_some()
 }
 pub(crate) fn esquecer(id: &str) {
-    // Fork: o stop só prossegue para matar a PTY depois de qualquer fallback já iniciado.
+    // O stop só prossegue para matar a PTY depois de qualquer fallback já iniciado.
     let trava = ciclo(id);
     let _ciclo = trava.lock().unwrap();
     remover_cliente(id);
@@ -566,7 +566,7 @@ fn preparar_com(
         &[(String, String)],
     ) -> Result<(Arc<Cliente>, String)>,
 ) -> Option<String> {
-    // Fork: o reinício do fallback já possui a trava; sua marca vale para uma única preparação.
+    // O reinício do fallback já possui a trava; sua marca vale para uma única preparação.
     let fallback = {
         let mut pendentes = FALLBACK.lock().unwrap();
         // Só o próprio monitor pode reutilizar a trava que já segura durante o reinício.
@@ -638,11 +638,11 @@ fn falhou(terminal: &str, fase: &str) {
     );
 }
 
-// Fork: ponto único da transição para PTY; o stop aguarda o reinício inteiro.
+// Ponto único da transição para PTY; o stop aguarda o reinício inteiro.
 fn tentar_fallback(terminal: &str, c: &Arc<Cliente>, retomar: impl FnOnce()) {
     let trava = ciclo(terminal);
     let _ciclo = trava.lock().unwrap();
-    // Fork: a checagem inicial do monitor pode ser anterior ao stop ou à troca de geração.
+    // A checagem inicial do monitor pode ser anterior ao stop ou à troca de geração.
     if c.encerrado.load(Ordering::SeqCst)
         || !CLIENTES.lock().unwrap().get(terminal).is_some_and(|atual| atual.geracao == c.geracao)
     {
@@ -650,7 +650,7 @@ fn tentar_fallback(terminal: &str, c: &Arc<Cliente>, retomar: impl FnOnce()) {
     }
     FALLBACK.lock().unwrap().insert(terminal.into(), std::thread::current().id());
     retomar();
-    // Fork: reinício recusado antes da preparação também não deixa uma marca para outra geração.
+    // Reinício recusado antes da preparação também não deixa uma marca para outra geração.
     FALLBACK.lock().unwrap().remove(terminal);
 }
 
@@ -808,7 +808,7 @@ pub(crate) fn capabilities(sessao: &Arc<LiveSession>) -> Option<interaction::Cap
         escolha: None,
         pedido,
         espera: None, // Fork (pergunta-da-cli): o protocolo não tem tela para esperar.
-        approval_options: Vec::new(), // Fork: o pedido do app-server tem cartão próprio.
+        approval_options: Vec::new(), // O pedido do app-server tem cartão próprio.
     })
 }
 
@@ -844,7 +844,7 @@ pub(crate) fn enviar_prompt(terminal: &str, texto: &str, revisao: &str, fila: bo
     }
     Ok(())
 }
-// Fork: https://developers.openai.com/codex/app-server — compactação não é entrada de turno.
+// Https://developers.openai.com/codex/app-server — compactação não é entrada de turno.
 pub(crate) fn compactar(terminal: &str, revisao: &str) -> Result<()> {
     let c = obter(terminal).ok_or_else(|| anyhow!("App-server encerrado"))?;
     let thread = {
@@ -884,7 +884,7 @@ pub(crate) fn responder(terminal: &str, pedido: &str, permitir: bool) -> Result<
 pub(crate) fn interromper(terminal: &str) -> Option<Result<()>> {
     let c = obter(terminal)?;
     let e = c.estado.lock().unwrap().clone();
-    // Fork: sem turno interrompível, Esc/Ctrl+C continuam pertencendo ao terminal.
+    // Sem turno interrompível, Esc/Ctrl+C continuam pertencendo ao terminal.
     let turno = e.turno?;
     Some(
         c.pedir(

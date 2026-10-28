@@ -3,7 +3,7 @@ import type { LayoutNode, WorkspaceState } from "../../types/workspace";
 import { useSession } from "../terminal/sessionProviders";
 
 /**
- * Fork: o que uma aba precisa saber do workspace inteiro, e não só do projeto que está na tela.
+ * O que uma aba precisa saber do workspace inteiro, e não só do projeto que está na tela.
  *
  * - Conversa de **outro projeto** solta no layout (`colocarConversa.ts`): a aba mostra de qual
  *   projeto ela é, com a cor dele.

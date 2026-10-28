@@ -1,4 +1,4 @@
-// Fork: nomes e cores moram em `plataformasDeAgente.ts`; aqui ficam as duas funções de sempre.
+// Nomes e cores moram em `plataformasDeAgente.ts`; aqui ficam as duas funções de sempre.
 import { nomeDaPlataforma, plataforma } from "./plataformasDeAgente";
 
 export function corDoAgente(provider: string | null | undefined): string {

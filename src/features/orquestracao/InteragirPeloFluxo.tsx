@@ -7,7 +7,7 @@ import { pararAgente, type FluxoAoVivo, type NoAoVivo } from "./orquestracaoServ
 import { formatarRestante, responderPedido, soltarPedido, useSegundosRestantes } from "../../mobile/conversa/pedidoDoGancho";
 
 /**
- * Fork: interagir pelo fluxo do orquestrador — mandar prompt para qualquer nó ("Para: …"), aprovar ou
+ * Interagir pelo fluxo do orquestrador — mandar prompt para qualquer nó ("Para: …"), aprovar ou
  * negar um pedido de permissão e parar um subagente. Tudo pelas rotas que o chat já usa
  * (`/conversas/{id}/prompt|aprovar`) e pela de parar do orquestrador.
  *

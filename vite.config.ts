@@ -11,7 +11,7 @@ const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
   // `<title>` do index.html vem de `identidade.json` (nome do produto num lugar só).
-  plugins: [react(), { name: "titulo-da-identidade", transformIndexHtml: (html) => html.replace("<title>OMNI AGENTS</title>", `<title>${identidade.nome}</title>`) }],
+  plugins: [react(), { name: "titulo-da-identidade", transformIndexHtml: (html) => html.replace("<title>Niski</title>", `<title>${identidade.nome}</title>`) }],
   // "@" → src/. Existe porque o shadcn/React Bits gera imports com esse alias
   // (ver components.json). Espelhado em tsconfig.json > paths.
   resolve: {

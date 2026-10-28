@@ -18,7 +18,7 @@ export type DadosDoNo = {
 };
 export type NoOmni = Node<DadosDoNo, "omni">;
 
-// Fork: blocos Objetivo e Repetir.
+// Blocos Objetivo e Repetir.
 const ICONE = { objetivo: FlagIcon, repetir: PlayIcon, entrada: PlayIcon, agente: RobotIcon, condicao: ShieldIcon, aprovacao: CheckIcon, sala: ChatIcon, pr: GitBranchIcon, fim: FlagIcon } as const;
 const NOME = { objetivo: "Objetivo /goal", repetir: "Repetir", entrada: "Entrada", agente: "Agente", condicao: "Condição", aprovacao: "Aprovação", sala: "Time", pr: "Pull request", fim: "Fim" } as const;
 const ROTULO_SAIDA: Record<string, string> = { corpo: "corpo", fim: "fim", sim: "sim", nao: "não", esgotado: "esgotou" };

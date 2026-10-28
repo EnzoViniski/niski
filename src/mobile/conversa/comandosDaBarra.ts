@@ -1,4 +1,4 @@
-// Fork: `/` no campo da Conversa — a lista de comandos, skills e comandos personalizados que o engine
+// `/` no campo da Conversa — a lista de comandos, skills e comandos personalizados que o engine
 // acha para a conversa (`GET /conversas/<id>/barra`), o filtro e para onde vai o envio.
 import { useCallback, useRef } from "react";
 import { request } from "../api";

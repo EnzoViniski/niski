@@ -1,4 +1,4 @@
-//! Fork: voz no chat. O microfone grava aqui (cpal) e o whisper.cpp transcreve no próprio Mac —
+//! Voz no chat. O microfone grava aqui (cpal) e o whisper.cpp transcreve no próprio Mac —
 //! nada de áudio sai da máquina. O modelo (~574 MB) é baixado uma vez, conferido por SHA256, para
 //! `<Application Support>/<pasta de perfis>/modelos`, compartilhado entre as variantes do app.
 //! O log só registra metadados (duração, tempo, tamanho); nunca o texto transcrito.

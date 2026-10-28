@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { Button, Card, Field, Input } from "../../components/ui";
 
-/** Fork: teto de sessões ativas neste PC (engine relê `sessoes.json` a cada conferência). */
+/** Teto de sessões ativas neste PC (engine relê `sessoes.json` a cada conferência). */
 export interface LimiteDeSessoesInfo {
   limite: number;
   padrao: number;

@@ -1,4 +1,4 @@
-// Fork: Cmd copia/cola no Mac; Ctrl+C sempre chega à PTY como SIGINT.
+// Cmd copia/cola no Mac; Ctrl+C sempre chega à PTY como SIGINT.
 import { NO_MAC, teclaModificadora } from "../../lib/plataforma";
 /** Atalhos que o xterm.js não entrega do jeito que este app precisa.
  *
@@ -19,7 +19,7 @@ export interface TerminalKeyContext {
 export function handleTerminalKey(event: KeyboardEvent, ctx: TerminalKeyContext): boolean {
   if (event.type !== "keydown") return true;
 
-  // Fork: modificador da plataforma (Cmd no Mac, Ctrl fora). No Mac o Ctrl+C nem entra aqui e
+  // Modificador da plataforma (Cmd no Mac, Ctrl fora). No Mac o Ctrl+C nem entra aqui e
   // segue para o xterm como SIGINT; Cmd+C copia. Fora do Mac, Ctrl+C só copia com seleção.
   // Sem `preventDefault` no V: a ação padrão (paste nativo) cai no textarea do xterm, que cola uma
   // vez só e respeita bracketed paste (ler o clipboard e escrever na PTY colava em dobro).

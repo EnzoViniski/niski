@@ -367,7 +367,7 @@ async fn worker_em_memoria_reenvia_falha_sem_duplicar_e_respeita_desligado() {
     trabalhador.abort();
 }
 
-// Fork: "Enviar exemplo de cada aviso".
+// "Enviar exemplo de cada aviso".
 #[tokio::test]
 async fn exemplos_mandam_um_aviso_por_caso_no_formato_real_e_sem_titulo_por_padrao() {
     let (_dir, state) = fixture();

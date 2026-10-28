@@ -1,4 +1,4 @@
-// Fork: orbe de partículas. Desenho em WebGL2: todas as partículas num único buffer e numa única
+// Orbe de partículas. Desenho em WebGL2: todas as partículas num único buffer e numa única
 // chamada de desenho; o movimento inteiro (respirar, tremer com a voz, ondas que saem do centro,
 // redemoinho pensando, formação ao abrir) é calculado no shader de vértice. Por quadro o JS só
 // manda uns poucos números (uniforms) — nada de recalcular partícula na CPU.

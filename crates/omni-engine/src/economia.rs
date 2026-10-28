@@ -1,4 +1,4 @@
-//! Fork: economia de energia no engine (2026-10-19).
+//! Economia de energia no engine (2026-10-19).
 //!
 //! Duas coisas que rodavam a cada leitura da interface e não precisam:
 //!

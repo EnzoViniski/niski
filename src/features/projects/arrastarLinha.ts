@@ -1,9 +1,9 @@
 import type { PointerEvent as PointerEventReact } from "react";
 import { targetAt, type TabDropTarget } from "../workspace/tabPointerDrag";
-import { assentarFantasma } from "./animarLateral"; // Fork: a cópia desliza até o lugar ao soltar.
+import { assentarFantasma } from "./animarLateral"; // A cópia desliza até o lugar ao soltar.
 
 /**
- * Fork: arrastar uma linha da lateral (projeto ou conversa).
+ * Arrastar uma linha da lateral (projeto ou conversa).
  *
  * - Uma cópia da linha acompanha o mouse, e a lista se reorganiza ao vivo (`aoMudar`) para mostrar
  *   como vai ficar; o lugar de origem vira um espaço vazio.
@@ -110,7 +110,7 @@ export function iniciarArraste(evento: PointerEventReact, lista: HTMLElement | n
     window.removeEventListener("keydown", tecla, true);
     window.removeEventListener("blur", cancelar);
     document.body.classList.remove("lateral-arrastando");
-    // Fork: soltou na lista → a cópia desliza até o lugar novo e só então some; a linha de verdade
+    // Soltou na lista → a cópia desliza até o lugar novo e só então some; a linha de verdade
     // fica escondida até lá para não aparecer duas vezes.
     if (fantasma && arrastando && soltou && posicao !== null) {
       const copia = fantasma;

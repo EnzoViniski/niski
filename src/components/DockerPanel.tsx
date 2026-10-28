@@ -48,7 +48,7 @@ export function DockerPanel({ onRunInTerminal }: DockerPanelProps) {
   // Com o Docker fechado, 30s: cada tentativa sobe um processo `docker` que demora a desistir.
   useEffect(() => {
     refresh();
-    // Fork: com a janela oculta não sobe processo `docker` à toa.
+    // Com a janela oculta não sobe processo `docker` à toa.
     const timer = window.setInterval(() => { if (!document.hidden) refresh(); }, indisponivel ? 30_000 : 5_000);
     return () => window.clearInterval(timer);
   }, [refresh, indisponivel]);

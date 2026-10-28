@@ -1,4 +1,4 @@
-//! Testes das rotas da aba Extensões. Fork: saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
+//! Testes das rotas da aba Extensões. Saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
 use super::*;
 
 /// Estrela pela rota: a conta marcada vira a fonte, os MCPs dela chegam na outra na hora e a

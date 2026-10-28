@@ -1,4 +1,4 @@
-// Fork: paleta e registro dos handlers já usados na interface.
+// Paleta e registro dos handlers já usados na interface.
 import { AcoesDaPaleta, useAcoesDaPaleta } from "./features/paleta/acoes";
 import { acoesParaAbrirConversa } from "./features/paleta/abrirConversa";
 import { BotaoDoJarvis } from "./features/jarvis/BotaoDoJarvis";
@@ -14,7 +14,7 @@ import { Sidebar } from "./components/Sidebar";
 import { fileKind } from "./features/files/filesService";
 import { QuickOpen } from "./features/files/QuickOpen";
 import { useWorkspace } from "./features/workspace/useWorkspace";
-// Fork: recuperar workspace (backups, conversas recentes) e aviso de agentes fora do workspace.
+// Recuperar workspace (backups, conversas recentes) e aviso de agentes fora do workspace.
 import { RecuperacaoDoWorkspace } from "./features/workspace/RecuperacaoDoWorkspace";
 import { collectResourceIds, findPane } from "./features/workspace/workspaceReducer";
 import { RodapeDoProjeto, WorkspaceView } from "./features/workspace/WorkspaceView";
@@ -25,16 +25,16 @@ import { ProjetosDasAbasContext, montarProjetosDasAbas } from "./features/worksp
 import { useLinksEmAba } from "./features/navegador/useLinksEmAba";
 import { useAberturasDoOrquestrador } from "./features/orquestracao/abrirFluxo";
 import { useTerminalSessions } from "./features/terminal/useTerminalSessions";
-// Fork: manter ou apagar a worktree isolada ao encerrar o agente.
+// Manter ou apagar a worktree isolada ao encerrar o agente.
 import { DialogoDaWorktree, worktreeParaPerguntar } from "./features/terminal/DialogoDaWorktree";
 import { latestPerConversation, useAttention, type AttentionItem } from "./features/terminal/useAttention";
 import { useAttentionNotifier } from "./features/terminal/useAttentionNotifier";
 import { useJanelaEmFoco } from "./hooks/useJanelaEmFoco";
-// Fork: pausa animações e fundos WebGL com a janela oculta, sem foco ou parada (energia).
+// Pausa animações e fundos WebGL com a janela oculta, sem foco ou parada (energia).
 import { useEconomiaDeEnergia } from "./hooks/useEconomiaDeEnergia";
-import { sessoesNaTela } from "./features/workspace/abrirEmPainelProprio"; // Fork: lateral clareia o que está na tela.
-import { todasAsTelasAbertas } from "./features/projects/telasAbertas"; // Fork: navegação por todos os layouts abertos.
-import { useAtenderPedidoDeAtualizacao } from "./lib/pedidoDeAtualizacao"; // Fork: "Atualizar o PC" pelo celular.
+import { sessoesNaTela } from "./features/workspace/abrirEmPainelProprio"; // Lateral clareia o que está na tela.
+import { todasAsTelasAbertas } from "./features/projects/telasAbertas"; // Navegação por todos os layouts abertos.
+import { useAtenderPedidoDeAtualizacao } from "./lib/pedidoDeAtualizacao"; // "Atualizar o PC" pelo celular.
 import {
   closeTerminal,
   duplicateTerminal,
@@ -43,12 +43,12 @@ import {
   spawnTerminal,
 } from "./features/terminal/terminalService";
 import { HistoryView } from "./features/history/HistoryView";
-// Fork: React Flow só ao abrir a tela de Fluxos.
+// React Flow só ao abrir a tela de Fluxos.
 import { FluxosView } from "./features/fluxos/FluxosViewTardio";
-// Fork: Roadmaps de estudo, carregados só ao abrir a tela.
+// Roadmaps de estudo, carregados só ao abrir a tela.
 import { RoadmapsView } from "./features/roadmaps/RoadmapsViewTardio";
 import type { SecaoDosRoadmaps } from "./features/caderno/tipos"; // Fork (Caderno)
-// Fork: Tarefas (Meu dia, quadro, semana, lista) e aquecimento da manhã por cima de tudo.
+// Tarefas (Meu dia, quadro, semana, lista) e aquecimento da manhã por cima de tudo.
 import { PainelDeTarefas } from "./features/tarefas/PainelDeTarefas";
 import { BotaoDasTarefas, ListaDoDia } from "./features/tarefas/Flutuantes";
 import { abrirPainelDeTarefas, alternarListaDoDia, usePainel } from "./features/tarefas/painel";
@@ -64,7 +64,7 @@ import { abrirRotinaAgora, useRotinaDaManha } from "./features/manha/useRotinaDa
 // Fork (Bíblia do dia): a Palavra do dia depois do aquecimento, ou a qualquer hora.
 import { LeituraDoDia } from "./features/biblia/LeituraDoDia";
 import { abrirLeituraAgora, useLeituraDoDia } from "./features/biblia/useLeituraDoDia";
-// Fork: Edição de vídeo (HyperFrames), carregada só ao abrir a tela.
+// Edição de vídeo (HyperFrames), carregada só ao abrir a tela.
 import { VideoView } from "./features/video/VideoViewTardio";
 import { definirEstudoEmTelaCheia, definirModoFoco, useEstudoEmTelaCheia, useModoFoco } from "./lib/modoFoco";
 import type { HistoryEntry } from "./features/history/historyService";
@@ -76,9 +76,9 @@ import { primeSshDrives } from "./features/projects/targetState";
 import type { SettingsSection } from "./hooks/useNotifications";
 import { useSettings } from "./hooks/useSettings";
 import { matchesShortcut } from "./lib/shortcuts";
-// Fork: caixa do engine usa a mesma navegação da paleta e registra o que está de fato na tela.
+// Caixa do engine usa a mesma navegação da paleta e registra o que está de fato na tela.
 import { useAberturasDaAtividade } from "./features/atividade/navegacao";
-import { usaFormaMinimalista } from "./lib/estiloDaInterface"; // Fork: Minimalista e Vidro sem fundo animado.
+import { usaFormaMinimalista } from "./lib/estiloDaInterface"; // Minimalista e Vidro sem fundo animado.
 import { useAtividadeDoDesktop } from "./features/atividade/vistas";
 
 type View = "workspace" | "settings" | "history" | "fluxos" | "conversa" | "roadmaps" | "video" | "rotina"; // Fork (Rotina).
@@ -137,7 +137,7 @@ function AppComPaleta() {
     { id: "manha-agora", titulo: "Aquecimento da manhã: fazer agora", executar: abrirRotinaAgora },
     { id: "biblia-ler", titulo: "Palavra do dia: ler a Bíblia agora", executar: abrirLeituraAgora }, // Fork (Bíblia do dia)
   ]);
-  // Fork: pasta do agente em worktree isolada que acabou de ser encerrado (`DialogoDaWorktree`).
+  // Pasta do agente em worktree isolada que acabou de ser encerrado (`DialogoDaWorktree`).
   const [worktreeAoFechar, setWorktreeAoFechar] = useState<string | null>(null);
   const fecharDialogoDaWorktree = useCallback(() => setWorktreeAoFechar(null), []);
   const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>();
@@ -149,7 +149,7 @@ function AppComPaleta() {
   const { settings, updateSettings, resetSettings } = useSettings();
   // Memo: o objeto novo a cada render faria o `useWorkspace` recalcular a projeção à toa.
   const temaPublicado = useMemo(
-    // Fork: o estilo (Clássico/Minimalista) vai junto, e o celular segue o PC.
+    // O estilo (Clássico/Minimalista) vai junto, e o celular segue o PC.
     () => ({ accent: settings.accent, theme: settings.theme, background: settings.background, glass: settings.glass, estilo: settings.estilo }),
     [settings.accent, settings.theme, settings.background, settings.glass, settings.estilo]
   );
@@ -180,11 +180,11 @@ function AppComPaleta() {
     [sessions]
   );
 
-  // Fork: nomes dos projetos e quantas abas cada sessão tem, para as abas (`projetosDasAbas.tsx`).
+  // Nomes dos projetos e quantas abas cada sessão tem, para as abas (`projetosDasAbas.tsx`).
   const projetosDasAbas = useMemo(() => montarProjetosDasAbas(workspace), [workspace]);
-  // Fork: link clicado abre numa aba de navegador ao lado, não na janela do app.
+  // Link clicado abre numa aba de navegador ao lado, não na janela do app.
   useLinksEmAba(workspaces, dispatch, () => setView("workspace"));
-  // Fork: "Ver fluxo" e o clique num nó do fluxo do orquestrador.
+  // "Ver fluxo" e o clique num nó do fluxo do orquestrador.
   useAberturasDoOrquestrador(workspace, dispatch, () => setView("workspace"));
 
   function closeSettings() {
@@ -204,7 +204,7 @@ function AppComPaleta() {
   }
 
   // O engine devolve em `session.name` o nome da **conversa** (o primeiro prompt, ou o que o usuário
-  // renomeou). Fork: espelha também o provider; uma troca de agente não pode deixar a marca antiga
+  // renomeou). Espelha também o provider; uma troca de agente não pode deixar a marca antiga
   // salva nas abas. O reducer percorre todos os workspaces e ignora polls sem mudança.
   useEffect(() => {
     dispatch({ type: "SYNC_SESSION_IDENTITIES", sessions });
@@ -262,7 +262,7 @@ function AppComPaleta() {
     setView("workspace");
   }
 
-  // Fork: mesma ação da lateral, incluindo seleção do workspace dono da conversa.
+  // Mesma ação da lateral, incluindo seleção do workspace dono da conversa.
   function abrirConversaDaPaleta(conversa: Conversation) {
     const acoes = acoesParaAbrirConversa(conversa, workspaces, sessions, activeProject);
     if (acoes.length) { acoes.forEach(dispatch); setView("workspace"); }
@@ -287,7 +287,7 @@ function AppComPaleta() {
     <SessionProvidersContext.Provider value={sessionsById}>
     <ProjetosDasAbasContext.Provider value={projetosDasAbas}>
     <div className="flex h-screen flex-col overflow-hidden">
-      {/* Fork: Minimalista e Vidro não têm fundo animado (não gastam GPU desenhando por baixo). */}
+      {/* Minimalista e Vidro não têm fundo animado (não gastam GPU desenhando por baixo). */}
       {!usaFormaMinimalista(settings.estilo) && <AppBackground settings={settings} />}
       <TitleBar
         trilha={
@@ -300,7 +300,7 @@ function AppComPaleta() {
             : [workspaces.find((item) => item.id === activeWorkspaceId)?.name, activeProject?.name].filter((parte): parte is string => Boolean(parte))
         }
         dica={view === "workspace" ? activeProject?.path : undefined}
-        acoes={<>{view === "workspace" && activeProject ? <LayoutPresetPicker dispatch={dispatch} /> : null}<BotaoDoJarvis /></>} /* Fork: Jarvis ao lado de Layouts. */
+        acoes={<>{view === "workspace" && activeProject ? <LayoutPresetPicker dispatch={dispatch} /> : null}<BotaoDoJarvis /></>} /* Jarvis ao lado de Layouts. */
         onHome={() => setView("workspace")}
         onOpenSettings={(section) => {
           setSettingsSection(section);
@@ -394,21 +394,21 @@ function AppComPaleta() {
           void Promise.allSettled(closing).then(() => dispatch({ type: "CLOSE_PROJECT", projectId }));
         }}
         onNovaConversaNoProjeto={(projectId) => {
-          // Fork: "+" da pasta — conversa nova do projeto num painel próprio, sem trocar o layout da direita
+          // "+" da pasta — conversa nova do projeto num painel próprio, sem trocar o layout da direita
           // e aguardando a escolha de agente/conta/modelo (`abrirEmPainelProprio.ts`).
           dispatch({ type: "NEW_CONVERSATION_OWN_PANE", projectId });
           setView("workspace");
         }}
         onAbrirConversa={(projectId, sessionId, title) => {
           if (!activeWorkspaceId) return;
-          // Fork: conversa que não está na tela abre num painel próprio ao lado (`abrirEmPainelProprio.ts`).
+          // Conversa que não está na tela abre num painel próprio ao lado (`abrirEmPainelProprio.ts`).
           dispatch({ type: "OPEN_SESSION_OWN_PANE", workspaceId: activeWorkspaceId, projectId, sessionId, title });
           setView("workspace");
         }}
         // Fork (histórico na lateral): mesmo caminho do "Retomar" da tela Histórico.
         onRetomarConversaAnterior={(entry) => resumeHistory(entry)}
         onSoltarConversaNoLayout={(sessionId, title, targetPaneId, zone) => {
-          // Fork: arrastar da lateral para o layout (`features/workspace/colocarConversa.ts`).
+          // Arrastar da lateral para o layout (`features/workspace/colocarConversa.ts`).
           dispatch({ type: "PLACE_SESSION", sessionId, title, targetPaneId, zone });
           setView("workspace");
         }}
@@ -417,7 +417,7 @@ function AppComPaleta() {
           setView("workspace");
         }}
         onCloseTerminal={(sessionId) => {
-          // Fork: agente em worktree isolada — pergunta se mantém ou apaga a worktree.
+          // Agente em worktree isolada — pergunta se mantém ou apaga a worktree.
           setWorktreeAoFechar(worktreeParaPerguntar(sessions, sessionId));
           void closeTerminal(sessionId).catch(() => undefined);
           // Fecha (ou reseta, se for a última tab) qualquer tab presa nessa sessão — senão ela

@@ -12,7 +12,7 @@ function ultimaRevisao(sessionId?: string): RevisaoCriada | null {
   } catch { return null; }
 }
 
-/** Fork: o agente autor mantém seu contexto; a revisão abre uma conversa irmã visível no fluxo. */
+/** O agente autor mantém seu contexto; a revisão abre uma conversa irmã visível no fluxo. */
 export function RevisarComAgente({ sessionId, onAbrirSessao }: { sessionId?: string; onAbrirSessao?: (id: string, titulo: string) => void }) {
   const [aberto, setAberto] = useState(false);
   const [pedido, setPedido] = useState<PedidoDeRevisao>({ provider: "claude", escopo: "local" });

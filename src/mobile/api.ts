@@ -7,7 +7,7 @@ export interface Conversation {
   id: string; title: string; project_id: string; provider: string | null; profile_id: string | null; state: string | null;
   /** Modo de permissão lido do rodapé do CLI: `plan`, `auto`, `acceptEdits` ou `null` (não visível). */
   mode?: string | null;
-  /** Fork: confirmação do fast no rodapé da CLI; null quando não está visível. */
+  /** Confirmação do fast no rodapé da CLI; null quando não está visível. */
   fast?: boolean | null;
   capabilities: {
     prompt: boolean; approve: boolean; revision: string; approval_text: string | null; reason: string | null;
@@ -41,7 +41,7 @@ export interface Conversation {
   ganchos?: GanchosDaConversa | null;
   /** Fork 3A: contexto estruturado do Codex, quando optou por app-server. */
   codex_app_server?: { ativo: boolean; contexto_pct: number | null } | null;
-  /** Fork: total de tokens da conversa (soma do que a CLI gravou). */
+  /** Total de tokens da conversa (soma do que a CLI gravou). */
   tokens_da_sessao?: import("./conversa/TokensDaSessao").TokensDaSessao | null;
 }
 
@@ -82,25 +82,25 @@ export interface Mensagem {
   tool?: string;
   /** Imagens coladas na mensagem; cada uma vem por `GET /conversas/{id}/imagens/{n}/{k}`. */
   imagens?: number;
-  /** Fork: documentos que o agente gerou (caminho absoluto); baixam por `GET /conversas/{id}/arquivos/{n}/{k}`. */
+  /** Documentos que o agente gerou (caminho absoluto); baixam por `GET /conversas/{id}/arquivos/{n}/{k}`. */
   arquivos?: string[];
-  /** Fork: edição do agente — o mini-diff de cada arquivo (cortado; as contagens são do diff inteiro). */
+  /** Edição do agente — o mini-diff de cada arquivo (cortado; as contagens são do diff inteiro). */
   diffs?: DiffDeArquivo[];
-  /** Fork: chamada que mexeu na lista de tarefas — a lista como ficou depois dela. */
+  /** Chamada que mexeu na lista de tarefas — a lista como ficou depois dela. */
   tarefas?: Tarefa[];
-  /** Fork: `ExitPlanMode` — o plano em markdown. */
+  /** `ExitPlanMode` — o plano em markdown. */
   plano?: string;
   /** Fork (troca-de-contexto): a ação deu certo? Engine antigo ou CLI que não diz: ausente. */
   ok?: boolean;
 }
-/** Fork: tarefa da lista do agente (TodoWrite/TaskCreate do Claude, update_plan do Codex). */
+/** Tarefa da lista do agente (TodoWrite/TaskCreate do Claude, update_plan do Codex). */
 export interface Tarefa {
   texto: string;
   estado: "pendente" | "andamento" | "feita";
   /** Como a CLI descreve enquanto faz ("Rodando os testes"). */
   fazendo?: string;
 }
-/** Fork: diff de um arquivo. Cada linha começa com `+`, `-`, ` ` ou `@` (início de trecho + rótulo). */
+/** Diff de um arquivo. Cada linha começa com `+`, `-`, ` ` ou `@` (início de trecho + rótulo). */
 export interface DiffDeArquivo {
   arquivo: string;
   tipo: "editado" | "novo" | "apagado" | "escrito";
@@ -126,9 +126,9 @@ export interface Timeline {
     /** Onde começa a página anterior. Sem cursor o servidor devolve o fim da conversa. */
     prev_cursor?: number | null;
     unavailable_segments: number[];
-    /** Fork: a lista de tarefas do agente agora. Ausente: a conversa nunca teve lista. */
+    /** A lista de tarefas do agente agora. Ausente: a conversa nunca teve lista. */
     tarefas?: Tarefa[];
-    /** Fork: último modo de permissão gravado no transcript (`default`, `acceptEdits`, `plan`, `auto`,
+    /** Último modo de permissão gravado no transcript (`default`, `acceptEdits`, `plan`, `auto`,
      *  `bypassPermissions`, `dontAsk`; no Codex `semPerguntar`, `acessoTotal`, `somenteLeitura`). */
     modo_de_permissao?: string | null;
   };

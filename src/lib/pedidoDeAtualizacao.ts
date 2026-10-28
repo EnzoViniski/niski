@@ -1,4 +1,4 @@
-// Fork: "Atualizar o PC" pedido pelo celular. O engine deixa o pedido na pasta de dados
+// "Atualizar o PC" pedido pelo celular. O engine deixa o pedido na pasta de dados
 // (`omni-engine/src/mobile/atualizar_pc.rs`); aqui a interface confere a cada poucos segundos e faz
 // o mesmo que o botão da barra:
 // - versão nova no servidor → "Atualizar agora" (cópia do estado, download assinado, reabrir);

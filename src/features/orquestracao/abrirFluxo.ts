@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import type { LayoutNode, PaneNode, WorkspaceAction, WorkspaceState } from "../../types/workspace";
 
 /**
- * Fork: abrir o fluxo do orquestrador e, a partir dele, a conversa de um nó.
+ * Abrir o fluxo do orquestrador e, a partir dele, a conversa de um nó.
  *
  * Quem pede (a faixa da conversa, a lateral, o nó do fluxo) não tem o `dispatch` do layout: manda um
  * evento da janela, e `useAberturasDoOrquestrador` (no App) traduz em ação. O fluxo abre numa aba nova

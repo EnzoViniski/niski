@@ -5,7 +5,7 @@ import { lerRota, urlDaRota } from "../mobile/rota";
 import { Uso } from "../mobile/telas/Uso";
 
 /*
- * Fork: o celular segue o estilo do PC (Clássico/Minimalista, publicado junto com o tema) e ganhou a
+ * O celular segue o estilo do PC (Clássico/Minimalista, publicado junto com o tema) e ganhou a
  * tela "Uso das contas" (`#/uso`), com o mesmo painel da web.
  */
 

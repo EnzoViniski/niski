@@ -1,4 +1,4 @@
-//! Fork: Jarvis. Processo de voz (`src-tauri/jarvis-voz/main.swift`): ouve e fala no próprio Mac.
+//! Jarvis. Processo de voz (`src-tauri/jarvis-voz/main.swift`): ouve e fala no próprio Mac.
 //! Conversa por JSON numa linha; aqui só se abre, manda comando e lê evento.
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};

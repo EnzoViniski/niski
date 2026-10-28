@@ -6,7 +6,7 @@ import { SessionProvidersContext } from "../features/terminal/sessionProviders";
 import type { TerminalSession } from "../features/terminal/terminalService";
 import type { PaneNode } from "../types/workspace";
 
-// Fork: o "+" de um painel que mostra conversa de outro projeto abre agente nesse projeto.
+// O "+" de um painel que mostra conversa de outro projeto abre agente nesse projeto.
 vi.mock("../features/terminal/TerminalPane", () => ({ TerminalPane: () => null }));
 vi.mock("../features/conversa/AbaDeAgente", () => ({ AbaDeAgente: ({ children }: { children: React.ReactNode }) => children }));
 

@@ -8,7 +8,7 @@ import { workspacesReducer } from "./workspacesReducer";
 
 /** `tema` é publicado junto com os projetos para o celular sair com a mesma cara do PC. */
 export function useWorkspace(tema: PublishedTheme | null = null) {
-  // Fork: despacho direto no reducer. A animação de conversa mora no painel (animarConversa.ts); a
+  // Despacho direto no reducer. A animação de conversa mora no painel (animarConversa.ts); a
   // View Transitions API da 0.9.2 travou os cliques da janela e não volta.
   const [collection, dispatch] = useReducer(workspacesReducer, undefined, loadWorkspaces);
   const publicado = useRef<string | null>(null);

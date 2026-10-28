@@ -1,4 +1,4 @@
-//! Fork: agente numa branch diferente da que está aberta na pasta do projeto.
+//! Agente numa branch diferente da que está aberta na pasta do projeto.
 //!
 //! Trocar a branch da pasta (`git checkout`) mudaria o chão de todos os agentes que rodam nela. Em vez
 //! disso o agente novo ganha uma **worktree** do git: uma pasta própria com a branch escolhida, em

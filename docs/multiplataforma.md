@@ -1,7 +1,7 @@
 # Windows, macOS e Linux
 
 Um código só. Cada sistema compila o próprio instalador no GitHub Actions (workflow
-**Instaladores Medza**, `.github/workflows/release.yml`).
+**Instaladores Niski**, `.github/workflows/release.yml`).
 
 ## Release
 
@@ -13,7 +13,7 @@ Um código só. Cada sistema compila o próprio instalador no GitHub Actions (wo
    - Linux x64: `.AppImage` e `.deb`
 4. Conferir o rascunho, testar os instaladores e clicar **Publish release**.
 
-Sem tag, **Actions → Instaladores Medza → Run workflow** gera os mesmos arquivos como artefatos.
+Sem tag, **Actions → Instaladores Niski → Run workflow** gera os mesmos arquivos como artefatos.
 O workflow usa só o token automático do Actions: não há secrets para cadastrar.
 
 `npm run build` local gera o instalador do sistema em que roda, em `installers/`.
@@ -34,13 +34,13 @@ se mudou, reinicia o engine. Nos dois casos as sessões abertas caem na atualiza
 
 O app é assinado ad-hoc (`bundle.macOS.signingIdentity: "-"`), não notarizado.
 
-1. Abrir o `.dmg` e arrastar **Medza Agents** para **Aplicativos**.
+1. Abrir o `.dmg` e arrastar **Niski** para **Aplicativos**.
 2. Abrir o app. O macOS avisa que não pôde verificar o desenvolvedor: fechar o aviso.
-3. **Ajustes do Sistema → Privacidade e Segurança** → rolar até o aviso do Medza Agents → **Abrir Mesmo Assim**.
+3. **Ajustes do Sistema → Privacidade e Segurança** → rolar até o aviso do Niski → **Abrir Mesmo Assim**.
 4. Confirmar com a senha. Das próximas vezes abre direto.
 
 Se aparecer "está danificado", rodar no Terminal:
-`xattr -dr com.apple.quarantine "/Applications/Medza Agents.app"`
+`xattr -dr com.apple.quarantine "/Applications/Niski.app"`
 
 ## Windows: aviso do SmartScreen
 

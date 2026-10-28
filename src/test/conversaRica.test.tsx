@@ -1,4 +1,4 @@
-// Fork: conversa rica — mini-diff, lista de tarefas, cartão do plano e selo do modo.
+// Conversa rica — mini-diff, lista de tarefas, cartão do plano e selo do modo.
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BlocoDeAcoes } from "../mobile/Chat";

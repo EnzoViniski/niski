@@ -44,9 +44,9 @@ fn log(dir: &Path) -> Vec<Value> {
         .collect()
 }
 
-// Fork: PTY e processo sintéticos permitem reproduzir parada/teclado no sandbox.
+// PTY e processo sintéticos permitem reproduzir parada/teclado no sandbox.
 #[derive(Debug)]
-struct FilhoSintetico(bool); // Fork: `kill` também torna o filho esperável, como um processo real.
+struct FilhoSintetico(bool); // `kill` também torna o filho esperável, como um processo real.
 impl portable_pty::ChildKiller for FilhoSintetico {
     fn kill(&mut self) -> std::io::Result<()> { self.0=true; Ok(()) }
     fn clone_killer(&self) -> Box<dyn portable_pty::ChildKiller + Send + Sync> { Box::new(Self(self.0)) }
@@ -630,7 +630,7 @@ fn queda_do_servidor_reabre_pty_sem_repetir_prompt() {
     let rev = c.revision(&c.estado.lock().unwrap());
     enviar_prompt(&id, "cair", &rev, false).unwrap();
     esperar(|| !ativo(&id));
-    // Fork: o reinício zera o pid (`None`) antes de preparar a PTY nova e consumir a marca do
+    // O reinício zera o pid (`None`) antes de preparar a PTY nova e consumir a marca do
     // fallback; esperar só "pid diferente" via o `None` no meio do caminho e, sob carga, conferia a
     // marca cedo demais. Espera o pid novo de verdade.
     esperar(

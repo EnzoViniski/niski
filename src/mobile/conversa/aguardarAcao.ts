@@ -1,4 +1,4 @@
-// Fork: HTTP 202 só confirma a fila; controles precisam saber se a CLI aceitou a ação.
+// HTTP 202 só confirma a fila; controles precisam saber se a CLI aceitou a ação.
 import { request, type Timeline } from "../api";
 
 export async function aguardarAcao(conversaId: string, acaoId: string | undefined): Promise<void> {

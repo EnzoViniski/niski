@@ -1,5 +1,5 @@
 //! Bundle da página (celular e `/pc`) embutido no engine e o tipo de cada arquivo.
-//! Fork: saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
+//! Saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
 use super::*;
 
 #[cfg(mobile_assets)]

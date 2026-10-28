@@ -5,7 +5,7 @@
 Em **Configurações → Agentes**, cada conta Claude/Codex tem consumo de 5 horas, consumo semanal,
 reset e origem da observação. Ausência de dado não significa 0%.
 
-Quando uma sessão aberta no desktop recebe do Claude/Codex a mensagem de limite atingido, o Medza
+Quando uma sessão aberta no desktop recebe do Claude/Codex a mensagem de limite atingido, o Niski
 continua automaticamente a mesma conversa na próxima conta autenticada do provider. Claude copia o
 transcript e usa `--resume`; Codex copia o rollout e usa `resume <id>`. Contas que já atingiram o
 limite naquela conversa ficam fora das próximas tentativas, evitando ciclo. O comando de retomada
@@ -55,7 +55,7 @@ entrada no firewall do Windows. O engine é sidecar sem janela, então o prompt 
 aparece; rode uma vez, como administrador:
 
 ```
-netsh advfirewall firewall add rule name="Medza Agents mobile" dir=in action=allow protocol=TCP localport=47422 localip=100.x.x.x
+netsh advfirewall firewall add rule name="Niski mobile" dir=in action=allow protocol=TCP localport=47422 localip=100.x.x.x
 ```
 
 Use sempre o **IP** do Tailscale, nunca o nome MagicDNS: o `Host` precisa bater exatamente com o
@@ -68,7 +68,7 @@ Não há fallback para `0.0.0.0`. Se o Tailscale não estiver disponível, a fal
 configurações e o engine desktop continua funcionando; aplique novamente após conectar.
 
 Configuração: `%LOCALAPPDATA%/ai.medza.agents/engine/mobile.json`. O TCP privilegiado continua
-somente em `127.0.0.1:47421`. O Medza não adiciona domínio, relay nem túnel: quem dá conectividade
+somente em `127.0.0.1:47421`. O Niski não adiciona domínio, relay nem túnel: quem dá conectividade
 é o Tailscale. Não há PWA/push.
 
 **Token de dispositivo.** Além do Tailscale, toda rota de API exige o header `X-Omni-Token`. O
@@ -79,8 +79,8 @@ Só `/` e `/assets/` dispensam o token, porque o bundle precisa carregar antes d
 o resto é negado por padrão, então rota nova nasce protegida. **Gerar novo código** rotaciona o
 token e desconecta os celulares já pareados.
 
-O celular lista projetos e une às conversas do Medza o histórico nativo das contas Claude/Codex.
-Transcripts que já pertencem a uma conversa do Medza são deduplicados; os demais aparecem no projeto
+O celular lista projetos e une às conversas do Niski o histórico nativo das contas Claude/Codex.
+Transcripts que já pertencem a uma conversa do Niski são deduplicados; os demais aparecem no projeto
 da mesma pasta e abrem em modo somente leitura. A busca encontra conversas por título, provider,
 conta, projeto ou caminho, inclusive atravessando projetos a partir da tela inicial.
 
@@ -101,7 +101,7 @@ UI e API usam a mesma origem, com validação de `Host`, `Origin` nos POSTs e co
 
 | Rota | Contrato |
 | --- | --- |
-| `GET /conversas` | Lista resumida do índice do Medza unida ao histórico nativo deduplicado, com provider/perfil, estado e capacidades/revisão atuais. |
+| `GET /conversas` | Lista resumida do índice do Niski unida ao histórico nativo deduplicado, com provider/perfil, estado e capacidades/revisão atuais. |
 | `GET /conversas/:id/timeline?cursor=0` | Até 100 mensagens do índice; históricos nativos devolvem a prévia segura de até 400 mensagens. |
 | `POST /conversas/:id/prompt` | `{ "texto": "..." }`, até 16000 bytes; sem slash command ou controles de terminal. |
 | `POST /conversas/:id/aprovar` | `{ "permitir": true }` ou `false`; apenas escolha de uso único reconhecida. |

@@ -3,7 +3,7 @@ import { workspaceReducer } from "../features/workspace/workspaceReducer";
 import { emptyWorkspace } from "../services/workspaceService";
 import type { LayoutNode, PaneNode, WorkspaceState } from "../types/workspace";
 
-// Fork: link clicado abre aba de navegador à direita de quem o mostrou (`abrirLink.ts`).
+// Link clicado abre aba de navegador à direita de quem o mostrou (`abrirLink.ts`).
 function panes(node: LayoutNode): PaneNode[] {
   return node.type === "pane" ? [node] : [...panes(node.first), ...panes(node.second)];
 }

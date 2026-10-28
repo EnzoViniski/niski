@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PaneView } from "../features/workspace/PaneView";
 import type { PaneNode } from "../types/workspace";
 
-// Fork: fechar aba ou painel de agente não apaga a conversa; terminal puro continua sendo encerrado.
+// Fechar aba ou painel de agente não apaga a conversa; terminal puro continua sendo encerrado.
 const closeTerminal = vi.fn(() => Promise.resolve());
 vi.mock("../features/terminal/terminalService", async (original) => ({
   ...(await original<typeof import("../features/terminal/terminalService")>()),

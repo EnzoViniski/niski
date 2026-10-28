@@ -148,7 +148,7 @@ it("dropZone: bordas até 30% dividem, o resto e o cabeçalho movem", async () =
   expect(dropZone(rect, 110, 50, true)).toBe("center");
 });
 
-// Fork: aba salva por uma versão mais nova (kind desconhecido) mostra aviso e não quebra o painel.
+// Aba salva por uma versão mais nova (kind desconhecido) mostra aviso e não quebra o painel.
 it("aba de kind desconhecido mostra o aviso de versão mais nova", () => {
   const pane = { type: "pane", id: "p", activeTabId: "tab", tabs: [{ id: "tab", kind: "quadro-novo", title: "Do futuro" }] } as unknown as PaneNode;
   render(<PaneView pane={pane} active onlyPane maximized={false} projectId="project" projectPath="C:/test" fileSaveMode="auto" agentView="terminal" kanban={{ version: 1, tasks: [], agentByProject: {}, dispatcherEnabled: false, failureTimestamps: [], pausedUntil: null }} kanbanDispatch={vi.fn()} dispatch={vi.fn()} />);

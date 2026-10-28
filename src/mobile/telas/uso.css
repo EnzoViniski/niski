@@ -1,4 +1,4 @@
-/* Fork: tela de uso do celular (`Uso.tsx`). Reaproveita as classes `w-uso-*` do painel da web com
+/* Tela de uso do celular (`Uso.tsx`). Reaproveita as classes `w-uso-*` do painel da web com
    alvos de toque maiores; no Minimalista os cantos e a borda vêm de `minimalista.css`. */
 .m-uso { display: flex; flex-direction: column; gap: .75rem; }
 .m-uso .w-uso-cabecalho { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }

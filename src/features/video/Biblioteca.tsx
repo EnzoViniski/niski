@@ -136,7 +136,7 @@ function AbaDeReferencias({ projeto, acoes, bloqueado }: { projeto: string; acoe
           <li key={p.id}>
             <span className="video-pasta-cor" style={{ background: p.cor }} aria-hidden="true" />
             <span className="video-bib-nome">{p.nome} <small>{p.itens.length} arquivo{p.itens.length === 1 ? "" : "s"}{p.links.length ? ` · ${p.links.length} link${p.links.length === 1 ? "" : "s"}` : ""}</small></span>
-            {/* Fork: ligar/desligar por vídeo (sem copiar); copiar ficou opcional. */}
+            {/* Ligar/desligar por vídeo (sem copiar); copiar ficou opcional. */}
             <button type="button" role="switch" aria-checked={escolhidas.includes(p.id)} disabled={bloqueado}
               className={`video-papel ${escolhidas.includes(p.id) ? "is-usar" : "is-referencia"}`}
               title={escolhidas.includes(p.id) ? "Ligada: o agente usa esta pasta neste vídeo" : "Desligada neste vídeo"}

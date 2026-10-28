@@ -1,4 +1,4 @@
-// Fork: anexos enviados em blocos oficiais à CLI do Jarvis, sem gravar o conteúdo em log.
+// Anexos enviados em blocos oficiais à CLI do Jarvis, sem gravar o conteúdo em log.
 export const MAXIMO_DE_ANEXOS = 6;
 export const MAXIMO_POR_ANEXO = 6 * 1024 * 1024;
 export const MAXIMO_TOTAL = 12 * 1024 * 1024;

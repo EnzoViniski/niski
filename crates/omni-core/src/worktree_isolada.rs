@@ -1,4 +1,4 @@
-//! Fork: agente numa **worktree isolada** do git — uma cópia de trabalho só dele, numa branch só dele,
+//! Agente numa **worktree isolada** do git — uma cópia de trabalho só dele, numa branch só dele,
 //! para agentes que editam código em paralelo não pisarem um no outro.
 //!
 //! Onde fica: **fora** do repositório, ao lado dele:
@@ -60,7 +60,7 @@ fn git_com_entrada(cwd: &Path, args: &[&str], entrada: Option<&[u8]>) -> Result<
         .stdin(if entrada.is_some() { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped()).stderr(Stdio::piped())
         .spawn().map_err(|e| format!("git não encontrado no PATH: {e}"))?;
-    // Fork: drena stdout/stderr enquanto escreve stdin; check-ignore pode encher ambos os pipes.
+    // Drena stdout/stderr enquanto escreve stdin; check-ignore pode encher ambos os pipes.
     let saida = std::thread::scope(|escopo| {
         let escrita = entrada.zip(filho.stdin.take()).map(|(bytes, mut stdin)| {
             escopo.spawn(move || stdin.write_all(bytes))
@@ -211,7 +211,7 @@ fn raiz_isolada(caminho: &Path) -> Result<PathBuf, String> {
     let raiz = PathBuf::from(git(caminho, &["rev-parse", "--show-toplevel"]).map_err(|_| nao_e())?);
     let (_, nome) = da_pasta(&raiz).ok_or_else(nao_e)?;
     let principal = raiz_principal(&raiz)?;
-    // Fork: o sufixo pode ser imitado em qualquer pasta; exige a base deste repositório.
+    // O sufixo pode ser imitado em qualquer pasta; exige a base deste repositório.
     let raiz = dunce::canonicalize(&raiz).map_err(|_| nao_e())?;
     let esperado = dunce::canonicalize(pasta_base(&principal).join(&nome)).map_err(|_| nao_e())?;
     if raiz == principal || raiz != esperado { return Err(nao_e()); }

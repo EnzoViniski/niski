@@ -1,4 +1,4 @@
-//! Fork: só reabre uma PTY depois de encerrar sua CLI em primeiro plano.
+//! Só reabre uma PTY depois de encerrar sua CLI em primeiro plano.
 //! `portable_pty::Child::kill` sinaliza o shell, não o grupo da CLI que ele abriu.
 use super::*;
 #[cfg(test)]

@@ -20,7 +20,7 @@ impl Interaction {
     pub fn new(rows: u16, cols: u16) -> Self { Self { parser: vt100::Parser::new(rows,cols,0), input_revision: 0, turn_active: false, aprovacao_contada: false, avisos_antes_do_turno: (0, 0), turnos_iniciados: 0, generation: rand::random(), codex_visto: false } }
     pub fn revision(&self, session: &Arc<LiveSession>) -> String {
         let mut hash = DefaultHasher::new();
-        // Fork: sem os quadros de animação (o Codex ocioso gira um indicador e a versão nunca parava).
+        // Sem os quadros de animação (o Codex ocioso gira um indicador e a versão nunca parava).
         crate::revisao_estavel::texto_para_revisao(&self.parser.screen().contents()).hash(&mut hash);
         self.input_revision.hash(&mut hash);
         self.generation.hash(&mut hash);
@@ -216,7 +216,7 @@ pub fn escolha(text: &str) -> Option<Escolha> {
             })
             .filter(|e| !e.titulo.is_empty()).collect()
     }).filter(|e: &Vec<Etapa>| e.len() > 1).unwrap_or_default();
-    // Fork: o contador do formulário do Codex ("Field 1/1", "Question 1/2 (2 unanswered)") não é a pergunta.
+    // O contador do formulário do Codex ("Field 1/1", "Question 1/2 (2 unanswered)") não é a pergunta.
     let contador = |l: &str| ["Field ", "Question "].iter().any(|p| l.strip_prefix(p)
         .and_then(|r| r.split_whitespace().next()).is_some_and(|n| n.contains('/') && n.chars().all(|c| c.is_ascii_digit() || c == '/')));
     let mut textos = caixa[..primeira].iter().filter(|l| !aba(l)).map(|l| l.trim()).filter(|l| !l.is_empty() && !contador(l));
@@ -300,7 +300,7 @@ pub(crate) fn composer_vazio(screen: &vt100::Screen) -> bool {
         // Espaço em branco conta como vazio: a 2.1.302 apaga cada palavra do exemplo em separado e deixa
         // os espaços entre elas sem `dim` — `Try "fix lint errors"` virava "rascunho" e travava a conversa.
         && ((col..cols).all(|c| screen.cell(row,c).is_none_or(|cell| !cell.has_contents() || cell.dim() || cell.contents().trim().is_empty()))
-            // Fork: o agy mostra a dica do modo no campo vazio ("Accept-edits mode: … (shift+tab to cycle)").
+            // O agy mostra a dica do modo no campo vazio ("Accept-edits mode: … (shift+tab to cycle)").
             || crate::antigravity_permissoes::dica_de_modo(&screen.contents_between(row,col,row,cols)))
 }
 
@@ -358,13 +358,13 @@ pub fn submeter_colagem(session: &Arc<LiveSession>) -> Result<()> {
 
 /// Only single-use choices with exact labels. Persistent permission choices are never sent.
 pub fn approval(text: &str, provider: &str) -> Option<(String, String, String)> {
-    // Fork: reescrito. O antigo exigia a opção escrita "3. No" (o Claude Code atual escreve "3. No, and
+    // Reescrito. O antigo exigia a opção escrita "3. No" (o Claude Code atual escreve "3. No, and
     // tell Claude what to do differently (esc)"), só a pergunta "Do you want to proceed?" (editar e
     // criar arquivo perguntam "Do you want to make this edit to x?") e exatamente um `❯` na tela
     // inteira — o prompt anterior, que fica na tela como "❯ texto", já derrubava. O pedido ficava só
     // no terminal e o chat não mostrava nada para aprovar.
     // Borda de caixa (`│ … │`) sai antes: versões com o diálogo emoldurado.
-    // Fork: Antigravity tem diálogo próprio (menu de setas), em `antigravity_permissoes`.
+    // Antigravity tem diálogo próprio (menu de setas), em `antigravity_permissoes`.
     if provider == "antigravity" { return crate::antigravity_permissoes::aprovacao(text); }
     let lines: Vec<String> = text.lines()
         .map(|l| l.trim().trim_start_matches('│').trim_end_matches('│').trim().to_string()).collect();
@@ -457,7 +457,7 @@ pub fn has_children(pid: Option<u32>) -> bool {
 #[cfg(not(windows))]
 pub fn has_children(pid: Option<u32>) -> bool {
     let Some(pid) = pid else { return false };
-    // Fork: `settle` roda em todo snapshot; a leitura do `ps` vale 1 s (`economia.rs`).
+    // `settle` roda em todo snapshot; a leitura do `ps` vale 1 s (`economia.rs`).
     let Some(output) = crate::economia::ps(&["ppid="]) else { return false };
     output.lines().any(|line| line.trim().parse::<u32>() == Ok(pid))
 }
@@ -476,7 +476,7 @@ pub fn provider_running(pid: Option<u32>, provider: &str) -> bool {
     agent_descends_from(&format!("{}\n{}", ps("args="), ps("comm=")), pid, provider)
 }
 
-/// Fork: `provider_running` com a lista de processos de até 1 s atrás (`economia::ps`). Para estado
+/// `provider_running` com a lista de processos de até 1 s atrás (`economia::ps`). Para estado
 /// de tela; quem vai digitar ou esperar o CLI sair continua com a leitura na hora.
 #[cfg(not(windows))]
 pub fn provider_running_recente(pid: Option<u32>, provider: &str) -> bool {
@@ -510,11 +510,11 @@ fn agent_descends_from(ps: &str, pid: u32, provider: &str) -> bool {
 }
 
 pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
-    if let Some(cap) = crate::codex_app_server::capabilities(session) { return cap; } // Fork: 3A, protocolo antes da tela.
+    if let Some(cap) = crate::codex_app_server::capabilities(session) { return cap; } // 3A, protocolo antes da tela.
     let context = session.interaction.lock().expect("screen poisoned");
     let meta = session.meta.lock().expect("metadata poisoned");
     let provider = meta.provider.as_deref().unwrap_or("");
-    // Fork: `capabilities` entra em cada leitura da conversa; aqui o `ps` de até 1 s atrás basta.
+    // `capabilities` entra em cada leitura da conversa; aqui o `ps` de até 1 s atrás basta.
     let available = !session.reserved.load(Ordering::SeqCst) && provider_running_recente(meta.pid,provider);
     let dialog = approval(&context.parser.screen().contents(),provider);
     // Fork (Onda 2): pedido do gancho vale como o diálogo (a conexão aberta prova que a CLI está viva),
@@ -533,7 +533,7 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
         // ponytail: diagnóstico detalhado enquanto a tela do agy não está calibrada em todos os casos;
         // volta para o texto genérico quando a Conversa do Antigravity estiver estável.
         "antigravity" => motivo_antigravity(context.parser.screen(), available, session.reserved.load(Ordering::SeqCst)),
-        // Fork: diz qual condição falhou (e grava no log, só metadados) — o texto genérico não dava
+        // Diz qual condição falhou (e grava no log, só metadados) — o texto genérico não dava
         // pista nenhuma de por que a conversa travava. O chat se destrava sozinho (`destravar`).
         _ => motivo_geral(context.parser.screen(), provider, available, session.reserved.load(Ordering::SeqCst), &meta.id, context.codex_visto),
     });
@@ -545,12 +545,12 @@ pub fn capabilities(session: &Arc<LiveSession>) -> Capabilities {
     Capabilities { prompt, approve, revision: context.revision(session), approval_text, reason, enfileirar, escolha, pedido, espera, approval_options }
 }
 
-/// Fork: campo vazio no meio de um turno que só os ganchos enxergam (sem o rodapé "esc to interrupt").
+/// Campo vazio no meio de um turno que só os ganchos enxergam (sem o rodapé "esc to interrupt").
 fn pode_enfileirar_pelos_ganchos(screen: &vt100::Screen, provider: &str) -> bool {
     provider == "claude" && screen.bracketed_paste() && composer_vazio(screen) && approval(&screen.contents(),provider).is_none()
 }
 
-/// Fork: por que o campo do Claude/Codex não foi reconhecido. Mesma ideia do `motivo_antigravity`.
+/// Por que o campo do Claude/Codex não foi reconhecido. Mesma ideia do `motivo_antigravity`.
 fn motivo_geral(screen: &vt100::Screen, provider: &str, rodando: bool, reservada: bool, sessao: &str, codex_visto: bool) -> String {
     let texto = screen.contents();
     let mut faltas = Vec::new();
@@ -1092,7 +1092,7 @@ Ready to submit your answers?
         assert!(approval("Do you want to proceed?\n1. Always allow\n3. No","claude").is_none());
         assert_eq!(approval("Do you want to proceed?\n❯ 1. Yes\n2. Yes, always\n3. No","claude").unwrap().0,"1\r");
     }
-    /// Fork: telas do Claude Code atual. O prompt anterior fica na tela com `❯`, a opção "No" vem
+    /// Telas do Claude Code atual. O prompt anterior fica na tela com `❯`, a opção "No" vem
     /// com explicação, e editar/criar arquivo perguntam outra coisa.
     #[test] fn aprovacao_do_claude_atual() {
         let bash = "❯ roda os testes\n\n⏺ Bash(npm test)\n\n────────────────────────────────────────\n Bash command\n\n   npm test\n   Run the test suite\n\n Do you want to proceed?\n ❯ 1. Yes\n   2. Yes, and don't ask again for npm test commands in /Users/x/app\n   3. No, and tell Claude what to do differently (esc)\n";

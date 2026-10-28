@@ -10,7 +10,7 @@ import { usarTransporte } from "../mobile/api";
 import type { Project } from "../types/workspace";
 import type { TerminalSession } from "../features/terminal/terminalService";
 
-// Fork: na lateral, os subagentes ficam embaixo da orquestradora (como subpasta); nas abas, ORQ/SUB.
+// Na lateral, os subagentes ficam embaixo da orquestradora (como subpasta); nas abas, ORQ/SUB.
 const engine = vi.hoisted(() => ({ engineApi: vi.fn() }));
 vi.mock("../features/terminal/terminalService", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../features/terminal/terminalService")>()),

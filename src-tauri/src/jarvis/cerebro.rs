@@ -1,4 +1,4 @@
-//! Fork: Jarvis. O "cérebro" é uma sessão do Claude Code oficial que fica aberta enquanto o Jarvis
+//! Jarvis. O "cérebro" é uma sessão do Claude Code oficial que fica aberta enquanto o Jarvis
 //! está aberto (`claude -p --input-format stream-json`): cada fala do Enzo entra como uma linha, e a
 //! resposta volta aos pedaços (`--include-partial-messages`), o que deixa a voz começar na primeira
 //! frase. Ferramentas só pelo MCP do engine, sem as configurações do usuário (hooks deixariam lento) e

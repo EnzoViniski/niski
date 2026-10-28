@@ -75,7 +75,7 @@ export function TrocarAgente({ conversaId, provider, profileId, pronto, mensagem
   }
 
   const destinos = opcoes ? destinosDaTroca({ ...opcoes, profile_id: opcoes.profile_id ?? profileId ?? null }) : [];
-  // Fork: o engine reconhece a CLI presa na trava "aberta em outro app" como parada e pode trocá-la.
+  // O engine reconhece a CLI presa na trava "aberta em outro app" como parada e pode trocá-la.
   const bloqueio = opcoes ? (!opcoes.pode_trocar ? opcoes.motivo ?? "Agora não dá para trocar" : null)
     : !pronto ? "Espere o agente terminar para trocar" : null;
   const mesmoAgente = escolhido && escolhido.provider === (opcoes?.provider ?? provider);

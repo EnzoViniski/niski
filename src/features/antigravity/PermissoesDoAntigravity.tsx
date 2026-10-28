@@ -3,14 +3,14 @@ import { request } from "../../mobile/api";
 import { AgentIcon } from "../../components/ui/AgentIcon";
 
 /**
- * Fork: o que o Antigravity aprova sozinho nas conversas abertas pelo app (`--mode` do `agy`, só nessas
+ * O que o Antigravity aprova sozinho nas conversas abertas pelo app (`--mode` do `agy`, só nessas
  * sessões; a config global do agy não muda). O que ele ainda perguntar aparece na conversa, com
  * Permitir/Negar, como no Claude e no Codex.
  */
 type Modo = "sem-perguntar" | "auto" | "accept-edits" | "padrao";
 
 const OPCOES: { valor: Modo; nome: string; desc: string }[] = [
-  // Fork: padrão do app desde 23/10/2026 (pedido do Enzo), `--dangerously-skip-permissions` do agy 1.4.6+.
+  // Padrão do app desde 23/10/2026 (pedido do Enzo), `--dangerously-skip-permissions` do agy 1.4.6+.
   { valor: "sem-perguntar", nome: "Sem perguntar (recomendado)", desc: "Cria, edita e roda comandos sem pedir aprovação, inclusive os que apagam ou publicam. Use em pastas em que você confia." },
   { valor: "accept-edits", nome: "Arquivos sem perguntar", desc: "Cria e edita arquivos sem perguntar. Comandos pedem aprovação na conversa." },
   { valor: "auto", nome: "Automático", desc: "Também roda comandos seguros sem perguntar; pergunta antes do que não dá para desfazer. Depende da sua conta do Antigravity: sem ele, o app usa \"arquivos sem perguntar\"." },

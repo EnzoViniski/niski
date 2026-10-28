@@ -2,19 +2,19 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
 import "./index.css";
-import "./styles/fork.css";
-// Fork: pausa de animações com a janela parada e contenção de layout (energia).
+import "./styles/niski.css";
+// Pausa de animações com a janela parada e contenção de layout (energia).
 import "./styles/energia.css";
-// Fork: estilo Minimalista (só vale com data-estilo="minimalista"; por último para reescrever os outros).
+// Estilo Minimalista (só vale com data-estilo="minimalista"; por último para reescrever os outros).
 import "./styles/minimalista.css";
-// Fork: estilo Vidro (só vale com data-variante="vidro"; depois do Minimalista, que ele reaproveita).
+// Estilo Vidro (só vale com data-variante="vidro"; depois do Minimalista, que ele reaproveita).
 import "./styles/vidro.css";
-// Fork: símbolo do Niski conforme o tema.
+// Símbolo do Niski conforme o tema.
 import "./styles/marca.css";
 import { usarTransporte } from "./mobile/api";
 import { transporteDoEngine } from "./features/conversa/transporteDoEngine";
 import { instalarRegistroDeErros } from "./lib/registroDeErros";
-// Fork: aparência/workspaces também em disco; ao abrir, restaura de lá se a cópia for mais nova.
+// Aparência/workspaces também em disco; ao abrir, restaura de lá se a cópia for mais nova.
 import { iniciarEspelho, restaurarDoDisco } from "./lib/espelhoDaInterface";
 
 instalarRegistroDeErros();
@@ -24,7 +24,7 @@ instalarRegistroDeErros();
 usarTransporte(transporteDoEngine);
 
 const noTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-// Fork: a janela flutuante do Jarvis carrega este mesmo index.html. Ela mostra só o Jarvis e não toca
+// A janela flutuante do Jarvis carrega este mesmo index.html. Ela mostra só o Jarvis e não toca
 // no estado da interface (nada de restaurar nem espelhar workspaces/aparência).
 const ehJarvis = noTauri && (window as { __TAURI_INTERNALS__?: { metadata?: { currentWindow?: { label?: string } } } })
   .__TAURI_INTERNALS__?.metadata?.currentWindow?.label === "jarvis";

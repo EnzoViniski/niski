@@ -1,4 +1,4 @@
-// Fork: trabalho de cada pedido recolhido em "Trabalhou por 20m 34s" (pedido do Enzo, 21/10/2026),
+// Trabalho de cada pedido recolhido em "Trabalhou por 20m 34s" (pedido do Enzo, 21/10/2026),
 // como nos apps do Codex/Claude. Um turno vai da sua mensagem até a próxima. Quando o turno terminou,
 // tudo entre a sua mensagem e a **última fala do agente** (falas intermediárias, ações, comandos)
 // fica recolhido; a resposta final continua à vista. O turno em andamento nunca recolhe.

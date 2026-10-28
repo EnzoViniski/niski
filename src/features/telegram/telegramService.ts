@@ -1,4 +1,4 @@
-// Fork: o front nunca guarda o token; ele vai uma vez ao engine (IPC do PC ou celular pareado).
+// O front nunca guarda o token; ele vai uma vez ao engine (IPC do PC ou celular pareado).
 import { engineApi } from "../terminal/terminalService";
 import type { TipoDeAtividade } from "../atividade/tipos";
 

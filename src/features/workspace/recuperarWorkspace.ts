@@ -10,13 +10,13 @@ import type {
   WorkspaceTab,
 } from "../../types/workspace";
 import { collectResourceIds, createProject } from "./workspaceReducer";
-// Fork: conversa do editor de vídeo não é projeto solto (ver features/video/ChatDoEditor.tsx).
+// Conversa do editor de vídeo não é projeto solto (ver features/video/ChatDoEditor.tsx).
 import { ehConversaDoVideo } from "../video/projetoDoVideo";
 import { ehConversaDoCopiloto } from "../copiloto/copiloto";
 import { ehConversaDaRotina } from "../rotina/ConversaDaRotina";
 
 /**
- * Fork: recuperar projetos que sumiram do workspace usando só o que a UI já recebe do engine
+ * Recuperar projetos que sumiram do workspace usando só o que a UI já recebe do engine
  * (lista de sessões e de conversas) — nunca lendo `sessions.json`/`conversations.json` direto.
  *
  * - Sessões órfãs: agente vivo cujo `project_id` não é de nenhum projeto aberto e que não está em
@@ -64,8 +64,8 @@ export function encontrarSessoesOrfas(sessions: TerminalSession[], workspaces: W
   const grupos = new Map<string, ProjetoParaAdotar>();
   for (const sessao of sessions) {
     if (!sessao.provider || !ESTADOS_VIVOS.has(sessao.state) || !sessao.cwd || abertos.has(sessao.id)) continue;
-    if (ehConversaDoVideo(sessao.project_id)) continue; // Fork: mora no editor de vídeo.
-    if (ehConversaDoCopiloto(sessao.project_id)) continue; // Fork: mora na janela do copiloto.
+    if (ehConversaDoVideo(sessao.project_id)) continue; // Mora no editor de vídeo.
+    if (ehConversaDoCopiloto(sessao.project_id)) continue; // Mora na janela do copiloto.
     if (ehConversaDaRotina(sessao.project_id)) continue; // Fork (Rotina): mora na tela Rotina.
     const path = pastaDoProjeto(sessao.cwd);
     // Projeto (ou pasta) já aberto em algum workspace: não é órfã.
@@ -106,7 +106,7 @@ export function projetosDasConversasRecentes(
   const abertos = recursosAbertos(workspaces);
   const recentes = conversas
     .map((conversa) => ({ conversa, em: ultimaAtividade(conversa) }))
-    .filter(({ conversa, em }) => conversa.cwd && em >= agora - janelaMs && !ehConversaDoVideo(conversa.project_id)) // Fork: vídeo fica no editor.
+    .filter(({ conversa, em }) => conversa.cwd && em >= agora - janelaMs && !ehConversaDoVideo(conversa.project_id)) // Vídeo fica no editor.
     .sort((a, b) => b.em - a.em);
   const grupos = new Map<string, ProjetoRecente>();
   for (const { conversa, em } of recentes) {

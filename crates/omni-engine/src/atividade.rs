@@ -1,4 +1,4 @@
-//! Fork: atividade observada no engine. Só os ids vistos vão para disco; nenhum texto de conversa.
+//! Atividade observada no engine. Só os ids vistos vão para disco; nenhum texto de conversa.
 //! Filho de `mobile` para compartilhar a API sem alterar o `main.rs` da frente Ganchos.
 use super::*;
 use omni_protocol::TerminalSession;
@@ -146,7 +146,7 @@ fn coletar(state: &EngineState) -> Vec<Item> {
             visto: false, resumo: resumo.into(), orquestrador,
         });
     }
-    itens.extend(super::agendamentos::atividade(state).into_iter().filter_map(|i| serde_json::from_value(i).ok())); // Fork: tipo agendamento (3D).
+    itens.extend(super::agendamentos::atividade(state).into_iter().filter_map(|i| serde_json::from_value(i).ok())); // Tipo agendamento (3D).
     itens
 }
 

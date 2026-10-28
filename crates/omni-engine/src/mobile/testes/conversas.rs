@@ -1,4 +1,4 @@
-//! Testes da lista, do painel, da timeline e do catálogo publicado. Fork: saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
+//! Testes da lista, do painel, da timeline e do catálogo publicado. Saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
 use super::*;
 
 #[tokio::test] async fn painel_junta_lista_e_catalogo_e_responde_304_sem_mudanca() {
@@ -98,7 +98,7 @@ use super::*;
     assert_eq!(state.mobile.workspace.lock().unwrap().theme.as_ref(),Some(&tema));
 }
 
-/// Fork: tema publicado por um PC antigo (sem `estilo`) continua valendo e vira Clássico (vazio).
+/// Tema publicado por um PC antigo (sem `estilo`) continua valendo e vira Clássico (vazio).
 #[test] fn tema_sem_estilo_de_pc_antigo_ainda_le() {
     let tema: PublishedTheme = serde_json::from_str(r#"{"accent":"roxo","theme":"claro","background":"pixel-grid","glass":"forte"}"#).unwrap();
     assert_eq!(tema.estilo,"");

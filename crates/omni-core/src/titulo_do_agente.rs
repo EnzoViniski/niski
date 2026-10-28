@@ -1,4 +1,4 @@
-//! Fork: nome da conversa dado pelo próprio agente, no lugar do começo do primeiro prompt.
+//! Nome da conversa dado pelo próprio agente, no lugar do começo do primeiro prompt.
 //!
 //! - **Claude Code** grava no transcript `{"type":"ai-title","aiTitle":…}` logo depois do primeiro
 //!   prompt (e regrava ao longo da conversa); o `/rename` da CLI grava `{"type":"custom-title",

@@ -1,4 +1,4 @@
-//! Fork: aba "Navegador" do layout e a trava contra link que tomava a janela inteira.
+//! Aba "Navegador" do layout e a trava contra link que tomava a janela inteira.
 //!
 //! - Link clicado no app (`<a href>` da conversa, de um markdown…) navegava a própria janela do app:
 //!   a página cobria tudo e não havia como voltar. O plugin `navegacao` recusa qualquer navegação da
@@ -168,7 +168,7 @@ pub fn navegador_fechar<R: Runtime>(app: tauri::AppHandle<R>, rotulo: String) ->
     Ok(())
 }
 
-/// Fork: rede de segurança contra página de navegador sobrando na tela. O Enzo (23/10/2026) abriu um link
+/// Rede de segurança contra página de navegador sobrando na tela. O Enzo (23/10/2026) abriu um link
 /// do Hyperframes, fechou a aba e ficou um quadrado branco por cima do app que não saía. A interface manda
 /// as abas de navegador que existem (`vivos`) e as que estão desenhadas agora (`montados`): webview de aba
 /// que não existe mais é fechado; o de aba que não está na tela, escondido. Devolve quantos mexeu.

@@ -6,7 +6,7 @@ import { _zerarResumo, type FluxoAoVivo as Fluxo, type NoAoVivo } from "../featu
 import { transporteDoEngine } from "../features/conversa/transporteDoEngine";
 import { usarTransporte } from "../mobile/api";
 
-// Fork: fatia (c) do orquestrador — prompt para qualquer nó, aprovar/negar e parar pelo fluxo.
+// Fatia (c) do orquestrador — prompt para qualquer nó, aprovar/negar e parar pelo fluxo.
 const engine = vi.hoisted(() => ({ engineApi: vi.fn(), listTerminalSessions: vi.fn() }));
 vi.mock("../features/terminal/terminalService", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../features/terminal/terminalService")>()),

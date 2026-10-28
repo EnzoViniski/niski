@@ -6,7 +6,7 @@ import type { TerminalSession } from "./terminalService";
 import { estadoDaWorktreeIsolada, removerWorktreeIsolada, worktreeDaPasta, type EstadoDaWorktree } from "./worktreeIsolada";
 
 /**
- * Fork: ao encerrar e remover um agente que rodava numa worktree isolada, pergunta o que fazer com
+ * Ao encerrar e remover um agente que rodava numa worktree isolada, pergunta o que fazer com
  * ela. Só pergunta quando nenhuma outra sessão viva usa a mesma worktree. Devolve a pasta da sessão.
  */
 export function worktreeParaPerguntar(sessions: TerminalSession[], sessionId: string): string | null {

@@ -1,4 +1,4 @@
-//! Fork: credencial emitida pelo próprio engine para o Jarvis; não é uma credencial de provedor.
+//! Credencial emitida pelo próprio engine para o Jarvis; não é uma credencial de provedor.
 //! Só vive na sessão nativa e no ambiente do processo oficial. Nunca serializar para a janela.
 use omni_protocol::{EngineRequest, EngineResponse};
 use serde_json::{json, Value};

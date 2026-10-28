@@ -1,4 +1,4 @@
-//! Fork: execução dos blocos novos; nunca usa /loop nem simula /goal com prompts comuns.
+//! Execução dos blocos novos; nunca usa /loop nem simula /goal com prompts comuns.
 use super::*;
 
 pub(super) fn trava_do_executor(id: &str) -> Arc<Mutex<()>> {

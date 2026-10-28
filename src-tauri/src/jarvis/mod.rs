@@ -1,4 +1,4 @@
-//! Fork: Jarvis, o copiloto e orquestrador do Medza Agents. Voz no modo local e
+//! Jarvis, o copiloto e orquestrador do Medza Agents. Voz no modo local e
 //! sem custo fora da assinatura:
 //! - ouvir e falar: `auxiliar` (reconhecimento de fala e voz da Apple, no próprio Mac);
 //! - pensar: `cerebro` (sessão aberta do Claude Code oficial, na primeira conta do Claude com login);
@@ -104,7 +104,7 @@ struct Sessao {
 }
 
 static SESSAO: Mutex<Option<Sessao>> = Mutex::new(None);
-// Fork: abrir, trocar e fechar não se ultrapassam; esperas da CLI nunca seguram SESSAO.
+// Abrir, trocar e fechar não se ultrapassam; esperas da CLI nunca seguram SESSAO.
 static OPERACAO: Mutex<()> = Mutex::new(());
 static GERACAO: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 

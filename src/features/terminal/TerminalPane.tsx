@@ -72,7 +72,7 @@ const POLL_ATIVO_MS = 16;
 const POLL_OCIOSO_MS = 100;
 /** Quanto tempo depois da última atividade o ritmo rápido continua valendo. */
 const JANELA_ATIVA_MS = 700;
-/** Fork: janela oculta (minimizada, outro Space, coberta). Ninguém vê o quadro: lê 1x/s só para o
+/** Janela oculta (minimizada, outro Space, coberta). Ninguém vê o quadro: lê 1x/s só para o
  *  estado (aviso de turno, failover) seguir vivo; ao voltar, lê na hora. */
 const POLL_OCULTO_MS = 1_000;
 /** Fork (energia): PTY calada há {@link VAZIAS_ATE_ESPACAR} leituras seguidas (~1 s) com a janela
@@ -121,7 +121,7 @@ interface TerminalPaneProps {
 export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCreated }: TerminalPaneProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef(tab.resourceId);
-  // Fork: pasta da sessão aberta (pode ser a worktree de outra branch) — a troca de conta relança nela.
+  // Pasta da sessão aberta (pode ser a worktree de outra branch) — a troca de conta relança nela.
   const pastaDaSessaoRef = useRef<string | undefined>(undefined);
   pastaDaSessaoRef.current = useSession(tab.resourceId)?.cwd ?? pastaDaSessaoRef.current;
   /** Criação de sessão em andamento. O efeito pode rodar de novo antes dela terminar (StrictMode no
@@ -221,7 +221,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
     if (!host) return;
     let cancelled = false;
     let pollTimer: number | undefined;
-    /** Fork: há um `pollTimer` pendente (nem em voo nem parado) — só aí dá para antecipar a leitura. */
+    /** Há um `pollTimer` pendente (nem em voo nem parado) — só aí dá para antecipar a leitura. */
     let agendado = false;
     const agendar = (ms: number) => {
       agendado = true;
@@ -269,7 +269,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
-    // Fork: links abrem numa aba de navegador do app (`navegador/linksDoTerminal.ts`); o padrão do xterm
+    // Links abrem numa aba de navegador do app (`navegador/linksDoTerminal.ts`); o padrão do xterm
     // (`confirm` + `window.open`) não fazia nada no app.
     terminal.options.linkHandler = linkHandlerDoTerminal(() => host);
     terminal.registerLinkProvider(provedorDeUrls(terminal, () => host));
@@ -308,7 +308,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
     /** Abre a conversa (agente) e a PTY. Uma vez só por sessão, mesmo com o efeito rodando de novo:
      *  quem chega depois espera a mesma promessa em `criandoRef`. */
     async function criarSessao(): Promise<TerminalSession> {
-          // Fork: branch escolhida no lançador roda na worktree dela (`launch.cwd`).
+          // Branch escolhida no lançador roda na worktree dela (`launch.cwd`).
           const pastaDoAgente = launch?.cwd ?? projectPath;
           if (agent) await ensureAgentTrust(agent.id, pastaDoAgente, launch?.profile?.id);
 
@@ -330,7 +330,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
                 });
             conversationRef.current = plan?.conversation_id ?? launch?.conversationId ?? null;
             if (plan) {
-              // Fork: a escolha do seletor acompanha esta aba; Codex local já traz seu modelo.
+              // A escolha do seletor acompanha esta aba; Codex local já traz seu modelo.
               command = plan.initial_command + opcoesDeModelo(agent.id, launch?.ajustes ?? ajustesDoAgente(agent.id));
               externalSessionId = plan.external_session_id ?? undefined;
               planoTitulo = plan.title;
@@ -479,7 +479,7 @@ export function TerminalPane({ projectId, projectPath, paneId, tab, onSessionCre
           agent: { ...nextAgent, command: resumedCommand },
           profile: target,
           conversationId: plan.conversation_id,
-          // Fork: troca de conta continua na mesma pasta (worktree da branch, se for o caso).
+          // Troca de conta continua na mesma pasta (worktree da branch, se for o caso).
           cwd: launch?.cwd ?? pastaDaSessaoRef.current,
         });
       } catch (reason) {

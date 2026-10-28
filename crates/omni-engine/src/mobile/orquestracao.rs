@@ -1,4 +1,4 @@
-//! Fork: orquestrador de agentes — servidor MCP do engine e as rotas que o fluxo visual usa.
+//! Orquestrador de agentes — servidor MCP do engine e as rotas que o fluxo visual usa.
 //!
 //! Uma conversa vira orquestradora pelo botão "Tornar orquestradora" (`POST /orquestracao/{id}/ativar`):
 //! o engine marca no registro (`omni_core::orquestracao`, arquivo `orquestracao.json`) e reabre a CLI
@@ -16,7 +16,7 @@
 //! Filho de `mobile` (mora em `mobile/`) para usar esses pedaços sem torná-los públicos.
 
 use super::*;
-// Fork: revisão separada compartilha registro e entrega inicial, sem tocar nas ferramentas.
+// Revisão separada compartilha registro e entrega inicial, sem tocar nas ferramentas.
 #[path = "../revisao_por_agente.rs"]
 pub(super) mod revisao_por_agente;
 use omni_core::orquestracao as regra;
@@ -33,7 +33,7 @@ pub(crate) mod contexto;
 // Fork (Copiloto): ferramentas de tarefas (as mesmas da tela Tarefas).
 #[path = "orquestracao_tarefas.rs"]
 mod tarefas_mcp;
-// Fork: Jarvis usa as mesmas ferramentas e os mesmos limites dos orquestradores do chat.
+// Jarvis usa as mesmas ferramentas e os mesmos limites dos orquestradores do chat.
 #[path = "orquestracao_jarvis.rs"]
 pub(crate) mod jarvis;
 // Fork (Copiloto abre conversa na tela): projeto do subagente, `na_tela` e `listar_projetos`.
@@ -146,7 +146,7 @@ async fn metodo_nao_permitido() -> Response {
 }
 
 /// Loopback com a porta certa no `Host` e, se houver `Origin`, também loopback: defesa contra DNS
-/// rebinding (página da web chamando o servidor pelo navegador). Fork: também usada pelos ganchos.
+/// rebinding (página da web chamando o servidor pelo navegador). Também usada pelos ganchos.
 pub(crate) fn origem_local(headers: &HeaderMap, porta: u16) -> bool {
     let aceitos = [format!("127.0.0.1:{porta}"), format!("localhost:{porta}")];
     let host = headers.get("host").and_then(|v| v.to_str().ok()).unwrap_or("");
@@ -281,7 +281,7 @@ async fn responder(state: &Arc<EngineState>, orquestrador: &str, mensagem: Value
 
 /// Estado ao vivo de uma conversa (orquestradora ou subagente).
 fn estado_de(state: &EngineState, conversa: &str) -> (regra::Estado, Option<Arc<LiveSession>>, Option<interaction::Capabilities>) {
-    // Fork: o cérebro do Jarvis é um processo nativo, sem PTY ou conversa fantasma no histórico.
+    // O cérebro do Jarvis é um processo nativo, sem PTY ou conversa fantasma no histórico.
     if conversa == jarvis::DONO {
         let aberto=state.mobile.orquestracao.tokens.lock().expect("tokens").values().any(|d|d==jarvis::DONO);
         return (if aberto{regra::Estado::Pronto}else{regra::Estado::Parado},None,None);
@@ -340,7 +340,7 @@ fn no(state: &EngineState, conversa: &str, perfis: &[omni_core::Profile], agente
         "tarefa": agente.map(|a| a.tarefa.clone()),
         "editar": agente.map(|a| a.editar.clone()).unwrap_or_default(),
         "criar": agente.map(|a| a.criar.clone()).unwrap_or_default(),
-        // Fork: worktree isolada do subagente (`criar_agente` com `worktree`).
+        // Worktree isolada do subagente (`criar_agente` com `worktree`).
         "branch": agente.and_then(|a| a.branch.clone()),
         // Fork (Copiloto abre conversa na tela): a janela do copiloto abre esta conversa numa aba.
         "na_tela": agente.is_some_and(|a| a.na_tela),
@@ -360,7 +360,7 @@ fn no(state: &EngineState, conversa: &str, perfis: &[omni_core::Profile], agente
 
 pub(super) fn rotas() -> Router<Arc<EngineState>> {
     Router::new()
-        // Fork: emitir/revogar chave Jarvis só pelo IPC autenticado do desktop.
+        // Emitir/revogar chave Jarvis só pelo IPC autenticado do desktop.
         .route("/orquestracao/jarvis", post(jarvis::abrir).delete(jarvis::fechar))
         .route("/orquestracao", get(listar))
         .route("/orquestracao/limite", post(definir_limite))
@@ -412,7 +412,7 @@ async fn fluxo(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<S
 /// "Tornar orquestradora" / "Deixar de orquestrar": marca no registro e reabre a CLI (com `--resume`)
 /// para as flags e o token valerem — ou saírem. Sem sessão aberta, vale na próxima abertura.
 async fn ativar(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, Json(body): Json<AtivarBody>) -> Result<Json<Value>, ApiError> {
-    // Fork: o centro Jarvis não é uma CLI de conversa que se possa retomar ou reconfigurar aqui.
+    // O centro Jarvis não é uma CLI de conversa que se possa retomar ou reconfigurar aqui.
     if id==jarvis::DONO{return Err(error(StatusCode::CONFLICT,"Abra ou feche o Jarvis pela janela dele para controlar suas ferramentas"));}
     tokio::task::spawn_blocking(move || {
         let (conversa, viva) = current(&state, &id)?;

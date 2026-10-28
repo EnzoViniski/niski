@@ -51,7 +51,7 @@ pub fn agentes_instalar_claude(project_path: String, modelo: ModeloDeAgente) -> 
 }
 
 /// O executável do Claude que dá para chamar direto (no Windows o `claude` sem extensão é script).
-pub(crate) fn executavel_do_claude() -> Option<PathBuf> { // Fork: também usado pelo Jarvis.
+pub(crate) fn executavel_do_claude() -> Option<PathBuf> { // Também usado pelo Jarvis.
     omni_core::cli_path::ampliar_path();
     ["claude.exe", "claude.cmd", "claude"].into_iter().find_map(crate::engine_client::resolve_on_path)
 }

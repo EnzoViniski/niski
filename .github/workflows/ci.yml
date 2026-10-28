@@ -32,7 +32,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      # Fork: libasound2-dev (cpal, microfone) e cmake (whisper.cpp) para a voz do chat. macOS e
+      # libasound2-dev (cpal, microfone) e cmake (whisper.cpp) para a voz do chat. macOS e
       # Windows já trazem cmake na imagem do runner.
       - name: Dependências do Tauri (Linux)
         if: runner.os == 'Linux'

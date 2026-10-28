@@ -12,7 +12,7 @@ import {
 } from "../lib/atualizacaoRemota";
 
 /*
- * Fork: "Reiniciar para atualizar". Quando um build novo cai por cima do app aberto
+ * "Reiniciar para atualizar". Quando um build novo cai por cima do app aberto
  * (`scripts/build-mac-local.mjs`), o Rust percebe pela data dos executáveis
  * (`src-tauri/src/atualizacao.rs`) e aparece este botão na barra: um clique e o app reabre
  * sozinho já com o código novo. Fora do Tauri não aparece.
@@ -29,7 +29,7 @@ import {
 export interface VersaoNova {
   disponivel: boolean;
   reinicia_agentes: boolean;
-  /** Fork: agentes trabalhando agora. */
+  /** Agentes trabalhando agora. */
   agentes_ocupados?: number;
   engine_pendente?: boolean;
   /** Fork (retomar-sempre): esta janela está falando com o engine antigo (troca adiada). */
@@ -95,7 +95,7 @@ export function AvisoDeAtualizacao() {
 
   function reiniciar(trocarEngine: boolean) {
     setReiniciando(true);
-    // Fork: a próxima abertura sabe que foi atualização e religa as abas visíveis.
+    // A próxima abertura sabe que foi atualização e religa as abas visíveis.
     if (trocarEngine) marcarReinicioDeAtualizacao();
     void chamar("reiniciar_para_atualizar", { trocarEngine }).catch(() => setReiniciando(false));
   }

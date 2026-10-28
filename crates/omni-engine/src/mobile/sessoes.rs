@@ -1,5 +1,5 @@
 //! Abrir sessão pelo celular (plano de spawn, confiança na pasta), bifurcar, ocultar e renomear conversas.
-//! Fork: saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
+//! Saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
 use super::*;
 
 /// Tudo já resolvido **no servidor** antes de entrar na fila. O corpo do request não contribui com
@@ -18,7 +18,7 @@ pub(super) struct SpawnPlan {
     pub(super) env: Vec<(String,String)>,
     pub(super) external_session_id: Option<String>,
     pub(super) transcript_path: Option<String>,
-    /// Fork: id da conversa escolhido antes (o orquestrador registra o subagente com ele). `None` = novo.
+    /// Id da conversa escolhido antes (o orquestrador registra o subagente com ele). `None` = novo.
     pub(super) conversation_id: Option<String>,
 }
 
@@ -64,7 +64,7 @@ pub(super) async fn bifurcar_rota(State(state): State<Arc<EngineState>>, RoutePa
         let fonte = sessao.meta.lock().map(|meta| meta.clone()).map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Sessão indisponível"))?;
         let provider = fonte.provider.clone().filter(|p| p == "claude" || p == "codex")
             .ok_or_else(||error(StatusCode::CONFLICT,"Só dá para bifurcar conversas do Claude e do Codex"))?;
-        limite_de_sessoes::conferir(&state)?; // Fork: teto único e configurável.
+        limite_de_sessoes::conferir(&state)?; // Teto único e configurável.
         let resposta = bifurcar(&state, fonte, &provider, true).map_err(|erro|error(StatusCode::INTERNAL_SERVER_ERROR,&erro.to_string()))?;
         let EngineResponse::Session { session } = resposta else { return Err(error(StatusCode::INTERNAL_SERVER_ERROR,"Resposta inesperada")); };
         Ok((StatusCode::CREATED,Json(json!({"id":session.conversation_id,"title":session.name}))))
@@ -123,7 +123,7 @@ pub(super) fn resolve_spawn_no_projeto(state: &Arc<EngineState>, body: &SpawnBod
         return Err(error(StatusCode::BAD_REQUEST,"Título inválido"));
     }
 
-    limite_de_sessoes::conferir(state)?; // Fork: teto único e configurável.
+    limite_de_sessoes::conferir(state)?; // Teto único e configurável.
 
     // Fixar o `--session-id` do Claude aqui é o que torna o caminho do transcript conhecido de
     // imediato — sem isso a timeline do celular ficaria vazia até alguém descobrir o arquivo.

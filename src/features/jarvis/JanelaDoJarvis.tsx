@@ -1,10 +1,10 @@
-// Fork: Jarvis. Conteúdo da janela flutuante (`src-tauri/src/jarvis/janela.rs`): orbe, transcrição
+// Jarvis. Conteúdo da janela flutuante (`src-tauri/src/jarvis/janela.rs`): orbe, transcrição
 // ao vivo e controles. Encolhida, vira só o orbe (bolinha). Esc para a fala na hora.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
 import type { Niveis } from "./OrbeDoJarvis";
-// Fork: orbe de partículas com o símbolo do Niski (cai no orbe 2D sem WebGL2).
+// Orbe de partículas com o símbolo do Niski (cai no orbe 2D sem WebGL2).
 import { OrbeDeParticulas } from "./OrbeDeParticulas";
 import { aplicarEvento, estadoInicial, ROTULO_DO_ESTADO, type EventoDoJarvis } from "./estadoDoJarvis";
 import { AjustesDoJarvis, type ConfiguracaoDoJarvis } from "./AjustesDoJarvis";
@@ -39,7 +39,7 @@ export function JanelaDoJarvis() {
   useEffect(() => {
     let solto = false;
     let soltar: (() => void) | undefined;
-    // Fork: só inicia depois de assinar os eventos; não perde o primeiro aviso/erro da voz.
+    // Só inicia depois de assinar os eventos; não perde o primeiro aviso/erro da voz.
     void listen<EventoDoJarvis>("jarvis", ({ payload }) => {
       if (payload.tipo === "nivel") niveis.current = { mic: payload.mic, fala: payload.fala };
       else despachar(payload);

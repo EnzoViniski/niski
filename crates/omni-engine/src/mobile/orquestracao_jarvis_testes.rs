@@ -1,4 +1,4 @@
-//! Fork: ferramentas reais do Jarvis com estado isolado e CLI falsa.
+//! Ferramentas reais do Jarvis com estado isolado e CLI falsa.
 use super::*;
 
 #[tokio::test]

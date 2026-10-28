@@ -3,7 +3,7 @@ import type { WorkspaceCollection } from "../types/workspace";
 import { consertarColecao, consertarWorkspace, relatorioVazio } from "./consertarWorkspace";
 
 /**
- * Fork: cópias do JSON cru do workspace, guardadas **antes** de qualquer descarte ou conserto (e
+ * Cópias do JSON cru do workspace, guardadas **antes** de qualquer descarte ou conserto (e
  * antes de restaurar outra), para nada se perder em silêncio. Ficam no próprio localStorage (o
  * workspace é pequeno: alguns KB), só as últimas 3. Restaurar passa pelo mesmo conserto da leitura.
  */

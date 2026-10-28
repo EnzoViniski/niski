@@ -1,11 +1,11 @@
-// Fork: comandos oficiais por lista fechada; modelo/esforço continuam em AjustesDaConversa.
+// Comandos oficiais por lista fechada; modelo/esforço continuam em AjustesDaConversa.
 import { useEffect, useState } from "react";
 import { request } from "../api";
 import { MODOS_DE_PERMISSAO } from "../SeloDoModo";
 import { TerminalFlutuante } from "./TerminalFlutuante";
 import "./controlesDaConversa.css";
 
-// Fork: os do Codex (aprovação/sandbox na linha; trocar reabre a mesma conversa, `modo_codex.rs`).
+// Os do Codex (aprovação/sandbox na linha; trocar reabre a mesma conversa, `modo_codex.rs`).
 export type ModoDoCodex = "default" | "semPerguntar" | "acessoTotal" | "somenteLeitura";
 export type ModoDePermissao = "default" | "acceptEdits" | "plan" | "auto" | ModoDoCodex;
 export type ComandoDaConversa = "fast" | "branch" | "rewind" | "compact";
@@ -14,7 +14,7 @@ const MODOS_DO_CODEX: ModoDoCodex[] = ["default", "semPerguntar", "acessoTotal",
 
 export function ControlesDaConversa({ conversaId, provider, modo, fast, pronto, onModo, onComando, onAgendar }: {
   conversaId: string; provider: string | null; modo?: string | null; fast?: boolean | null; pronto: boolean;
-  onAgendar?: () => void; // Fork: agendar o rascunho pelo menu existente (3D).
+  onAgendar?: () => void; // Agendar o rascunho pelo menu existente (3D).
   onModo: (alvo: ModoDePermissao) => Promise<void>;
   onComando: (comando: ComandoDaConversa, argumento?: string) => Promise<void>;
 }) {

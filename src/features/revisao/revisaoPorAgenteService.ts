@@ -1,4 +1,4 @@
-// Fork: transporte da revisão oficial em conversa separada.
+// Transporte da revisão oficial em conversa separada.
 import { actionKey, request, type Timeline } from "../../mobile/api";
 import { listTerminalSessions } from "../terminal/terminalService";
 import { enviarComentarios } from "./revisaoService";

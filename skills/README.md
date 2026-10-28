@@ -1,4 +1,4 @@
-# Pacote de skills do Medza
+# Pacote de skills do Niski
 
 O aplicativo inclui quatro skills reutilizáveis. Em Configurações → Skills, use **Instalar pacote Medza** para copiá-las para as contas de Claude/Codex. O app preserva versões já existentes, inclusive as desativadas. Instalar uma skill não obriga a CLI a usá-la em toda tarefa.
 

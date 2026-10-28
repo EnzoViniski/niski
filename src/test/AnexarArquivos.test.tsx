@@ -47,7 +47,7 @@ it("o app do PC entrega arquivos arrastados pelo evento da conversa", async () =
   expect(screen.getByText("notas.md")).toBeInTheDocument();
 });
 
-it("Fork: o editor de vídeo põe um texto no campo sem enviar", async () => {
+it("O editor de vídeo põe um texto no campo sem enviar", async () => {
   const tela = abrir();
   const campo = tela.querySelector("textarea") as HTMLTextAreaElement;
   await act(async () => { tela.dispatchEvent(new CustomEvent(EVENTO_INSERIR_TEXTO, { detail: "Sobre o elemento “Oi”: " })); });

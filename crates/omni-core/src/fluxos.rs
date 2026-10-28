@@ -17,9 +17,9 @@ pub enum TipoDeNo {
     Entrada,
     /// Um modelo de agente trabalhando sem tela.
     Agente,
-    /// Fork: /goal oficial do Claude, com teto de turnos.
+    /// /goal oficial do Claude, com teto de turnos.
     Objetivo,
-    /// Fork: controlador do ramo que volta a este nó, com limite e intervalo.
+    /// Controlador do ramo que volta a este nó, com limite e intervalo.
     Repetir,
     /// Desvio pelo veredito do nó anterior: saídas `sim` / `nao` / `esgotado` (passou do limite de voltas).
     Condicao,
@@ -85,7 +85,7 @@ pub struct FluxoSalvo {
     pub caminho: String,
 }
 
-// Fork: regras dos blocos novos isoladas do domínio existente.
+// Regras dos blocos novos isoladas do domínio existente.
 #[path = "fluxos_blocos.rs"]
 pub mod blocos;
 

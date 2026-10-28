@@ -1,4 +1,4 @@
-// Fork: controles oficiais aguardam a execução da ação antes de confirmar a troca.
+// Controles oficiais aguardam a execução da ação antes de confirmar a troca.
 import { aguardarAcao } from "./aguardarAcao";
 import type { ComandoDaConversa, ModoDePermissao } from "./ControlesDaConversa";
 // Fork (Onda 2.0): a conversa aberta (celular, web e aba Conversa do PC) saiu do `MobileApp.tsx` sem
@@ -10,11 +10,11 @@ import { Button } from "../../components/ui/Button";
 import { AttachmentIcon } from "../../components/ui/PixelIcon";
 import { request, requestSeMudou, esquecerVersao, enviarTeclas, actionKey, ApiError, type Conversation, type Timeline } from "../api";
 import { AgentWorking, BlocoDeAcoes, LinhaDeAviso, LinhaDeComando, MessageBubble } from "../Chat";
-// Fork: trabalho de cada pedido recolhido em "Trabalhou por …" quando a resposta final chega.
+// Trabalho de cada pedido recolhido em "Trabalhou por …" quando a resposta final chega.
 import { turnosRecolhidos } from "./turnos";
 import { TrabalhoRecolhido } from "./TrabalhoRecolhido";
 import { CartaoDePergunta } from "../CartaoDePergunta";
-// Fork: conversa rica — plano do plan mode.
+// Conversa rica — plano do plan mode.
 import { CartaoDoPlano } from "../CartaoDoPlano";
 import type { Ajustes } from "../AjustesDaConversa";
 import {
@@ -30,7 +30,7 @@ import { Vazio } from "../listas/Secao";
 import { indiceDaMensagem, POLL_ATIVO_MS, POLL_PARADO_MS, useBlocos, useMensagensAntigas, useRolagem, type Bloco } from "./useTimeline";
 import { useAcoesDaConversa, useConfirmacaoDoEnvio, type Enviado } from "./useEnvio";
 import { useMencoes } from "./useMencoes";
-import { interpretarEnvio, useComandosDaBarra, type EnvioDaBarra } from "./comandosDaBarra"; // Fork: lista do `/`.
+import { interpretarEnvio, useComandosDaBarra, type EnvioDaBarra } from "./comandosDaBarra"; // Lista do `/`.
 import { CartaoDePermissao } from "./CartaoDePermissao";
 // Fork (pergunta-da-cli): diálogo da CLI que a conversa não interpreta, e o terminal para responder.
 import { CartaoDeEspera } from "./CartaoDeEspera";
@@ -52,7 +52,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   // O rascunho sobrevive ao refresh da página: atualizar no meio da digitação não apaga nada.
   const [text, setText] = useState(() => lerSessao(chaveRascunho) ?? "");
   const [anexos, setAnexos] = useState<Anexo[]>([]);
-  // Fork: turnos com o "Trabalhou por …" aberto (pelo id da sua mensagem); some ao trocar de conversa.
+  // Turnos com o "Trabalhou por …" aberto (pelo id da sua mensagem); some ao trocar de conversa.
   const [trabalhoAberto, setTrabalhoAberto] = useState<Set<string>>(new Set());
   const [arrastando, setArrastando] = useState(false);
   const telaRef = useRef<HTMLElement>(null);
@@ -273,10 +273,10 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
 
   // `@` no campo: arquivos da pasta do projeto, filtrados pelo engine.
   const buscarArquivos = useMencoes(conversation.id);
-  // Fork: `/` no campo: comandos, skills e comandos personalizados desta conversa.
+  // `/` no campo: comandos, skills e comandos personalizados desta conversa.
   const buscarComandos = useComandosDaBarra(conversation.id);
 
-  /** Fork: mensagem começando com `/`. Comando da lista fechada vai por `/comando`; skill ou
+  /** Mensagem começando com `/`. Comando da lista fechada vai por `/comando`; skill ou
    *  comando personalizado do Claude, por `/barra` (o engine confere o nome). Só com o agente pronto. */
   async function enviarComandoDaBarra(envio: EnvioDaBarra) {
     if (envio.tipo === "oficial") {
@@ -337,7 +337,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
 
   async function enviarPrompt() {
     if (!conversation.capabilities || busy) return;
-    // Fork: `/comando` não é mensagem comum (a rota de prompt recusa `/`).
+    // `/comando` não é mensagem comum (a rota de prompt recusa `/`).
     const daBarra = anexosVivos.current.length === 0 ? interpretarEnvio(text) : null;
     if (daBarra) { await enviarComandoDaBarra(daBarra); return; }
     // Agente no meio do turno: a mensagem vai para a fila da CLI, como digitar no terminal.
@@ -345,7 +345,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     setBusy(true); setError(null); setFalhaEnvio(null);
     const lista = anexosVivos.current;
     try {
-      // Fork: tela não reconhecida ("Entrada não reconhecida"): o engine limpa o campo ou reabre o
+      // Tela não reconhecida ("Entrada não reconhecida"): o engine limpa o campo ou reabre o
       // agente e devolve a versão da tela já pronta. Antes o campo travava e não havia o que fazer.
       let revisao: string | undefined;
       if (!conversation.capabilities.prompt && !paraFila) {
@@ -394,16 +394,16 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
   const capability = conversation.capabilities;
   const temConteudo = text.trim().length > 0 || anexos.length > 0;
   const anexoGrande = anexos.some(a => a.arquivo.size > ANEXO_MAX_BYTES);
-  // Fork: com a sessão aberta e o agente parado, dá para mandar mesmo com a tela não reconhecida — o
+  // Com a sessão aberta e o agente parado, dá para mandar mesmo com a tela não reconhecida — o
   // envio destrava antes (`enviarPrompt`). Só pergunta/aprovação na tela continua bloqueando.
   const destravavel = Boolean(capability && conversation.live && !trabalhando && !capability.approve && !capability.escolha && !capability.espera);
   const abrirTerminal = conversation.live ? () => setTerminalDaPergunta(true) : undefined;
   const podeEnviar = Boolean(capability?.prompt || capability?.enfileirar || destravavel) && !busy && temConteudo && !anexoGrande;
   const timeline = data?.timeline;
   const ultimoBloco = blocos[blocos.length - 1];
-  // Fork: menu da CLI logo depois do plano é a aprovação dele (aprovar / continuar planejando).
+  // Menu da CLI logo depois do plano é a aprovação dele (aprovar / continuar planejando).
   const planoPendente = ultimoBloco?.tipo === "plano" && Boolean(capability?.escolha);
-  // Fork: turno em andamento (trabalhando, pedindo aprovação, perguntando) fica todo à vista.
+  // Turno em andamento (trabalhando, pedindo aprovação, perguntando) fica todo à vista.
   const recolhidos = turnosRecolhidos(blocos, ativo || Boolean(capability?.approve || capability?.escolha || capability?.espera));
   const finais = new Set(recolhidos.map((r) => r.final));
 
@@ -415,7 +415,7 @@ export function ConversationDetail({ conversation: daLista, refresh, abrirConver
     if (bloco.tipo === "comando") return <LinhaDeComando key={bloco.mensagem.id} texto={bloco.mensagem.text} />;
     if (bloco.tipo === "aviso") return <LinhaDeAviso key={bloco.mensagem.id} texto={bloco.mensagem.text} />;
     if (bloco.tipo === "plano") {
-      // Fork: a CLI esperando a aprovação do plano — a pergunta dela vem dentro do cartão.
+      // A CLI esperando a aprovação do plano — a pergunta dela vem dentro do cartão.
       return <CartaoDoPlano key={bloco.mensagem.id} plano={bloco.mensagem.plano ?? ""} provider={bloco.mensagem.provider}
         horario={bloco.mensagem.timestamp}
         pergunta={planoPendente && bloco === ultimoBloco && capability?.escolha

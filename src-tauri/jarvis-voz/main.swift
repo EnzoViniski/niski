@@ -1,4 +1,4 @@
-// Fork: voz do Jarvis (macOS 26+). Processo auxiliar que ouve com o reconhecimento de fala da Apple
+// Voz do Jarvis (macOS 26+). Processo auxiliar que ouve com o reconhecimento de fala da Apple
 // (SpeechAnalyzer, no próprio Mac) e fala com a voz do sistema (AVSpeechSynthesizer). Áudio e texto
 // não vão para disco nem para a rede. Conversa com o app por JSON, uma linha por mensagem:
 //   entrada (stdin):  {"cmd":"ouvir"} {"cmd":"pausar"} {"cmd":"falar","id":1,"texto":"..."}
@@ -8,7 +8,7 @@
 // A fala sai pelo mesmo AVAudioEngine que ouve, com o processamento de voz ligado: o macOS tira a
 // voz do próprio Jarvis do microfone (cancelamento de eco), e o Enzo consegue interromper falando.
 // Compilado por `scripts/build-voz-do-jarvis.mjs`. `--arquivo <audio>` transcreve um arquivo (teste).
-// Fork: `--vozes` lista só metadados; `--verificar` testa a política de voz, sem abrir áudio.
+// `--vozes` lista só metadados; `--verificar` testa a política de voz, sem abrir áudio.
 import AVFoundation
 import Foundation
 import Speech

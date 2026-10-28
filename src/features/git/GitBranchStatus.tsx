@@ -1,4 +1,4 @@
-// Fork: a paleta abre o mesmo seletor de branch usado pelo atalho.
+// A paleta abre o mesmo seletor de branch usado pelo atalho.
 import { useAcoesDaPaleta } from "../paleta/acoes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { matchesShortcut } from "../../lib/shortcuts";
@@ -48,9 +48,9 @@ export function GitContaStatus({ projectPath }: { projectPath: string | null }) 
  *  agente, no terminal. */
 export function GitBranchStatus({ projectPath, abrirPara = "cima", atalho = true }: {
   projectPath: string | null;
-  /** Fork: na faixa do agente (topo do painel) o menu abre para baixo. */
+  /** Na faixa do agente (topo do painel) o menu abre para baixo. */
   abrirPara?: "cima" | "baixo";
-  /** Fork: só o do rodapé responde ao atalho de branch nova — senão cada agente abriria o seu. */
+  /** Só o do rodapé responde ao atalho de branch nova — senão cada agente abriria o seu. */
   atalho?: boolean;
 }) {
   const [branch, setBranch] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export function GitBranchStatus({ projectPath, abrirPara = "cima", atalho = true
     refresh(false);
     // Em projeto remoto cada leitura é um `wsl`/`ssh` — 3s viraria tráfego constante à toa.
     const ritmo = isRemoteProject(projectPath) ? 10_000 : 3_000;
-    // Fork: com a janela oculta não roda `git status` (o próximo tique depois de voltar relê).
+    // Com a janela oculta não roda `git status` (o próximo tique depois de voltar relê).
     const timer = window.setInterval(() => { if (!document.hidden) refresh(false); }, ritmo);
     return () => window.clearInterval(timer);
   }, [refresh, projectPath]);

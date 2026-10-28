@@ -10,7 +10,7 @@ import { ICONES_DE_TRACO } from "./iconesDeTraco";
  */
 type IconProps = SVGProps<SVGSVGElement> & { size?: number | string };
 
-/* Fork: com par de traço (`iconesDeTraco.ts`) o <svg> leva os dois desenhos; o CSS mostra o pixel
+/* Com par de traço (`iconesDeTraco.ts`) o <svg> leva os dois desenhos; o CSS mostra o pixel
    no Clássico e o traço no Minimalista (`.icone-pixel`/`.icone-traco`). */
 function makeIcon(path: string, nome: string) {
   const traco = ICONES_DE_TRACO[nome];

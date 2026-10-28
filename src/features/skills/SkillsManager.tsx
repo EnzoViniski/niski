@@ -60,7 +60,7 @@ export function SkillsManager({ projectPath }: SkillsManagerProps) {
     setSkills(null);
     try {
       setSkills(await listSkills(target));
-      // Fork: uma leitura bem-sucedida resolve o erro exibido na tentativa anterior.
+      // Uma leitura bem-sucedida resolve o erro exibido na tentativa anterior.
       setError(null);
     } catch (reason) {
       setSkills([]);

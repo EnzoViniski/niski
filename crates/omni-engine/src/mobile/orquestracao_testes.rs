@@ -1,10 +1,10 @@
-//! Fork: testes do orquestrador. Sem rede externa: o servidor MCP roda pelo `oneshot` do axum e os
+//! Testes do orquestrador. Sem rede externa: o servidor MCP roda pelo `oneshot` do axum e os
 //! subagentes são uma **CLI falsa** (`sh`) que imita o campo vazio do Claude Code.
 
 use super::*;
 use axum::body::{to_bytes, Body};
 use tower::ServiceExt;
-// Fork: cobertura do acesso do Jarvis, com as mesmas fixtures e CLIs falsas.
+// Cobertura do acesso do Jarvis, com as mesmas fixtures e CLIs falsas.
 #[path = "orquestracao_jarvis_testes.rs"]
 mod jarvis_testes;
 // Fork (Copiloto abre conversa na tela): o copiloto cria conversas fora do projeto especial dele.
@@ -455,7 +455,7 @@ async fn orquestrador_responde_permissao_do_subagente_e_arriscado_fica_com_o_usu
     let _ = ferramenta(&state, &token, "parar_agente", json!({"agente": agente})).await;
 }
 
-/// Fork: `criar_agente` com `worktree` — cada subagente numa worktree isolada (branch `medza/<nome>`,
+/// `criar_agente` com `worktree` — cada subagente numa worktree isolada (branch `medza/<nome>`,
 /// `.worktreeinclude` copiado), sem disputa de arquivo entre eles, e a pasta principal intacta.
 #[cfg(unix)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

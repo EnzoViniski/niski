@@ -1,4 +1,4 @@
-// Fork: ícone da pasta de projeto na lateral. No Clássico, a pasta pixel de sempre; no Minimalista,
+// Ícone da pasta de projeto na lateral. No Clássico, a pasta pixel de sempre; no Minimalista,
 // traço fino com a pasta aberta quando ela está aberta (como nos apps do Claude/Codex). Traços do
 // Lucide (ISC), `folder` e `folder-open`.
 import { FolderIcon } from "../../components/ui/PixelIcon";

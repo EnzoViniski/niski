@@ -1,4 +1,4 @@
-// Fork: catálogo e escolha de vozes locais do Jarvis. Não instala vozes, não pede microfone.
+// Catálogo e escolha de vozes locais do Jarvis. Não instala vozes, não pede microfone.
 import AVFoundation
 import Foundation
 

@@ -51,7 +51,7 @@ it.each([
 ])("abre a seção %s pelo menu", async (nome, conteudo) => {
   montar();
   const menu = screen.getByRole("navigation", { name: "Seções de configurações" });
-  const botao = within(menu).getByRole("button", { name: new RegExp(`^${nome}(?! mim)`) }); // Fork: "Sobre" × "Sobre mim".
+  const botao = within(menu).getByRole("button", { name: new RegExp(`^${nome}(?! mim)`) }); // "Sobre" × "Sobre mim".
   await userEvent.click(botao);
   expect(botao).toHaveAttribute("aria-current", "page");
   expect(screen.getByText(conteudo)).toBeInTheDocument();

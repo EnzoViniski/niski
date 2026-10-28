@@ -8,5 +8,5 @@ export const NOME_CURTO: string = identidade.nomeCurto;
 export const PORTA_DO_CELULAR: number = identidade.portaDoCelular;
 /** Atualização automática só com chave de assinatura própria configurada. */
 export const ATUALIZACAO_AUTOMATICA = Boolean(identidade.updater.pubkey && identidade.updater.endpoint);
-// Fork: as versões ficam no repositório público de releases (o de código é privado).
+// As versões ficam no repositório público de releases (o de código é privado).
 export const PAGINA_DE_DOWNLOADS = `https://github.com/${identidade.repositorioDeReleases ?? identidade.repositorio}/releases`;

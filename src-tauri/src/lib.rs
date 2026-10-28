@@ -6,7 +6,7 @@ mod engine_client;
 // Fork (energia): snapshot do terminal com espera (long-poll).
 mod espera_do_terminal;
 mod git_client;
-// Fork: revisão por arquivo/trecho.
+// Revisão por arquivo/trecho.
 mod revisao;
 mod docker_client;
 mod ssh;
@@ -20,42 +20,42 @@ mod agentes;
 mod fluxos;
 mod voz;
 mod atualizacao;
-// Fork: cópia do estado antes de instalar versão nova pelo updater.
+// Cópia do estado antes de instalar versão nova pelo updater.
 mod backup_antes_de_atualizar;
-// Fork: cópia em disco do localStorage da interface (aparência, workspaces), restaurada ao abrir.
+// Cópia em disco do localStorage da interface (aparência, workspaces), restaurada ao abrir.
 mod estado_da_interface;
-// Fork: uma janela do app por pasta de dados (duas cópias derrubavam o engine uma da outra).
+// Uma janela do app por pasta de dados (duas cópias derrubavam o engine uma da outra).
 mod instancia_unica;
-// Fork: abrir no app padrão o arquivo que o agente gerou (cartão na Conversa).
+// Abrir no app padrão o arquivo que o agente gerou (cartão na Conversa).
 mod abrir_entregavel;
-// Fork: caminho citado na Conversa vira link (abre pasta/arquivo sem executar nada).
+// Caminho citado na Conversa vira link (abre pasta/arquivo sem executar nada).
 mod abrir_caminho;
-// Fork: aba Navegador e trava de link que tomava a janela.
+// Aba Navegador e trava de link que tomava a janela.
 mod navegador;
-// Fork: agente numa branch própria (worktree do git).
+// Agente numa branch própria (worktree do git).
 mod worktree;
-// Fork: agente em worktree isolada (branch medza/<nome>) e limite de sessões configurável.
+// Agente em worktree isolada (branch medza/<nome>) e limite de sessões configurável.
 mod worktree_isolada;
 mod limite_de_sessoes;
 #[cfg(target_os = "macos")]
 mod tela_cheia;
-mod pedido_de_atualizacao; // Fork: "Atualizar o PC" pedido pelo celular.
-// Fork: Jarvis, copiloto por voz (janela flutuante, voz da Apple, Claude Code pensando).
+mod pedido_de_atualizacao; // "Atualizar o PC" pedido pelo celular.
+// Jarvis, copiloto por voz (janela flutuante, voz da Apple, Claude Code pensando).
 mod jarvis;
-// Fork: Roadmaps de estudo (trilhas, cards de revisão e IA ao lado).
+// Roadmaps de estudo (trilhas, cards de revisão e IA ao lado).
 mod roadmaps;
-mod tarefas; // Fork: tarefas (uma por arquivo, pasta local ou compartilhada).
-mod biblia; // Fork: Bíblia do dia (Ave Maria, baixada uma vez e conferida pelo SHA-256).
-mod cadernos; // Fork: Caderno de anotações (páginas em Markdown e IA ao lado).
-// Fork: Editor de vídeo (projetos HyperFrames, biblioteca, chat do agente, exportar, edição a dois).
+mod tarefas; // Tarefas (uma por arquivo, pasta local ou compartilhada).
+mod biblia; // Bíblia do dia (Ave Maria, baixada uma vez e conferida pelo SHA-256).
+mod cadernos; // Caderno de anotações (páginas em Markdown e IA ao lado).
+// Editor de vídeo (projetos HyperFrames, biblioteca, chat do agente, exportar, edição a dois).
 mod videos;
 
 pub fn run() {
-    // Fork: contas com pasta mas fora do `profiles.json` desta variante voltam a ser reconhecidas.
+    // Contas com pasta mas fora do `profiles.json` desta variante voltam a ser reconhecidas.
     if let Ok(raiz) = profiles::raiz_de_perfis() { omni_core::definir_raiz_de_perfis(raiz); }
     if let Ok(dir) = engine_client::engine_dir() {
         omni_core::registro::iniciar("app", &dir);
-        // Fork: outra cópia do app já aberta nesta pasta de dados → foca ela e sai (instancia_unica.rs).
+        // Outra cópia do app já aberta nesta pasta de dados → foca ela e sai (instancia_unica.rs).
         instancia_unica::garantir(&dir);
     }
     omni_core::registro::registrar_panicos();
@@ -79,14 +79,14 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         // Fork (Editor de vídeo): arquivos do projeto para o preview, com CSP fechada (videos/protocolo.rs).
         .register_asynchronous_uri_scheme_protocol(videos::protocolo::ESQUEMA, videos::protocolo::atender)
-        // Fork: em tela cheia no Mac, o conteúdo desce junto da barra revelada (tela_cheia.rs).
+        // Em tela cheia no Mac, o conteúdo desce junto da barra revelada (tela_cheia.rs).
         .setup(|_app| {
             #[cfg(target_os = "macos")]
             tela_cheia::instalar(_app);
-            jarvis::janela::instalar(_app); // Fork: atalho global do Jarvis.
+            jarvis::janela::instalar(_app); // Atalho global do Jarvis.
             Ok(())
         })
-        .on_window_event(jarvis::janela::ao_evento_da_janela) // Fork: Jarvis guarda posição e fecha junto.
+        .on_window_event(jarvis::janela::ao_evento_da_janela) // Jarvis guarda posição e fecha junto.
         .invoke_handler(tauri::generate_handler![
             engine_client::engine_status,
             abrir_entregavel::abrir_entregavel,
@@ -97,7 +97,7 @@ pub fn run() {
             navegador::navegador_acao,
             navegador::navegador_fechar,
             navegador::navegador_abrir_fora,
-            navegador::navegador_conferir, // Fork: some a página de navegador que sobrou sem aba.
+            navegador::navegador_conferir, // Some a página de navegador que sobrou sem aba.
             worktree::git_worktree_da_branch,
             worktree_isolada::criar_worktree_isolada,
             worktree_isolada::estado_da_worktree_isolada,
@@ -111,13 +111,13 @@ pub fn run() {
             voz::voz_previa,
             voz::voz_niveis,
             voz::voz_cancelar,
-            // Fork: Jarvis.
+            // Jarvis.
             jarvis::jarvis_iniciar,
             jarvis::jarvis_encerrar,
             jarvis::jarvis_ouvir,
             jarvis::jarvis_calar,
             jarvis::jarvis_escrever,
-            // Fork: ajustes persistidos e vozes locais do orquestrador Jarvis.
+            // Ajustes persistidos e vozes locais do orquestrador Jarvis.
             jarvis::jarvis_configuracao,
             jarvis::jarvis_configurar,
             jarvis::jarvis_vozes,
@@ -128,14 +128,14 @@ pub fn run() {
             jarvis::janela::jarvis_abrir_fluxo,
             atualizacao::versao_nova_no_disco,
             atualizacao::reiniciar_para_atualizar,
-            // Fork: "Atualizar agora" (updater) na barra.
+            // "Atualizar agora" (updater) na barra.
             atualizacao::agentes_trabalhando,
             pedido_de_atualizacao::consumir_pedido_de_atualizacao,
             backup_antes_de_atualizar::backup_antes_de_atualizar,
-            tarefas::tarefas_listar, // Fork: Tarefas.
+            tarefas::tarefas_listar, // Tarefas.
             tarefas::tarefas_gravar,
             tarefas::tarefas_levar_para,
-            roadmaps::roadmaps_listar, // Fork: Roadmaps de estudo.
+            roadmaps::roadmaps_listar, // Roadmaps de estudo.
             roadmaps::roadmaps_criar,
             roadmaps::roadmaps_ler,
             roadmaps::roadmaps_gravar,
@@ -144,14 +144,14 @@ pub fn run() {
             roadmaps::roadmaps_backup_antes_de_migrar,
             roadmaps::ia::roadmaps_ia,
             roadmaps::ia::roadmaps_ia_cancelar,
-            biblia::biblia_ler, // Fork: Bíblia do dia.
+            biblia::biblia_ler, // Bíblia do dia.
             biblia::biblia_baixar,
-            cadernos::cadernos_listar, // Fork: Caderno.
+            cadernos::cadernos_listar, // Caderno.
             cadernos::cadernos_ler,
             cadernos::cadernos_gravar,
             cadernos::cadernos_anexar_conversa,
             cadernos::cadernos_para_a_lixeira,
-            videos::videos_listar, // Fork: Editor de vídeo.
+            videos::videos_listar, // Editor de vídeo.
             videos::protocolo::videos_endereco_base,
             videos::agente::videos_agente,
             videos::agente::videos_agente_cancelar,
@@ -194,7 +194,7 @@ pub fn run() {
             videos::videos_ref_apagar,
             videos::videos_ref_aplicar,
             videos::videos_ref_de_projeto,
-            // Fork: chat normal no editor de vídeo, pasta do computador e exportados.
+            // Chat normal no editor de vídeo, pasta do computador e exportados.
             videos::videos_configurar_pastas,
             videos::videos_conferir_pasta,
             videos::videos_assinatura,
@@ -246,7 +246,7 @@ pub fn run() {
             docker_client::docker_containers,
             docker_client::docker_container_action,
             git_client::git_diff,
-            // Fork: painel de revisão.
+            // Painel de revisão.
             revisao::revisao_listar,
             revisao::revisao_aplicar,
             git_client::git_stage,
@@ -286,7 +286,7 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
-        // Fork: solta o modelo de voz antes de sair. Com ele carregado na GPU, a limpeza do Metal do
+        // Solta o modelo de voz antes de sair. Com ele carregado na GPU, a limpeza do Metal do
         // whisper.cpp no `exit` aborta (`GGML_ASSERT` em ggml-metal-device.m) e o macOS mostra
         // "encerrou inesperadamente" na próxima abertura.
         .run(|_, evento| if let tauri::RunEvent::Exit = evento { voz::liberar(); jarvis::jarvis_encerrar() });

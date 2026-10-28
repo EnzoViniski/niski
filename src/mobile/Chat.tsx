@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
-import "./conversa/rodapeDaMensagem.css"; // Fork: horário e Copiar embaixo de cada mensagem.
+import "./conversa/rodapeDaMensagem.css"; // Horário e Copiar embaixo de cada mensagem.
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
@@ -154,7 +154,7 @@ interface MessageBubbleProps {
   /** Mais uma fala do agente no mesmo turno: sem cabeçalho, colada na anterior. */
   continua?: boolean;
   imagens?: ImagensDaMensagem;
-  /** Fork: documentos que o agente gerou, como cartões que abrem/baixam. */
+  /** Documentos que o agente gerou, como cartões que abrem/baixam. */
   arquivos?: ArquivosDaMensagem;
 }
 
@@ -173,7 +173,7 @@ export const MessageBubble = memo(function MessageBubble({ lado, provider, texto
   const cartoes = anexosLocais ?? anexos.map((caminho) => ({ nome: nomeDoCaminho(caminho) }));
   const autor = doUsuario ? "Você" : nomeDaPlataforma(provider) ?? provider ?? "Agente";
   const hora = horarioCurto(horario);
-  // Fork: o que o "Copiar" leva — a resposta inteira, ou tudo que você mandou (texto e anexos).
+  // O que o "Copiar" leva — a resposta inteira, ou tudo que você mandou (texto e anexos).
   const paraCopiar = doUsuario ? [corpo, ...anexos].filter(Boolean).join("\n") : corpo;
   return (<>
     <article className={`bubble ${doUsuario ? "bubble-user" : "bubble-agent"}${pendente ? " bubble-pending" : ""}${continua ? " bubble-continua" : ""}`}>
@@ -200,7 +200,7 @@ export const MessageBubble = memo(function MessageBubble({ lado, provider, texto
       <CartoesDeAnexo anexos={cartoes} />
       {arquivos && <ArquivosDoAgente {...arquivos} />}
     </article>
-    {/* Fork: rodapé embaixo de cada mensagem (sua e do agente): horário e "Copiar", como nos apps do
+    {/* Rodapé embaixo de cada mensagem (sua e do agente): horário e "Copiar", como nos apps do
         Claude/Codex. Fora do balão de propósito — o seu balão colorido fica só com o que você escreveu. */}
     <footer className={`bubble-rodape ${doUsuario ? "is-voce" : "is-agente"}`}>
       {pendente ? <span className="bubble-time">{typeof pendente === "string" ? pendente : "enviando…"}</span> : hora && <time className="bubble-time">{hora}</time>}
@@ -228,7 +228,7 @@ function BotaoCopiar({ texto, rotulo, className }: { texto: string | (() => stri
 }
 
 /**
- * Fork: `![…](/Users/…/x.png)` que o agente escreve aponta para um arquivo local, que o webview não
+ * `![…](/Users/…/x.png)` que o agente escreve aponta para um arquivo local, que o webview não
  * carrega (aparecia um quadro com "?"). A imagem de verdade já vem embaixo do balão (o engine acha o
  * caminho citado), então aqui só passa imagem da web.
  */
@@ -260,7 +260,7 @@ const VERBO: Record<string, string> = {
   Read: "Leu", Edit: "Editou", MultiEdit: "Editou", Write: "Escreveu", NotebookEdit: "Editou",
   Grep: "Buscou", Glob: "Procurou", WebFetch: "Abriu", WebSearch: "Pesquisou",
   Task: "Delegou", Agent: "Delegou", TodoWrite: "Planejou", Skill: "Usou a skill", update_plan: "Planejou",
-  // Fork: lista de tarefas e plano do plan mode.
+  // Lista de tarefas e plano do plan mode.
   TaskCreate: "Planejou", TaskUpdate: "Planejou", ExitPlanMode: "Planejou",
 };
 
@@ -268,7 +268,7 @@ export function verboDaAcao(tool: string | undefined): string {
   return VERBO[tool ?? ""] ?? tool ?? "Ação";
 }
 
-/** Fork: chamada que mexeu na lista de tarefas lê como "Tarefas 3/7"; as outras, pelo verbo. */
+/** Chamada que mexeu na lista de tarefas lê como "Tarefas 3/7"; as outras, pelo verbo. */
 function rotuloDaAcao(acao: Mensagem): string {
   if (!acao.tarefas) return verboDaAcao(acao.tool);
   const { feitas, total } = progressoDasTarefas(acao.tarefas);
@@ -310,7 +310,7 @@ function LinhaDeAcao({ acao }: { acao: Mensagem }) {
   );
 }
 
-/** Fork: edição com o mini-diff, que abre num toque na linha ("Editou a.ts +3 −1"). */
+/** Edição com o mini-diff, que abre num toque na linha ("Editou a.ts +3 −1"). */
 function LinhaDeEdicao({ acao }: { acao: Mensagem }) {
   const [aberta, setAberta] = useState(false);
   const diffs = acao.diffs ?? [];
@@ -336,14 +336,14 @@ function LinhaDeEdicao({ acao }: { acao: Mensagem }) {
  */
 export const BlocoDeAcoes = memo(function BlocoDeAcoes({ acoes, aoVivo, conversa }: {
   acoes: Mensagem[]; provider?: string | null; aoVivo?: boolean;
-  /** Fork: com a conversa, o documento que uma ação criou (`Write`) aparece como cartão abaixo. */
+  /** Com a conversa, o documento que uma ação criou (`Write`) aparece como cartão abaixo. */
   conversa?: string;
 }) {
   const [aberto, setAberto] = useState(Boolean(aoVivo));
   useEffect(() => { if (aoVivo) setAberto(true); }, [aoVivo]);
   const ultima = acoes[acoes.length - 1];
   const visiveis = aberto ? acoes : [];
-  // Fork: o que as edições do bloco somam, à vista mesmo recolhido.
+  // O que as edições do bloco somam, à vista mesmo recolhido.
   const linhas = somarDiffs(acoes.flatMap((acao) => acao.diffs ?? []));
   return (
     <section className={`acoes${aoVivo ? " acoes-ao-vivo" : ""}`} aria-label="Ações do agente">
@@ -360,7 +360,7 @@ export const BlocoDeAcoes = memo(function BlocoDeAcoes({ acoes, aoVivo, conversa
         )}
       </button>
       {aberto && <ul className="acoes-lista">{visiveis.map((acao) => <LinhaDeAcao key={acao.id} acao={acao} />)}</ul>}
-      {/* Fork: fora do recolhido — o arquivo gerado é o resultado, não um passo. */}
+      {/* Fora do recolhido — o arquivo gerado é o resultado, não um passo. */}
       {conversa && acoes.map((acao) => acao.arquivos?.length
         ? <ArquivosDoAgente key={`arq-${acao.id}`} conversa={conversa} n={Number(acao.id.slice(acao.id.lastIndexOf(":") + 1))} caminhos={acao.arquivos} />
         : null)}
@@ -417,7 +417,7 @@ export function AgentWorking({ desde, provider, tokens }: AgentWorkingProps) {
 
   useEffect(() => {
     const parado = reduzirMovimento();
-    // Fork: com a pausa de energia (janela sem foco/parada) o quadro fica parado; o relógio segue.
+    // Com a pausa de energia (janela sem foco/parada) o quadro fica parado; o relógio segue.
     const spinner = parado ? undefined : window.setInterval(() => { if (!energiaPausada()) setQuadro((q) => (q + 1) % QUADROS.length); }, 120);
     const troca = parado ? undefined : window.setInterval(() => setFrase(sortearOutra), 2800);
     const relogio = window.setInterval(() => setAgora(Date.now()), 1000);

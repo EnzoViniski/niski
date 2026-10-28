@@ -1,4 +1,4 @@
-//! Fork: a conferência única do teto de sessões (antes eram quatro cópias de `MAX_SESSOES = 16`
+//! A conferência única do teto de sessões (antes eram quatro cópias de `MAX_SESSOES = 16`
 //! espalhadas pelo `mobile.rs`, contando até shell parado no prompt). Regra e número em
 //! `omni_core::limite_de_sessoes`; aqui só a contagem das PTYs vivas.
 //!

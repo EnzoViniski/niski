@@ -1,4 +1,4 @@
-//! Fork: "Reiniciar para atualizar". Um build novo por cima do `.app` aberto (como o
+//! "Reiniciar para atualizar". Um build novo por cima do `.app` aberto (como o
 //! `scripts/build-mac-local.mjs` faz) troca os executáveis no disco; a janela continua com o código
 //! antigo até reabrir. Aqui o app compara a data dos executáveis com a do momento em que abriu e,
 //! se mudou, a interface oferece o botão que reabre sozinho.
@@ -29,24 +29,24 @@ pub struct VersaoNova {
     /// O engine também mudou: reabrir reinicia os agentes em execução (cada conversa volta ao
     /// clicar na aba). Interface só mudou: os agentes seguem rodando.
     reinicia_agentes: bool,
-    /// Fork: agentes trabalhando agora. Com algum, reabrir só troca a interface: o engine (e os
+    /// Agentes trabalhando agora. Com algum, reabrir só troca a interface: o engine (e os
     /// agentes) seguem rodando e a troca dele fica para quando todos pararem.
     agentes_ocupados: usize,
-    /// Fork: o engine também é novo (agora ou adiado).
+    /// O engine também é novo (agora ou adiado).
     engine_pendente: bool,
     /// Fork (retomar-sempre): a troca do engine foi adiada nesta janela (havia agente trabalhando):
     /// a interface está falando com o engine antigo.
     engine_antigo_rodando: bool,
 }
 
-// Fork: async — consulta o engine (agentes ocupados) e não pode segurar a thread da janela.
+// Async — consulta o engine (agentes ocupados) e não pode segurar a thread da janela.
 #[tauri::command(async)]
 pub fn versao_nova_no_disco() -> VersaoNova {
     let abertura = NA_ABERTURA.get_or_init(agora);
     let atual = agora();
     let mudou = |antes: Option<u64>, depois: Option<u64>| antes.is_some() && depois.is_some() && antes != depois;
     let app = mudou(abertura.app, atual.app);
-    // Fork: engine com troca adiada (havia agente trabalhando na abertura) também conta como novo.
+    // Engine com troca adiada (havia agente trabalhando na abertura) também conta como novo.
     let pendente = crate::engine_client::ENGINE_PENDENTE.load(std::sync::atomic::Ordering::SeqCst);
     let engine = mudou(abertura.engine, atual.engine) || pendente;
     let ocupados = if engine { crate::engine_client::agentes_ocupados() } else { 0 };

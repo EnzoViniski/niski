@@ -107,7 +107,7 @@ export function secaoDeReferencias(midias: Midia[], links: LinkDeReferencia[], p
   const refs = midias.filter((m) => m.papel === "referencia");
   const item = (m: Midia) => `- \`${m.arquivo}\` (${NOME_DO_TIPO[m.tipo] ?? "arquivo"})${m.nota ? `: ${m.nota}` : ""}\n`;
   let texto = `${INICIO_DAS_REFERENCIAS}\n## Mídias e referências\n\n`;
-  // Fork: a pasta do computador (identidade visual, informações) vem antes de tudo.
+  // A pasta do computador (identidade visual, informações) vem antes de tudo.
   if (computador) texto += `Pasta do computador deste vídeo: \`${computador}\` (identidade visual e informações; leia antes de criar).\n\n`;
   if (pastas.length) {
     texto += "Pastas de referências escolhidas (os caminhos estão no CLAUDE.md/AGENTS.md):\n\n";

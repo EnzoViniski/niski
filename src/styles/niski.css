@@ -1,4 +1,4 @@
-/* Estilos do fork (Medza). Fica fora do index.css do upstream para os merges não conflitarem. */
+/* Estilos do Niski. Ficam fora do index.css para separar a identidade visual da base. */
 
 /* macOS: semáforos nativos sobrepostos à esquerda da barra (tauri.macos.conf.json). */
 .titlebar-mac { padding-left: 78px; }
@@ -66,7 +66,7 @@ html.medza-tela-cheia .gaveta-uso-fundo { top: calc(34px + var(--medza-barra-rev
   .gaveta-uso, .gaveta-uso.is-aberta, .gaveta-uso-fundo { transition: none; }
 }
 
-/* Fork: arrastar projetos e conversas na lateral (`arrastarLinha.ts`). A cópia segue o mouse; o lugar
+/* Arrastar projetos e conversas na lateral (`arrastarLinha.ts`). A cópia segue o mouse; o lugar
    previsto (a própria linha, já na ordem nova) vira um espaço tracejado. */
 body.lateral-arrastando, body.lateral-arrastando * { cursor: grabbing !important; user-select: none; }
 .pastas li.is-arrastando, .conversa-linha.is-arrastando {
@@ -84,7 +84,7 @@ body.lateral-arrastando, body.lateral-arrastando * { cursor: grabbing !important
 .lateral-fantasma .conversa-acoes, .lateral-fantasma .pasta-acao { display: none !important; }
 @media (prefers-reduced-motion: reduce) { .lateral-fantasma { transition: none; transform: none; } }
 
-/* Fork: prévia do layout final durante o arraste (`workspace/PreviaDoLayout.tsx`). Cobre os painéis
+/* Prévia do layout final durante o arraste (`workspace/PreviaDoLayout.tsx`). Cobre os painéis
    (que continuam por baixo, medindo a zona) e desenha cada um já no tamanho e lugar que vai ficar. */
 .previa-layout {
   position: absolute; inset: 8px; z-index: 40; display: flex; pointer-events: none;
@@ -118,7 +118,7 @@ body.lateral-arrastando, body.lateral-arrastando * { cursor: grabbing !important
   .previa-lado, .previa-painel { transition: none; }
 }
 
-/* Fork: conversa de outro projeto no layout (`workspace/projetosDasAbas.tsx`): etiqueta com a cor do
+/* Conversa de outro projeto no layout (`workspace/projetosDasAbas.tsx`): etiqueta com a cor do
    projeto na aba e na prévia, e uma faixa no alto do painel. */
 .etiqueta-projeto {
   display: inline-block; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -133,21 +133,21 @@ body.lateral-arrastando, body.lateral-arrastando * { cursor: grabbing !important
   background: color-mix(in srgb, var(--cor-projeto) 10%, rgb(var(--c-bg-elevated)));
 }
 
-/* Fork: confirmação de apagar conversa na lateral (`PastasDeProjetos.tsx`). Fica visível mesmo sem hover. */
+/* Confirmação de apagar conversa na lateral (`PastasDeProjetos.tsx`). Fica visível mesmo sem hover. */
 .conversa-apagar-confirmar {
   width: auto !important; padding: 0 5px; font-size: 10px; color: rgb(var(--c-text-primary));
   background: rgb(220 38 38 / .85);
 }
 .conversa-linha:has(.conversa-apagar-confirmar) .conversa-acoes { opacity: 1; visibility: visible; }
 
-/* Fork: na Conversa dá para selecionar e copiar qualquer trecho (o app inteiro é `user-select: none`
+/* Na Conversa dá para selecionar e copiar qualquer trecho (o app inteiro é `user-select: none`
    para não selecionar botões e barras sem querer). Vale para o que o agente manda e o que você manda. */
 .bubble-markdown, .bubble-markdown *, .mobile-message, .bubble-author, .chat-tela .m-dica {
   user-select: text; -webkit-user-select: text; cursor: auto;
 }
 .bubble ::selection { background: rgb(var(--c-accent) / .35); }
 
-/* Fork: caminho citado pelo agente vira link (`mobile/CaminhoClicavel.tsx`). */
+/* Caminho citado pelo agente vira link (`mobile/CaminhoClicavel.tsx`). */
 .caminho-link {
   display: inline; padding: 0; margin: 0; border: 0; background: none; font: inherit; cursor: pointer;
   text-align: left; user-select: text; -webkit-user-select: text;
@@ -156,7 +156,7 @@ body.lateral-arrastando, body.lateral-arrastando * { cursor: grabbing !important
 .caminho-link:hover code { text-decoration-style: solid; }
 .caminho-erro { font-size: 11px; color: rgb(var(--c-danger, 220 38 38)); }
 
-/* Fork: aba Navegador (`features/navegador/NavegadorPane.tsx`). A página é um webview nativo por cima
+/* Aba Navegador (`features/navegador/NavegadorPane.tsx`). A página é um webview nativo por cima
    da área abaixo desta barra. */
 .navegador-barra {
   display: flex; align-items: center; gap: 4px; flex-shrink: 0; height: 32px; padding: 0 6px;
@@ -174,7 +174,7 @@ body.lateral-arrastando, body.lateral-arrastando * { cursor: grabbing !important
 }
 .navegador-endereco:focus { border-color: rgb(var(--c-accent)); }
 
-/* Fork: branch do agente na faixa do topo da aba (`AbaDeAgente.tsx`). */
+/* Branch do agente na faixa do topo da aba (`AbaDeAgente.tsx`). */
 .aba-agente-branch { display: flex; min-width: 0; max-width: 40%; font-size: 11px; color: rgb(var(--c-text-secondary)); }
 .aba-agente-branch:empty { display: none; }
 .launcher-branch-nova {
@@ -213,7 +213,7 @@ body.lateral-arrastando, body.lateral-arrastando * { cursor: grabbing !important
 .pasta-gaveta:not(.is-aberta) > .pasta-conversas { margin-top: 0; margin-bottom: 0; }
 .pasta-icone { display: inline-flex; flex-shrink: 0; }
 .pasta-icone-minimalista { display: none; }
-/* Fork: "+" da pasta (conversa nova nela), ao lado do fechar; aparece no hover como ele. */
+/* "+" da pasta (conversa nova nela), ao lado do fechar; aparece no hover como ele. */
 .pasta-nova:hover { color: rgb(var(--c-accent)); }
 /* Fork (21/10/2026): o "+" fica sempre à vista em todas as pastas (o fechar segue só no hover). */
 .pasta .pasta-nova { opacity: .75; }

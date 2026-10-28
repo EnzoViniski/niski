@@ -393,7 +393,7 @@ pub struct PublishedTheme {
     #[serde(default)] pub theme: String,
     #[serde(default)] pub background: String,
     #[serde(default)] pub glass: String,
-    /// Fork: estilo da interface ("classico" ou "minimalista"). Vazio (PC antigo) = clássico.
+    /// Estilo da interface ("classico" ou "minimalista"). Vazio (PC antigo) = clássico.
     #[serde(default)] pub estilo: String,
 }
 

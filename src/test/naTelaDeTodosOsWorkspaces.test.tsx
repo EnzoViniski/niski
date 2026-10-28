@@ -1,4 +1,4 @@
-// Fork: navegar em todas as telas abertas sem recriar sessões nem perder o destino da aba.
+// Navegar em todas as telas abertas sem recriar sessões nem perder o destino da aba.
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";

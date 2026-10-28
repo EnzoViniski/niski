@@ -1,4 +1,4 @@
-//! Fork: uma janela do app por pasta de dados.
+//! Uma janela do app por pasta de dados.
 //!
 //! Duas cópias do mesmo app (o `.app` de /Applications e um esquecido em outra pasta, por exemplo)
 //! têm o mesmo bundle id, a mesma pasta de dados e a mesma porta do engine. Abertas juntas, cada uma
@@ -103,7 +103,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (_, arquivo) = travar(dir.path(), Duration::ZERO).unwrap();
         drop(arquivo);
-        // Fork: o flock vive na "open file description". Outro teste deste binário que faz `spawn` em
+        // O flock vive na "open file description". Outro teste deste binário que faz `spawn` em
         // paralelo herda o descritor até o `exec` (O_CLOEXEC só fecha no exec), e a trava pode seguir
         // presa por alguns ms depois do drop. Esperar um pouco (o laço tenta a cada 200 ms) tira a
         // corrida do teste; em produção a segunda cópia já espera 6 s.

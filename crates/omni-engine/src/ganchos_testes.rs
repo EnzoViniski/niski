@@ -1,4 +1,4 @@
-//! Fork: testes dos ganchos com **CLI falsa** (`sh` + `curl`) que faz POST nos ganchos como o Claude
+//! Testes dos ganchos com **CLI falsa** (`sh` + `curl`) que faz POST nos ganchos como o Claude
 //! Code faria. Nenhuma CLI real. Cobre: token errado/PTY morta (401), Host/Origin (403), corpo grande
 //! (413), turno e aviso pelos ganchos, troca de transcript, permissão permitida/negada/solta/vencida,
 //! "Responder no terminal", sessão sem eventos caindo na tela, desligar pelas Configurações e statusline.
@@ -17,7 +17,7 @@ fn cena(porta: u16) -> Cena {
         token: "engine-token-de-teste".into(), state_file: dir.path().join("sessions.json"), sessions: Mutex::new(HashMap::new()),
         id_sequence: AtomicU64::new(1) });
     definir_porta(&state, porta);
-    // Fork: ganchos vêm desligados por padrão; os testes ligam explicitamente.
+    // Ganchos vêm desligados por padrão; os testes ligam explicitamente.
     omni_core::ganchos::gravar_ajustes(dir.path(), &omni_core::ganchos::Ajustes { ligado: true, ..Default::default() }).unwrap();
     let projeto = dir.path().join("projeto");
     let conta = dir.path().join("conta-claude");

@@ -62,7 +62,7 @@ export function Select<T extends string | number>({
   const [ativo, setAtivo] = useState(0);
   const [busca, setBusca] = useState("");
   const [paraCima, setParaCima] = useState(false);
-  // Fork: a lista vai para o `body` com posição fixa, medida do botão. Dentro do painel ela era
+  // A lista vai para o `body` com posição fixa, medida do botão. Dentro do painel ela era
   // cortada pelo `overflow` dele (o seletor de conta/modelo/esforço do chat sumia atrás do painel de
   // baixo) e tinha a largura do botão — "Esforço padrão" quebrava em duas linhas.
   const [posicao, setPosicao] = useState<{ left: number; top?: number; bottom?: number; minWidth: number; maxHeight: number } | null>(null);
@@ -134,7 +134,7 @@ export function Select<T extends string | number>({
       : { left, top: r.bottom + 6, minWidth: r.width, maxHeight: espaco });
   }
 
-  // Fork: a lista é fixa na tela; rolar ou redimensionar com ela aberta realinha ao botão.
+  // A lista é fixa na tela; rolar ou redimensionar com ela aberta realinha ao botão.
   useEffect(() => {
     if (!aberto) return;
     const realinhar = (e: Event) => { if (!popRef.current?.contains(e.target as Node)) medir(); };

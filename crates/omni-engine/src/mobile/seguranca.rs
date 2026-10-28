@@ -1,5 +1,5 @@
 //! Checagem de Host/Origin, token de dispositivo e a lista fechada de caminhos públicos.
-//! Fork: saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
+//! Saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
 use super::*;
 
 /// Comparação de tempo constante: `==` em string sai no primeiro byte diferente, e isso vaza o

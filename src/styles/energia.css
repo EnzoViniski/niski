@@ -1,4 +1,4 @@
-/* Fork: economia de energia (2026-10-19). Ver src/lib/energia.ts.
+/* Economia de energia (2026-10-19). Ver src/lib/energia.ts.
 
    1. Pausa das animações decorativas infinitas com a janela oculta, sem foco ou parada há 8 s
       (`html[data-energia="pausa"]`, ligado por useEconomiaDeEnergia). `paused` congela no quadro

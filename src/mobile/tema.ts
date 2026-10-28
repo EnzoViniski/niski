@@ -7,7 +7,7 @@ export interface TemaPublicado {
   theme?: string;
   background?: string;
   glass?: string;
-  /** Fork: "minimalista" ou "vidro" troca o visual (`minimalista.css`, `vidro.css`); o resto é clássico. */
+  /** "minimalista" ou "vidro" troca o visual (`minimalista.css`, `vidro.css`); o resto é clássico. */
   estilo?: string;
 }
 
@@ -43,7 +43,7 @@ export function aplicarTema(tema: TemaPublicado | null): () => void {
   const root = document.documentElement;
   root.dataset.bg = FUNDOS_CSS.has(tema?.background ?? "") ? tema!.background! : "pixel-grid";
   root.dataset.glass = RELEVOS.has(tema?.glass ?? "") ? tema!.glass! : "forte";
-  aplicarEstilo(root, tema?.estilo); // Fork: segue o PC (Clássico, Minimalista ou Vidro).
+  aplicarEstilo(root, tema?.estilo); // Segue o PC (Clássico, Minimalista ou Vidro).
 
   const aplicar = (claro: boolean) => {
     aplicarPaleta(root, tema?.accent, claro);

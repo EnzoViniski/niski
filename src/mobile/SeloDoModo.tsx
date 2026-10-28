@@ -2,7 +2,7 @@ import { LockIcon, NotesIcon, ShieldIcon, WarningIcon, ZapOffIcon } from "../com
 import "./conversaRica.css";
 
 /**
- * Fork: selo com o modo de permissão em que o agente está, junto do campo de mensagem — o mesmo
+ * Selo com o modo de permissão em que o agente está, junto do campo de mensagem — o mesmo
  * que o rodapé do Claude Code mostra ("plan mode on", "accept edits on") e o controle de permissões
  * do Codex. Vem do transcript (`permission-mode` do Claude, `turn_context` do Codex) e, com a
  * sessão aberta, do rodapé da tela, que responde na hora.

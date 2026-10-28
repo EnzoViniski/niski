@@ -1,4 +1,4 @@
-// Fork: a paleta reutiliza a mesma busca de arquivos do atalho.
+// A paleta reutiliza a mesma busca de arquivos do atalho.
 import { useAcoesDaPaleta } from "../paleta/acoes";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { matchesShortcut } from "../../lib/shortcuts";

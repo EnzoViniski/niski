@@ -20,14 +20,14 @@ import { Ocultas } from "./listas/Ocultas";
 import { NovaSessao } from "./listas/NovaSessao";
 import { ConversationDetail } from "./conversa/ConversationDetail";
 import { CabecalhoDaConversa } from "./conversa/CabecalhoDaConversa";
-// Fork: Atividade usa eventos e vistos do engine, iguais aos do desktop.
+// Atividade usa eventos e vistos do engine, iguais aos do desktop.
 import { Atividade } from "./telas/Atividade";
-import { Uso } from "./telas/Uso"; // Fork: uso das contas no celular.
-import { AtualizarPc } from "./telas/AtualizarPc"; // Fork: atualizar o app do PC daqui.
+import { Uso } from "./telas/Uso"; // Uso das contas no celular.
+import { AtualizarPc } from "./telas/AtualizarPc"; // Atualizar o app do PC daqui.
 import { SobreMim } from "./telas/SobreMim"; // Fork (Sobre mim).
 import { RoadmapsNoCelular } from "./telas/RoadmapsTardio"; // Fork (Roadmaps de estudo).
 import { RotinaNoCelular, TarefasNoCelular, TelegramNoCelular } from "./telas/TarefasERotinaTardias"; // Fork (Tarefas e Rotina no celular).
-import { useRecarregarComVersaoNova } from "./versaoNova"; // Fork: pega a página nova depois da atualização.
+import { useRecarregarComVersaoNova } from "./versaoNova"; // Pega a página nova depois da atualização.
 import { atualizarAtividade, useAtividadeVista } from "../features/atividade/atividadeService";
 import { useEntradaDaTela } from "./entradaDaTela"; // Fork (Vidro): fade curto ao trocar de tela.
 
@@ -172,7 +172,7 @@ export function MobileApp() {
     const trabalhandoAgora = visiveis.filter(c => c.state === "working").length;
     const projetos = catalog?.projects ?? [];
     conteudo = <>
-      {/* Fork: atalhos do início (Atividade e Uso das contas). */}
+      {/* Atalhos do início (Atividade e Uso das contas). */}
       <div className="m-atalhos">
         <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "atividade" })}>Atividade</button>
         <button type="button" className="btn btn-ghost" onClick={() => ir({ tela: "uso" })}>Uso das contas</button>

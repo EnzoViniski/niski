@@ -1,4 +1,4 @@
-// Fork: movimento suave na lateral. Antes, reordenar (arrastar ou ⌥↑/⌥↓), abrir uma pasta ou uma
+// Movimento suave na lateral. Antes, reordenar (arrastar ou ⌥↑/⌥↓), abrir uma pasta ou uma
 // conversa nova entrar fazia as linhas pularem de lugar. Aqui cada linha marcada com `data-anima`
 // desliza da posição antiga para a nova (técnica FLIP, com a Web Animations API) e linha nova entra
 // com um fade curto. Respeita "Animações: desligadas" e o reduzir movimento do sistema (`motionOn`).

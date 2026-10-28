@@ -101,7 +101,7 @@ fn menu_ou_escolha(tela: &str, provider: &str) -> Option<Escolha> { escolha(tela
     assert_eq!(teclas_da_opcao(&sem_cursor, 1), Some((None, "y".into())));
 }
 
-/// Fork: Codex com `TERM=dumb` pergunta antes de abrir, numa leitura de linha comum, e o cursor vai
+/// Codex com `TERM=dumb` pergunta antes de abrir, numa leitura de linha comum, e o cursor vai
 /// para a linha de baixo. Sim/Não precisam do Enter, senão o "y" fica escrito e nada acontece.
 #[test] fn codex_term_dumb_pede_enter() {
     let tela = "$ codex\nWARNING: TERM is set to \"dumb\". Codex's interactive TUI may not work in this terminal.\nContinue anyway? [y/N]:\n";

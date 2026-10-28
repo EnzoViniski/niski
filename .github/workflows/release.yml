@@ -1,4 +1,4 @@
-name: Instaladores Medza
+name: Instaladores Niski
 
 # Este workflow compila e ASSINA (updater do Tauri) os artefatos por plataforma e deixa um rascunho de
 # release neste repositório privado. Ele NÃO publica a atualização: o GITHUB_TOKEN só escreve neste
@@ -6,7 +6,6 @@ name: Instaladores Medza
 # publicar, na máquina de quem lança a versão (com o `gh` logado):
 #   node scripts/publicar-atualizacao.mjs --de-ci <run-id>             (confere o que subiria)
 #   node scripts/publicar-atualizacao.mjs --de-ci <run-id> --publicar
-# Detalhes em docs/fork/atualizacao-automatica.md.
 
 on:
   workflow_dispatch:
@@ -85,4 +84,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --title "Medza Agents $GITHUB_REF_NAME" --notes "Instaladores com Whisper local integrado. Cada pessoa conecta suas próprias contas. Consulte o README para instalação e primeiro uso." installers/*
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --title "Niski $GITHUB_REF_NAME" --notes "Instaladores com Whisper local integrado. Cada pessoa conecta suas próprias contas. Consulte o README para instalação e primeiro uso." installers/*

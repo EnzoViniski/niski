@@ -42,14 +42,14 @@ pub struct Item {
     /// só `[Image #N]` no texto; o conteúdo vem sob demanda por [`imagem`].
     #[serde(skip_serializing_if = "sem_imagens")]
     pub imagens: usize,
-    /// Fork: imagens do agente (citadas ou geradas pelo Codex), na ordem de `imagens`.
+    /// Imagens do agente (citadas ou geradas pelo Codex), na ordem de `imagens`.
     #[serde(skip)]
     pub midia: Vec<PathBuf>,
-    /// Fork: documentos que o agente gerou ou citou (PDF, planilha…), em caminho absoluto. O
+    /// Documentos que o agente gerou ou citou (PDF, planilha…), em caminho absoluto. O
     /// conteúdo vem por [`arquivo`]; ver `entregaveis`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub arquivos: Vec<String>,
-    /// Fork: diff das edições, lista de tarefas e plano do plan mode (ver `plano_do_agente`).
+    /// Diff das edições, lista de tarefas e plano do plan mode (ver `plano_do_agente`).
     #[serde(flatten)]
     pub extras: crate::plano_do_agente::Extras,
 }
@@ -110,10 +110,10 @@ fn ferramenta_claude(nome: &str, input: &Value) -> Option<(String, String)> {
         "Task" | "Agent" => texto_de(input, "description"),
         "TodoWrite" => Some("Atualizou a lista de tarefas".into()),
         "Skill" => texto_de(input, "skill"),
-        // Fork: o plano do plan mode vira cartão na conversa (o texto curto é o título dele).
+        // O plano do plan mode vira cartão na conversa (o texto curto é o título dele).
         "ExitPlanMode" => Some(crate::plano_do_agente::titulo_do_plano(input["plan"].as_str().unwrap_or(""))),
         // Ferramentas de controle da própria CLI: não são trabalho visível.
-        // Fork: consultar a lista de tarefas também não (o cartão da lista já mostra).
+        // Consultar a lista de tarefas também não (o cartão da lista já mostra).
         "ToolSearch" | "EnterPlanMode" | "TaskList" | "TaskGet" => return None,
         _ => input.as_object().and_then(|campos| campos.values().find_map(|v| v.as_str().map(str::to_owned))),
     };
@@ -144,7 +144,7 @@ fn ferramenta_codex(payload: &Value) -> Option<(String, String)> {
         "custom_tool_call" => {
             let input = payload["input"].as_str().unwrap_or("");
             if nome == "exec" {
-                // Fork: `exec` que só aplica um patch ou atualiza o plano.
+                // `exec` que só aplica um patch ou atualiza o plano.
                 if let Some(acao) = crate::plano_do_agente::ferramenta_do_exec(input) { return Some(acao); }
                 let comando = string_json_em(input, "cmd").or_else(|| string_json_em(input, "command"))?;
                 return Some(("Shell".into(), comando_curto(&comando)));
@@ -268,7 +268,7 @@ pub fn imagem(fontes: &[(PathBuf, String)], n: usize, k: usize, cache: &mut Feed
     if entrada.item.imagens <= k { return None; }
     if entrada.item.role == "assistant" {
         use base64::Engine as _;
-        // Fork: o caminho já foi achado na leitura (citado no texto ou gerado pelo Codex).
+        // O caminho já foi achado na leitura (citado no texto ou gerado pelo Codex).
         let arquivo = entrada.item.midia.get(k)?;
         let tipo = crate::entregaveis::tipo(arquivo).filter(|t| t.starts_with("image/"))?;
         // Fork (segurança): o mesmo teto dos documentos; sem ele, uma "imagem" enorme ia inteira para a memória.
@@ -300,7 +300,7 @@ fn entrada_numero(fontes: &[(PathBuf, String)], n: usize, cache: &mut FeedCache)
     None
 }
 
-/// Fork: o documento `k` da mensagem `n` (ver `Item::arquivos`): `(nome, tipo, base64)`. Só caminhos
+/// O documento `k` da mensagem `n` (ver `Item::arquivos`): `(nome, tipo, base64)`. Só caminhos
 /// que vieram do transcript, nunca de quem pede pela rede.
 pub fn arquivo(fontes: &[(PathBuf, String)], n: usize, k: usize, cache: &mut FeedCache) -> Option<(String, String, String)> {
     use base64::Engine as _;
@@ -331,7 +331,7 @@ fn item(kind: Kind, role: &str, text: String, tool: Option<String>, value: &Valu
 /// Itens de uma linha do transcript, na ordem em que aparecem nela.
 pub fn items(value: &Value, provider: &str) -> Vec<Item> { items_em(value, provider, None) }
 
-/// Fork: [`items`] sabendo a pasta da conversa, para achar arquivo citado por caminho relativo.
+/// [`items`] sabendo a pasta da conversa, para achar arquivo citado por caminho relativo.
 pub fn items_em(value: &Value, provider: &str, cwd: Option<&Path>) -> Vec<Item> {
     if value["isSidechain"] == true { return Vec::new(); }
     let mut saida = Vec::new();
@@ -384,13 +384,13 @@ pub fn items_em(value: &Value, provider: &str, cwd: Option<&Path>) -> Vec<Item> 
                                 saida.push(item(Kind::Text, "assistant", texto.to_owned(), None, value));
                             },
                         Some("tool_use") => if let Some((nome, detalhe)) = ferramenta_claude(bloco["name"].as_str().unwrap_or(""), &bloco["input"]) {
-                            // Fork: documento escrito pelo agente vira cartão na conversa.
+                            // Documento escrito pelo agente vira cartão na conversa.
                             let criado = (nome == "Write").then(|| bloco["input"]["file_path"].as_str()).flatten()
                                 .and_then(|c| crate::entregaveis::criado(c, cwd));
                             // Fork (vídeo na conversa): o vídeo que o comando de render vai escrever (`--output`).
                             let renderizados = if nome == "Bash" { bloco["input"]["command"].as_str()
                                 .map(|c| crate::videos_gerados::do_comando(c, cwd)).unwrap_or_default() } else { Vec::new() };
-                            // Fork: diff, lista de tarefas e plano da chamada.
+                            // Diff, lista de tarefas e plano da chamada.
                             let mut extras = crate::plano_do_agente::extras_claude(&nome, &bloco["input"], bloco["id"].as_str());
                             extras.chamada = bloco["id"].as_str().map(str::to_owned); // Fork (troca-de-contexto): casa com o resultado.
                             saida.push(Item { arquivos: criado.into_iter().chain(renderizados).map(|c| c.to_string_lossy().into_owned()).collect(), extras,
@@ -420,7 +420,7 @@ pub fn items_em(value: &Value, provider: &str, cwd: Option<&Path>) -> Vec<Item> 
                 if texto.trim().is_empty() || (role == "user" && injetado(&texto)) { return saida; }
                 saida.push(item(Kind::Text, role, texto, None, value));
             } else if let Some((nome, detalhe)) = ferramenta_codex(payload) {
-                // Fork: `*** Add File:` de um documento vira cartão na conversa.
+                // `*** Add File:` de um documento vira cartão na conversa.
                 let criados = payload["input"].as_str().unwrap_or("").lines()
                     .filter_map(|linha| linha.strip_prefix("*** Add File: "))
                     .filter_map(|c| crate::entregaveis::criado(c, cwd))
@@ -430,14 +430,14 @@ pub fn items_em(value: &Value, provider: &str, cwd: Option<&Path>) -> Vec<Item> 
                 saida.push(Item { arquivos: criados, extras, ..item(Kind::Tool, "assistant", detalhe, Some(nome), value) });
             }
         }
-        // Fork: arquivo mudado pelo Codex (o patch já aplicado), com o diff.
+        // Arquivo mudado pelo Codex (o patch já aplicado), com o diff.
         "codex" if value["type"] == "event_msg" && value["payload"]["type"] == "item_completed" && value["payload"]["item"]["type"] == "FileChange" => {
             if let Some((detalhe, diffs)) = crate::plano_do_agente::file_change_do_codex(&value["payload"]["item"], cwd) {
                 let extras = crate::plano_do_agente::Extras { diffs, ..Default::default() };
                 saida.push(Item { extras, ..item(Kind::Tool, "assistant", detalhe, Some("Edit".into()), value) });
             }
         }
-        // Fork: imagem gerada pelo Codex. Ela não é citada no texto ("gerei a imagem"), só fica em
+        // Imagem gerada pelo Codex. Ela não é citada no texto ("gerei a imagem"), só fica em
         // `$CODEX_HOME/generated_images/…`; sem isto a conversa não mostrava nada.
         "codex" if value["type"] == "event_msg" && value["payload"]["type"] == "item_completed"
             && value["payload"]["item"]["type"] == "Extension"
@@ -455,7 +455,7 @@ pub fn items_em(value: &Value, provider: &str, cwd: Option<&Path>) -> Vec<Item> 
     }
     // Print ou imagem que o agente cita pelo caminho ("salvei em C:\…\tela.png") vira imagem na
     // conversa, como as coladas pelo usuário.
-    // Fork: documentos citados (PDF, planilha…) também, e caminho relativo à pasta da conversa.
+    // Documentos citados (PDF, planilha…) também, e caminho relativo à pasta da conversa.
     for it in saida.iter_mut().filter(|it| it.role == "assistant" && it.kind == Kind::Text) {
         let (imagens, documentos) = crate::entregaveis::citados(&it.text, cwd);
         for caminho in imagens { if !it.midia.contains(&caminho) { it.midia.push(caminho); } }
@@ -476,7 +476,7 @@ pub(crate) const IMAGEM_MAX_BYTES: u64 = 15 * 1024 * 1024;
 /// O caminho vem do texto do agente, nunca de quem pede pela rede, e só imagens comuns passam.
 pub fn caminhos_de_imagem(texto: &str) -> Vec<PathBuf> { caminhos_citados(texto, EXTENSOES_DE_IMAGEM, IMAGEM_MAX_BYTES) }
 
-/// Fork: o mesmo de [`caminhos_de_imagem`] para outras extensões (documentos, em `entregaveis`).
+/// O mesmo de [`caminhos_de_imagem`] para outras extensões (documentos, em `entregaveis`).
 pub(crate) fn caminhos_citados(texto: &str, extensoes: &[(&str, &str)], max_bytes: u64) -> Vec<PathBuf> {
     let mut achados: Vec<PathBuf> = Vec::new();
     for linha in texto.lines() {
@@ -517,7 +517,7 @@ fn hash(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0xcbf29ce484222325_u64, |h, b| (h ^ u64::from(*b)).wrapping_mul(0x100000001b3))
 }
 
-/// Fork: o que a leitura lembra de uma linha do transcript para a seguinte.
+/// O que a leitura lembra de uma linha do transcript para a seguinte.
 #[derive(Debug, Clone, Default)]
 struct Contexto {
     /// Última pasta da conversa vista no transcript.
@@ -546,7 +546,7 @@ fn entradas(linha: &[u8], provider: &str, contexto: &mut Contexto) -> Vec<Entry>
     let cwd = &mut contexto.cwd;
     if linha.iter().all(u8::is_ascii_whitespace) { return Vec::new(); }
     let Ok(value) = serde_json::from_slice::<Value>(linha) else { return Vec::new() };
-    // Fork: a pasta da conversa, para caminho relativo citado pelo agente. O Claude grava em cada
+    // A pasta da conversa, para caminho relativo citado pelo agente. O Claude grava em cada
     // linha; o Codex no `session_meta` e a cada `turn_context`.
     let pasta = match provider {
         "claude" => value["cwd"].as_str(),
@@ -556,7 +556,7 @@ fn entradas(linha: &[u8], provider: &str, contexto: &mut Contexto) -> Vec<Entry>
     if let Some(pasta) = pasta.filter(|p| Path::new(p).is_absolute()) { *cwd = Some(PathBuf::from(pasta)); }
     let base = value["uuid"].as_str().map(str::to_owned).unwrap_or_else(|| format!("{:016x}", hash(linha)));
     contexto.resultados.extend(crate::resultado_da_acao::resultados(&value, provider)); // Fork (troca-de-contexto)
-    // Fork: a lista de tarefas anda com o transcript (o `TaskUpdate` só diz o que mudou), e o
+    // A lista de tarefas anda com o transcript (o `TaskUpdate` só diz o que mudou), e o
     // `FileChange` do Codex que repete o patch recém-mostrado não vira outra linha.
     let estado = &mut contexto.estado;
     estado.observar(&value, provider);
@@ -584,9 +584,9 @@ pub struct Feed {
     /// linha é relida (e eles refeitos) na próxima leitura.
     provisorios: usize,
     usado_em: u64,
-    /// Fork: pasta, lista de tarefas e modo vistos até a última linha completa (ver `entradas`).
+    /// Pasta, lista de tarefas e modo vistos até a última linha completa (ver `entradas`).
     contexto: Contexto,
-    /// Fork: o mesmo, contando a linha provisória do fim (é o que vale para mostrar).
+    /// O mesmo, contando a linha provisória do fim (é o que vale para mostrar).
     contexto_visivel: Option<Contexto>,
 }
 
@@ -641,7 +641,7 @@ impl FeedCache {
         Ok(&self.feeds[path].entries)
     }
 
-    /// Fork: lista de tarefas e modo de permissão do transcript, como ficaram na última [`read`].
+    /// Lista de tarefas e modo de permissão do transcript, como ficaram na última [`read`].
     pub fn estado(&self, path: &Path) -> Option<&crate::plano_do_agente::EstadoDaConversa> {
         let feed = self.feeds.get(path)?;
         Some(&feed.contexto_visivel.as_ref().unwrap_or(&feed.contexto).estado)

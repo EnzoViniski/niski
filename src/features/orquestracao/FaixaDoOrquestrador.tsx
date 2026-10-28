@@ -1,4 +1,4 @@
-// Fork: a paleta usa o mesmo pedido de abertura do botão Ver fluxo.
+// A paleta usa o mesmo pedido de abertura do botão Ver fluxo.
 import { useAcoesDaPaleta } from "../paleta/acoes";
 import { useEffect, useState } from "react";
 import { BlocksIcon } from "../../components/ui/PixelIcon";
@@ -12,7 +12,7 @@ function painelDoClique(evento: React.MouseEvent) {
 }
 
 /**
- * Fork: na faixa da conversa, os botões do orquestrador.
+ * Na faixa da conversa, os botões do orquestrador.
  *
  * - "Tornar orquestradora" (só Claude e Codex): reabre a CLI com `--resume` e as ferramentas de criar
  *   e comandar subagentes. Pede um segundo clique, porque reabre a sessão.

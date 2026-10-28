@@ -1,4 +1,4 @@
-// Fork: a sessão atual manda na marca da conversa; a cópia na aba só serve sem engine.
+// A sessão atual manda na marca da conversa; a cópia na aba só serve sem engine.
 import type { LayoutNode, WorkspaceCollection, WorkspaceTab } from "../../types/workspace";
 
 export interface IdentidadeDaSessao { id: string; provider?: string | null; name?: string }

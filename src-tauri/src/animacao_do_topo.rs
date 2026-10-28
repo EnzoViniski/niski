@@ -1,4 +1,4 @@
-//! Fork: transfere duração e curva da animação AppKit para a barra desenhada na WKWebView.
+//! Transfere duração e curva da animação AppKit para a barra desenhada na WKWebView.
 //!
 //! Até a 0.12.0 cada amostra intermediária do AppKit virava um `eval` com duração zero: a barra
 //! pulava de posição em posição no ritmo em que os `eval` chegavam (irregular), e o Enzo via o topo

@@ -1,4 +1,4 @@
-//! Fork: teto de sessões **ativas** neste PC (celular, retomar, bifurcar, terminal da web e
+//! Teto de sessões **ativas** neste PC (celular, retomar, bifurcar, terminal da web e
 //! subagentes do orquestrador passam por ele; o engine conta em `omni-engine/src/limite_de_sessoes.rs`).
 //!
 //! Só contam sessões de agente e terminais com um comando rodando em primeiro plano: um shell parado

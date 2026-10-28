@@ -85,7 +85,7 @@ describe("sessões órfãs", () => {
     ]);
   });
 
-  it("Fork: conversa do editor de vídeo (projeto video:<id>) não vira projeto solto", () => {
+  it("Conversa do editor de vídeo (projeto video:<id>) não vira projeto solto", () => {
     const doVideo = sessao("s-v", { project_id: "video:v-1", cwd: "/dados/videos/projetos/v-1" });
     expect(encontrarSessoesOrfas([doVideo], [workspaceCom()])).toEqual([]);
   });

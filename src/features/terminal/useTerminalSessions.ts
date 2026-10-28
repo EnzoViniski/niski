@@ -19,7 +19,7 @@ export function useTerminalSessions() {
         const next = await listTerminalSessions();
         conferirEngine = false;
         if (!cancelled) {
-          // Fork: roda a cada 1s e o App inteiro (lateral, workspace, fundo) depende disto. Lista
+          // Roda a cada 1s e o App inteiro (lateral, workspace, fundo) depende disto. Lista
           // igual à anterior = mesma referência, para o React nem re-renderizar com tudo parado.
           // Fork (energia): `output_seq` sobe a cada pedaço de saída e `last_activity_at_ms` a cada
           // redesenho da TUI — com um agente transmitindo, o App inteiro re-renderizava a cada 1 s.

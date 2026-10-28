@@ -10,7 +10,7 @@ import { listConversations, type TerminalSession } from "../terminal/terminalSer
 import { encontrarSessoesOrfas, projetosDasConversasRecentes, type ProjetoRecente } from "./recuperarWorkspace";
 
 /**
- * Fork: "Recuperar workspace anterior" (paleta ⌘K e Configurações → Geral) e o aviso discreto de
+ * "Recuperar workspace anterior" (paleta ⌘K e Configurações → Geral) e o aviso discreto de
  * agentes vivos fora de qualquer projeto aberto. Lógica pura em `recuperarWorkspace.ts`; backups em
  * `services/backupDoWorkspace.ts`.
  */

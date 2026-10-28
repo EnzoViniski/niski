@@ -1,4 +1,4 @@
-//! Fork: total de tokens gastos na conversa, para o topo da aba (pedido do Enzo, 21/10/2026).
+//! Total de tokens gastos na conversa, para o topo da aba (pedido do Enzo, 21/10/2026).
 //!
 //! - **Claude Code**: cada resposta grava `message.usage` (`input_tokens`, `cache_creation_input_tokens`,
 //!   `cache_read_input_tokens`, `output_tokens`). A mesma resposta aparece em várias linhas (uma por

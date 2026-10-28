@@ -1,4 +1,4 @@
-// Fork: o engine é a fonte única, inclusive com a janela do app fechada.
+// O engine é a fonte única, inclusive com a janela do app fechada.
 import { request } from "../../mobile/api";
 import type { Conversation } from "../../mobile/api";
 export type Regra = { tipo: "uma_vez"; em_ms: number } | { tipo: "intervalo"; minutos: number }

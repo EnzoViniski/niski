@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 
 /**
- * Fork: caminho que o agente escreve entre crases (`~/omni/PROMPT.md`, `src/App.tsx:12`) vira link na
+ * Caminho que o agente escreve entre crases (`~/omni/PROMPT.md`, `src/App.tsx:12`) vira link na
  * Conversa do PC: clicar abre a pasta no Finder ou o arquivo no app padrão (comando
  * `abrir_caminho_da_conversa`, que nunca executa script nem `.app` — esses só aparecem selecionados).
  * No celular continua texto: lá não há como abrir arquivo do PC.
@@ -16,7 +16,7 @@ export function pareceCaminho(texto: string): boolean {
   const t = texto.trim();
   if (!t || t.length > 400 || /\s/.test(t) || /^[a-z][\w+.-]*:\/\//i.test(t)) return false;
   if (/^(~\/|\/|\.{1,2}\/)/.test(t)) return t.length > 1;
-  // Relativo: precisa de uma barra entre nomes (`src/App.tsx`, `OMNI-AGENTS/docs`), sem ser comando.
+  // Relativo: precisa de uma barra entre nomes (`src/App.tsx`, `niski/docs`), sem ser comando.
   return /^[\w@.-]+(\/[\w@.+-]+)+\/?(:\d+(:\d+)?)?$/.test(t);
 }
 

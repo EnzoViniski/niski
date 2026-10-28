@@ -1,4 +1,4 @@
-// Fork: Jarvis. Estado da janela do Jarvis montado a partir dos eventos `jarvis` do Rust
+// Jarvis. Estado da janela do Jarvis montado a partir dos eventos `jarvis` do Rust
 // (`src-tauri/src/jarvis/mod.rs`, `ParaATela`). Função pura, testada sem Tauri.
 
 export type EstadoDaVoz = "iniciando" | "ouvindo" | "pensando" | "falando" | "pausado";

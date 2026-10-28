@@ -1,4 +1,4 @@
-//! Fork: tela do print enviado pelo Enzo. É uma CLI parada, sem turno a interromper.
+//! Tela do print enviado pelo Enzo. É uma CLI parada, sem turno a interromper.
 pub(crate) fn reconhece(tela: &str) -> bool {
     tela.contains("This conversation is open in another app")
         && tela.contains("Close it there and press")

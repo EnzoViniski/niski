@@ -6,7 +6,7 @@ import { loadSettings, saveSettings } from "../services/settingsService";
 import { setMotionLevel } from "../lib/motion";
 import { setShortcutOverrides } from "../lib/shortcuts";
 import { aplicarPaleta } from "../lib/aplicarTema";
-import { aplicarEstilo } from "../lib/estiloDaInterface"; // Fork: Clássico, Minimalista ou Vidro.
+import { aplicarEstilo } from "../lib/estiloDaInterface"; // Clássico, Minimalista ou Vidro.
 import { isBackgroundEffect } from "../components/backgrounds/registry";
 
 export function useSettings() {
@@ -39,7 +39,7 @@ export function useSettings() {
 
     const aplicar = (claro: boolean) => {
       aplicarPaleta(root, settings.accent, claro);
-      // Fork: o ícone da janela fica o do app (Niski); o upstream repintava a logo do OMNI aqui.
+      // O ícone da janela fica o do app (Niski); antes se repintava a logo antiga aqui.
     };
 
     if (settings.theme !== "sistema") {
@@ -62,8 +62,8 @@ export function useSettings() {
     root.dataset.glass = settings.glass;
     root.dataset.motion = settings.animations;
     root.dataset.conversa = settings.conversationBackground;
-    // Fork: estilo da interface. Valor desconhecido (de uma versão mais nova) fica no clássico.
-    // Fork: o Vidro liga o Minimalista mais a variante (`estiloDaInterface.ts`).
+    // Estilo da interface. Valor desconhecido (de uma versão mais nova) fica no clássico.
+    // O Vidro liga o Minimalista mais a variante (`estiloDaInterface.ts`).
     aplicarEstilo(root, settings.estilo);
     // 100% vira alfa .25 da cor do tema: acima disso a linha disputa com o texto.
     root.style.setProperty("--conversa-grade", String(settings.conversationGridOpacity / 400));

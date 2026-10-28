@@ -225,7 +225,7 @@ mod tests {
     }
 }
 
-/// Fork: pedido de permissão de um subagente que o orquestrador **não** pode aprovar sozinho — fica para
+/// Pedido de permissão de um subagente que o orquestrador **não** pode aprovar sozinho — fica para
 /// o usuário (no fluxo). Negar sempre pode. Lista curta e conservadora: o que apaga em massa, sai da
 /// máquina (push, publicar), mexe no sistema ou baixa e executa código.
 pub fn pedido_arriscado(texto: &str) -> Option<&'static str> {

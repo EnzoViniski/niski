@@ -1,4 +1,4 @@
-/* Fork: orquestrador de agentes. Faixa da conversa (botões) e fluxo ao vivo. */
+/* Orquestrador de agentes. Faixa da conversa (botões) e fluxo ao vivo. */
 
 .orq-faixa { display: inline-flex; align-items: center; gap: .375rem; padding-bottom: .375rem; min-width: 0; }
 .orq-botao {

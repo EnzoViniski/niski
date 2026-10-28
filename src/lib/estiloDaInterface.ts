@@ -1,5 +1,5 @@
 /**
- * Fork: qual estilo de interface vale no <html> (PC, web e celular usam a mesma regra).
+ * Qual estilo de interface vale no <html> (PC, web e celular usam a mesma regra).
  *
  * O "Vidro" (pedido do Enzo, 21/10/2026) é o Minimalista com fundo preto e superfícies de vidro, no
  * espírito do Liquid Glass da Apple e do app do Codex no celular. Por isso ele liga as duas coisas:

@@ -1,4 +1,4 @@
-// Fork: mesma tecla modificadora do desktop.
+// Mesma tecla modificadora do desktop.
 import { teclaModificadora } from "../lib/plataforma";
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { AgentIcon } from "../components/ui/AgentIcon";

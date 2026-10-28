@@ -9,7 +9,7 @@ import type {
 } from "../types/workspace";
 
 /**
- * Fork: leitura tolerante do workspace salvo no localStorage.
+ * Leitura tolerante do workspace salvo no localStorage.
  *
  * Antes a validação era tudo-ou-nada: uma única aba com `kind` fora da lista (a "orquestracao",
  * que entrou no tipo e não na lista) derrubava o workspace inteiro, e o vazio era gravado por cima

@@ -13,7 +13,7 @@ function quando(ms: number) {
   return new Date(ms).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-// Fork: pastas do computador que a pessoa já usou (só conveniência; cada vídeo guarda a dele).
+// Pastas do computador que a pessoa já usou (só conveniência; cada vídeo guarda a dele).
 const PASTAS_LEMBRADAS = "medza.video.pastas";
 const PASTA_ATIVA = "medza.video.pasta-ativa";
 function lerLista(): string[] { try { const v = JSON.parse(localStorage.getItem(PASTAS_LEMBRADAS) ?? "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; } }

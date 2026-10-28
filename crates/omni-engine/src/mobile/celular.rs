@@ -1,5 +1,5 @@
 //! Acesso pelo celular: Tailscale (IP, MagicDNS, Serve), configurações, teste do servidor, Authy (TOTP) e pareamento.
-//! Fork: saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
+//! Saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
 use super::*;
 
 /// Roda a CLI do Tailscale e devolve (sucesso, stdout+stderr). Timeout curto: o cliente pode estar
@@ -39,7 +39,7 @@ pub(super) fn tailscale_ip() -> Option<IpAddr> {
     ok.then(|| saida.trim().lines().next()?.trim().parse().ok()).flatten()
 }
 
-/// Nome MagicDNS deste PC (`pc-felipe.tail68f850.ts.net`). É o endereço que o `tailscale serve`
+/// Nome MagicDNS deste PC (`meu-pc.tail1234.ts.net`). É o endereço que o `tailscale serve`
 /// publica, e ele não muda quando o IP do tailnet muda.
 pub(super) fn magic_dns() -> Option<String> {
     let (ok,saida) = tailscale(&["status","--json"],3)?;

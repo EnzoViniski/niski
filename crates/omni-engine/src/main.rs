@@ -1,35 +1,35 @@
-// Fork: cache curto do `ps` e da busca de rollouts do Codex (energia).
+// Cache curto do `ps` e da busca de rollouts do Codex (energia).
 mod economia;
 // Fork (energia): long-poll do snapshot do terminal.
 mod espera_de_saida;
-// Fork: modo do Antigravity nas sessões do app e o diálogo de permissão dele na conversa.
+// Modo do Antigravity nas sessões do app e o diálogo de permissão dele na conversa.
 mod antigravity_permissoes;
-// Fork: versão da tela sem os quadros de animação (o `If-Match` do chat não falha com o spinner).
+// Versão da tela sem os quadros de animação (o `If-Match` do chat não falha com o spinner).
 mod revisao_estavel;
-// Fork: diagnóstico do chat do Codex com a CLI real (só testes ignorados).
+// Diagnóstico do chat do Codex com a CLI real (só testes ignorados).
 #[cfg(test)]
 mod codex_chat_testes;
 mod fluxos;
 // Fork (Onda 2): ganchos HTTP do Claude por sessão, pedidos de permissão e statusline.
 mod ganchos;
 mod preparo_da_sessao;
-mod encerramento_da_pty; // Fork: solta a CLI/trava da conversa antes de reabrir.
-mod conversa_bloqueada; // Fork: permite passar para outro provedor quando a CLI está na tela de trava.
+mod encerramento_da_pty; // Solta a CLI/trava da conversa antes de reabrir.
+mod conversa_bloqueada; // Permite passar para outro provedor quando a CLI está na tela de trava.
 mod memoria_compartilhada;
 mod notify_codex; // Fork (harness, A2): fim de turno do Codex pelo `notify` oficial.
-mod vinculo_do_codex; // Fork: o thread do `notify` liga a conversa ao rollout certo.
-mod opcoes_da_permissao; // Fork: todas as opções do diálogo de permissão na Conversa.
-mod coluna_da_descricao; // Fork: rótulo e descrição em coluna nas opções do Codex.
+mod vinculo_do_codex; // O thread do `notify` liga a conversa ao rollout certo.
+mod opcoes_da_permissao; // Todas as opções do diálogo de permissão na Conversa.
+mod coluna_da_descricao; // Rótulo e descrição em coluna nas opções do Codex.
 mod harness_resumo; // Fork (harness, A7): linha de números por sessão no log.
 mod interaction;
 // Fork (pergunta-da-cli): menu genérico da CLI e "esperando algo no terminal".
 mod pergunta_da_cli;
 mod mobile;
-// Fork: reinício do Codex retoma a mesma conversa (`codex resume <id>`).
+// Reinício do Codex retoma a mesma conversa (`codex resume <id>`).
 mod retomar_codex;
 // Fork (retomar-sempre): transcript em qualquer conta, pasta apagada e conversa sumida no reinício.
 mod retomada;
-// Fork: Codex app-server opcional e transporte Unix privado.
+// Codex app-server opcional e transporte Unix privado.
 mod codex_app_server;
 mod codex_transporte;
 use anyhow::{anyhow, Context, Result};
@@ -125,11 +125,11 @@ fn settle_state(state: &SessionState, idle_ms: u64, tracked: bool, screen_in_tur
 /// Aplica `settle_state` e grava no meta: o aviso de fim de turno só pode ser contado uma vez.
 /// Ordem de lock interaction → meta, a mesma de `append_output` e `capabilities`.
 fn settle(session: &LiveSession) -> TerminalSession {
-    if let Some(meta) = codex_app_server::metadata(session) { return meta; } // Fork: estado estruturado vence a tela.
+    if let Some(meta) = codex_app_server::metadata(session) { return meta; } // Estado estruturado vence a tela.
     let mut interaction = session.interaction.lock().expect("screen poisoned");
     let mut meta = session.meta.lock().expect("session metadata poisoned");
     let tracked = screen_tracked(meta.provider.as_deref());
-    // Fork: com ganchos confirmados, o turno vem deles (a statusline esconde o "esc to interrupt").
+    // Com ganchos confirmados, o turno vem deles (a statusline esconde o "esc to interrupt").
     let screen_in_turn = tracked && ganchos::em_turno(&meta.id)
         .unwrap_or_else(|| in_turn(&interaction.parser.screen().contents(), meta.provider.as_deref().unwrap_or("")));
     let idle_ms = now_ms().saturating_sub(meta.last_activity_at_ms);
@@ -206,7 +206,7 @@ async fn main() -> Result<()> {
     fs::create_dir_all(&engine_dir)?;
     registro::iniciar("engine", &engine_dir);
     registro::registrar_panicos();
-    // Fork: mesma raiz de contas do app (`profiles::profiles_root`): conta com pasta mas fora do
+    // Mesma raiz de contas do app (`profiles::profiles_root`): conta com pasta mas fora do
     // `profiles.json` desta variante continua achando o transcript (`omni_core::perfis_descobertos`).
     if let Some(base) = std::env::var_os("APPDATA").map(PathBuf::from).or_else(omni_protocol::local_data_root) {
         omni_core::definir_raiz_de_perfis(base.join(omni_protocol::PASTA_DE_PERFIS).join("profiles"));
@@ -250,9 +250,9 @@ async fn main() -> Result<()> {
     ]);
 
     mobile::start(state.clone());
-    // Fork: servidor MCP do orquestrador (porta do engine + 3, só loopback).
+    // Servidor MCP do orquestrador (porta do engine + 3, só loopback).
     mobile::orquestracao::iniciar(state.clone(), port);
-    // Fork: servidor dos ganchos HTTP do Claude (porta do engine + 4, só loopback).
+    // Servidor dos ganchos HTTP do Claude (porta do engine + 4, só loopback).
     ganchos::iniciar(state.clone(), port);
     fluxos::carregar(&state);
 
@@ -407,7 +407,7 @@ fn list_sessions(state: &EngineState) -> Result<EngineResponse> {
     let conversas = state.state_file.parent().map(|dir| {
         let mut conversas = omni_core::conversations::read_index(dir);
         let profiles = omni_core::profiles(dir);
-        // Fork: a lista é lida a cada 1 s; a busca abre o começo de cada rollout — no máximo a cada 15 s.
+        // A lista é lida a cada 1 s; a busca abre o começo de cada rollout — no máximo a cada 15 s.
         if economia::pode_descobrir_codex(dir) {
             // Descoberta é reparo de índice: se a persistência falhar, o nome ainda aparece nesta
             // leitura e a próxima tentativa pode gravar. Listar sessões não deve derrubar o app.
@@ -478,7 +478,7 @@ fn ambiente_do_terminal(command: &mut CommandBuilder, env: &[(String, String)]) 
 #[cfg(not(windows))]
 fn terminal_e_locale_padrao(command: &mut CommandBuilder) {
     let falta = |command: &CommandBuilder, nome: &str| command.get_env(nome).is_none_or(|valor| valor.is_empty());
-    // Fork: `TERM=dumb` herdado (contorno antigo do Tailscale via `launchctl setenv`) conta como
+    // `TERM=dumb` herdado (contorno antigo do Tailscale via `launchctl setenv`) conta como
     // faltando: a tela é o xterm.js, e com `dumb` o Codex pergunta "Continue anyway? [y/N]" toda vez.
     let burro = command.get_env("TERM").is_some_and(|valor| valor == "dumb");
     if falta(command, "TERM") || burro {
@@ -678,7 +678,7 @@ fn variaveis_do_alvo(
 
 fn spawn_initial_command_thread(session: Arc<LiveSession>, initial_command: Option<String>) {
     if let Some(initial_command) = initial_command.filter(|command| !command.trim().is_empty()) {
-        // Fork: trocar durante os 800 ms invalida o comando do processo anterior.
+        // Trocar durante os 800 ms invalida o comando do processo anterior.
         let processo = session.meta.lock().ok().and_then(|m| m.pid);
         std::thread::spawn(move || {
             // ConPTY/PowerShell performs a cursor-position handshake during startup.
@@ -688,7 +688,7 @@ fn spawn_initial_command_thread(session: Arc<LiveSession>, initial_command: Opti
             if session.meta.lock().ok().and_then(|m| m.pid) != processo { return; }
             if let Ok(mut writer) = session.writer.lock() {
                 let _ = writer.write_all(initial_command.as_bytes());
-                // Fork: no macOS/Linux só o Enter (`\r`). O `\n` que sobrava chegava à CLI já aberta como
+                // No macOS/Linux só o Enter (`\r`). O `\n` que sobrava chegava à CLI já aberta como
                 // Ctrl+J ("nova linha" no campo do Codex): o campo ficava com uma linha em branco, o chat
                 // achava que era rascunho e não mandava nada (visto no Codex 0.163 real, intermitente).
                 let _ = writer.write_all(if cfg!(windows) { b"\r\n" } else { b"\r" });
@@ -798,12 +798,12 @@ pub(crate) fn spawn_terminal_inner(
     let shell = shell.unwrap_or_else(default_shell);
     let headless = origin.headless;
     let initial_command = if origin.provider.as_deref() == Some("antigravity") {
-        // Fork: `--mode` escolhido no app (Auto por padrão: arquivo e comando seguro sem perguntar).
+        // `--mode` escolhido no app (Auto por padrão: arquivo e comando seguro sem perguntar).
         initial_command.map(|comando| antigravity_permissoes::com_modo_salvo(&com_log_do_antigravity(&comando, &id),
             config_do_antigravity().map(|dir| omni_core::antigravity::log_da_sessao(&dir, &id))))
     } else { initial_command };
     compartilhar_extensoes(state, origin.provider.as_deref(), origin.profile_id.as_deref());
-    // Fork: flags de MCP (orquestradora) e `--settings` dos ganchos (Claude) só no que é digitado; os
+    // Flags de MCP (orquestradora) e `--settings` dos ganchos (Claude) só no que é digitado; os
     // tokens vão só no ambiente da PTY.
     // Fork (Copiloto): a conversa do copiloto nasce orquestradora (antes de montar as flags).
     mobile::orquestracao::marcar_copiloto(state, &project_id, origin.conversation_id.as_deref(), origin.provider.as_deref());
@@ -1020,7 +1020,7 @@ fn comando_ao_reiniciar(meta: &TerminalSession) -> Option<String> {
     if !omni_core::texto_para_o_shell::id_de_sessao_valido(id) { return Some(original); }
     // Fork (retomar-sempre): procura em todas as contas (e copia para a da sessão) uma vez só.
     let pronto = transcript_claude_existe(meta, id);
-    // Fork: reiniciar retoma **a cópia** — repetir o `--fork-session` bifurcaria de novo.
+    // Reiniciar retoma **a cópia** — repetir o `--fork-session` bifurcaria de novo.
     if original.contains("--fork-session") && pronto {
         let base = original.split(" --resume ").next().unwrap_or("claude");
         return Some(format!("{base} --resume {id}"));
@@ -1035,7 +1035,7 @@ fn comando_ao_reiniciar(meta: &TerminalSession) -> Option<String> {
     Some(original.replacen(&criar, &format!("--resume {id}"), 1))
 }
 
-/// Fork: `comando_ao_reiniciar` + Codex retomando a mesma conversa (ver `retomar_codex`).
+/// `comando_ao_reiniciar` + Codex retomando a mesma conversa (ver `retomar_codex`).
 fn comando_ao_reiniciar_com_codex(state: &EngineState, meta: &TerminalSession) -> Option<String> {
     let comando = comando_ao_reiniciar(meta)?;
     // Fork (retomar-sempre): rollout em outra conta vai para o CODEX_HOME da sessão antes do `resume`.
@@ -1096,7 +1096,7 @@ fn restart_session(state: &Arc<EngineState>, session_id: &str) -> Result<EngineR
     restart_session_com_comando(state, session_id, None)
 }
 
-// Fork: trocar de provedor abre uma conversa nativa NOVA; não descobre/resume rollout alheio.
+// Trocar de provedor abre uma conversa nativa NOVA; não descobre/resume rollout alheio.
 fn restart_session_com_comando(state: &Arc<EngineState>, session_id: &str, comando_novo: Option<String>) -> Result<EngineResponse> {
     let target = {
         let sessions = state.sessions.lock().map_err(|_| anyhow!("sessions lock poisoned"))?;
@@ -1124,7 +1124,7 @@ fn restart_session_com_comando(state: &Arc<EngineState>, session_id: &str, coman
             // só termina depois que a saída pendente da PTY é lida; com a tela presa, o leitor parava, a
             // saída não escoava e o reinício desistia em 3 s ("ainda está encerrando", visto no log real).
             drop(context);
-            encerramento_da_pty::encerrar(&session)?; // Fork: aguarda a CLI antiga liberar sua trava.
+            encerramento_da_pty::encerrar(&session)?; // Aguarda a CLI antiga liberar sua trava.
             let mut context = session.interaction.lock().map_err(|_| anyhow!("screen poisoned"))?;
             session.meta.lock().map_err(|_| anyhow!("metadata poisoned"))?.pid = None;
             let meta = session.meta.lock().map_err(|_| anyhow!("session metadata poisoned"))?.clone();
@@ -1139,7 +1139,7 @@ fn restart_session_com_comando(state: &Arc<EngineState>, session_id: &str, coman
             // Reinício e troca de conta do failover também passam aqui: a conta nova recebe as
             // extensões da principal antes de a CLI subir.
             compartilhar_extensoes(state, meta.provider.as_deref(), meta.profile_id.as_deref());
-            // Fork: reabre com as flags de MCP/ganchos e tokens novos (só no ambiente da PTY).
+            // Reabre com as flags de MCP/ganchos e tokens novos (só no ambiente da PTY).
             let (comando, env_do_orquestrador) = preparo_da_sessao::preparar(state, &meta.id, &SessionOrigin::of(&meta), &meta.cwd,
                 comando_novo.or_else(|| comando_ao_reiniciar_com_codex(state, &meta)));
             let (pid, writer, master, child, reader) =
@@ -1278,7 +1278,7 @@ fn append_output(session: &LiveSession, bytes: &[u8], watched_pid: Option<u32>) 
         if meta.pid != watched_pid { return; }
         (meta.provider.clone().filter(|provider| screen_tracked(Some(provider))), meta.id.clone())
     };
-    // Fork: turno pelos ganchos quando confirmados; senão, pela tela.
+    // Turno pelos ganchos quando confirmados; senão, pela tela.
     let no_turno = |screen_text: &str, provider: &str| ganchos::em_turno(&terminal).unwrap_or_else(|| in_turn(screen_text, provider));
     interaction.parser.process(bytes);
     if session.headless.load(Ordering::SeqCst) {
@@ -1289,7 +1289,7 @@ fn append_output(session: &LiveSession, bytes: &[u8], watched_pid: Option<u32>) 
     let approval_requested = match &tracked_provider {
         // O diálogo real, reconhecido estrito — não "do you want to" solto numa resposta do agente.
         Some(provider) => {
-            // Fork: pedido de permissão segurado pelo gancho conta como o diálogo na tela.
+            // Pedido de permissão segurado pelo gancho conta como o diálogo na tela.
             let dialog = interaction::approval(&screen_text, provider).is_some() || ganchos::tem_pedido(&terminal);
             let trabalhando = no_turno(&screen_text, provider);
             // Turno novo começando: o que já estava na tela é passado.
@@ -1320,7 +1320,7 @@ fn append_output(session: &LiveSession, bytes: &[u8], watched_pid: Option<u32>) 
     // No meio do turno ("esc to interrupt" na tela) o agente está trabalhando: o que aparecer é
     // saída dele, não a CLI avisando que parou.
     let em_turno = tracked_provider.as_deref().is_some_and(|provider| no_turno(&screen_text, provider));
-    // Fork: o `StopFailure` do gancho vale mesmo sem a linha do erro na tela.
+    // O `StopFailure` do gancho vale mesmo sem a linha do erro na tela.
     let notice = if em_turno { None } else { notice_since(counts, *base).or_else(|| ganchos::aviso(&terminal)) };
     if let Ok(mut output) = session.output.lock() {
         let sequence = output.next_seq;
@@ -1337,7 +1337,7 @@ fn append_output(session: &LiveSession, bytes: &[u8], watched_pid: Option<u32>) 
         if let Ok(mut meta) = session.meta.lock() {
             meta.output_seq = output.next_seq;
             meta.last_activity_at_ms = now_ms();
-            if codex_app_server::ativo(&terminal) { return; } // Fork: redesenho da TUI não altera estado nem atenção do RPC.
+            if codex_app_server::ativo(&terminal) { return; } // Redesenho da TUI não altera estado nem atenção do RPC.
             let next = if approval_requested {
                 SessionState::ApprovalRequired
             } else if em_turno || tracked_provider.is_none() || meta.state != SessionState::Answered {
@@ -1384,7 +1384,7 @@ fn cursor_report(data: &str, (row, col): (u16, u16)) -> Option<String> {
 }
 
 fn write_terminal(state: &EngineState, session_id: &str, data: &str) -> Result<EngineResponse> {
-    // Fork: só um turno interrompível consome Esc/Ctrl+C no RPC; sem turno, as teclas chegam à TUI.
+    // Só um turno interrompível consome Esc/Ctrl+C no RPC; sem turno, as teclas chegam à TUI.
     if matches!(data,"\x1b"|"\x03") { if let Some(r)=codex_app_server::interromper(session_id) { r?; return Ok(EngineResponse::Ok); } }
     let sessions = state.sessions.lock().map_err(|_| anyhow!("sessions lock poisoned"))?;
     let SessionEntry::Live(session) = sessions.get(session_id).ok_or_else(|| anyhow!("session not found"))? else {
@@ -1393,7 +1393,7 @@ fn write_terminal(state: &EngineState, session_id: &str, data: &str) -> Result<E
     let mut interaction = session.interaction.lock().map_err(|_| anyhow!("screen poisoned"))?;
     if session.reserved.load(Ordering::SeqCst) { return Err(anyhow!("Consulta de uso em andamento; aguarde")); }
     interaction.input_revision += 1;
-    // Fork: Esc/Ctrl+C no meio do turno — o gancho `Stop` não vem, a tela volta a valer.
+    // Esc/Ctrl+C no meio do turno — o gancho `Stop` não vem, a tela volta a valer.
     ganchos::escreveu(session_id, data);
     let mut writer = session.writer.lock().map_err(|_| anyhow!("terminal writer poisoned"))?;
     writer.write_all(data.as_bytes())?;
@@ -1422,12 +1422,12 @@ fn resize_terminal(state: &EngineState, session_id: &str, rows: u16, cols: u16) 
 }
 
 fn stop_session(state: &EngineState, session_id: &str) -> Result<EngineResponse> {
-    codex_app_server::esquecer(session_id); // Fork: parar não dispara fallback/reabertura.
+    codex_app_server::esquecer(session_id); // Parar não dispara fallback/reabertura.
     let sessions = state.sessions.lock().map_err(|_| anyhow!("sessions lock poisoned"))?;
     let SessionEntry::Live(session) = sessions.get(session_id).ok_or_else(|| anyhow!("session not found"))? else {
         return Ok(EngineResponse::Ok);
     };
-    encerramento_da_pty::encerrar(session)?; // Fork: troca pela UI também espera a CLI sair.
+    encerramento_da_pty::encerrar(session)?; // Troca pela UI também espera a CLI sair.
     let mut meta = session.meta.lock().map_err(|_| anyhow!("session metadata poisoned"))?;
     meta.state = SessionState::Stopped;
     meta.pid = None;
@@ -1445,9 +1445,9 @@ fn close_session(state: &EngineState, session_id: &str) -> Result<EngineResponse
         .remove(session_id);
     // Fork (harness, A7): a linha de números sai antes de os contadores dos ganchos sumirem.
     if let Some(SessionEntry::Live(sessao)) = &entry { harness_resumo::registrar_da_sessao(sessao); }
-    // Fork: token, pedidos e arquivo de ganchos da sessão somem junto.
+    // Token, pedidos e arquivo de ganchos da sessão somem junto.
     ganchos::esquecer(session_id);
-    codex_app_server::esquecer(session_id); // Fork: processos e socket da conversa.
+    codex_app_server::esquecer(session_id); // Processos e socket da conversa.
     if let Some(SessionEntry::Live(session)) = entry {
         let _ = session
             .child
@@ -1667,7 +1667,7 @@ mod tests {
         assert!(comando.get_env("LC_CTYPE").is_none(), "LANG definido: o locale do usuário vale");
     }
 
-    /// Fork: `TERM=dumb` herdado do launchd vira o terminal de verdade (o Codex parava numa pergunta).
+    /// `TERM=dumb` herdado do launchd vira o terminal de verdade (o Codex parava numa pergunta).
     #[cfg(not(windows))]
     #[test]
     fn term_dumb_herdado_vira_xterm() {
@@ -1845,7 +1845,7 @@ mod tests {
         assert_eq!(comando_ao_reiniciar(&sessao).as_deref(), Some("claude --resume abc-123"));
     }
 
-    /// Fork: projeto de caminho longo (a CLI corta a pasta em 200 caracteres + hash). O engine não
+    /// Projeto de caminho longo (a CLI corta a pasta em 200 caracteres + hash). O engine não
     /// achava o transcript e repetia `--session-id`, que a CLI recusa por já estar em uso: a sessão
     /// revivida depois de reiniciar o engine não voltava para a conversa.
     #[test]

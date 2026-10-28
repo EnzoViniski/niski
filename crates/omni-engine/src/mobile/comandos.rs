@@ -1,4 +1,4 @@
-//! Fork: controles da Conversa. Só comandos da lista do core chegam à PTY.
+//! Controles da Conversa. Só comandos da lista do core chegam à PTY.
 use super::*;
 use omni_core::comandos_oficiais as oficiais;
 
@@ -8,9 +8,9 @@ pub(super) struct Comando { comando: String, argumento: Option<String> }
 
 #[derive(Clone, PartialEq)]
 pub(super) enum Pedido { Slash(Comando), Modo(String),
-    /// Fork: `/skill argumento` do Claude, já conferido contra a lista da conversa (`barra.rs`).
+    /// `/skill argumento` do Claude, já conferido contra a lista da conversa (`barra.rs`).
     Barra(String),
-    /// Fork: aprovação/sandbox do Codex (`modo_codex.rs`), que reabre a mesma conversa.
+    /// Aprovação/sandbox do Codex (`modo_codex.rs`), que reabre a mesma conversa.
     ModoCodex(String) }
 
 pub(super) fn rotas() -> Router<Arc<EngineState>> {
@@ -31,7 +31,7 @@ async fn comando(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath
 #[derive(Deserialize)] #[serde(deny_unknown_fields)]
 struct ModoBody { modo: String }
 async fn modo(State(state): State<Arc<EngineState>>, RoutePath(id): RoutePath<String>, headers: HeaderMap, Json(body): Json<ModoBody>) -> Result<(StatusCode,Json<Value>),ApiError> {
-    // Fork: o Codex também escolhe o modo pela Conversa (Perguntar, Sem perguntar, Acesso total, Somente leitura).
+    // O Codex também escolhe o modo pela Conversa (Perguntar, Sem perguntar, Acesso total, Somente leitura).
     // Valor que não é de nenhum dos dois é recusado antes de procurar a sessão, como antes.
     let do_codex = omni_core::modo_do_codex::valido(&body.modo);
     if !oficiais::modo_valido(&body.modo) && !do_codex { return Err(error(StatusCode::BAD_REQUEST,"Modo deve ser default, acceptEdits, plan ou auto")); }
@@ -87,7 +87,7 @@ pub(super) fn com_modo(base: &str, modo: &str) -> Result<String> {
 }
 pub(super) fn modo_salvo(dir: &Path, id: &str) -> Option<String> {
     let mapa: HashMap<String,String> = serde_json::from_slice(&std::fs::read(arquivo_de_modos(dir)).ok()?).ok()?;
-    // Fork: o modo do Codex mora no mesmo arquivo (cada uso confere se o valor é do seu agente).
+    // O modo do Codex mora no mesmo arquivo (cada uso confere se o valor é do seu agente).
     mapa.get(id).filter(|m| oficiais::modo_valido(m) || omni_core::modo_do_codex::valido(m)).cloned()
 }
 pub(super) fn guardar_modo(state: &EngineState, id: &str, modo: &str) -> Result<()> {
@@ -114,7 +114,7 @@ fn executar_com(state: &Arc<EngineState>, action: &Action, pedido: &Pedido, roda
             let session = session.ok_or_else(||anyhow!("Sessão encerrada"))?;
             let provider = session.meta.lock().map_err(|_|anyhow!("metadata poisoned"))?.provider.clone().unwrap_or_default();
             let texto = oficiais::montar(&provider,&body.comando,body.argumento.as_deref()).map_err(|e|anyhow!(e))?;
-            // Fork: /compact é comando da TUI; no app-server usamos o RPC oficial, sem turn/start.
+            // /compact é comando da TUI; no app-server usamos o RPC oficial, sem turn/start.
             if body.comando == "compact" && codex_app_server::ativo(&action.session_id) {
                 anyhow::ensure!(now_ms().saturating_sub(action.created_at_ms) < 60_000, "Ação expirada");
                 let sessions = state.sessions.lock().map_err(|_|anyhow!("sessions poisoned"))?;
@@ -134,7 +134,7 @@ fn executar_com(state: &Arc<EngineState>, action: &Action, pedido: &Pedido, roda
             if let Some(antes) = antes { acompanhar_branch(state.clone(),action.conversation_id.clone(),session,antes); }
             Ok(())
         }
-        // Fork: skill/comando personalizado do Claude. O texto já passou por `texto_para_cli` na rota;
+        // Skill/comando personalizado do Claude. O texto já passou por `texto_para_cli` na rota;
         // aqui só confere que a CLI viva ainda é o Claude e usa a mesma porta do prompt.
         Pedido::Barra(texto) => {
             let (_,session) = current(state,&action.conversation_id).map_err(|_|anyhow!("Conversa removida"))?;
@@ -229,7 +229,7 @@ fn acompanhar_branch(state: Arc<EngineState>, id: String, session: Arc<LiveSessi
             if !oficiais::valor_seguro(sid) { return; }
             let Ok(_lock) = state.persist_lock.lock() else { return };
             let dir = state.state_file.parent().unwrap();
-            // Fork: ler, alterar e gravar numa transação só (trava do índice, achado 4 da revisão).
+            // Ler, alterar e gravar numa transação só (trava do índice, achado 4 da revisão).
             let trocou = omni_core::indice_de_conversas::mudar_indice(dir, |indice| {
                 let Some(c) = indice.iter_mut().find(|c|c.id == id) else { return false };
                 let Some(ultimo) = c.segments.last_mut() else { return false };

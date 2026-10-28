@@ -1,4 +1,4 @@
-//! Fork: o que a conversa ganha além de texto e ação — lido do mesmo transcript da CLI.
+//! O que a conversa ganha além de texto e ação — lido do mesmo transcript da CLI.
 //!
 //! - **Lista de tarefas** do agente: `TodoWrite` (lista inteira a cada chamada) e
 //!   `TaskCreate`/`TaskUpdate` (uma tarefa por chamada; o id sai no resultado do `TaskCreate`) do

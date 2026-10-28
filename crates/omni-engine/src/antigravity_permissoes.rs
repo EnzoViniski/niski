@@ -1,4 +1,4 @@
-//! Fork: permissões do Antigravity (`agy`) no app.
+//! Permissões do Antigravity (`agy`) no app.
 //!
 //! O Enzo tinha de ir ao terminal aceitar até a criação de um arquivo. Duas peças:
 //! - **Modo da sessão**: o app abre o `agy` com `--mode accept-edits` (cria e edita arquivo sem perguntar)
@@ -149,7 +149,7 @@ pub(crate) fn dica_de_modo(texto: &str) -> bool {
 pub(crate) const COMANDOS_COMUNS: &[&str] = &[
     "ls", "pwd", "cat", "head", "tail", "wc", "which", "file", "stat", "du", "df", "tree", "date", "whoami", "uname",
     "echo", "printf", "grep", "rg", "diff", "cmp", "sort", "uniq", "cut", "tr", "jq", "mkdir", "touch",
-    // Fork: git branch também aceita -D/--delete; um prefixo não restringe seus argumentos.
+    // Git branch também aceita -D/--delete; um prefixo não restringe seus argumentos.
     "git status", "git diff", "git log", "git show", "git rev-parse", "git ls-files", "git blame", "git remote -v", "git stash list",
     "node --version", "npm --version", "npm ls", "npm test", "npm run test", "npm run lint", "npm run typecheck", "npm run build",
     "npx tsc", "npx vitest", "npx eslint", "npx prettier --check",
@@ -271,7 +271,7 @@ fn pasta(state: &crate::EngineState) -> &Path { state.state_file.parent().unwrap
 async fn ler(State(state): State<Arc<crate::EngineState>>) -> Json<Value> {
     let dir = pasta(&state);
     Json(json!({"modo": modo(dir).nome(), "efetivo": modo_efetivo(dir).nome(), "auto_disponivel": !auto_indisponivel(dir),
-        "sem_perguntar_disponivel": suporta_sem_perguntar(), // Fork: agy 1.4.6+.
+        "sem_perguntar_disponivel": suporta_sem_perguntar(), // Agy 1.4.6+.
         "comandos_liberados": comandos_liberados(dir), "comandos_comuns": COMANDOS_COMUNS}))
 }
 

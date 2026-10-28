@@ -5,7 +5,7 @@ import { Select } from "../components/ui/Select";
 import { ApiError, request } from "./api";
 import { lembrarAjustes } from "../lib/escolhasSalvas";
 import { NOME_CURTO } from "../lib/identidade";
-// Fork: modelo e esforço num botão só, com a barra de esforço (`conversa/SeletorDeModelo.tsx`).
+// Modelo e esforço num botão só, com a barra de esforço (`conversa/SeletorDeModelo.tsx`).
 import { SeletorDeModelo } from "./conversa/SeletorDeModelo";
 
 /** `GET /conversas/{id}/opcoes`: o que dá para escolher nesta conversa e o que está valendo agora. */
@@ -27,7 +27,7 @@ export interface Ajustes { profile_id: string | null; model: string | null; effo
 
 /**
  * O modelo do transcript na lista: igual (`claude-opus-4-8`) ou o mais específico que ele contém
- * (`claude-opus-4-5-20251101` → `claude-opus-4-5`, não o apelido `opus`). Fork: a lista do Claude
+ * (`claude-opus-4-5-20251101` → `claude-opus-4-5`, não o apelido `opus`). A lista do Claude
  * passou a ter versões fixas além dos apelidos.
  */
 export function modeloDaLista(opcoes: Pick<Opcoes, "model" | "models">): string {
@@ -63,7 +63,7 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
   // depois da próxima resposta; até lá, reler a mesma leitura antiga não desfaz a escolha na tela.
   const aplicado = useRef<{ antes: Pick<Opcoes, "model" | "effort">; depois: Ajustes } | null>(null);
   const lidoDoEngine = useRef<Pick<Opcoes, "model" | "effort"> | null>(null);
-  // Fork: valores mais novos para o aplicar automático (ver `aplicarSeMudou`).
+  // Valores mais novos para o aplicar automático (ver `aplicarSeMudou`).
   const atual = useRef({ conta, modelo, esforco });
   atual.current = { conta, modelo, esforco };
 
@@ -120,7 +120,7 @@ export function AjustesDaConversa({ conversaId, pronto, onAplicar, onRetomar }: 
     try {
       // O erro já aparece no chat (quem chama mostra); aqui só não marca como aplicado.
       try { await (onRetomar ?? onAplicar)({ profile_id: conta || null, model: modelo || null, effort: esforco || null }); } catch { return; }
-      // Fork: as próximas conversas deste agente já nascem com este modelo/esforço.
+      // As próximas conversas deste agente já nascem com este modelo/esforço.
       lembrarAjustes(opcoes!.provider, { model: modelo || null, effort: esforco || null });
       // A sessão reabre em segundo plano; o modelo novo só aparece no transcript depois da próxima
       // resposta, então a escolha fica como está até lá.

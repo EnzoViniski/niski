@@ -1,4 +1,4 @@
-/* Fork: mesmo vocabulário visual do composer e das gavetas do produto. */
+/* Mesmo vocabulário visual do composer e das gavetas do produto. */
 .agenda-fundo { position: fixed; inset: 0; z-index: 12000; display: flex; justify-content: flex-end; background: rgb(0 0 0 / .5); color: rgb(var(--c-text-primary)); font-size: .85rem; }
 .agenda-painel { width: min(100%, 42rem); overflow: auto; padding: 1.5rem; background: rgb(var(--c-bg-surface)); border-left: 1px solid rgb(var(--c-outline)); box-shadow: -12px 0 48px rgb(0 0 0 / .2); }
 .agenda-painel header, .agenda-barra, .agenda-linha { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }

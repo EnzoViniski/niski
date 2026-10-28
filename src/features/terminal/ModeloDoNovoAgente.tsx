@@ -1,4 +1,4 @@
-// Fork: modelo/esforço também podem ser escolhidos antes de abrir a conversa.
+// Modelo/esforço também podem ser escolhidos antes de abrir a conversa.
 import { useEffect, useId, useState } from "react";
 import { Select } from "../../components/ui";
 import { ajustesDoAgente, type AjustesSalvos } from "../../lib/escolhasSalvas";

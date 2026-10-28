@@ -1,4 +1,4 @@
-//! Fork: uma sessão nativa aberta não pode ser capturada pela descoberta de uma passagem nova.
+//! Uma sessão nativa aberta não pode ser capturada pela descoberta de uma passagem nova.
 use super::conversations::*;
 use serde_json::json;
 

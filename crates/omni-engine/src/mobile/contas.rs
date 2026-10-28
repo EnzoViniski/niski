@@ -1,5 +1,5 @@
 //! Contas e uso (janela de 5 h e semanal) e o comando publicado de cada agente.
-//! Fork: saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
+//! Saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
 use super::*;
 
 /// Uso das contas como o rodapé do PC mostra (janela de 5 h e semanal). Só o que já foi lido —
@@ -10,7 +10,7 @@ pub(super) async fn contas(State(state): State<Arc<EngineState>>) -> Json<Value>
         let agora = now_ms();
         let lista: Vec<Value> = omni_core::profiles(&dir).into_iter().map(|perfil| {
             let uso = match perfil.provider.as_str() {
-                "codex" => Some(crate::codex_app_server::uso_da_conta(&state,&perfil.id).unwrap_or_else(||omni_core::usage::read_codex(&perfil.id,Path::new(&perfil.config_dir),agora))), // Fork: 3A.
+                "codex" => Some(crate::codex_app_server::uso_da_conta(&state,&perfil.id).unwrap_or_else(||omni_core::usage::read_codex(&perfil.id,Path::new(&perfil.config_dir),agora))), // 3A.
                 // Fork (harness, C5): só a statusline; o `.claude.json` não é mais lido.
                 "claude" => crate::ganchos::uso_da_statusline(&dir,&perfil.id),
                 _ => None,
@@ -42,7 +42,7 @@ pub(super) async fn atualizar_uso(State(state): State<Arc<EngineState>>, RoutePa
                 Ok(_) => return Err(error(StatusCode::INTERNAL_SERVER_ERROR,"Resposta inesperada da consulta de uso")),
                 Err(erro) => return Err(error(StatusCode::CONFLICT,&erro.to_string())),
             },
-            "codex" => crate::codex_app_server::uso_da_conta(&state,&perfil.id).unwrap_or_else(||omni_core::usage::read_codex(&perfil.id,Path::new(&perfil.config_dir),now_ms())), // Fork: 3A.
+            "codex" => crate::codex_app_server::uso_da_conta(&state,&perfil.id).unwrap_or_else(||omni_core::usage::read_codex(&perfil.id,Path::new(&perfil.config_dir),now_ms())), // 3A.
             _ => return Err(error(StatusCode::BAD_REQUEST,"Este agente não informa uso")),
         };
         Ok(Json(json!({"id":perfil.id,"provider":perfil.provider,"name":perfil.name,"usage":uso})))

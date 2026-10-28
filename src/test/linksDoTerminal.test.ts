@@ -3,7 +3,7 @@ import { linkHandlerDoTerminal, provedorDeUrls, urlsDaLinha } from "../features/
 import { EVENTO_ABRIR_LINK, marcarDesenhada, prenderPagina, rotulosDesenhados, rotulosPresos } from "../features/navegador/registroDoNavegador";
 import type { Terminal } from "@xterm/xterm";
 
-// Fork: links do terminal abrem numa aba do app (o padrão do xterm não fazia nada no Tauri).
+// Links do terminal abrem numa aba do app (o padrão do xterm não fazia nada no Tauri).
 describe("links do terminal", () => {
   it("acha endereços soltos sem a pontuação da frase", () => {
     expect(urlsDaLinha("  Studio: http://localhost:3002/projects/video-1. Abra.")).toEqual([{ inicio: 10, url: "http://localhost:3002/projects/video-1" }]);

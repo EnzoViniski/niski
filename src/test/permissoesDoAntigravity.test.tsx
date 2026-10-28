@@ -5,7 +5,7 @@ import { PermissoesDoAntigravity } from "../features/antigravity/PermissoesDoAnt
 import { transporteDoEngine } from "../features/conversa/transporteDoEngine";
 import { usarTransporte } from "../mobile/api";
 
-// Fork: Configurações → Agentes: o que o Antigravity aprova sozinho nas sessões do app.
+// Configurações → Agentes: o que o Antigravity aprova sozinho nas sessões do app.
 const engine = vi.hoisted(() => ({ engineApi: vi.fn() }));
 vi.mock("../features/terminal/terminalService", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../features/terminal/terminalService")>()),

@@ -1,7 +1,7 @@
 import { GitBranchIcon } from "../../components/ui/PixelIcon";
 import { worktreeDaPasta } from "./worktreeIsolada";
 
-/** Fork: na aba, a branch da worktree isolada em que o agente roda (`medza/<nome>`). */
+/** Na aba, a branch da worktree isolada em que o agente roda (`medza/<nome>`). */
 export function EtiquetaDaWorktree({ cwd, className = "" }: { cwd: string | null | undefined; className?: string }) {
   const worktree = worktreeDaPasta(cwd);
   if (!worktree) return null;

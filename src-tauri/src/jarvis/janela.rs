@@ -1,4 +1,4 @@
-//! Fork: Jarvis. Janela flutuante, sempre por cima, em todas as mesas; encolhe para uma bolinha e
+//! Jarvis. Janela flutuante, sempre por cima, em todas as mesas; encolhe para uma bolinha e
 //! volta. Posição, tamanho e "bolinha" ficam em `<pasta de dados>/engine/jarvis-janela.json`
 //! (arquivo novo; nada do estado da interface muda). Também o atalho global e o fechamento junto da
 //! janela principal.
@@ -117,7 +117,7 @@ pub fn jarvis_fechar(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn jarvis_janela_aberta(app: AppHandle) -> bool { app.get_webview_window(ROTULO).is_some() }
 
-/// Fork: a equipe fica no fluxo existente do app, com estado e aprovações dos agentes.
+/// A equipe fica no fluxo existente do app, com estado e aprovações dos agentes.
 #[tauri::command]
 pub fn jarvis_abrir_fluxo(app: AppHandle) -> Result<(), String> {
     app.emit_to("main", "jarvis-abrir-fluxo", ()).map_err(|_| "Não consegui abrir a equipe do Jarvis".to_owned())?;

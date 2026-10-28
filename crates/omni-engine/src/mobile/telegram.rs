@@ -1,10 +1,10 @@
-//! Fork: avisos pela Bot API oficial. Só metadados; respostas continuam no acesso remoto do Medza.
+//! Avisos pela Bot API oficial. Só metadados; respostas continuam no acesso remoto do Medza.
 //! O token nunca sai do engine. Cadastro restrito ao IPC do desktop; arquivo próprio, modo 0600.
 use super::*;
 use std::collections::BTreeSet;
 
 mod api;
-mod exemplos; // Fork: um exemplo de cada aviso.
+mod exemplos; // Um exemplo de cada aviso.
 mod rotas;
 // Fork (Rotina): o bot da rotina (lembretes com texto e botões, conversa com o agente da rotina).
 pub(super) mod rotina;

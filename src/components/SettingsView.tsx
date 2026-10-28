@@ -1,14 +1,14 @@
-// Fork: rótulos de atalhos seguem Cmd no Mac.
+// Rótulos de atalhos seguem Cmd no Mac.
 import { rotuloDoAtalho } from "../lib/plataforma";
 import { useEffect, useState } from "react";
 import { PermissoesDoAntigravity } from "../features/antigravity/PermissoesDoAntigravity";
 // Fork (Onda 2): eventos (ganchos) do Claude Code, prazo dos pedidos e statusline por conta.
 import { GanchosDoClaude } from "../features/agentes/GanchosDoClaude";
-import { CodexAppServer } from "../features/agentes/CodexAppServer"; // Fork: 3A.
+import { CodexAppServer } from "../features/agentes/CodexAppServer"; // 3A.
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AppSettings, Background, GlassLevel, MotionLevel, Theme } from "../types/settings";
 import { UpdateCard } from "./UpdateCard";
-import { EscolhaDeEstilo } from "./EscolhaDeEstilo"; // Fork: estilo Minimalista.
+import { EscolhaDeEstilo } from "./EscolhaDeEstilo"; // Estilo Minimalista.
 import { abrirRecuperacaoDoWorkspace } from "../features/workspace/RecuperacaoDoWorkspace";
 import { BACKGROUND_EFFECTS, isBackgroundEffect } from "./backgrounds/registry";
 import { PALETAS } from "../lib/palettes";
@@ -18,15 +18,15 @@ import { AgentConnections } from "../features/terminal/AgentConnections";
 import { SkillsManager } from "../features/skills/SkillsManager";
 import { MemoriaCompartilhada } from "../features/memoria/MemoriaCompartilhada";
 import { SobreMimDoDesktop } from "../features/sobreMim/SobreMimDoDesktop"; // Fork (Sobre mim).
-import { AjustesDaManha } from "../features/manha/AjustesDaManha"; // Fork: aquecimento da manhã.
-import { AjustesDaBiblia } from "../features/biblia/AjustesDaBiblia"; // Fork: Bíblia do dia.
-import { AjustesDasTarefas } from "../features/tarefas/AjustesDasTarefas"; // Fork: tarefas.
+import { AjustesDaManha } from "../features/manha/AjustesDaManha"; // Aquecimento da manhã.
+import { AjustesDaBiblia } from "../features/biblia/AjustesDaBiblia"; // Bíblia do dia.
+import { AjustesDasTarefas } from "../features/tarefas/AjustesDasTarefas"; // Tarefas.
 import { ExtensoesSettings } from "../features/extensoes/ExtensoesSettings";
 import { MobileSettings } from "../features/mobile/MobileSettings";
 import { LimiteDeSessoes } from "../features/terminal/LimiteDeSessoes";
 import { testarAviso } from "../features/terminal/useAttentionNotifier";
 import { ConfiguracaoDeAvisos } from "../features/atividade/ConfiguracaoDeAvisos";
-import { TelegramSettings } from "../features/telegram/TelegramSettings"; // Fork: bot de avisos.
+import { TelegramSettings } from "../features/telegram/TelegramSettings"; // Bot de avisos.
 import { BlocksIcon, BookIcon, BrushIcon, CalendarIcon, ClipboardNoteIcon, CardTextIcon, ChartIcon, CloseIcon, SparkleIcon, GearIcon, GlobeIcon, KeyboardIcon, ListIcon, RobotIcon, SlidersIcon, StarIcon } from "./ui/PixelIcon";
 import { RelatoriosIa } from "../features/relatorios/RelatoriosIa";
 import { ModelosDeAgentes } from "../features/agentes/ModelosDeAgentes";
@@ -34,7 +34,7 @@ import { ModelosDeAgentes } from "../features/agentes/ModelosDeAgentes";
 import { FilaDeContas } from "../features/roteamento/FilaDeContas";
 import { SHORTCUTS, shortcutLabel, comboFromEvent, setRecordingShortcut, shortcutFor, type ShortcutId } from "../lib/shortcuts";
 import { NOME_DO_PRODUTO } from "../lib/identidade";
-import { usaFormaMinimalista } from "../lib/estiloDaInterface"; // Fork: Minimalista e Vidro.
+import { usaFormaMinimalista } from "../lib/estiloDaInterface"; // Minimalista e Vidro.
 
 // Fork (Sobre mim): "sobre-mim" no topo do menu.
 export type SectionId = "sobre-mim" | "manha" | "tarefas" | "geral" | "aparencia" | "agentes" | "memoria" | "fila" | "modelos" | "extensoes" | "skills" | "mobile" | "relatorios" | "atalhos" | "sobre";
@@ -166,7 +166,7 @@ export function SettingsView({ settings, onChange, onReset, initialSection, proj
           </div>
           {section === "geral" && <GeralSection settings={settings} onChange={onChange} />}
           {section === "aparencia" && <AparenciaSection settings={settings} onChange={onChange} />}
-          {/* Fork: o que o Antigravity aprova sozinho nas sessões do app. */}
+          {/* O que o Antigravity aprova sozinho nas sessões do app. */}
           {section === "agentes" && <><AgentConnections /><CodexAppServer /><GanchosDoClaude /><PermissoesDoAntigravity /></>}
           {section === "fila" && <FilaDeContas />}
           {section === "modelos" && <ModelosDeAgentes projectPath={projectPath} />}
@@ -207,11 +207,11 @@ function AparenciaSection({ settings, onChange }: SectionProps) {
   const custom = settings.background === "custom";
   const semFundo = settings.background === "nenhum";
   const efeito = isBackgroundEffect(settings.background);
-  const minimalista = usaFormaMinimalista(settings.estilo); // Fork: relevo e fundo só valem no Clássico.
+  const minimalista = usaFormaMinimalista(settings.estilo); // Relevo e fundo só valem no Clássico.
 
   return (
     <div className="settings-grade settings-grade-par">
-      {/* Fork: Clássico × Minimalista, antes de tudo (o resto da aparência muda junto). */}
+      {/* Clássico × Minimalista, antes de tudo (o resto da aparência muda junto). */}
       <EscolhaDeEstilo valor={settings.estilo} onChange={(estilo) => onChange({ estilo })} />
       <Card title="Tema">
         <Segmented
@@ -405,16 +405,16 @@ function GeralSection({ settings, onChange }: SectionProps) {
       </Card>
 
       <Card title="Avisos">
-        {/* Fork: regra de foco e som por tipo de atividade. */}
+        {/* Regra de foco e som por tipo de atividade. */}
         <ConfiguracaoDeAvisos settings={settings} onChange={onChange} />
         <TesteDeAviso />
       </Card>
 
-      {/* Fork: teto de sessões ativas (agentes e terminais rodando comando). */}
+      {/* Teto de sessões ativas (agentes e terminais rodando comando). */}
       <TelegramSettings />
       <LimiteDeSessoes />
 
-      {/* Fork: volta uma cópia guardada do workspace ou recria pelos projetos das conversas recentes. */}
+      {/* Volta uma cópia guardada do workspace ou recria pelos projetos das conversas recentes. */}
       <Card title="Workspace">
         <p className="text-xs text-text-secondary">
           Projetos, painéis ou abas sumiram depois de reiniciar? Volte uma cópia guardada ou recrie pelos projetos das conversas recentes.

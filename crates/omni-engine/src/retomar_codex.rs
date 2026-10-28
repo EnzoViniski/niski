@@ -1,4 +1,4 @@
-//! Fork: reiniciar (ou reviver depois de o engine reiniciar) uma sessão do Codex volta para a mesma
+//! Reiniciar (ou reviver depois de o engine reiniciar) uma sessão do Codex volta para a mesma
 //! conversa.
 //!
 //! O `comando_ao_reiniciar` do autor só sabe retomar o Claude: o Codex era redigitado como na

@@ -1,5 +1,5 @@
 /**
- * Fork: quem está usando cada página de navegador (webview nativo `nav-*`) agora — e o pedido de abrir um
+ * Quem está usando cada página de navegador (webview nativo `nav-*`) agora — e o pedido de abrir um
  * link vindo de fora do DOM (o terminal).
  *
  * O Enzo (23/10/2026) abriu um link do Hyperframes, fechou a aba e ficou um quadrado branco por cima do app

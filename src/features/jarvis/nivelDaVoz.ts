@@ -1,4 +1,4 @@
-// Fork: orbe de partículas. Transforma o nível cru da voz (`nivel` do auxiliar Swift, RMS em dB
+// Orbe de partículas. Transforma o nível cru da voz (`nivel` do auxiliar Swift, RMS em dB
 // normalizado 0..1, 20 vezes por segundo) no que o orbe precisa por quadro:
 // - portão de ruído com piso adaptativo no microfone (o ruído da sala vira 0, a fala vira 0..1);
 // - ataque rápido e soltura lenta, por tempo (igual em 60 ou 120 Hz);

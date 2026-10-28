@@ -1,4 +1,4 @@
-//! Fork: os modelos do Claude que dá para escolher numa conversa ou num agente.
+//! Os modelos do Claude que dá para escolher numa conversa ou num agente.
 //!
 //! Antes eram só os quatro apelidos (`fable`, `opus`, `sonnet`, `haiku`), que o Claude Code resolve
 //! para o modelo mais novo de cada linha — não havia como pedir o Opus 4.8, por exemplo. Agora os

@@ -343,7 +343,7 @@ mod tests {
         std::fs::create_dir_all(dir.path().join("conversations")).unwrap();
         let indice = Connection::open(dir.path().join("conversation_summaries.db")).unwrap();
         indice.execute_batch("CREATE TABLE conversation_summaries (conversation_id text, workspace_uris text)").unwrap();
-        for (id, uri) in [("outra", "file:///C:/Users/Felipe%20Campos"), ("certa", "file:///D:/Projetos/OMNI")] {
+        for (id, uri) in [("outra", "file:///C:/Users/Fulano%20Silva"), ("certa", "file:///D:/Projetos/OMNI")] {
             indice.execute("INSERT INTO conversation_summaries VALUES (?1, ?2)", [id, &format!("[\"{uri}\"]")]).unwrap();
             std::fs::write(dir.path().join("conversations").join(format!("{id}.db")), b"").unwrap();
         }
@@ -352,11 +352,11 @@ mod tests {
         assert!(caminho.ends_with("certa.db"));
         assert!(descobrir(dir.path(), "D:\\Projetos\\OMNI", u64::MAX / 2).is_none(), "conversa de antes da sessão não é dela");
 
-        std::fs::write(dir.path().join("settings.json"), r#"{"trustedWorkspaces":["C:\\Users\\Felipe Campos"],"x":1}"#).unwrap();
+        std::fs::write(dir.path().join("settings.json"), r#"{"trustedWorkspaces":["C:\\Users\\Fulano Silva"],"x":1}"#).unwrap();
         confiar(dir.path(), "D:\\Projetos\\OMNI\\").unwrap();
         confiar(dir.path(), "d:/projetos/omni").unwrap();
         let salvo: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(dir.path().join("settings.json")).unwrap()).unwrap();
-        assert_eq!(salvo["trustedWorkspaces"], serde_json::json!(["C:\\Users\\Felipe Campos", "D:\\Projetos\\OMNI"]));
+        assert_eq!(salvo["trustedWorkspaces"], serde_json::json!(["C:\\Users\\Fulano Silva", "D:\\Projetos\\OMNI"]));
         assert_eq!(salvo["x"], 1);
     }
 }

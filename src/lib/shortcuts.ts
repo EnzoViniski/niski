@@ -1,4 +1,4 @@
-// Fork: defaults e preferências existentes seguem a tecla da plataforma.
+// Defaults e preferências existentes seguem a tecla da plataforma.
 import { comboDaPlataforma, rotuloDoAtalho } from "./plataforma";
 /**
  * Atalhos de teclado configuráveis. Combo = string tipo "Ctrl+Shift+P".
@@ -27,7 +27,7 @@ export const SHORTCUTS: { id: ShortcutId; label: string; default: string }[] = [
   { id: "closePane", label: "Fechar painel", default: "Ctrl+W" },
   { id: "maximizePane", label: "Maximizar painel", default: "Ctrl+M" },
   { id: "nextAttention", label: "Ir pro agente pedindo atenção", default: "Ctrl+Tab" },
-  { id: "atividade", label: "Abrir Atividade", default: "Ctrl+Alt+U" }, // Fork: helper converte Ctrl em Cmd no Mac.
+  { id: "atividade", label: "Abrir Atividade", default: "Ctrl+Alt+U" }, // Helper converte Ctrl em Cmd no Mac.
   { id: "newBranch", label: "Criar branch a partir da atual", default: "Ctrl+Shift+B" },
   { id: "returnToApp", label: "Sair do terminal (devolve o teclado ao app)", default: "Ctrl+Shift+Space" },
   { id: "closeSettings", label: "Fechar configurações e histórico", default: "Escape" },

@@ -1,4 +1,4 @@
-//! Fork: testes da parte pura dos ganchos (JSON gerado, flag idempotente, configurações do usuário,
+//! Testes da parte pura dos ganchos (JSON gerado, flag idempotente, configurações do usuário,
 //! eventos sintéticos, statusline). Nada aqui roda CLI.
 
 use super::*;

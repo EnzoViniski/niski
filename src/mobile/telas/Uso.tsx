@@ -1,4 +1,4 @@
-// Fork: uso das contas no celular (janela de 5 h e semanal), o mesmo painel da web (`UsoDasContas`)
+// Uso das contas no celular (janela de 5 h e semanal), o mesmo painel da web (`UsoDasContas`)
 // com medidas de toque. O PC é quem lê o uso; o celular só pede para reler.
 import { UsoDasContas } from "../../web/UsoDasContas";
 import "./uso.css";

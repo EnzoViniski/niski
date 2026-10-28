@@ -1,5 +1,5 @@
 //! Rotas dos fluxos de agentes (o executor mora em `crate::fluxos`).
-//! Fork: saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
+//! Saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
 use super::*;
 
 /// Fluxos de agentes (o executor mora em `fluxos.rs`). Valem para o app do PC (pelo protocolo local),

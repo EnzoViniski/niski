@@ -1,4 +1,4 @@
-//! Fork: executor persistente do engine, filho de mobile para reutilizar spawn, retomada e fila.
+//! Executor persistente do engine, filho de mobile para reutilizar spawn, retomada e fila.
 //! Automática (3B): substituir `conta_escolhida` por resolução da política antes de resolve_spawn;
 //! nunca trocar a conta de uma conversa existente. Até lá só a conta explicitamente escolhida.
 use super::*;
@@ -294,7 +294,7 @@ fn preparar(state: &Arc<EngineState>, a: &Agendamento) -> Result<String, ApiErro
                 conversa
             };
             if let Ok((_, Some(viva))) = current(state, alvo) {
-                // Fork: Stop conserva Live no mapa; só reutiliza uma sessão com processo ativo.
+                // Stop conserva Live no mapa; só reutiliza uma sessão com processo ativo.
                 let (sid, ativa) = {
                     let meta = viva.meta.lock().map_err(|_| falha())?;
                     (meta.id.clone(), meta.pid.is_some() && matches!(meta.state,

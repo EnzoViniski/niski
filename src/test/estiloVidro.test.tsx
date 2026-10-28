@@ -1,5 +1,5 @@
 /**
- * Fork: estilo Vidro (Enzo, 21/10/2026). Liga o Minimalista mais a variante `vidro` no <html>, vale
+ * Estilo Vidro (Enzo, 21/10/2026). Liga o Minimalista mais a variante `vidro` no <html>, vale
  * na hora no PC e no celular (que segue o tema publicado pelo PC) e sai limpo ao voltar.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";

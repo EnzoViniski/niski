@@ -1,4 +1,4 @@
-// Fork: orbe de partículas. O símbolo do Niski feito de partículas que respiram, vibram com a voz
+// Orbe de partículas. O símbolo do Niski feito de partículas que respiram, vibram com a voz
 // do Enzo, ondulam do centro para fora com a voz do Jarvis e giram num redemoinho enquanto ele pensa.
 // Mesma interface do `OrbeDoJarvis`, que continua como reserva: sem WebGL2, logo que não carrega ou
 // contexto perdido, o orbe 2D antigo aparece no lugar. Custo: um buffer estático e uma chamada de

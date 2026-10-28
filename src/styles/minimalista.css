@@ -1,7 +1,7 @@
-/* Fork: estilo "Minimalista" (Configurações → Aparência → Estilo da interface).
+/* Estilo "Minimalista" (Configurações → Aparência → Estilo da interface).
    Só vale com `data-estilo="minimalista"` no <html> (posto pelo `useSettings`); sem o atributo o
    Clássico fica exatamente como era. Carregado por último em `main.tsx`, então reescreve as regras
-   do `index.css`, `fork.css`, `web.css` e `mobile.css` sem mexer nelas.
+   do `index.css`, `niski.css`, `web.css` e `mobile.css` sem mexer nelas.
 
    Escolhido pelo Enzo (20/10/2026): tons quentes do "Papel" (lembra o app do Claude), cantos,
    ícone do agente num quadradinho tingido e balões chapados do "Arejado".
@@ -254,7 +254,7 @@
 :root[data-estilo="minimalista"] .pane-acoes { border-left: 0; align-items: center; gap: 2px; padding: 0 4px; }
 :root[data-estilo="minimalista"] .pane-acao { width: 28px; height: 28px; border-radius: 8px; }
 
-/* Lateral: pastas e conversas (`PastasDeProjetos`, `fork.css`). */
+/* Lateral: pastas e conversas (`PastasDeProjetos`, `niski.css`). */
 :root[data-estilo="minimalista"] .pasta { border-left: 0; border-radius: var(--m-r-ctl); margin: 0 .25rem; }
 :root[data-estilo="minimalista"] .pasta.is-ativa { background: rgb(var(--c-overlay) / .05); }
 :root[data-estilo="minimalista"] .pasta-botao { font-size: .8125rem; padding: .375rem .5rem; }
@@ -283,7 +283,7 @@
 :root[data-estilo="minimalista"] :is(.pastas li.is-arrastando, .conversa-linha.is-arrastando) { border-radius: var(--m-r-ctl); }
 :root[data-estilo="minimalista"] .lateral-fantasma { border-radius: var(--m-r-ctl); transform: scale(1.02); box-shadow: var(--m-sombra-menu); }
 
-/* Gaveta de uso, prévia do layout, navegador e etiquetas (`fork.css`). */
+/* Gaveta de uso, prévia do layout, navegador e etiquetas (`niski.css`). */
 :root[data-estilo="minimalista"] .gaveta-uso { border-left: 1px solid rgb(var(--c-border-subtle)); box-shadow: var(--m-sombra-menu); }
 :root[data-estilo="minimalista"] .previa-painel { border-width: 1px; border-radius: var(--m-r-cartao); }
 :root[data-estilo="minimalista"] .previa-painel.is-novo { box-shadow: 0 0 0 3px rgb(var(--c-accent) / .2); }

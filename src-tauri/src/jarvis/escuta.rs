@@ -1,4 +1,4 @@
-//! Fork: Jarvis. Decide quando o Enzo terminou de falar. O reconhecimento da Apple fecha um trecho a
+//! Jarvis. Decide quando o Enzo terminou de falar. O reconhecimento da Apple fecha um trecho a
 //! cada pausa curta; uma frase com respiro no meio viraria duas perguntas. Os trechos finais se
 //! juntam e só vão para o Claude depois de um silêncio (nenhum parcial novo) de `ESPERA`.
 use std::time::{Duration, Instant};
@@ -50,7 +50,7 @@ fn normalizar(texto: &str) -> Vec<String> {
 /// "Medza, para", "para tudo", "chega", "silêncio": fala curta que só pede para calar. "Manda para o
 /// Claude" não conta (fala longa ou "para" no meio).
 pub fn pede_para_parar(texto: &str) -> bool {
-    // Fork: "niski" e as variações do ditado entram com o nome novo (21/10/2026); "medza" segue valendo.
+    // "niski" e as variações do ditado entram com o nome novo (21/10/2026); "medza" segue valendo.
     const NOMES: [&str; 9] = ["niski", "nisque", "nisq", "medza", "medes", "jarvis", "claudio", "chat", "ok"];
     const PARAR: [&str; 8] = ["para", "pare", "parar", "chega", "silencio", "cala", "calado", "stop"];
     let palavras: Vec<String> = normalizar(texto).into_iter()

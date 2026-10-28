@@ -1,4 +1,4 @@
-//! Fork: pasta onde o Claude Code guarda os transcripts de um projeto, igual à da CLI também para
+//! Pasta onde o Claude Code guarda os transcripts de um projeto, igual à da CLI também para
 //! caminho longo.
 //!
 //! A CLI troca todo caractere não-alfanumérico por `-` e, quando o resultado passa de 200

@@ -1,4 +1,4 @@
-//! Fork: anexos enviados ao processo oficial, em memória. Nunca criamos arquivo com o conteúdo.
+//! Anexos enviados ao processo oficial, em memória. Nunca criamos arquivo com o conteúdo.
 use serde::Deserialize;
 use serde_json::{json, Value};
 

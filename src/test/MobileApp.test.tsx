@@ -566,7 +566,7 @@ it("imagem colada que a CLI trocou por [Image #N] não vira texto cru", () => {
   expect(semMarcasDeImagem(separado.texto)).toBe("olha isso");
 });
 
-// Fork: tela não reconhecida não trava mais o campo: o envio destrava (limpa/reabre) e manda.
+// Tela não reconhecida não trava mais o campo: o envio destrava (limpa/reabre) e manda.
 it("com a tela não reconhecida, mandar destrava a sessão e envia com a versão nova da tela", async () => {
   const posts: { url: string; cabecalhos: HeadersInit | undefined }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "./interacoesTelas";
 import { invoke } from "@tauri-apps/api/core";
 
-// Fork: a voz só aparece no app do desktop; o Composer lê isso ao carregar o módulo.
+// A voz só aparece no app do desktop; o Composer lê isso ao carregar o módulo.
 vi.hoisted(() => { (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {}; });
 const { Composer } = await import("../mobile/Composer");
 

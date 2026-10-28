@@ -1,4 +1,4 @@
-/* Fork: rodapé embaixo de cada mensagem da Conversa (`Chat.tsx`): horário e "Copiar", para a sua e para
+/* Rodapé embaixo de cada mensagem da Conversa (`Chat.tsx`): horário e "Copiar", para a sua e para
    a do agente; e o total de tokens no topo da aba (`TokensDaSessao.tsx`). */
 .bubble-rodape {
   display: flex; align-items: center; gap: .375rem; min-height: 1.5rem; margin-top: -.25rem;

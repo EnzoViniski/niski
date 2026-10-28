@@ -6,7 +6,7 @@ import { request } from "./api";
 import { ehVideo, VideoDoAgente } from "./VideoDoAgente";
 
 /**
- * Fork: os arquivos que o agente gerou (PDF, planilha, apresentação, página…) como cartões na
+ * Os arquivos que o agente gerou (PDF, planilha, apresentação, página…) como cartões na
  * conversa, como nos apps do Claude e do Codex. O engine os acha no transcript (`entregaveis.rs`).
  *
  * No app do PC o toque abre no app padrão do Mac (comando `abrir_entregavel`, que só aceita

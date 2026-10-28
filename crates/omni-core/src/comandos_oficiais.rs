@@ -1,4 +1,4 @@
-//! Fork: lista fechada do que os controles da Conversa podem digitar na CLI.
+//! Lista fechada do que os controles da Conversa podem digitar na CLI.
 //! Conferido em 2026-10-20:
 //! - https://code.claude.com/docs/en/commands
 //! - https://code.claude.com/docs/en/fast-mode (Opus 5.5, 5 e 4.8)

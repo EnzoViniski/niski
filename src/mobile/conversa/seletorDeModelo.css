@@ -1,4 +1,4 @@
-/* Fork: seletor de modelo e esforço no canto do campo (`SeletorDeModelo.tsx`), no espírito do Codex:
+/* Seletor de modelo e esforço no canto do campo (`SeletorDeModelo.tsx`), no espírito do Codex:
    texto solto no campo (a pílula só aparece no hover), painel que abre com mola, barra que segue o dedo
    e encaixa ao soltar, nebulosa com estrelas no nível máximo. `style` vem do React por CSSOM (permitido
    pelo `style-src 'self'` do servidor do celular). */

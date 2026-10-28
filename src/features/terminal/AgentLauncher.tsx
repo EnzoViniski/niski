@@ -6,7 +6,7 @@ import { HistoryView } from "../history/HistoryView";
 import { comandoCodexLocal, type ExecucaoCodex } from "./modeloLocal";
 import { targetLabel } from "../../lib/paths";
 import { contaDoAgente, lembrarAgente, lembrarAjustes, lembrarConta, ultimoAgente } from "../../lib/escolhasSalvas";
-// Fork: escolha explícita de modelo/esforço antes de iniciar; inclusive abas de versões antigas.
+// Escolha explícita de modelo/esforço antes de iniciar; inclusive abas de versões antigas.
 import { useModeloDoNovoAgente } from "./ModeloDoNovoAgente";
 import { levarParaConta, resumeCommand, type HistoryEntry, type HistoryProvider } from "../history/historyService";
 import { prepararRetomada, RetomadaError } from "../retomada/retomadaService";
@@ -31,7 +31,7 @@ interface AgentLauncherProps {
   projectName: string;
   projectPath: string;
   onLaunch: (launch: AgentLaunch) => void;
-  /** Fork: campo antigo aceito por compatibilidade; o seletor sempre aguarda confirmação. */
+  /** Campo antigo aceito por compatibilidade; o seletor sempre aguarda confirmação. */
   iniciarDireto?: boolean;
 }
 
@@ -54,12 +54,12 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
   const [modeloLocal, setModeloLocal] = useState("");
   const [erroModelo, setErroModelo] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
-  // Fork: branch em que o agente vai trabalhar. Outra que não a atual roda numa worktree própria.
+  // Branch em que o agente vai trabalhar. Outra que não a atual roda numa worktree própria.
   const [branches, setBranches] = useState<GitBranch[]>([]);
   const [branch, setBranch] = useState<string>("");
   const [branchNova, setBranchNova] = useState("");
   const [preparando, setPreparando] = useState(false);
-  // Fork: "Isolar em worktree" — cópia do repo só do agente, fora da pasta, na branch medza/<nome>.
+  // "Isolar em worktree" — cópia do repo só do agente, fora da pasta, na branch medza/<nome>.
   const [isolar, setIsolar] = useState(false);
   const [nomeDaWt, setNomeDaWt] = useState("");
   const [erroDaWt, setErroDaWt] = useState<string | null>(null);
@@ -84,7 +84,7 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
         setProfiles(accounts);
         if (statuses.length === 0) return;
         setAgents(statuses);
-        // Fork: volta no último agente usado, se ele ainda estiver instalado.
+        // Volta no último agente usado, se ele ainda estiver instalado.
         const lembrado = statuses.find((item) => item.available && item.id === ultimoAgente());
         const firstAvailable = lembrado ?? statuses.find((item) => item.available);
         if (firstAvailable) setSelected(firstAvailable.id);
@@ -113,7 +113,7 @@ export function AgentLauncher({ projectName, projectPath, onLaunch }: AgentLaunc
   // Prefere uma conta já autenticada: abrir no perfil sem login só porque veio primeiro na lista
   // joga o usuário numa tela de autenticação que ele não pediu.
   useEffect(() => {
-    // Fork: a conta escolhida da última vez neste agente vem antes (some se a conta sumir).
+    // A conta escolhida da última vez neste agente vem antes (some se a conta sumir).
     if (contaDoAgente(selected) === CONTA_AUTOMATICA && accounts.length > 1) { setSelectedProfile(CONTA_AUTOMATICA); return; }
     const preferred = accounts.find((item) => item.id === contaDoAgente(selected))
       ?? accounts.find((item) => item.authenticated) ?? accounts[0];

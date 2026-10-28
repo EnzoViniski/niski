@@ -1,4 +1,4 @@
-// Fork: Jarvis. O orbe: núcleo que pulsa com a voz do Jarvis, anel de marcas que ondula com a voz
+// Jarvis. O orbe: núcleo que pulsa com a voz do Jarvis, anel de marcas que ondula com a voz
 // do Enzo e arcos que giram (mais rápido pensando). Desenhado num canvas, um quadro por vez; para
 // quando a janela não está visível (energia) e gira devagar com "reduzir movimento".
 import { useEffect, useRef, type MutableRefObject } from "react";

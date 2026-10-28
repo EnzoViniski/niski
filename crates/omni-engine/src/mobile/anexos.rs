@@ -1,5 +1,5 @@
 //! Anexos mandados pelo celular/web e a menção de arquivos (`@`) do composer.
-//! Fork: saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
+//! Saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
 use super::*;
 
 /// Tamanho máximo de um anexo vindo do celular. Cobre foto de câmera, PDF e print com folga, e

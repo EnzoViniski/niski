@@ -23,7 +23,7 @@ const diaCurto = (data: string) => `${data.slice(8, 10)}/${data.slice(5, 7)}`;
 const pasta = (caminho: string) => caminho.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || caminho;
 const pct = (parte: number, todo: number) => (todo ? Math.round((parte / todo) * 100) : 0);
 
-// Fork: o "há quanto tempo" é um só (`lib/tempo.ts`).
+// O "há quanto tempo" é um só (`lib/tempo.ts`).
 const haQuanto = (ms: number, agora: number): string => haQuantoTempo(ms, agora, "longo");
 
 /** Último relatório de cada período, para a tela abrir na hora enquanto o novo é lido. */

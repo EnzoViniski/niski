@@ -35,7 +35,7 @@ pub fn resultados(valor: &Value, provider: &str) -> Vec<(String, bool)> {
             let payload = &valor["payload"];
             let Some(id) = payload["call_id"].as_str() else { return Vec::new() };
             let saida = payload["output"].as_str().map(str::to_owned).unwrap_or_else(|| texto_do_bloco(&payload["output"]));
-            // Fork: `output` em objeto (versões novas) pode trazer `success` direto.
+            // `output` em objeto (versões novas) pode trazer `success` direto.
             let ok = payload["output"]["success"].as_bool().or_else(|| deu_certo(&saida, None));
             ok.map(|ok| vec![(id.to_owned(), ok)]).unwrap_or_default()
         }

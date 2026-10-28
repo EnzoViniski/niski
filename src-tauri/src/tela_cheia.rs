@@ -1,4 +1,4 @@
-//! Fork: tela cheia no Mac como no Chrome.
+//! Tela cheia no Mac como no Chrome.
 //!
 //! A janela usa `titleBarStyle: Overlay` (conteúdo até o topo). Em tela cheia, levar o mouse ao
 //! topo faz o macOS revelar a barra de menus E uma faixa de barra de título nativa (a janela
@@ -32,7 +32,7 @@ use objc2_app_kit::{
 use objc2_foundation::{NSNotification, NSNotificationCenter, NSPoint, NSRect, NSSize};
 use tauri::{Manager, WebviewWindow};
 
-// Fork: ponte de animação (duração/curva do AppKit para a barra) em arquivo próprio.
+// Ponte de animação (duração/curva do AppKit para a barra) em arquivo próprio.
 #[path = "animacao_do_topo.rs"]
 mod animacao;
 
@@ -53,7 +53,7 @@ thread_local! {
     static SAINDO: Cell<bool> = const { Cell::new(false) };
     static ULTIMO_PX: Cell<f64> = const { Cell::new(0.0) };
     static ULTIMA_REVELACAO: Cell<f64> = const { Cell::new(0.0) };
-    /// Fork: destino que a barra já recebeu (0 ou 1); `None` antes do primeiro movimento.
+    /// Destino que a barra já recebeu (0 ou 1); `None` antes do primeiro movimento.
     static DESTINO: Cell<Option<f64>> = const { Cell::new(None) };
     static ULTIMO_REGISTRADO: Cell<f64> = const { Cell::new(0.0) };
     /// Endereço da janela de faixa já tratada (0 = nenhuma).
@@ -76,7 +76,7 @@ define_class!(
             }
             deixar_faixa_transparente(self);
             let anterior = ULTIMA_REVELACAO.with(|c| c.replace(quanto));
-            // Fork: só o destino, uma vez por sentido; o CSS desliza até lá (`animacao_do_topo.rs`).
+            // Só o destino, uma vez por sentido; o CSS desliza até lá (`animacao_do_topo.rs`).
             if let Some(destino) = animacao::planejar(anterior, quanto, DESTINO.with(Cell::get)) {
                 DESTINO.with(|c| c.set(Some(destino)));
                 // Distância a partir de onde a barra estava (a amostra anterior): se o AppKit pular

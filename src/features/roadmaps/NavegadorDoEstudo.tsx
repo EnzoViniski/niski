@@ -25,7 +25,7 @@ export function NavegadorDoEstudo({ roadmapId, url, oculto = false, onTitulo }: 
   const tabId = idDaAbaDoEstudo(roadmapId, url);
   // Fecha de verdade ao trocar de fonte ou sair do estudo (o NavegadorPane só esconde).
   useEffect(() => {
-    // Fork: a página segue viva com o painel de cima aberto (a conferência do app não a fecha).
+    // A página segue viva com o painel de cima aberto (a conferência do app não a fecha).
     const soltar = prenderPagina(rotuloDoNavegador(tabId));
     return () => {
       soltar();

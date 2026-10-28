@@ -29,7 +29,7 @@ const REMOTE_ROOT: &str = "OMNI_TARGET_REMOTE_ROOT";
 const DATA_DIR: &str = "OMNI_TARGET_DATA_DIR";
 
 fn main() {
-    // Fork: `--medza-statusline <porta>` com o token da PTY no ambiente: modo statusline. Sem o token,
+    // `--medza-statusline <porta>` com o token da PTY no ambiente: modo statusline. Sem o token,
     // segue o caminho de sempre.
     let argumentos: Vec<String> = env::args().skip(1).collect();
     // Fork (harness, A2): `--medza-notify <porta> '<json>'`, chamado pelo Codex no fim do turno.

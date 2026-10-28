@@ -25,7 +25,7 @@ export const ATTENTION_ORDER: AttentionReason[] = [
   "stopped",
 ];
 
-// Fork: o rótulo mora em `lib/estadosDaSessao.ts`, com os dos estados; o nome antigo continua valendo.
+// O rótulo mora em `lib/estadosDaSessao.ts`, com os dos estados; o nome antigo continua valendo.
 export { ROTULO_DA_ATENCAO as ATTENTION_LABEL } from "../../lib/estadosDaSessao";
 
 export interface AttentionItem {

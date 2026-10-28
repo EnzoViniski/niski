@@ -1,4 +1,4 @@
-// Fork: configuração de /goal nativo e repetição controlada pelo executor.
+// Configuração de /goal nativo e repetição controlada pelo executor.
 import { Field, Input, Select, Textarea } from "../../components/ui";
 import type { AgenteSalvo } from "../agentes/agentesService";
 import type { NoDoFluxo } from "./fluxosService";

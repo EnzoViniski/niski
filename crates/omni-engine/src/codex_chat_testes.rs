@@ -1,4 +1,4 @@
-//! Fork: diagnóstico do chat do Codex com a CLI **real** (testes ignorados, rodar à mão). O Enzo relatou
+//! Diagnóstico do chat do Codex com a CLI **real** (testes ignorados, rodar à mão). O Enzo relatou
 //! que o Codex "buga quando inicia" e que não consegue trocar o modelo pela conversa.
 
 use crate::*;

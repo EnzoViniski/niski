@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ChipDeTokens } from "../../mobile/conversa/TokensDaSessao"; // Fork: total de tokens da conversa.
+import { ChipDeTokens } from "../../mobile/conversa/TokensDaSessao"; // Total de tokens da conversa.
 import { ApiError, actionKey, request, type Timeline, type Conversation } from "../../mobile/api";
 import { AjustesDaConversa, type Ajustes } from "../../mobile/AjustesDaConversa";
 import { ChatIcon, TerminalIcon } from "../../components/ui/PixelIcon";
@@ -18,7 +18,7 @@ import { temConversa } from "../../mobile/api";
 import type { AgentView } from "../../types/settings";
 import { PastaDaConversaContext } from "../../mobile/CaminhoClicavel";
 import { GitBranchStatus } from "../git/GitBranchStatus";
-// Fork: "Tornar orquestradora" / "Ver fluxo (N)" na faixa da conversa.
+// "Tornar orquestradora" / "Ver fluxo (N)" na faixa da conversa.
 import { FaixaDoOrquestrador } from "../orquestracao/FaixaDoOrquestrador";
 import { rotuloDoEstado } from "../../lib/estadosDaSessao";
 import "../../mobile/mobile.css";
@@ -37,7 +37,7 @@ export function AbaDeAgente({
   agentView,
   sessionId,
   children,
-  // Fork: entrada para o painel de revisão no layout.
+  // Entrada para o painel de revisão no layout.
   onRevisao,
   emFoco = true,
 }: {
@@ -104,7 +104,7 @@ function useConversaDaSessao(sessionId: string) {
  * Conta, modelo e esforço no modo Terminal — os mesmos chips da conversa. Trocar reabre a mesma
  * sessão com `--resume` (a aba continua a mesma), só com o agente parado.
  */
-// Fork: revisão disponível também quando a aba mostra o terminal.
+// Revisão disponível também quando a aba mostra o terminal.
 function FaixaDoTerminal({ sessionId, abas, onRevisao }: { sessionId: string; abas: ReactNode; onRevisao?: () => void }) {
   const conversa = useConversaDaSessao(sessionId);
   const [erro, setErro] = useState<string | null>(null);
@@ -127,9 +127,9 @@ function FaixaDoTerminal({ sessionId, abas, onRevisao }: { sessionId: string; ab
   return (
     <div className="aba-agente-topo">
       {abas}
-      {/* Fork: revisão do projeto da aba atual. */}
+      {/* Revisão do projeto da aba atual. */}
       {onRevisao && <button className="btn btn-ghost min-h-0 px-2 py-1 text-xs" onClick={onRevisao}>Revisão</button>}
-      {/* Fork: branch em que este agente trabalha (a pasta dele), com troca e criação. */}
+      {/* Branch em que este agente trabalha (a pasta dele), com troca e criação. */}
       <span className="aba-agente-branch"><GitBranchStatus projectPath={pasta} abrirPara="baixo" atalho={false} /></span>
       <FaixaDoOrquestrador conversaId={conversa?.id ?? null} provider={conversa?.provider} titulo={conversa?.title} />
       <span className="flex-1" />
@@ -230,7 +230,7 @@ function useSoltarArquivos(area: React.RefObject<HTMLDivElement | null>) {
   }, [area]);
 }
 
-// Fork: a entrada de revisão acompanha os dois modos da aba.
+// A entrada de revisão acompanha os dois modos da aba.
 function ChatDaSessao({ sessionId, onVerTerminal, onRevisao }: { sessionId: string; onVerTerminal: () => void; onRevisao?: () => void }) {
   const [conversa, setConversa] = useState<Conversation | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -275,16 +275,16 @@ function ChatDaSessao({ sessionId, onVerTerminal, onRevisao }: { sessionId: stri
     <div ref={area} className="aba-conversa-tela absolute inset-0 z-20 flex flex-col bg-bg-surface">
       <div className="aba-agente-topo">
         <AbasDoAgente vendo="conversa" onTrocar={(aba) => { if (aba === "terminal") onVerTerminal(); }} />
-        {/* Fork: revisão do projeto da aba atual. */}
+        {/* Revisão do projeto da aba atual. */}
         {onRevisao && <button className="btn btn-ghost min-h-0 px-2 py-1 text-xs" onClick={onRevisao}>Revisão</button>}
-        {/* Fork: branch em que este agente trabalha. */}
+        {/* Branch em que este agente trabalha. */}
         <span className="aba-agente-branch"><GitBranchStatus projectPath={pasta} abrirPara="baixo" atalho={false} /></span>
         <FaixaDoOrquestrador conversaId={(aoVivo ?? conversa)?.id ?? null} provider={(aoVivo ?? conversa)?.provider} titulo={(aoVivo ?? conversa)?.title} />
         <span className="flex-1" />
         {(aoVivo ?? conversa) && <ResumoDaConversa conversa={(aoVivo ?? conversa)!} />}
       </div>
       {conversa ? (
-        // Fork: caminho relativo citado na conversa abre relativo à pasta dela (`CaminhoClicavel.tsx`).
+        // Caminho relativo citado na conversa abre relativo à pasta dela (`CaminhoClicavel.tsx`).
         <PastaDaConversaContext.Provider value={pasta}>
         <div className="w-painel-central">
           <DetalheDaConversa key={conversa.id} conversation={conversa} refresh={carregar} />

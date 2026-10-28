@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 /**
- * Fork: agente em worktree isolada do git (Novo agente → "Isolar em worktree"; também o `criar_agente`
+ * Agente em worktree isolada do git (Novo agente → "Isolar em worktree"; também o `criar_agente`
  * do orquestrador com `worktree`). A worktree fica **fora** do repositório, ao lado dele:
  * `<pai do repo>/.medza-worktrees/<repo>/<nome>`, na branch `medza/<nome>`. Lógica de git em
  * `crates/omni-core/src/worktree_isolada.rs`.

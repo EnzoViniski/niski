@@ -48,7 +48,7 @@ export function svgDaLogo(cores: Record<CamadaDaLogo, string>, lado: number): st
 
 type OmniLogoProps = SVGProps<SVGSVGElement> & { size?: number | string };
 
-/** Logo do OMNI AGENTS. `viewBox` quadrado e recortado no desenho, para caber num slot `w-7 h-7`
+/** Logo antiga em pixel art. `viewBox` quadrado e recortado no desenho, para caber num slot `w-7 h-7`
  *  sem esmagar (a arte nasce 47×61 dentro de uma tela 64×66 cheia de margem morta). */
 export function OmniLogo({ size, ...props }: OmniLogoProps) {
   return (

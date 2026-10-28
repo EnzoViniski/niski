@@ -3,7 +3,7 @@ import { AttachmentIcon, CloseIcon, LoaderIcon, SendIcon, StopIcon, WarningIcon 
 import { iconForPath } from "../features/files/fileIcons";
 import { tamanhoLegivel, type Anexo } from "./anexos";
 import { BotaoDeVoz, juntarDitado, VOZ_DISPONIVEL, type PreviaDaVoz } from "./BotaoDeVoz";
-// Fork: lista do `/` (comandos, skills e comandos personalizados da conversa).
+// Lista do `/` (comandos, skills e comandos personalizados da conversa).
 import type { ItemDaBarra } from "./conversa/comandosDaBarra";
 import { useBarraDoComposer } from "./conversa/useBarraDoComposer";
 import { ListaDeComandos } from "./conversa/ListaDeComandos";
@@ -29,7 +29,7 @@ interface ComposerProps {
   parando?: boolean;
   /** Arquivos do projeto para o `@` (como no terminal). Sem isto, `@` é só texto. */
   buscarArquivos?: (busca: string) => Promise<string[]>;
-  /** Fork: o que o `/` no começo da mensagem lista. Sem isto, `/` é só texto. */
+  /** O que o `/` no começo da mensagem lista. Sem isto, `/` é só texto. */
   buscarComandos?: () => Promise<ItemDaBarra[]>;
 }
 
@@ -90,7 +90,7 @@ function ChipAnexo({ anexo, onRemover, travado }: { anexo: Anexo; onRemover: () 
  */
 export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnviar, podeEnviar, ocupado, placeholder, toolbar, chips, direita, onParar, parando, buscarArquivos, buscarComandos }: ComposerProps) {
   const campo = useRef<HTMLTextAreaElement>(null);
-  // Fork: lista do `/`.
+  // Lista do `/`.
   const barra = useBarraDoComposer({ texto, onTexto, buscarComandos, enviar: () => { if (podeEnviar) onEnviar(); },
     focar: (cursor) => requestAnimationFrame(() => { campo.current?.focus(); campo.current?.setSelectionRange(cursor, cursor); }) });
   // Menção aberta: onde começa o `@`, o que foi digitado depois dele e o que achou.
@@ -98,10 +98,10 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
   const [sugestoes, setSugestoes] = useState<string[]>([]);
   const [escolhida, setEscolhida] = useState(0);
   const ultimaLista = useRef<string[]>([]);
-  // Fork: o ditado chega depois da transcrição; junta ao texto de agora, não ao do clique.
+  // O ditado chega depois da transcrição; junta ao texto de agora, não ao do clique.
   const textoAtual = useRef(texto);
   textoAtual.current = texto;
-  // Fork: enquanto dita, a prévia aparece no lugar do campo, em cinza; o texto final entra no campo.
+  // Enquanto dita, a prévia aparece no lugar do campo, em cinza; o texto final entra no campo.
   const [previaDaVoz, setPreviaDaVoz] = useState<PreviaDaVoz | null>(null);
   const ditando = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -170,7 +170,7 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
   }
 
   function tecla(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (barra.tecla(event)) return; // Fork: lista do `/` aberta.
+    if (barra.tecla(event)) return; // Lista do `/` aberta.
     // Lista de arquivos aberta: setas escolhem, Enter/Tab inserem, Esc fecha — nada disso envia.
     if (mencao && sugestoes.length > 0) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -254,7 +254,7 @@ export function Composer({ texto, onTexto, anexos, onAdicionar, onRemover, onEnv
             })}
           </ul>
         )}
-        {/* Fork: lista do `/`. */}
+        {/* Lista do `/`. */}
         {barra.aberta && <ListaDeComandos itens={barra.itens} escolhida={barra.escolhida} onEscolher={barra.escolher} onApontar={barra.setEscolhida} />}
         <div className="composer-rodape">
           <label className={`composer-botao${ocupado ? " is-disabled" : ""}`} title="Anexar arquivo">

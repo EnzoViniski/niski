@@ -8,7 +8,7 @@ import { LimiteDeSessoes } from "../features/terminal/LimiteDeSessoes";
 import { nomeDaWorktree, worktreeDaPasta } from "../features/terminal/worktreeIsolada";
 import type { TerminalSession } from "../features/terminal/terminalService";
 
-// Fork: agente em worktree isolada (`.medza-worktrees`, branch medza/<nome>) e limite de sessões.
+// Agente em worktree isolada (`.medza-worktrees`, branch medza/<nome>) e limite de sessões.
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 const WT = "/c/.medza-worktrees/app/login";

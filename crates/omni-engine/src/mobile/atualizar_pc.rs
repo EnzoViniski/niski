@@ -1,4 +1,4 @@
-//! Fork: "Atualizar o PC" pelo celular. Quem baixa a versão nova e confere a assinatura é a casca
+//! "Atualizar o PC" pelo celular. Quem baixa a versão nova e confere a assinatura é a casca
 //! (updater do Tauri), não o engine. Aqui só fica um pedido na pasta de dados; o app do PC confere
 //! a cada poucos segundos (`src-tauri/src/pedido_de_atualizacao.rs`) e roda o mesmo "Atualizar
 //! agora" da barra (cópia do estado, download assinado, troca do engine e retomada das abas).

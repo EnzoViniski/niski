@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /*
- * Fork: barrinhas do volume da voz ao lado do microfone, enquanto grava (pedido do Enzo,
+ * Barrinhas do volume da voz ao lado do microfone, enquanto grava (pedido do Enzo,
  * 20/10/2026). O Rust devolve o nível dos últimos trechos de 50 ms (`voz_niveis`, em
  * `src-tauri/src/voz.rs`); perguntando a cada ~90 ms, as barras correm da direita para a esquerda.
  * Silêncio vira um pontinho, fala vira barra.

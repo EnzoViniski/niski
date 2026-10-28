@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { definirPausaDeEnergia, INATIVIDADE_MS } from "../lib/energia";
 
 /**
- * Fork: liga a pausa de energia (`src/lib/energia.ts`) com a janela oculta, sem foco ou parada há
+ * Liga a pausa de energia (`src/lib/energia.ts`) com a janela oculta, sem foco ou parada há
  * `INATIVIDADE_MS`. Qualquer mouse, tecla, rolagem ou foco de volta retoma na hora.
  */
 export function useEconomiaDeEnergia() {

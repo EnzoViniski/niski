@@ -1,4 +1,4 @@
-//! Testes da fila de ações. Fork: saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
+//! Testes da fila de ações. Saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
 use super::*;
 
 /// O modo é `plan` ou `auto` e nada mais; sem sessão viva a fila recusa, como qualquer ação.

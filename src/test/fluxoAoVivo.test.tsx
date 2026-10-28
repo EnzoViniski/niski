@@ -8,7 +8,7 @@ import { _zerarResumo, type FluxoAoVivo as Fluxo, type NoAoVivo } from "../featu
 import { transporteDoEngine } from "../features/conversa/transporteDoEngine";
 import { usarTransporte } from "../mobile/api";
 
-// Fork: fluxo ao vivo do orquestrador (`FluxoAoVivo.tsx`) e o atalho da lateral.
+// Fluxo ao vivo do orquestrador (`FluxoAoVivo.tsx`) e o atalho da lateral.
 const engine = vi.hoisted(() => ({ engineApi: vi.fn(), listTerminalSessions: vi.fn() }));
 vi.mock("../features/terminal/terminalService", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../features/terminal/terminalService")>()),

@@ -1,9 +1,9 @@
 import { samePath } from "../../lib/paths";
 import { colocarConversa } from "./colocarConversa";
-import { novaConversaEmPainelProprio } from "./abrirEmPainelProprio"; // Fork: "+" da pasta.
+import { novaConversaEmPainelProprio } from "./abrirEmPainelProprio"; // "+" da pasta.
 import { abrirLink } from "./abrirLink";
 import { abrirFluxo } from "../orquestracao/abrirFluxo";
-// Fork: revisão ao lado da sessão de origem.
+// Revisão ao lado da sessão de origem.
 import { abrirRevisao } from "../revisao/abrirRevisao";
 import type {
   LayoutNode,
@@ -228,18 +228,18 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
           : state.activeProjectId;
       return { ...state, projects, activeProjectId, updatedAt: new Date().toISOString() };
     }
-    // Fork: conversa solta da lateral num painel (centro abre, borda divide).
+    // Conversa solta da lateral num painel (centro abre, borda divide).
     case "PLACE_SESSION":
       return colocarConversa(state, action, workspaceReducer);
     case "NEW_CONVERSATION_OWN_PANE":
       return novaConversaEmPainelProprio(state, action.projectId, workspaceReducer);
-    // Fork: link clicado vira aba de navegador ao lado de quem o mostrou.
+    // Link clicado vira aba de navegador ao lado de quem o mostrou.
     case "ABRIR_LINK":
       return abrirLink(state, action, workspaceReducer);
-    // Fork: fluxo do orquestrador ao lado da conversa.
+    // Fluxo do orquestrador ao lado da conversa.
     case "ABRIR_FLUXO":
       return abrirFluxo(state, action, workspaceReducer);
-    // Fork: revisão por sessão no layout.
+    // Revisão por sessão no layout.
     case "ABRIR_REVISAO":
       return abrirRevisao(state, action, workspaceReducer);
     case "FOCUS_PANE":
@@ -262,9 +262,9 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       return updateActiveProject(state, (project) => {
         if (!findPane(project.layout, action.paneId)) return project;
         const base = createTab(action.kind, action.title, action.resourceId);
-        // Fork: "+" da pasta — a aba já começa a conversa sozinha.
+        // "+" da pasta — a aba já começa a conversa sozinha.
         const criada = action.iniciarDireto ? { ...base, iniciarDireto: true } : base;
-        // Fork: aba de outro projeto (o "+" de um painel com conversa dele) guarda de qual é.
+        // Aba de outro projeto (o "+" de um painel com conversa dele) guarda de qual é.
         const tab = action.projectId && action.projectId !== project.id ? { ...criada, projectId: action.projectId } : criada;
         return {
           ...project,
@@ -305,7 +305,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         const paneId = project.activePaneId;
         const pane = findPane(project.layout, paneId);
         if (!pane) return project;
-        // Fork: procura a sessão em **todos** os painéis, não só no ativo. Clicar na lateral numa
+        // Procura a sessão em **todos** os painéis, não só no ativo. Clicar na lateral numa
         // conversa aberta no outro painel criava uma segunda aba na mesma PTY: o que se digitava numa
         // aparecia na outra, e fechar qualquer uma encerrava a conversa das duas.
         const dona = collectPanes(project.layout).find((item) => item.tabs.some((tab) => tab.resourceId === action.sessionId));

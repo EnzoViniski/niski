@@ -19,7 +19,7 @@ import { AcoesContext, AcoesDoNo, ParaQuem, useAcoesDoFluxo } from "./InteragirP
 import { nomeLongoDaPlataforma } from "../../lib/plataformasDeAgente";
 
 /**
- * Fork: fluxo ao vivo de uma conversa orquestradora, numa aba do layout (`PaneKind "orquestracao"`).
+ * Fluxo ao vivo de uma conversa orquestradora, numa aba do layout (`PaneKind "orquestracao"`).
  *
  * O orquestrador fica à esquerda e os subagentes descem em coluna à direita dele, com uma seta para cada. Cada nó
  * mostra a marca da plataforma, a conta, o modelo, o estado ao vivo, a tarefa e a última mensagem.

@@ -577,7 +577,7 @@ fn conversa_fechada_reabre_com_resume_na_mesma_conta() {
     // Outra ocorrência na mesma conversa reutiliza a sessão viva.
     assert_eq!(preparar(&state, &a).unwrap(), "conv-teste");
     assert_eq!(state.sessions.lock().unwrap().len(), 1);
-    // Fork: Stop mantém a entrada Live, mas a próxima ocorrência deve retomar em outra PTY.
+    // Stop mantém a entrada Live, mas a próxima ocorrência deve retomar em outra PTY.
     stop_session(&state, &sid).unwrap();
     assert!(matches!(state.sessions.lock().unwrap().get(&sid), Some(SessionEntry::Live(_))));
     assert_eq!(preparar(&state, &a).unwrap(), "conv-teste");

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Fork: compila o auxiliar de voz do Jarvis (`src-tauri/jarvis-voz/main.swift`) para
+// Compila o auxiliar de voz do Jarvis (`src-tauri/jarvis-voz/main.swift`) para
 // `src-tauri/binaries/medza-voz-<triple>`, ao lado do engine. Só no Mac: ele usa o reconhecimento de
 // fala da Apple (macOS 26+). O Tauri copia e assina como os outros binários (`externalBin` entra pela
 // sobreposição de `scripts/identidade.mjs`). Em dev o app acha o binário direto em `binaries/`.
@@ -19,7 +19,7 @@ const indice = process.argv.indexOf("--target");
 const pedido = indice >= 0 ? process.argv[indice + 1] : process.env.TAURI_ENV_TARGET_TRIPLE;
 const host = execFileSync("rustc", ["-vV"], { encoding: "utf8" }).match(/^host: (\S+)/m)[1];
 const triple = pedido ?? host;
-// Fork: inclui os arquivos de política/testes sem concentrar tudo no protocolo de áudio.
+// Inclui os arquivos de política/testes sem concentrar tudo no protocolo de áudio.
 const fontes = readdirSync(resolve("src-tauri", "jarvis-voz")).filter((nome) => nome.endsWith(".swift"))
   .map((nome) => resolve("src-tauri", "jarvis-voz", nome));
 const pasta = resolve("src-tauri", "binaries");

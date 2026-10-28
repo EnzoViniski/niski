@@ -1,4 +1,4 @@
-//! Fork: regressão de sessões encerradas ainda guardadas como Live, sem PTY ou ps reais.
+//! Regressão de sessões encerradas ainda guardadas como Live, sem PTY ou ps reais.
 use super::*;
 
 #[derive(Debug)]

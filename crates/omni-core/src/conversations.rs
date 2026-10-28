@@ -88,7 +88,7 @@ pub fn display_title(conversation: &Conversation) -> String {
     if conversation.title_source == TitleSource::Manual {
         return conversation.title.clone();
     }
-    // Fork: o nome que o próprio agente deu (Claude `ai-title`, Codex `thread_name`) vem antes do
+    // O nome que o próprio agente deu (Claude `ai-title`, Codex `thread_name`) vem antes do
     // começo do primeiro prompt (`titulo_do_agente.rs`).
     crate::titulo_do_agente::titulo_do_agente(conversation)
         .or_else(|| auto_title(conversation))
@@ -140,13 +140,13 @@ pub fn write_index(dir: &Path, conversations: &[Conversation]) -> std::io::Resul
 /// com todo caractere não-alfanumérico virando `-`, caixa preservada.
 /// `D:\PROGRAMACAO\...\OMNI-AGENTS` -> `D--PROGRAMACAO-...-OMNI-AGENTS`
 pub fn claude_project_slug(cwd: &str) -> String {
-    // Fork: acima de 200 caracteres a CLI corta e põe um hash (ver `pasta_do_claude`).
+    // Acima de 200 caracteres a CLI corta e põe um hash (ver `pasta_do_claude`).
     crate::pasta_do_claude::slug(cwd)
 }
 
 /// Onde o transcript de uma sessão do Claude vai parar, dado o config dir daquela conta.
 pub fn claude_transcript_path(config_dir: &Path, cwd: &str, session_id: &str) -> PathBuf {
-    // Fork: caminho longo pode estar numa pasta de hash diferente (CLI no Bun); procura pelo prefixo.
+    // Caminho longo pode estar numa pasta de hash diferente (CLI no Bun); procura pelo prefixo.
     crate::pasta_do_claude::localizar(config_dir, cwd, session_id)
 }
 
@@ -182,7 +182,7 @@ fn resolve_transcript_nativo(
     conversation: &Conversation,
     profiles: &[crate::Profile],
 ) -> Option<PathBuf> {
-    // Fork: índice antigo guardou o caminho sem o corte da CLI para projeto de caminho longo.
+    // Índice antigo guardou o caminho sem o corte da CLI para projeto de caminho longo.
     let corrigido = crate::pasta_do_claude::trecho_com_transcript_atual(segment, conversation, profiles);
     let segment = corrigido.as_ref().unwrap_or(segment);
     let profile = profiles.iter().find(|p| Some(&p.id) == segment.profile_id.as_ref() && p.provider == segment.provider)?;
@@ -211,7 +211,7 @@ fn resolve_transcript_nativo(
         if value["type"] != "session_meta" { return false; }
         let meta = &value["payload"];
         if let Some(id) = &segment.external_session_id { return meta["id"].as_str() == Some(id.as_str()); }
-        // Fork: subagente de outra aba na mesma pasta empatava com a sessão nova e nada era associado.
+        // Subagente de outra aba na mesma pasta empatava com a sessão nova e nada era associado.
         if crate::subagente_do_codex::de_subagente(meta) { return false; }
         let same_cwd = meta["cwd"].as_str().is_some_and(|cwd| cwd.replace('\\',"/").eq_ignore_ascii_case(&conversation.cwd.replace('\\',"/")));
         same_cwd && timestamp(&meta["timestamp"]).or_else(|| timestamp(&value["timestamp"]))
@@ -257,7 +257,7 @@ pub fn discover_codex_transcripts(
             let session_id = if conversations[conversation_index].segments[segment_index].provider == "antigravity" {
                 path.file_stem().map(|s| s.to_string_lossy().into_owned())
             } else { codex_session_id(&path) };
-            // Fork: descoberta por horário não reutiliza um arquivo de outro trecho/conversa.
+            // Descoberta por horário não reutiliza um arquivo de outro trecho/conversa.
             // Retomadas com id explícito continuam podendo compartilhar o mesmo transcript.
             let segmento = &conversations[conversation_index].segments[segment_index];
             if segmento.provider == "codex" && segmento.external_session_id.is_none()
@@ -293,10 +293,10 @@ pub struct Message {
     /// Imagens coladas nesta mensagem; o conteúdo vem por `GET …/imagens/{n}/{k}`.
     #[serde(skip_serializing_if = "sem_imagens")]
     pub imagens: usize,
-    /// Fork: documentos que o agente gerou; o conteúdo vem por `GET …/arquivos/{n}/{k}`.
+    /// Documentos que o agente gerou; o conteúdo vem por `GET …/arquivos/{n}/{k}`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub arquivos: Vec<String>,
-    /// Fork: diff das edições, lista de tarefas e plano do plan mode (`diffs`, `tarefas`, `plano`).
+    /// Diff das edições, lista de tarefas e plano do plan mode (`diffs`, `tarefas`, `plano`).
     #[serde(flatten)]
     pub extras: crate::plano_do_agente::Extras,
 }
@@ -308,11 +308,11 @@ pub struct Timeline {
     /// Onde começa a página anterior a esta. `None` = esta já começa na primeira mensagem.
     pub prev_cursor: Option<usize>,
     pub unavailable_segments: Vec<usize>,
-    /// Fork: a lista de tarefas do agente como está agora (cartão fixo acima do campo). Ausente
+    /// A lista de tarefas do agente como está agora (cartão fixo acima do campo). Ausente
     /// quando a conversa nunca teve lista.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tarefas: Option<Vec<crate::plano_do_agente::Tarefa>>,
-    /// Fork: último modo de permissão gravado no transcript (`default`, `acceptEdits`, `plan`,
+    /// Último modo de permissão gravado no transcript (`default`, `acceptEdits`, `plan`,
     /// `auto`, `bypassPermissions`…; no Codex `semPerguntar`, `acessoTotal`, `somenteLeitura`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub modo_de_permissao: Option<String>,
@@ -357,7 +357,7 @@ pub fn timeline(conversation: &Conversation, profiles: &[crate::Profile], cursor
 /// de novo uma mensagem pelo número — ver `feed::imagem`.
 pub fn fontes(conversation: &Conversation, profiles: &[crate::Profile]) -> Vec<(std::path::PathBuf, String)> {
     conversation.segments.iter()
-        // Fork: caminho guardado sem o corte da CLI (projeto de caminho longo) volta corrigido.
+        // Caminho guardado sem o corte da CLI (projeto de caminho longo) volta corrigido.
         .map(|segment| crate::pasta_do_claude::trecho_com_transcript_atual(segment, conversation, profiles).unwrap_or_else(|| segment.clone()))
         .filter(|segment| !segment.transcript_path.as_deref().is_some_and(|path| !Path::new(path).exists()))
         .filter_map(|segment| resolve_transcript(&segment, conversation, profiles).map(|path| (path, segment.provider.clone())))
@@ -379,7 +379,7 @@ pub fn timeline_cached(
     let mut seen = HashSet::new();
     let (mut tarefas, mut modo) = (None, None);
     for (segment_index, segment) in conversation.segments.iter().enumerate() {
-        // Fork: sem isto, projeto de caminho longo caía no `continue` abaixo e a Conversa ficava
+        // Sem isto, projeto de caminho longo caía no `continue` abaixo e a Conversa ficava
         // vazia com o agente trabalhando (o caminho guardado não tinha o corte da CLI).
         let corrigido = crate::pasta_do_claude::trecho_com_transcript_atual(segment, conversation, profiles);
         let segment = corrigido.as_ref().unwrap_or(segment);
@@ -405,7 +405,7 @@ pub fn timeline_cached(
             if !seen.insert(entry.identity.clone()) { continue; }
             itens.push((segment.provider.clone(), entry.item.clone()));
         }
-        // Fork: a lista e o modo do trecho mais recente que os tem são os que valem.
+        // A lista e o modo do trecho mais recente que os tem são os que valem.
         if let Some(estado) = cache.estado(&path) {
             tarefas = estado.tarefas().or(tarefas);
             modo = estado.modo.clone().or(modo);
@@ -635,7 +635,7 @@ segunda linha"}}),
         assert!(!discover_codex_transcripts(&mut conversations, &[]), "ponteiro já conhecido não deve ser redescoberto");
     }
 
-    /// Fork: subagente de outra aba do Codex, criado na mesma pasta 2 s depois da sessão nova, empatava
+    /// Subagente de outra aba do Codex, criado na mesma pasta 2 s depois da sessão nova, empatava
     /// com ela e a Conversa ficava vazia (caso real do Codex 0.164, 23/10/2026).
     #[test]
     fn codex_ignora_rollout_de_subagente_na_mesma_pasta() {
@@ -750,7 +750,7 @@ mod slug_tests {
             claude_project_slug(r"D:\PROGRAMACAO\PROJETOS\PROJETOS_REACT\OMNI-AGENTS"),
             "D--PROGRAMACAO-PROJETOS-PROJETOS-REACT-OMNI-AGENTS"
         );
-        assert_eq!(claude_project_slug(r"C:\Users\Felipe Campos"), "C--Users-Felipe-Campos");
+        assert_eq!(claude_project_slug(r"C:\Users\Fulano Silva"), "C--Users-Fulano-Silva");
         // Barra final não pode gerar um sufixo a mais.
         assert_eq!(claude_project_slug(r"C:\Users\dev\"), "C--Users-dev");
     }

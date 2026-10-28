@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Renderer, Program, Mesh, Triangle } from 'ogl';
-// Fork: pausa de energia (janela oculta/sem foco/parada) — `src/lib/energia.ts`.
+// Pausa de energia (janela oculta/sem foco/parada) — `src/lib/energia.ts`.
 import { cancelarQuadro, proximoQuadro } from '../../lib/energia';
 
 export type GradientWavesDetail = 'low' | 'medium' | 'high';

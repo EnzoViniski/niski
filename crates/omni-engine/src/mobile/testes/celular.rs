@@ -1,4 +1,4 @@
-//! Testes do acesso pelo celular: Tailscale/Serve, configurações, Authy e pareamento. Fork: saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
+//! Testes do acesso pelo celular: Tailscale/Serve, configurações, Authy e pareamento. Saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
 use super::*;
 
 #[test] fn habilitar_gera_token_e_o_desktop_nao_escolhe_o_segredo() {

@@ -63,7 +63,7 @@ pub struct Ajustes {
     #[serde(default = "verdadeiro")]
     pub eventos: bool,
     /// Segurar o pedido de permissão (`PermissionRequest`) para responder pelo app/celular/orquestrador.
-    /// Fork: desligado por padrão até a rodada com a CLI real confirmar o diálogo de permissão com o
+    /// Desligado por padrão até a rodada com a CLI real confirmar o diálogo de permissão com o
     /// gancho pendente (desenho-ondas-2-3.md, seção 6). Sem ele, a CLI mostra o diálogo dela, como antes.
     /// O nome continua `ligado` para o arquivo antigo (`{"ligado": true}`) seguir valendo igual.
     #[serde(default)]

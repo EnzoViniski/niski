@@ -1,4 +1,4 @@
-//! Fork: cópia dos arquivos de estado antes de instalar uma versão nova pelo updater.
+//! Cópia dos arquivos de estado antes de instalar uma versão nova pelo updater.
 //!
 //! O updater troca só o `.app` (mesmo bundle id): a pasta de dados fica como está. Mesmo assim, uma
 //! versão nova pode reescrever um formato de estado ao abrir; esta cópia é o caminho de volta.

@@ -18,7 +18,7 @@ function ler(): Escolhas {
   try {
     const valor = JSON.parse(localStorage.getItem(CHAVE) ?? "{}");
     if (!valor || typeof valor !== "object" || Array.isArray(valor)) return {};
-    // Fork: cada parte é conferida sozinha; uma estragada vira "sem escolha" só nela.
+    // Cada parte é conferida sozinha; uma estragada vira "sem escolha" só nela.
     const ehMapa = (item: unknown): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item);
     // Chaves que esta versão não conhece (de uma mais nova) seguem intactas no próximo `gravar`.
     const escolhas: Escolhas = { ...valor };

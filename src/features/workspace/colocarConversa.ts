@@ -1,7 +1,7 @@
 import type { LayoutNode, PaneNode, WorkspaceAction, WorkspaceState } from "../../types/workspace";
 
 /**
- * Fork: conversa arrastada da lateral para um painel do layout (`PLACE_SESSION`).
+ * Conversa arrastada da lateral para um painel do layout (`PLACE_SESSION`).
  *
  * - Centro: abre como aba naquele painel.
  * - Borda: divide o painel ao meio (esquerda/direita lado a lado, cima/baixo um sobre o outro) e a

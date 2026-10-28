@@ -148,5 +148,5 @@ if (triple === "universal-apple-darwin") {
 }
 console.log(`Engine copiado para src-tauri/binaries/omni-engine-${triple}${extension} (${profile}).`);
 console.log(`Shim copiado para src-tauri/binaries/omni-shim-${triple}${extension} (${profile}).`);
-// Fork: auxiliar de voz do Jarvis (Swift, só no Mac) junto dos outros binários.
+// Auxiliar de voz do Jarvis (Swift, só no Mac) junto dos outros binários.
 execFileSync(process.execPath, [resolve("scripts/build-voz-do-jarvis.mjs"), ...(release ? ["--release"] : []), "--target", triple], { stdio: "inherit" });

@@ -1,4 +1,4 @@
-// Fork: orbe de partículas do Jarvis — suavização da voz, amostragem da logo e reserva sem WebGL2.
+// Orbe de partículas do Jarvis — suavização da voz, amostragem da logo e reserva sem WebGL2.
 import { render } from "@testing-library/react";
 import { createRef } from "react";
 import { SuavizadorDeVoz, TAMANHO_DO_HISTORICO, aproximar } from "../features/jarvis/nivelDaVoz";

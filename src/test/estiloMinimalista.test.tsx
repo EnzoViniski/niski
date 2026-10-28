@@ -9,7 +9,7 @@ import { ChatIcon, NpmIcon } from "../components/ui/PixelIcon";
 import { espelharAgora, esquecerUltimoEspelhado, restaurarDoDisco, type EstadoDaInterface } from "../lib/espelhoDaInterface";
 
 /*
- * Fork: estilo da interface (Clássico × Minimalista). O padrão segue Clássico para quem já usa, a
+ * Estilo da interface (Clássico × Minimalista). O padrão segue Clássico para quem já usa, a
  * escolha mora no `omni-agents-settings` (logo, no espelho em disco) e vale na hora pelo
  * `data-estilo` do <html>.
  */

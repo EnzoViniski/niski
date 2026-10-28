@@ -27,10 +27,10 @@ pub fn engine_status() -> EngineResponse {
 }
 
 static ENGINE_CONFERIDO: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-/// Fork: engine novo no disco, mas o antigo ficou rodando porque havia agente trabalhando.
+/// Engine novo no disco, mas o antigo ficou rodando porque havia agente trabalhando.
 pub static ENGINE_PENDENTE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// Fork: agentes trabalhando ou esperando aprovação — os que perderiam algo se o engine caísse agora.
+/// Agentes trabalhando ou esperando aprovação — os que perderiam algo se o engine caísse agora.
 pub fn agentes_ocupados() -> usize {
     match authenticated_request(|token| EngineRequest::ListSessions { token }) {
         Ok(EngineResponse::Sessions { sessions }) => sessions.iter()
@@ -44,14 +44,14 @@ pub fn agentes_ocupados() -> usize {
 pub fn ensure_engine() -> EngineResponse {
     use omni_core::registro;
     if let Ok(response) = authenticated_request(|token| EngineRequest::Ping { token }) {
-        // Fork: só troca o engine na primeira conferência desta janela. Build novo com o app aberto
+        // Só troca o engine na primeira conferência desta janela. Build novo com o app aberto
         // não derruba os agentes no meio do trabalho: vira o botão "Reiniciar para atualizar"
         // (`atualizacao.rs`), e o reinício do app cai aqui de novo como primeira conferência.
         let primeira = !ENGINE_CONFERIDO.swap(true, std::sync::atomic::Ordering::SeqCst);
         if !primeira || !engine_binary_replaced(&response) {
             return response;
         }
-        // Fork: trocar o engine derruba todas as PTYs. Com algum agente no meio do trabalho (ou
+        // Trocar o engine derruba todas as PTYs. Com algum agente no meio do trabalho (ou
         // esperando aprovação), a troca fica para depois: a janela nova roda com o engine antigo e o
         // botão "Concluir atualização" aparece (`atualizacao.rs`). Nada que está rodando é cortado.
         if agentes_ocupados() > 0 {

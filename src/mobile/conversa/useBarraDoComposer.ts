@@ -1,4 +1,4 @@
-// Fork: estado da lista do `/` dentro do Composer — separado para o campo mudar pouco.
+// Estado da lista do `/` dentro do Composer — separado para o campo mudar pouco.
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { barraNoCursor, filtrarItens, type ItemDaBarra } from "./comandosDaBarra";
 

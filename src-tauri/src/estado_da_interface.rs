@@ -1,4 +1,4 @@
-//! Fork: cópia em disco do que a interface guarda no localStorage (aparência, workspaces, abas,
+//! Cópia em disco do que a interface guarda no localStorage (aparência, workspaces, abas,
 //! ordem da lateral). O localStorage do WebKit é a fonte do dia a dia, mas perde as últimas gravações
 //! quando o processo sai sem esperar o WebKit (reinício da atualização, app derrubado) e some inteiro
 //! se a pasta do WebKit for limpa. A interface grava aqui a cada mudança e, ao abrir, restaura daqui
@@ -29,11 +29,11 @@ pub const CHAVES: &[&str] = &[
     "omni-todo",
     "medza-escolhas",
     "medza-orquestradoras-recolhidas",
-    "medza-manha", // Fork: rotina da manhã (ajustes e sessão do dia).
-    "medza-biblia", // Fork: Bíblia do dia (trilhas, onde parou e o que já foi lido).
-    "medza-tarefas-ajustes", // Fork: tarefas (nome, pasta compartilhada, filtros).
-    "medza-tarefas-painel", // Fork: painel, botão e lista do dia flutuantes.
-    "medza-copiloto", // Fork: janela do copiloto (conversa, pasta, modo, posição).
+    "medza-manha", // Rotina da manhã (ajustes e sessão do dia).
+    "medza-biblia", // Bíblia do dia (trilhas, onde parou e o que já foi lido).
+    "medza-tarefas-ajustes", // Tarefas (nome, pasta compartilhada, filtros).
+    "medza-tarefas-painel", // Painel, botão e lista do dia flutuantes.
+    "medza-copiloto", // Janela do copiloto (conversa, pasta, modo, posição).
     "medza-ultima-olhada", // Fork (troca-de-contexto): até onde você viu cada conversa (só números).
 ];
 

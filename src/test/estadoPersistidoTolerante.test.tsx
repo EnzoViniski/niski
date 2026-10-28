@@ -5,7 +5,7 @@ import { ajustesDoAgente, contaDoAgente, lembrarAgente, ultimoAgente } from "../
 import { loadSettings } from "../services/settingsService";
 import { DEFAULT_SETTINGS } from "../types/settings";
 
-// Fork: os outros estados salvos seguem a mesma regra do workspace — uma parte estragada cai sozinha.
+// Os outros estados salvos seguem a mesma regra do workspace — uma parte estragada cai sozinha.
 beforeEach(() => localStorage.clear());
 
 describe("configurações salvas", () => {

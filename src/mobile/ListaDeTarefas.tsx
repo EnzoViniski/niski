@@ -4,7 +4,7 @@ import type { Tarefa } from "./api";
 import "./conversaRica.css";
 
 /**
- * Fork: a lista de tarefas do agente, fixa acima do campo de mensagem — o checklist que o Claude
+ * A lista de tarefas do agente, fixa acima do campo de mensagem — o checklist que o Claude
  * Code mostra (Ctrl+T) e o plano do Codex. Atualiza a cada leitura da conversa; recolhida, mostra só
  * "3/7" e o que está sendo feito agora.
  *

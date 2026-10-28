@@ -1,4 +1,4 @@
-// Fork: dica de salvar segue a plataforma.
+// Dica de salvar segue a plataforma.
 import { rotuloDoAtalho } from "../../lib/plataforma";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "../../components/ui";
 import type { WorkspaceTab } from "../../types/workspace";
-// Fork: Monaco só ao entrar no modo de edição.
+// Monaco só ao entrar no modo de edição.
 import { FilePane } from "./FilePaneTardio";
 import { fileMtime, readTextFile } from "./filesService";
 

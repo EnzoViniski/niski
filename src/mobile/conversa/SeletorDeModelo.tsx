@@ -1,4 +1,4 @@
-// Fork: modelo e esforço num botão só, no canto direito do campo, como no app do Codex (pedido do Enzo,
+// Modelo e esforço num botão só, no canto direito do campo, como no app do Codex (pedido do Enzo,
 // 21/10/2026). Clicar abre um painel: em cima, o esforço em destaque e o modelo (o bloco inteiro é
 // clicável e leva à lista de modelos); embaixo, uma barra para arrastar o esforço, que segue o dedo e
 // encaixa no nível ao soltar. No nível mais alto a barra vira uma nebulosa com estrelas. O painel abre

@@ -1,4 +1,4 @@
-//! Testes dos anexos. Fork: saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
+//! Testes dos anexos. Saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
 use super::*;
 
 /// Imagem colada no chat do PC: binário em base64 e o nome no cabeçalho, como o celular manda.

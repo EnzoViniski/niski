@@ -14,8 +14,8 @@ export type Rota =
 
 /** `#/p/<projeto>` ou `#/c/<conversa>`. Qualquer outra coisa (inclusive o `#t=` do QR) é o início. */
 export function lerRota(hash = location.hash): Rota {
-  if (hash === "#/atividade") return { tela: "atividade" }; // Fork: caixa compartilhada com o PC.
-  if (hash === "#/uso") return { tela: "uso" }; // Fork: uso das contas, como no rodapé do PC.
+  if (hash === "#/atividade") return { tela: "atividade" }; // Caixa compartilhada com o PC.
+  if (hash === "#/uso") return { tela: "uso" }; // Uso das contas, como no rodapé do PC.
   if (hash === "#/sobre-mim") return { tela: "sobre-mim" }; // Fork (Sobre mim).
   if (hash === "#/tarefas") return { tela: "tarefas" }; // Fork (Tarefas no celular).
   if (hash === "#/rotina") return { tela: "rotina" }; // Fork (Rotina no celular).

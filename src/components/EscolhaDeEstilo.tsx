@@ -1,4 +1,4 @@
-// Fork: escolha do estilo da interface (Configurações → Aparência). Cada opção mostra uma prévia
+// Escolha do estilo da interface (Configurações → Aparência). Cada opção mostra uma prévia
 // pequena desenhada com as classes `.estilo-previa*` de `src/styles/minimalista.css`, que não
 // dependem do estilo ativo: as prévias ficam iguais em qualquer estilo (a do Vidro mora em `vidro.css`).
 import type { EstiloDaInterface } from "../types/settings";
@@ -7,7 +7,7 @@ import { Card } from "./ui";
 const OPCOES: { valor: EstiloDaInterface; nome: string; desc: string }[] = [
   { valor: "classico", nome: "Clássico", desc: "Pixel, bordas grossas e fundo animado." },
   { valor: "minimalista", nome: "Minimalista", desc: "Cantos arredondados, superfícies lisas e fonte do sistema." },
-  // Fork: terceira opção (Enzo, 21/10/2026): o Minimalista com fundo preto e vidro translúcido.
+  // Terceira opção (Enzo, 21/10/2026): o Minimalista com fundo preto e vidro translúcido.
   { valor: "vidro", nome: "Vidro", desc: "Fundo preto, painéis de vidro translúcido e movimento suave." },
 ];
 

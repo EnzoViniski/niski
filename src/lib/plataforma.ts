@@ -2,7 +2,7 @@
  *  própria esconde os botões de janela e abre espaço à esquerda. */
 export const NO_MAC = typeof navigator !== "undefined" && /Macintosh|Mac OS X/.test(navigator.userAgent);
 
-// Fork: modificador único para os atalhos do app; Ctrl da PTY continua independente.
+// Modificador único para os atalhos do app; Ctrl da PTY continua independente.
 type Modificadores = Pick<KeyboardEvent, "ctrlKey" | "metaKey">;
 export function teclaModificadora(evento: Modificadores, noMac = NO_MAC): boolean {
   return noMac ? evento.metaKey && !evento.ctrlKey : evento.ctrlKey && !evento.metaKey;

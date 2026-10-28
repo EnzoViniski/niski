@@ -49,7 +49,7 @@ export function useProjeto(id: string) {
   const desfazer = useRef<number[]>([]);
   const refazer = useRef<number[]>([]);
   const pastas = useRef<Pick<PastaDeReferencia, "nome" | "descricao">[]>([]);
-  /** Fork: `index.html` como está no disco (o agente pode mudar por fora, pela conversa normal). */
+  /** `index.html` como está no disco (o agente pode mudar por fora, pela conversa normal). */
   const htmlDoDisco = useRef<string | null>(null);
 
   const mudar = useCallback((parcial: Partial<EstadoDoProjeto>) => {
@@ -80,7 +80,7 @@ export function useProjeto(id: string) {
     desfazer.current = []; refazer.current = [];
     void disco.abrirProjeto(id).then((pasta) => { if (vivo) mudar({ pasta }); }).catch(() => undefined);
     void recarregar().then(() => {
-      // Fork: projeto de antes da 0.14 ou pasta de referências editada: confere as pastas que o agente lê.
+      // Projeto de antes da 0.14 ou pasta de referências editada: confere as pastas que o agente lê.
       const p = atual.current.projeto;
       if (!vivo || !p || p.aDois) return;
       disco.configurarPastas(id, p.pastaDoComputador ?? null, p.pastasDeReferencia ?? []).catch((e) => {
@@ -95,7 +95,7 @@ export function useProjeto(id: string) {
     if (novo === atual.current.html) return;
     // Fork (edição na mão): mudança de estilo/texto já está no preview pela ponte; recarregar piscaria.
     const versaoDoPreview = atual.current.versaoDoPreview + (opcoes.recarregarPreview === false ? 0 : 1);
-    // Fork: o agente pode ter mudado o arquivo agora há pouco. Gravar por cima apagaria a edição dele.
+    // O agente pode ter mudado o arquivo agora há pouco. Gravar por cima apagaria a edição dele.
     const noDisco = await disco.lerArquivo(id, "index.html").catch(() => null);
     if (noDisco !== null && htmlDoDisco.current !== null && noDisco !== htmlDoDisco.current) {
       await recarregar();
@@ -205,7 +205,7 @@ export function useProjeto(id: string) {
       const p = atual.current.projeto;
       if (p && !p.pastasDeReferencia?.includes(pasta.id)) {
         const refs = [...(p.pastasDeReferencia ?? []), pasta.id];
-        await disco.configurarPastas(id, p.pastaDoComputador ?? null, refs).catch(() => undefined); // Fork: o agente lê a pasta.
+        await disco.configurarPastas(id, p.pastaDoComputador ?? null, refs).catch(() => undefined); // O agente lê a pasta.
         await mudarProjeto({ pastasDeReferencia: refs });
       }
       if (!pastas.current.some((x) => x.nome === pasta.nome)) pastas.current = [...pastas.current, { nome: pasta.nome, descricao: pasta.descricao }];
@@ -214,7 +214,7 @@ export function useProjeto(id: string) {
     } catch (e) { mudar({ ocupado: null, erro: texto(e) }); }
   }, [id, depoisDeMudarMidias, mudarProjeto, mudar]);
 
-  /** Fork: liga/desliga a pasta do computador e as pastas de referências deste vídeo. O Rust confere
+  /** Liga/desliga a pasta do computador e as pastas de referências deste vídeo. O Rust confere
    *  a pasta e grava o que o agente pode ler (CLAUDE.md/AGENTS.md e `.claude/settings.json`). */
   const configurarPastas = useCallback(async (mudancas: { pastaDoComputador?: string | null; pastasDeReferencia?: string[] }) => {
     const p = atual.current.projeto;

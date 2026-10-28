@@ -1,4 +1,4 @@
-// Fork: publica os mesmos handlers dos botões para a paleta.
+// Publica os mesmos handlers dos botões para a paleta.
 import { useAcoesDaPaleta } from "../paleta/acoes";
 import { ConversaDoHistorico } from "../paleta/ConversaDoHistorico";
 import { GlifoColunas, GlifoExpandir, GlifoFechar, GlifoLinhas, GlifoRecolher } from "../../components/ui/PixelGlyph";
@@ -9,20 +9,20 @@ import type { ErrorInfo, ReactNode } from "react";
 import type { PaneNode, SplitNode, WorkspaceAction } from "../../types/workspace";
 import type { KanbanAction, KanbanState } from "../../types/kanban";
 import { isImagePath } from "../files/filesService";
-// Fork: editor (Monaco) carregado só quando abre a primeira aba de arquivo.
+// Editor (Monaco) carregado só quando abre a primeira aba de arquivo.
 import { FilePane } from "../files/FilePaneTardio";
 import { ImagePane } from "../files/ImagePane";
 import { MarkdownPane } from "../files/MarkdownPane";
 import { GitDiffPane } from "../git/GitDiffPane";
-// Fork: revisão ligada ao projeto/worktree da sessão.
+// Revisão ligada ao projeto/worktree da sessão.
 import { RevisaoPane } from "../revisao/RevisaoPane";
 import { GitGraphPane } from "../git/GitGraphPane";
 import { KanbanBoard } from "../kanban/KanbanBoard";
 import { TerminalPane } from "../terminal/TerminalPane";
 import { AbaDeAgente } from "../conversa/AbaDeAgente";
-// Fork: aba de navegador (link clicado).
+// Aba de navegador (link clicado).
 import { NavegadorPane } from "../navegador/NavegadorPane";
-// Fork: fluxo ao vivo do orquestrador (React Flow carregado tardio).
+// Fluxo ao vivo do orquestrador (React Flow carregado tardio).
 import { FluxoAoVivo } from "../orquestracao/FluxoAoVivoTardio";
 import { closeTerminal } from "../terminal/terminalService";
 import { PANE_DRAG_TYPE } from "./tabDrag";
@@ -84,7 +84,7 @@ export function PaneView({
   const conteudoRef = useRef<HTMLDivElement>(null);
   useAnimarAoTrocar(conteudoRef, tabId ?? "vazio");
   const deFora = useProjetoDeFora(tab?.kind === "agent" || tab?.kind === "terminal" ? tab.resourceId : null);
-  // Fork: de que projeto é este painel. Aba com projeto próprio (criada pelo "+" aqui) ou conversa de
+  // De que projeto é este painel. Aba com projeto próprio (criada pelo "+" aqui) ou conversa de
   // outro projeto: o "+" abre agente **nesse** projeto, não no dono do layout.
   const { projetos } = useProjetosDasAbas();
   const projetoDoPainel = tab?.projectId ?? deFora?.id ?? projectId;
@@ -110,7 +110,7 @@ export function PaneView({
     dispatch({ type: "SPLIT_PANE", paneId: pane.id, direction });
   }
 
-  // Fork: fechar aba ou painel **não apaga conversa**. Aba de agente só sai da tela: a sessão segue
+  // Fechar aba ou painel **não apaga conversa**. Aba de agente só sai da tela: a sessão segue
   // viva e continua na lateral, de onde reabre. Apagar é só pelo "Encerrar e remover" da lateral.
   // Terminal puro (shell) ainda é encerrado, mas só quando nenhuma outra aba (em qualquer painel ou
   // projeto) continua presa a ele (`projetosDasAbas.tsx`).
@@ -153,7 +153,7 @@ export function PaneView({
       className={[
         // Terminal pinta o próprio fundo (com a opacidade configurável); o do painel por baixo
         // cobriria o fundo do app mesmo com o terminal transparente.
-        // Fork: `painel-moldura` (e `painel-cabecalho` abaixo) são ganchos do estilo Minimalista.
+        // `painel-moldura` (e `painel-cabecalho` abaixo) são ganchos do estilo Minimalista.
         "painel-moldura relative flex-1 min-w-0 min-h-0 flex flex-col border-2",
         tab?.kind === "terminal" || tab?.kind === "agent" ? "" : "bg-bg-surface/90",
         // Com um painel só, a moldura de foco não informa nada e só pesava a tela.
@@ -202,20 +202,20 @@ export function PaneView({
         </div>
       </header>
 
-      {/* Fork: conversa de outro projeto solta neste layout — deixa claro de onde ela é. */}
+      {/* Conversa de outro projeto solta neste layout — deixa claro de onde ela é. */}
       {deFora && (
         <div className="faixa-outro-projeto" style={{ "--cor-projeto": deFora.cor } as React.CSSProperties}>
           <span>Conversa de outro projeto</span>
           <EtiquetaDoProjeto projeto={deFora} />
         </div>
       )}
-      {/* Fork: `painel-conteudo` evita a animação dupla (esta + a do `.chat-tela`), ver `vidro.css`. */}
+      {/* `painel-conteudo` evita a animação dupla (esta + a do `.chat-tela`), ver `vidro.css`. */}
       <div ref={conteudoRef} className="painel-conteudo flex-1 min-h-0">
         <PaneErrorBoundary key={tab?.id ?? pane.id}>
         {!tab ? (
           <PainelVazio onCriar={criarAba} />
         ) : tab.kind === "agent" ? (
-          // Fork: a faixa abre revisão ao lado e mantém o destinatário da aba.
+          // A faixa abre revisão ao lado e mantém o destinatário da aba.
           <AbaDeAgente agentView={agentView} sessionId={tab.resourceId ?? null} emFoco={active} /* Fork (troca-de-contexto) */
             onRevisao={tab.resourceId ? () => dispatch({ type: "ABRIR_REVISAO", sessionId: tab.resourceId!, paneId: pane.id, projectId: projetoDoPainel !== projectId ? projetoDoPainel : undefined }) : undefined}>
             <TerminalPane
@@ -253,14 +253,14 @@ export function PaneView({
           />
         ) : tab?.kind === "git-diff" ? (
           <GitDiffPane projectPath={projectPath} tab={tab} />
-        // Fork: revisão usa a pasta da sessão, inclusive worktrees.
+        // Revisão usa a pasta da sessão, inclusive worktrees.
         ) : tab?.kind === "revisao" ? (
           <RevisaoPane projectPath={projetoDaAba.path} sessionId={tab.resourceId} onAbrirSessao={(sessionId, title) => dispatch({ type: "ATTACH_TERMINAL", sessionId, title })} />
         ) : tab?.kind === "git-graph" ? (
           <GitGraphPane projectPath={projectPath} />
         ) : tab?.kind === "kanban" ? (
           <KanbanBoard projectId={projectId} kanban={kanban} dispatch={kanbanDispatch} />
-        // Fork: aba salva por uma versão mais nova do app (kind que esta não conhece) fica
+        // Aba salva por uma versão mais nova do app (kind que esta não conhece) fica
         // preservada no workspace e mostra só um aviso, sem quebrar (`services/consertarWorkspace.ts`).
         ) : !ehKindConhecido(tab.kind) ? (
           <div className="h-full p-4 text-xs overflow-auto">
@@ -285,7 +285,7 @@ export function PaneView({
           data-zone={dropZone}
           className={`pointer-events-none absolute z-30 flex items-center justify-center border-2 border-accent bg-accent/25 transition-all duration-150 motion-reduce:transition-none ${DROP_PREVIEW[dropZone].box}`}
         >
-          <span className="bg-bg-elevated/90 px-2 py-1 text-[11px] text-text-primary">{/* Fork: conversa vinda da lateral (`projects/arrastarLinha.ts`) abre, não "move". */}
+          <span className="bg-bg-elevated/90 px-2 py-1 text-[11px] text-text-primary">{/* Conversa vinda da lateral (`projects/arrastarLinha.ts`) abre, não "move". */}
             {dropZone === "center" && tabDrag?.tab.paneId === "lateral" ? "Abrir neste painel" : DROP_PREVIEW[dropZone].label}</span>
         </div>
       )}

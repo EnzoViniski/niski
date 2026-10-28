@@ -282,7 +282,7 @@ describe("Edição de vídeo", () => {
     expect(await within(dialogo).findByText(/Pronto: x\.mp4/)).toBeInTheDocument();
     const pedido = disco.chamadas.find((c) => c.cmd === "videos_exportar")!.args.pedido;
     expect(pedido).toMatchObject({ projeto: pid, formato: "webm", qualidade: "standard", fps: null });
-    // Fork: "Mostrar no Finder" pelo Rust (o opener recusava a pasta do projeto).
+    // "Mostrar no Finder" pelo Rust (o opener recusava a pasta do projeto).
     fireEvent.click(within(dialogo).getByRole("button", { name: "Mostrar no Finder" }));
     await waitFor(() => expect(disco.chamadas.find((c) => c.cmd === "videos_abrir_render")?.args).toMatchObject({ id: pid, mostrar: true }));
   });

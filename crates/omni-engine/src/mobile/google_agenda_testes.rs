@@ -65,7 +65,7 @@ async fn google_falso() -> (Google, String) {
                 }
                 (StatusCode::OK, Json(json!({"items": [
                     {"id": "eu@gmail.com", "summary": "eu@gmail.com", "primary": true, "selected": true, "backgroundColor": "#039be5"},
-                    {"id": "trabalho@medza.ai", "summary": "trabalho@medza.ai", "summaryOverride": "Medza", "selected": true, "backgroundColor": "#d50000"},
+                    {"id": "trabalho@exemplo.com", "summary": "trabalho@exemplo.com", "summaryOverride": "Trabalho", "selected": true, "backgroundColor": "#d50000"},
                     {"id": "escondida", "summary": "Escondida", "selected": false},
                     {"id": "sumiu", "summary": "Sumiu", "selected": true},
                 ]})))
@@ -85,7 +85,7 @@ async fn google_falso() -> (Google, String) {
                         {"id": "g1", "summary": "Consulta", "start": {"date": "2026-11-03"}, "end": {"date": "2026-11-04"}},
                         {"id": "g2", "status": "cancelled", "start": {"date": "2026-11-03"}},
                     ]}))),
-                    "trabalho@medza.ai" => (StatusCode::OK, Json(json!({"summary": "trabalho@medza.ai", "items": [
+                    "trabalho@exemplo.com" => (StatusCode::OK, Json(json!({"summary": "trabalho@exemplo.com", "items": [
                         {"id": "m1", "summary": "Reunião", "start": {"date": "2026-11-04"}, "end": {"date": "2026-11-05"}},
                         {"id": "copia", "summary": "Consulta", "start": {"date": "2026-11-03"}, "end": {"date": "2026-11-04"}},
                     ]}))),
@@ -278,16 +278,16 @@ async fn le_todas_as_agendas_visiveis_com_nome_e_cor_sem_repetir_convite() {
     let (falso, base) = google_falso().await;
     apontar(&state, &base);
     conectado_com_token_vencido(&state);
-    assert_eq!(sincronizar(&state).await, Ok(2), "Consulta repetida na agenda da Medza conta uma vez");
+    assert_eq!(sincronizar(&state).await, Ok(2), "Consulta repetida na agenda do trabalho conta uma vez");
     let agenda: AgendaDoGoogle = rotina_core::ler(&dir(&state));
     let reuniao = agenda.eventos.iter().find(|e| e.id == "m1").unwrap();
-    assert_eq!((reuniao.agenda.as_str(), reuniao.cor.as_str()), ("Medza", "#d50000"));
+    assert_eq!((reuniao.agenda.as_str(), reuniao.cor.as_str()), ("Trabalho", "#d50000"));
     let consulta = agenda.eventos.iter().find(|e| e.titulo == "Consulta").unwrap();
     assert_eq!((consulta.id.as_str(), consulta.agenda.as_str()), ("g1", ""), "a da agenda principal fica");
     assert_eq!(agenda.erro, "");
     let consultas = falso.lock().unwrap().consultas.clone();
     let pedidas: Vec<&str> = consultas.iter().map(|(a, _)| a.as_str()).collect();
-    assert_eq!(pedidas, ["eu@gmail.com", "trabalho@medza.ai", "sumiu"], "escondida fica de fora; a que sumiu é pulada");
+    assert_eq!(pedidas, ["eu@gmail.com", "trabalho@exemplo.com", "sumiu"], "escondida fica de fora; a que sumiu é pulada");
     assert!(consultas[0].1.contains("eventTypes=birthday"), "aniversários vêm na principal");
 
     // Conexão antiga, sem a permissão da lista: só a principal, com o aviso para reconectar.
@@ -301,5 +301,5 @@ async fn le_todas_as_agendas_visiveis_com_nome_e_cor_sem_repetir_convite() {
     sincronizar(&state).await.unwrap();
     let dia = omni_core::rotina::operacoes::executar(&dir(&state), "ler_dia", &json!({"data": "2026-11-04"}), &a).unwrap();
     let item = dia["sem_hora"].as_array().unwrap().iter().find(|i| i["id"] == "google:m1").cloned().unwrap();
-    assert_eq!((item["detalhe"].as_str(), item["cor"].as_str()), (Some("Medza"), Some("#d50000")));
+    assert_eq!((item["detalhe"].as_str(), item["cor"].as_str()), (Some("Trabalho"), Some("#d50000")));
 }

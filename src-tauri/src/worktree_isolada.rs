@@ -1,4 +1,4 @@
-//! Fork: "Isolar em worktree" no Novo agente e o aviso antes de apagar. A lógica de git mora em
+//! "Isolar em worktree" no Novo agente e o aviso antes de apagar. A lógica de git mora em
 //! `omni_core::worktree_isolada` (a mesma que o `criar_agente` do orquestrador usa no engine).
 
 use omni_core::worktree_isolada::{self, Estado, WorktreeIsolada};

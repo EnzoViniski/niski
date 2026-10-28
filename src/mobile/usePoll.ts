@@ -23,7 +23,7 @@ export function usePoll(run: () => Promise<void>, onError: (reason: unknown) => 
 
     async function poll(token: number) {
       if (cancelled || token !== generation) return;
-      // Fork: o notificador do desktop acompanha atividade também com a janela minimizada.
+      // O notificador do desktop acompanha atividade também com a janela minimizada.
       if (!document.hidden || emSegundoPlano) {
         try {
           await run();

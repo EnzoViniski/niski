@@ -13,7 +13,7 @@ import { tintaDoCaminho } from "../files/coresDosArquivos";
 import type { PaneKind, PaneNode, WorkspaceAction } from "../../types/workspace";
 import { startTabDrag } from "./tabPointerDrag";
 import { EtiquetaDoProjeto, useProjetoDeFora } from "./projetosDasAbas";
-// Fork: sessão viva precede o provider salvo antes de uma troca de agente.
+// Sessão viva precede o provider salvo antes de uma troca de agente.
 import { providerDaAba } from "./identidadeDasAbas";
 import { corDoAgente } from "../../lib/coresDosAgentes";
 
@@ -22,7 +22,7 @@ interface WorkspaceTabBarProps {
   dispatch: React.Dispatch<WorkspaceAction>;
   onCloseTab: (tab: PaneNode["tabs"][number]) => void;
   dirtyTabIds?: Set<string>;
-  /** Fork: o "+" cria a aba no projeto do painel (`PaneView`). Sem isto, no projeto do layout. */
+  /** O "+" cria a aba no projeto do painel (`PaneView`). Sem isto, no projeto do layout. */
   onCriarAba?: (kind: PaneKind, title: string) => void;
 }
 
@@ -49,7 +49,7 @@ export function WorkspaceTabBar({ pane, dispatch, onCloseTab, dirtyTabIds, onCri
             onCloseTab(item);
           }}
           className={[
-            // Fork: `aba-do-painel`/`is-ativa` são o gancho do estilo Minimalista (`minimalista.css`).
+            // `aba-do-painel`/`is-ativa` são o gancho do estilo Minimalista (`minimalista.css`).
             "aba-do-painel group flex shrink-0 items-stretch border-r-2 border-border-subtle max-w-64 select-none touch-none cursor-grab active:cursor-grabbing",
             item.id === pane.activeTabId ? "is-ativa" : "",
             // Aba ativa: fundo do conteúdo e um filete do acento no topo, como aba "aberta".
@@ -104,7 +104,7 @@ function TabLabel({
 }) {
   const session = useSession(item.resourceId);
   const [editando, setEditando] = useState(false);
-  // Fork: conversa de outro projeto mostra o nome dele na aba (`projetosDasAbas.tsx`).
+  // Conversa de outro projeto mostra o nome dele na aba (`projetosDasAbas.tsx`).
   const deFora = useProjetoDeFora(item.resourceId);
 
   function renomear(nome: string) {
@@ -148,9 +148,9 @@ function TabLabel({
           é estreita, e o tipo do ARQUIVO diz mais do que o tipo do painel. */}
       <TabIcon item={item} className="mr-1.5 inline-block h-3 w-3 shrink-0 align-[-2px] text-accent" />
       {deFora && <EtiquetaDoProjeto projeto={deFora} className="mr-1.5" />}
-      {/* Fork: orquestradora (ORQ) ou subagente (SUB). */}
+      {/* Orquestradora (ORQ) ou subagente (SUB). */}
       {item.kind === "agent" && <MarcaDaAba sessionId={item.resourceId} />}
-      {/* Fork: branch da worktree isolada do agente. */}
+      {/* Branch da worktree isolada do agente. */}
       {item.kind === "agent" && <EtiquetaDaWorktree cwd={session?.cwd} />}
       {item.title}
       {dirtyTabIds?.has(item.id) && (
@@ -238,7 +238,7 @@ function NewTabMenu({ onCreate }: { onCreate: (kind: PaneKind, title: string) =>
 /** Aba de arquivo mostra o ícone do arquivo; aba sem caminho (agente, terminal, kanban) mostra o
  *  do tipo de painel. */
 const ICONE_POR_KIND: Partial<Record<PaneNode["tabs"][number]["kind"], React.ComponentType<{ className?: string }>>> = {
-  // Fork: conversa arquivada aberta pela paleta.
+  // Conversa arquivada aberta pela paleta.
   "conversa-historica": ChatIcon,
   agent: ChatIcon,
   terminal: TerminalIcon,
@@ -246,10 +246,10 @@ const ICONE_POR_KIND: Partial<Record<PaneNode["tabs"][number]["kind"], React.Com
   kanban: KanbanIcon,
   "git-graph": GitBranchIcon,
   "git-diff": GitBranchIcon,
-  // Fork: painel de revisão.
+  // Painel de revisão.
   revisao: GitBranchIcon,
   web: GlobeIcon,
-  // Fork: fluxo do orquestrador.
+  // Fluxo do orquestrador.
   orquestracao: BlocksIcon,
 };
 

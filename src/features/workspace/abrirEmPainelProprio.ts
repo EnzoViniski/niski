@@ -1,4 +1,4 @@
-// Fork: clicar numa conversa da lateral abre ela num painel próprio, ao lado do painel ativo (pedido do
+// Clicar numa conversa da lateral abre ela num painel próprio, ao lado do painel ativo (pedido do
 // Enzo, 21/10/2026), em vez de virar mais uma aba no painel que estava em foco.
 //
 // - Já está na tela (em qualquer painel/projeto): só ganha o foco, como antes (`FOCUS_SESSION`).
@@ -31,7 +31,7 @@ export function abrirEmPainelProprio(workspace: WorkspaceState, projectId: strin
   return workspaceReducer(selecionado, { type: "PLACE_SESSION", sessionId, title, targetPaneId: ativo.id, zone: "right" });
 }
 
-/** Fork: conversas visíveis agora — a aba em foco de cada painel. A lateral clareia essas linhas. */
+/** Conversas visíveis agora — a aba em foco de cada painel. A lateral clareia essas linhas. */
 export function sessoesNaTela(layout: LayoutNode | undefined): string[] {
   if (!layout) return [];
   return paineis(layout).flatMap((pane) => {
@@ -47,7 +47,7 @@ function mapearPaineis(node: LayoutNode, f: (pane: PaneNode) => PaneNode): Layou
 }
 
 /**
- * Fork: o "+" da pasta — conversa nova do projeto num painel próprio (mesma regra do clique numa
+ * O "+" da pasta — conversa nova do projeto num painel próprio (mesma regra do clique numa
  * conversa), sem trocar o layout da direita. O seletor aguarda a escolha de agente, conta e modelo
  * antes de abrir qualquer CLI (`AgentLauncher`).
  */
@@ -80,7 +80,7 @@ export function novaConversaEmPainelProprio(state: WorkspaceState, projectId: st
   };
 }
 
-/** Fork: os painéis do layout com as abas de conversa de cada um (para o "Na tela" da lateral). */
+/** Os painéis do layout com as abas de conversa de cada um (para o "Na tela" da lateral). */
 export function paineisNaTela(projeto: { id: string; layout: LayoutNode; activePaneId: string } | null | undefined,
   nomeDoProjeto: (id: string) => string | undefined) {
   if (!projeto) return [];

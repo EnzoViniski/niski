@@ -34,7 +34,7 @@ export type Bloco =
   | { tipo: "acoes"; id: string; acoes: Mensagem[] }
   | { tipo: "comando"; mensagem: Mensagem }
   | { tipo: "aviso"; mensagem: Mensagem }
-  // Fork: plano do plan mode (`ExitPlanMode`), em cartão próprio.
+  // Plano do plan mode (`ExitPlanMode`), em cartão próprio.
   | { tipo: "plano"; mensagem: Mensagem };
 
 export function agruparMensagens(mensagens: Mensagem[]): Bloco[] {

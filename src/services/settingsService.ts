@@ -14,7 +14,7 @@ export function loadSettings(): AppSettings {
   }
 }
 
-/** Fork: campo a campo, como o workspace (`consertarWorkspace.ts`). Um valor salvo com tipo errado
+/** Campo a campo, como o workspace (`consertarWorkspace.ts`). Um valor salvo com tipo errado
  *  (`avisos: null`, `shortcuts: []`, número em texto) cai no padrão sozinho em vez de derrubar a tela
  *  ou o arquivo inteiro; chave que esta versão não conhece (de uma mais nova) é preservada. */
 function tipoDe(valor: unknown): string {

@@ -1,4 +1,4 @@
-//! Fork: revisão oficial numa conversa nova, na pasta exata da origem.
+//! Revisão oficial numa conversa nova, na pasta exata da origem.
 //! Doc conferida em 2026-10-20: code.claude.com/docs/en/code-review-local e
 //! learn.chatgpt.com/docs/developer-commands?surface=cli#codex-review.
 //! Filho de mobile::orquestracao para compartilhar a trava e a entrega inicial confirmada.

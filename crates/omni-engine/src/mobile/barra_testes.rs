@@ -1,4 +1,4 @@
-//! Fork: rota da barra com pastas sintéticas; sem CLI, PTY ou conta real.
+//! Rota da barra com pastas sintéticas; sem CLI, PTY ou conta real.
 use super::*;
 
 fn fixture() -> (tempfile::TempDir, Arc<EngineState>) {

@@ -11,7 +11,7 @@ if (typeof window.PointerEvent === "undefined") {
   (window as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent = PointerEventFalso;
 }
 
-// Fork: reordenar projetos e conversas da lateral, arrastando ou com ⌥↑/⌥↓.
+// Reordenar projetos e conversas da lateral, arrastando ou com ⌥↑/⌥↓.
 describe("ordem da lateral", () => {
   it("ordem salva vem primeiro; item novo vai para o fim na ordem natural", () => {
     expect(ordenar(["a", "b", "c", "d"], (x) => x, ["c", "a"])).toEqual(["c", "a", "b", "d"]);
@@ -151,7 +151,7 @@ describe("prévia do arraste e soltar no layout", () => {
     }
   });
 
-  // Fork: conversa de qualquer projeto pode ir para o layout na tela (a aba mostra de qual projeto é).
+  // Conversa de qualquer projeto pode ir para o layout na tela (a aba mostra de qual projeto é).
   it("conversa de um projeto que não está aberto também vai para o layout", () => {
     const original = document.elementFromPoint;
     const painel = document.createElement("section");

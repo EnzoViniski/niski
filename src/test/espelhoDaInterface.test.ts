@@ -8,7 +8,7 @@ import {
 } from "../lib/espelhoDaInterface";
 
 /*
- * Fork: aparência e workspaces também em disco. O WebKit perde as últimas gravações do localStorage
+ * Aparência e workspaces também em disco. O WebKit perde as últimas gravações do localStorage
  * quando o app sai sem esperar (reinício da atualização) — ao abrir, a cópia mais nova vence.
  */
 

@@ -162,7 +162,7 @@ async fn testar(
     cliente.chamar(&config.token,"sendMessage",json!({"chat_id":config.chat, "text":format!("{}: Telegram conectado. Você receberá os avisos escolhidos nas configurações. Para responder aos agentes, abra a conversa pelo acesso remoto com o Tailscale conectado.", omni_protocol::NOME_DO_PRODUTO)})).await.map_err(falha)?;
     Ok(Json(json!({"ok":true})))
 }
-/// Fork: manda um exemplo de cada caso de aviso (`exemplos.rs`).
+/// Manda um exemplo de cada caso de aviso (`exemplos.rs`).
 async fn exemplos(
     State(state): State<Arc<EngineState>>,
 ) -> Result<Json<Value>, ApiError> {

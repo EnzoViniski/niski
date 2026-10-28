@@ -10,7 +10,7 @@ import { workspaceReducer } from "../features/workspace/workspaceReducer";
 import { emptyWorkspace } from "../services/workspaceService";
 import type { LayoutNode, PaneNode, WorkspaceState } from "../types/workspace";
 
-// Fork: botões do orquestrador na faixa da conversa e a aba do fluxo (`features/orquestracao`).
+// Botões do orquestrador na faixa da conversa e a aba do fluxo (`features/orquestracao`).
 const engine = vi.hoisted(() => ({ engineApi: vi.fn() }));
 vi.mock("../features/terminal/terminalService", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../features/terminal/terminalService")>()),

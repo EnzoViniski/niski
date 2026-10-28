@@ -1,4 +1,4 @@
-/* Fork: Jarvis. Janela flutuante transparente (só existe na janela "jarvis"; main.tsx marca o <html>).
+/* Jarvis. Janela flutuante transparente (só existe na janela "jarvis"; main.tsx marca o <html>).
    Visual próprio, de painel de vidro escuro, igual em qualquer tema do app. */
 html.janela-jarvis, html.janela-jarvis body, html.janela-jarvis #root {
   background: transparent !important;
@@ -88,7 +88,7 @@ html.janela-jarvis, html.janela-jarvis body, html.janela-jarvis #root {
 }
 .jarvis-bolinha:hover .jarvis-bolinha-abrir, .jarvis-bolinha-abrir:focus-visible { opacity: 1; }
 
-/* Fork: controles de modelo/voz e anexos preservam o orbe como foco da janela. */
+/* Controles de modelo/voz e anexos preservam o orbe como foco da janela. */
 .jarvis-janela { position: relative; }
 .jarvis-palco { flex-shrink: 1; min-height: 80px; }
 .jarvis-palco .jarvis-orbe { max-height: 24vh; max-width: 100%; }

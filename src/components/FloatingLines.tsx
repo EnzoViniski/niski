@@ -10,7 +10,7 @@ import {
   Vector3,
   WebGLRenderer
 } from 'three';
-// Fork: pausa de energia (janela oculta/sem foco/parada) — `src/lib/energia.ts`.
+// Pausa de energia (janela oculta/sem foco/parada) — `src/lib/energia.ts`.
 import { cancelarQuadro, proximoQuadro } from '../lib/energia';
 
 const vertexShader = `

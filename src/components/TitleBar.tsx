@@ -8,9 +8,9 @@ import { NOME_DO_PRODUTO } from "../lib/identidade";
 import { NO_MAC } from "../lib/plataforma";
 import { GavetaDeUso } from "../features/terminal/GavetaDeUso";
 import { AvisoDeAtualizacao } from "./AvisoDeAtualizacao";
-import { CentralDeAgendamentos } from "../features/agendamentos/CentralDeAgendamentos"; // Fork: agenda e ação na paleta.
+import { CentralDeAgendamentos } from "../features/agendamentos/CentralDeAgendamentos"; // Agenda e ação na paleta.
 import { CaixaDeAtividade } from "../features/atividade/CaixaDeAtividade";
-import "./titleBarMac.css"; // Fork: a barra acompanha a duração/curva nativa ao revelar o menu no Mac.
+import "./titleBarMac.css"; // A barra acompanha a duração/curva nativa ao revelar o menu no Mac.
 
 /*
  * Barra superior própria (a janela nasce sem a moldura do Windows: `decorations: false`).
@@ -120,13 +120,13 @@ export function TitleBar({
       {acoes}
 
       <GavetaDeUso />
-      <CentralDeAgendamentos /><CaixaDeAtividade /> {/* Fork: contador e gaveta de atividade de todos os projetos. */}
+      <CentralDeAgendamentos /><CaixaDeAtividade /> {/* Contador e gaveta de atividade de todos os projetos. */}
 
       <span className="titlebar-sino">
         <NotificationBell onOpenSettings={onOpenSettings} />
       </span>
 
-      {/* Fork: versão nova → setinha verde no canto direito, como no Discord (antes ficava antes do Uso). */}
+      {/* Versão nova → setinha verde no canto direito, como no Discord (antes ficava antes do Uso). */}
       <AvisoDeAtualizacao />
 
       {/* No Mac os semáforos são os nativos (tauri.macos.conf.json, canto esquerdo). */}

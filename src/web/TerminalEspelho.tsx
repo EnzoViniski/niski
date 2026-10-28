@@ -1,4 +1,4 @@
-// Fork: cópia, paste e SIGINT usam a mesma regra do terminal desktop.
+// Cópia, paste e SIGINT usam a mesma regra do terminal desktop.
 import { handleTerminalKey } from "../features/terminal/keyBindings";
 import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";

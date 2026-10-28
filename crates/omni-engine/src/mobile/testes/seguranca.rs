@@ -1,4 +1,4 @@
-//! Testes de Host/Origin, token de dispositivo e caminhos públicos. Fork: saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
+//! Testes de Host/Origin, token de dispositivo e caminhos públicos. Saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
 use super::*;
 
 /// A página de computador é servida em `/pc`, com a mesma casca pública do celular — os dados

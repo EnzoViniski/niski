@@ -9,7 +9,7 @@ import { CodigoOuCaminho } from "./CaminhoClicavel";
 import "./conversaRica.css";
 
 /**
- * Fork: o plano que o Claude apresenta ao sair do plan mode (`ExitPlanMode`), num cartão destacado
+ * O plano que o Claude apresenta ao sair do plan mode (`ExitPlanMode`), num cartão destacado
  * em vez de uma linha de ação. Enquanto a CLI espera a aprovação, a pergunta dela (o mesmo menu que
  * o chat já responde pelo número, `CartaoDePergunta`) vem dentro do cartão: aprovar, aprovar
  * aceitando edições ou continuar planejando.

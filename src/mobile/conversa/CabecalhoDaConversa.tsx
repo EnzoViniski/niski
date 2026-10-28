@@ -5,7 +5,7 @@ import { rotuloDoEstado, tomDoEstado } from "../../lib/estadosDaSessao";
 import type { Conversation } from "../api";
 // Fork (Onda 2, item 3): contexto e custo estimado vindos da statusline.
 import { ChipDeContexto } from "./ChipDeContexto";
-import { ChipDeTokens } from "./TokensDaSessao"; // Fork: total de tokens da conversa.
+import { ChipDeTokens } from "./TokensDaSessao"; // Total de tokens da conversa.
 
 /** Ponto de estado, agente e "Claude · Trabalhando · projeto" abaixo do título. */
 export function CabecalhoDaConversa({ conversa, projeto }: { conversa: Conversation; projeto?: { name: string } | null }) {
@@ -19,6 +19,6 @@ export function CabecalhoDaConversa({ conversa, projeto }: { conversa: Conversat
     </span>
     <ChipDeContexto ganchos={conversa.ganchos} />
     <ChipDeTokens tokens={conversa.tokens_da_sessao} />
-    {conversa.codex_app_server?.contexto_pct != null && <span className="ml-2 shrink-0 text-[11px] text-text-muted">Contexto {Math.round(conversa.codex_app_server.contexto_pct)}%</span> /* Fork: 3A. */}
+    {conversa.codex_app_server?.contexto_pct != null && <span className="ml-2 shrink-0 text-[11px] text-text-muted">Contexto {Math.round(conversa.codex_app_server.contexto_pct)}%</span> /* 3A. */}
   </>;
 }

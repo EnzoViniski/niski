@@ -218,7 +218,7 @@ pub fn montar_semana(f: &Fontes, qualquer_dia: NaiveDate, hoje: NaiveDate, agora
     let semana = f.plano.semana(segunda);
     // Progresso: só itens até hoje contam (o que ainda vai acontecer não é "não feito").
     let passados: Vec<&Dia> = dias.iter().filter(|d| super::data(&d.data).is_some_and(|x| x <= hoje)).collect();
-    let contaveis = passados.iter().flat_map(|d| d.itens.iter()).filter(|i| i.tipo != "refeicao" && i.categoria != "sono" && i.tipo != "compromisso"); // Fork: compromisso do Google não é "a fazer"
+    let contaveis = passados.iter().flat_map(|d| d.itens.iter()).filter(|i| i.tipo != "refeicao" && i.categoria != "sono" && i.tipo != "compromisso"); // Compromisso do Google não é "a fazer"
     let (mut feitos, mut total) = (0, 0);
     for i in contaveis {
         total += 1;

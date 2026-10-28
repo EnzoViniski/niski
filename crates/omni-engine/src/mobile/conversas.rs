@@ -1,5 +1,5 @@
 //! Conversas: sessão ligada, histórico nativo, resumo/lista, painel, timeline, imagens e arquivos entregues.
-//! Fork: saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
+//! Saiu do antigo `mobile.rs` na Onda 2.0, sem mudança de lógica.
 use super::*;
 
 pub(super) fn current(state: &EngineState, id: &str) -> Result<(omni_core::conversations::Conversation, Option<Arc<LiveSession>>), ApiError> {
@@ -84,7 +84,7 @@ pub(super) fn resumo(state: &EngineState, c: &omni_core::conversations::Conversa
     // sessão entra junto porque o contador recomeça do zero a cada sessão nova.
     let attention = meta.as_ref().map(|m| format!("{}:{}", m.id, m.attention_seq));
     // `mode` sai da tela viva (o rodapé responde na hora); sessão fechada não tem modo.
-    let mode = live.as_ref().and_then(comandos::modo_da_sessao); // Fork: confirma também default pelo composer.
+    let mode = live.as_ref().and_then(comandos::modo_da_sessao); // Confirma também default pelo composer.
     let fast = live.as_ref().and_then(comandos::fast_da_sessao);
     // Tokens do turno em andamento (o "↓ 113 tokens" da linha de status), para a conversa mostrar
     // junto do tempo, como o terminal. Só com o agente trabalhando — parado, o número é velho.
@@ -93,9 +93,9 @@ pub(super) fn resumo(state: &EngineState, c: &omni_core::conversations::Conversa
     json!({"id":c.id,"title":omni_core::conversations::display_title(c),"project_id":c.project_id,"provider":c.segments.last().map(|s|&s.provider),
         "profile_id":c.segments.last().and_then(|s|s.profile_id.as_ref()),"state":status,"mode":mode,"capabilities":capabilities,
         "attention":attention,"tokens":tokens,"fast":fast,"ganchos":meta.as_ref().map(|m| crate::ganchos::resumo(&m.id)), // Fork (Onda 2)
-        "codex_app_server":meta.as_ref().and_then(|m|crate::codex_app_server::resumo(&m.id)), // Fork: contexto do protocolo.
+        "codex_app_server":meta.as_ref().and_then(|m|crate::codex_app_server::resumo(&m.id)), // Contexto do protocolo.
         "notice":meta.as_ref().and_then(|m|m.notice.clone()),"live":live.is_some(),"updated_at_ms":atividade(c,live.as_ref()),
-        "tokens_da_sessao":omni_core::tokens_da_sessao::da_conversa(c)}) // Fork: total da conversa, no topo da aba.
+        "tokens_da_sessao":omni_core::tokens_da_sessao::da_conversa(c)}) // Total da conversa, no topo da aba.
 }
 
 /// Último sinal de vida da conversa: saída do terminal, escrita no transcript ou a criação. É o que
@@ -209,7 +209,7 @@ pub(super) async fn timeline(State(state): State<Arc<EngineState>>, RoutePath(id
                 let mut feeds = state.mobile.feeds.lock().expect("feeds poisoned");
                 omni_core::conversations::timeline_cached(&conversation,&profiles,page.cursor,TIMELINE_PAGINA,&mut feeds)
             };
-            if let Some(t)=conversation.segments.last().and_then(|s|s.terminal_session_id.as_deref()) { crate::codex_app_server::complementar(t,&mut timeline); } // Fork: plano vivo do RPC.
+            if let Some(t)=conversation.segments.last().and_then(|s|s.terminal_session_id.as_deref()) { crate::codex_app_server::complementar(t,&mut timeline); } // Plano vivo do RPC.
             let actions: Vec<_> = state.mobile.actions.lock().expect("actions poisoned").iter().filter(|a|a.conversation_id == id).cloned().collect();
             // O estado da conversa vem junto: o chat aberto não precisa recarregar a lista inteira a
             // cada 1,5 s só para saber se o agente terminou.
@@ -223,7 +223,7 @@ pub(super) async fn timeline(State(state): State<Arc<EngineState>>, RoutePath(id
             let mut feeds = state.mobile.feeds.lock().expect("feeds poisoned");
             let itens = feeds.read(&caminho,&entry.provider).map_err(|_|error(StatusCode::NOT_FOUND,"Histórico não encontrado"))?
                 .iter().map(|e|(entry.provider.clone(),e.item.clone())).collect();
-            // Fork: lista de tarefas e modo de permissão também na conversa do histórico.
+            // Lista de tarefas e modo de permissão também na conversa do histórico.
             (itens, feeds.estado(&caminho).cloned())
         };
         let mut timeline = omni_core::conversations::page(&id,itens,page.cursor,TIMELINE_PAGINA);
@@ -264,7 +264,7 @@ pub(super) async fn imagem_da_mensagem(State(state): State<Arc<EngineState>>, Ro
     }).await.map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"Falha ao ler a imagem"))?
 }
 
-/// Fork: o documento `k` da mensagem `n` (`omni_core::feed::arquivo`), em base64.
+/// O documento `k` da mensagem `n` (`omni_core::feed::arquivo`), em base64.
 pub(super) async fn arquivo_da_mensagem(State(state): State<Arc<EngineState>>, RoutePath((id, n, k)): RoutePath<(String, usize, usize)>) -> Result<Json<Value>, ApiError> {
     tokio::task::spawn_blocking(move || {
         let fontes = fontes_da_conversa(&state,&id)?;

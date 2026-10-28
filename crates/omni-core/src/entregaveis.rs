@@ -1,4 +1,4 @@
-//! Fork: o que o agente **gerou** numa conversa (imagem, PDF, planilha, apresentação, página…),
+//! O que o agente **gerou** numa conversa (imagem, PDF, planilha, apresentação, página…),
 //! para a conversa mostrar como imagem ou como cartão de arquivo, igual aos apps do Claude e do Codex.
 //!
 //! Três origens, todas lidas do transcript que a própria CLI grava:
@@ -61,7 +61,7 @@ pub fn tipo(caminho: &Path) -> Option<&'static str> {
 }
 
 /// `~/x`, `file:///x`, `%20` e relativo à pasta da conversa viram caminho absoluto.
-pub(crate) fn resolver(trecho: &str, cwd: Option<&Path>) -> Option<PathBuf> { // Fork: também usado em `videos_gerados`.
+pub(crate) fn resolver(trecho: &str, cwd: Option<&Path>) -> Option<PathBuf> { // Também usado em `videos_gerados`.
     let trecho = trecho.trim().trim_matches(|c| matches!(c, '<' | '>' | '"' | '\''));
     let trecho = trecho.strip_prefix("file://").unwrap_or(trecho);
     // Link markdown com título (`[a](x.pdf "título")`) e âncora/linha (`x.pdf#L3`) perdem o resto.

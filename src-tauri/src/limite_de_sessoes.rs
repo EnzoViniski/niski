@@ -1,4 +1,4 @@
-//! Fork: Configurações → Geral → Sessões. Grava o `sessoes.json` na pasta do engine, que o relê a
+//! Configurações → Geral → Sessões. Grava o `sessoes.json` na pasta do engine, que o relê a
 //! cada conferência (`omni_core::limite_de_sessoes`): vale na hora, sem reiniciar nada.
 
 use omni_core::limite_de_sessoes as limite;

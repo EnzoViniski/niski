@@ -66,7 +66,7 @@ export function UsoDasContas({ contaAtiva, vazio = null }: { contaAtiva: string 
     setContas(Array.isArray(lista) ? lista : []);
   }, () => undefined, [], INTERVALO_MS);
 
-  // Fork: o celular mostra um aviso no lugar (`vazio`); a lateral da web segue sem nada.
+  // O celular mostra um aviso no lugar (`vazio`); a lateral da web segue sem nada.
   if (contas.length === 0) return <>{vazio}</>;
   // Só Claude e Codex sabem reler o uso na hora; o Cursor não tem leitura.
   const atualizaveis = contas.filter((conta) => AGENTES_COM_USO.includes(conta.provider));

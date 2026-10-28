@@ -1,18 +1,18 @@
 //! Read-only provider data. Never reads authentication files or calls provider APIs.
 pub mod cli_path;
-pub mod agendamentos; // Fork: calendário e destinos dos agendamentos.
-// Fork: comandos interativos permitidos nos controles da Conversa.
+pub mod agendamentos; // Calendário e destinos dos agendamentos.
+// Comandos interativos permitidos nos controles da Conversa.
 pub mod comandos_oficiais;
-pub mod comandos_da_barra; // Fork: o que aparece ao digitar `/` na Conversa.
+pub mod comandos_da_barra; // O que aparece ao digitar `/` na Conversa.
 pub mod usage;
 pub mod conversations;
 #[cfg(test)]
-mod conversas_exclusivas_testes; // Fork: regressão da troca de provedor com outra conversa aberta.
-pub mod titulo_do_agente; // Fork: nome da conversa dado pelo próprio agente.
-pub mod tokens_da_sessao; // Fork: total de tokens da conversa, no topo da aba.
+mod conversas_exclusivas_testes; // Regressão da troca de provedor com outra conversa aberta.
+pub mod titulo_do_agente; // Nome da conversa dado pelo próprio agente.
+pub mod tokens_da_sessao; // Total de tokens da conversa, no topo da aba.
 pub mod feed;
 pub mod history;
-// Fork: busca textual limitada nos transcripts do índice.
+// Busca textual limitada nos transcripts do índice.
 pub mod busca_historico;
 pub mod runtime;
 pub mod targets;
@@ -23,19 +23,19 @@ pub mod agentes;
 pub mod fluxos;
 pub mod registro;
 pub mod antigravity;
-// Fork: pasta dos transcripts do Claude igual à da CLI (caminho longo é cortado com hash).
+// Pasta dos transcripts do Claude igual à da CLI (caminho longo é cortado com hash).
 pub mod pasta_do_claude;
 // Fork (retomar-sempre): a conversa em qualquer conta e a pasta principal de uma worktree apagada.
 pub mod achar_transcript;
-// Fork: modelos do Claude com versão (não só os apelidos) e arquivos que o agente gerou.
+// Modelos do Claude com versão (não só os apelidos) e arquivos que o agente gerou.
 pub mod modelos_claude;
 pub mod entregaveis;
-// Fork: registro e regra pura do orquestrador de agentes (o servidor MCP mora no engine).
+// Registro e regra pura do orquestrador de agentes (o servidor MCP mora no engine).
 pub mod orquestracao;
-// Fork: teto de sessões ativas (configurável) e agente em worktree isolada do git.
+// Teto de sessões ativas (configurável) e agente em worktree isolada do git.
 pub mod limite_de_sessoes;
 pub mod worktree_isolada;
-// Fork: conversa rica — lista de tarefas, plano do plan mode, modo de permissão e diffs do agente.
+// Conversa rica — lista de tarefas, plano do plan mode, modo de permissão e diffs do agente.
 pub mod plano_do_agente;
 pub mod diff_do_agente;
 pub mod resultado_da_acao; // Fork (troca-de-contexto): se a ação do agente deu certo (`ok` na timeline).
@@ -43,9 +43,9 @@ pub mod resultado_da_acao; // Fork (troca-de-contexto): se a ação do agente de
 pub mod ganchos;
 pub mod texto_para_o_shell; // Fork (segurança): ids e opções que podem ser digitados no shell da PTY.
 pub mod notify_do_codex; // Fork (harness, A2): fim de turno do Codex pelo `notify` oficial.
-pub mod subagente_do_codex; // Fork: rollout de subagente não vira a conversa da aba.
-pub mod modo_do_codex; // Fork: aprovação/sandbox do Codex escolhidos na Conversa.
-pub mod videos_gerados; // Fork: vídeo renderizado pelo agente aparece na conversa.
+pub mod subagente_do_codex; // Rollout de subagente não vira a conversa da aba.
+pub mod modo_do_codex; // Aprovação/sandbox do Codex escolhidos na Conversa.
+pub mod videos_gerados; // Vídeo renderizado pelo agente aparece na conversa.
 // Fork (Fase 3): fila de contas — escolha pura da conta com explicação.
 pub mod roteamento;
 // Fork (fix-orquestracao): ler-alterar-gravar o índice de conversas sob trava, com `.tmp` exclusivo.
@@ -114,13 +114,13 @@ pub fn profiles(dir: &Path) -> Vec<Profile> {
     lidos
 }
 
-/// Fork: raiz das pastas de conta criadas pelo app (`<dados>/<PASTA_DE_PERFIS>/profiles`), comum a
+/// Raiz das pastas de conta criadas pelo app (`<dados>/<PASTA_DE_PERFIS>/profiles`), comum a
 /// todas as variantes (instalado, dev, Local). Definida no começo do engine e do app.
 static RAIZ_DE_PERFIS: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
 pub fn definir_raiz_de_perfis(raiz: PathBuf) { let _ = RAIZ_DE_PERFIS.set(raiz); }
 
-/// Fork: contas que têm pasta (`<raiz>/<provider>/<id>`) mas sumiram do `profiles.json` desta pasta
+/// Contas que têm pasta (`<raiz>/<provider>/<id>`) mas sumiram do `profiles.json` desta pasta
 /// de dados — o registro é por variante e as pastas são compartilhadas. Sem isto a conversa feita
 /// numa delas perdia o histórico no chat ("nenhum transcript foi associado") e o chip mostrava a
 /// conta errada. Só Claude e Codex: os únicos com conta extra.
@@ -209,5 +209,5 @@ mod isolamento_de_conta {
         assert!(env_for(&perfil("cursor", false, "/dados/cursor/c")).is_empty());
     }
 }
-// Fork: subconjunto puro do protocolo oficial do Codex app-server.
+// Subconjunto puro do protocolo oficial do Codex app-server.
 pub mod codex_protocolo;

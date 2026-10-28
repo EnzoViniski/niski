@@ -3,7 +3,7 @@ import { actionKey } from "../../mobile/api";
 import { useSession } from "../terminal/sessionProviders";
 import { aplicarRevisao, enviarComentarios, listarRevisao, montarComentarios, type Acao, type Arquivo, type Comentario, type Linha, type Trecho } from "./revisaoService";
 import "./revisao.css";
-// Fork: revisão oficial em agente separado (3C).
+// Revisão oficial em agente separado (3C).
 import { RevisarComAgente } from "./RevisarComAgente";
 import type { TokenRealce } from "./realce";
 

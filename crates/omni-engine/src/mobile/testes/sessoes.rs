@@ -1,4 +1,4 @@
-//! Testes de abrir sessão, renomear e ocultar conversas. Fork: saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
+//! Testes de abrir sessão, renomear e ocultar conversas. Saíram do `mod tests` do antigo `mobile.rs` (Onda 2.0), sem mudar nenhum caso.
 use super::*;
 
 /// Renomear vale para celular e para a web de computador, e é o engine que grava — o índice de

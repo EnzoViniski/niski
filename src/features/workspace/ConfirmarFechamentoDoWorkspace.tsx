@@ -1,4 +1,4 @@
-// Fork: fechar um workspace só encerra as sessões depois da confirmação explícita.
+// Fechar um workspace só encerra as sessões depois da confirmação explícita.
 import { useEffect, useId, useRef, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "../../components/ui";

@@ -1,4 +1,4 @@
-//! Fork: acesso do Jarvis ao MCP real do app. A chave é efêmera, só sai pelo IPC autenticado do
+//! Acesso do Jarvis ao MCP real do app. A chave é efêmera, só sai pelo IPC autenticado do
 //! desktop e nunca vai para o front, disco ou log. Pode consultar o app; só comanda seus subagentes.
 use super::*;
 

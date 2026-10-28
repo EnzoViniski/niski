@@ -3,7 +3,7 @@ import { ChevronDownIcon, CloseIcon, GitBranchIcon, ReloadIcon } from "../../com
 import { AgentIcon } from "../../components/ui/AgentIcon";
 import { IconeDoStatus, rotuloDoStatus, statusDaConversa } from "../../components/ConversaStatus";
 import { conversationKey } from "../terminal/useAttention";
-// Fork: atalho para o fluxo na linha da conversa orquestradora.
+// Atalho para o fluxo na linha da conversa orquestradora.
 import { IconeDaOrquestradora } from "../orquestracao/IconeDaOrquestradora";
 import { useResumoDaOrquestracao } from "../orquestracao/orquestracaoService";
 import { corDoAgente, nomeDoAgente } from "../../lib/coresDosAgentes";
@@ -48,7 +48,7 @@ function classeDeSoltura(soltura: Soltura, lista: string, id: string): string {
 }
 
 const CHAVE_ABERTAS = "omni-pastas-abertas";
-/** Fork: orquestradoras com os subagentes recolhidos na lateral. */
+/** Orquestradoras com os subagentes recolhidos na lateral. */
 const CHAVE_RECOLHIDOS = "medza-orquestradoras-recolhidas";
 
 function lerAbertas(): Set<string> | null {
@@ -68,25 +68,25 @@ interface Props {
   projects: Project[];
   activeProjectId: string | null;
   activeSessionId: string | null;
-  /** Fork: conversas visíveis no layout agora — a linha fica mais clara. */
+  /** Conversas visíveis no layout agora — a linha fica mais clara. */
   sessoesNaTela?: string[];
   /** Conversas de agente de todos os projetos (uma por conversa). */
   agentSessions: TerminalSession[];
   naoVistas: Set<string>;
-  /** Fork: a pasta não seleciona mais o projeto ao abrir (só a conversa ou o "+" mexem na direita). */
+  /** A pasta não seleciona mais o projeto ao abrir (só a conversa ou o "+" mexem na direita). */
   onSelectProject?: (projectId: string) => void;
   onCloseProject: (projectId: string) => void;
-  /** Fork: "+" da pasta — conversa nova nesse projeto, no painel em foco (sem trocar o layout). */
+  /** "+" da pasta — conversa nova nesse projeto, no painel em foco (sem trocar o layout). */
   onNovaConversa?: (projectId: string) => void;
   onAbrirConversa: (projectId: string, session: TerminalSession) => void;
   onBifurcar: (sessionId: string) => void;
   onReiniciar: (sessionId: string) => void;
   onFechar: (sessionId: string) => void;
-  /** Fork: conversa arrastada para um painel do layout (só do projeto aberto, que é o que aparece). */
+  /** Conversa arrastada para um painel do layout (só do projeto aberto, que é o que aparece). */
   onSoltarNoLayout?: (projectId: string, session: TerminalSession, alvo: TabDropTarget) => void;
-  /** Fork: retoma uma conversa anterior (do transcript da CLI) num terminal do projeto. */
+  /** Retoma uma conversa anterior (do transcript da CLI) num terminal do projeto. */
   onRetomarAnterior?: (entry: HistoryEntry) => Promise<void> | void;
-  /** Fork: abre a tela Histórico (todas as conversas, com busca). */
+  /** Abre a tela Histórico (todas as conversas, com busca). */
   onVerHistorico?: () => void;
 }
 
@@ -105,7 +105,7 @@ export function PastasDeProjetos({
   useAnimarLista(listaRef);
   const { ordem, ordenarProjetos, ordenarConversas } = useOrdemDaLateral();
   const [soltura, setSoltura] = useState<Soltura>(null);
-  // Fork: apagar conversa pede um segundo clique (o "×" vira "Apagar?" por alguns segundos).
+  // Apagar conversa pede um segundo clique (o "×" vira "Apagar?" por alguns segundos).
   const [apagando, setApagando] = useState<string | null>(null);
   useEffect(() => {
     if (!apagando) return;
@@ -124,7 +124,7 @@ export function PastasDeProjetos({
     return nova;
   });
 
-  // Fork: quem é subagente de quem (orquestrador), para aninhar na lateral.
+  // Quem é subagente de quem (orquestrador), para aninhar na lateral.
   const resumo = useResumoDaOrquestracao();
   const donoDe = new Map<string, string>();
   for (const o of resumo.orquestradores) for (const sub of o.subagentes) donoDe.set(sub, o.orquestrador);
@@ -141,7 +141,7 @@ export function PastasDeProjetos({
     return <p data-nav-item className="px-3 py-1.5 text-xs text-text-muted">Nenhum projeto ainda.</p>;
   }
 
-  // Fork: projetos e conversas na ordem que a pessoa arrastou (`ordemDaLateral`).
+  // Projetos e conversas na ordem que a pessoa arrastou (`ordemDaLateral`).
   const projetosEmOrdem = ordenar(projects, (p) => p.id, ordem.projetos);
   const idsDosProjetos = projetosEmOrdem.map((p) => p.id);
   const projetosNaTela = emPrevia(idsDosProjetos, soltura, "projetos").map((id) => projetosEmOrdem.find((p) => p.id === id)!);
@@ -217,15 +217,15 @@ export function PastasDeProjetos({
         const ativa = project.id === activeProjectId;
         const todas = ordenar(agentSessions.filter((session) => session.project_id === project.id),
           conversationKey, ordem.conversas[project.id] ?? []);
-        // Fork: subagente cuja orquestradora está nesta pasta não entra solto na lista (vai embaixo dela).
+        // Subagente cuja orquestradora está nesta pasta não entra solto na lista (vai embaixo dela).
         const chavesDaPasta = new Set(todas.map(conversationKey));
         const conversas = todas.filter((session) => !chavesDaPasta.has(donoDe.get(conversationKey(session)) ?? ""));
         const idsDasConversas = conversas.map(conversationKey);
         const conversasNaTela = emPrevia(idsDasConversas, soltura, project.id).map((id) => conversas.find((c) => conversationKey(c) === id)!);
-        // Fork: conversa de qualquer projeto pode cair no layout que está na tela; a aba mostra de
+        // Conversa de qualquer projeto pode cair no layout que está na tela; a aba mostra de
         // qual projeto ela é (`workspace/projetosDasAbas.tsx`).
         const soltaNoLayout = onSoltarNoLayout;
-        // Fork: calculadas também com a pasta fechada — a gaveta fica montada para abrir/fechar deslizando.
+        // Calculadas também com a pasta fechada — a gaveta fica montada para abrir/fechar deslizando.
         const anteriores = onRetomarAnterior ? anterioresDaPasta(project.path, historico, agentSessions) : [];
         return (
           <li key={project.id} data-reordenar data-anima={`p:${project.id}`} className={classeDeSoltura(soltura, "projetos", project.id).trim() || undefined}>
@@ -244,7 +244,7 @@ export function PastasDeProjetos({
                   ordenarProjetos(mover(idsDosProjetos, project.id, passo < 0 ? indice - 1 : indice + 2));
                 }}
                 onClick={() => {
-                  // Fork: a pasta só abre/fecha (como nos apps do Claude/Codex) — não troca o que está
+                  // A pasta só abre/fecha (como nos apps do Claude/Codex) — não troca o que está
                   // no painel da direita. Quem abre algo lá é a conversa (clique) ou o "+" da pasta.
                   alternar(project.id);
                 }}
@@ -267,13 +267,13 @@ export function PastasDeProjetos({
               </button>
             </div>
 
-            {/* Fork: gaveta sempre montada; abre e fecha deslizando (`.pasta-gaveta`, grid 0fr → 1fr). */}
+            {/* Gaveta sempre montada; abre e fecha deslizando (`.pasta-gaveta`, grid 0fr → 1fr). */}
             <div className={`pasta-gaveta${aberta ? " is-aberta" : ""}`} aria-hidden={!aberta || undefined}
               {...(aberta ? {} : { inert: "" })}>
               <ul className="pasta-conversas" aria-label={`Conversas de ${project.name}`}>
                 {todas.length === 0 && anteriores.length === 0 && <li className="px-2 py-1 text-[11px] text-text-muted">Nenhuma conversa ainda.</li>}
                 {conversasNaTela.flatMap((session) => {
-                  // Fork: subagentes logo abaixo da orquestradora, como subpasta (recolhível).
+                  // Subagentes logo abaixo da orquestradora, como subpasta (recolhível).
                   const filhos = filhosDe(conversationKey(session));
                   const recolhido = recolhidos.has(conversationKey(session));
                   return [linha(project, session, idsDasConversas, conversas, soltaNoLayout, { filhos: filhos.length, recolhido }),

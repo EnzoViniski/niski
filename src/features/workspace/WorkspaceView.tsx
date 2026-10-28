@@ -68,7 +68,7 @@ export function WorkspaceView({
           kanbanDispatch={kanbanDispatch}
           dispatch={dispatch}
         />
-        {/* Fork: arrastando uma aba ou conversa, mostra o layout já como vai ficar. */}
+        {/* Arrastando uma aba ou conversa, mostra o layout já como vai ficar. */}
         <PreviaDoLayout project={project} />
       </div>
 

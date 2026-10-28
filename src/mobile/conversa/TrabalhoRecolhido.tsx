@@ -1,4 +1,4 @@
-// Fork: "Trabalhou por 20m 34s ›" — o trabalho do pedido (falas intermediárias e ações) recolhido acima
+// "Trabalhou por 20m 34s ›" — o trabalho do pedido (falas intermediárias e ações) recolhido acima
 // da resposta final; um clique abre o passo a passo e outro fecha (`turnos.ts`).
 import type { ReactNode } from "react";
 import { ChevronDownIcon } from "../../components/ui/PixelIcon";

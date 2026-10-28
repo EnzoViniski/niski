@@ -3,7 +3,7 @@ import type { DiffDeArquivo } from "./api";
 import "./conversaRica.css";
 
 /**
- * Fork: o que o agente mudou num arquivo, recolhível dentro da linha da ação ("Editou a.ts +3 −1").
+ * O que o agente mudou num arquivo, recolhível dentro da linha da ação ("Editou a.ts +3 −1").
  *
  * O engine manda o diff já cortado (até 60 linhas por ação, ver `diff_do_agente.rs`); aqui aparecem
  * as primeiras {@link LINHAS_INICIAIS} e "ver mais" abre o resto. Cores de diff (verde entra,

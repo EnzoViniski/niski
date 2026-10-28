@@ -22,7 +22,7 @@ import {
   type Execucao, type Fluxo, type FluxoGerado, type FluxoSalvo, type ItemDoHistorico, type NoDoFluxo, type ResumoDaExecucao, type TipoDeNo,
 } from "./fluxosService";
 
-// Fork: formulários novos isolados do editor original.
+// Formulários novos isolados do editor original.
 import { BlocosExtras } from "./BlocosExtras";
 
 const tiposDeNo = { omni: NoDoFluxoView };

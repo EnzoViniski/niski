@@ -1,4 +1,4 @@
-// Fork: depois que o PC atualiza, o engine novo serve a página nova, mas o celular continua com a
+// Depois que o PC atualiza, o engine novo serve a página nova, mas o celular continua com a
 // antiga aberta. A cada minuto a página confere se o `index.html` servido ainda aponta para o arquivo
 // dela (o nome leva o hash do build); se não aponta, recarrega e pega a versão nova.
 import { useEffect } from "react";

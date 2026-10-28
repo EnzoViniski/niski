@@ -1,4 +1,4 @@
-//! Fork: CLI/PTY totalmente sintéticas, sem processos, TCP ou credenciais reais.
+//! CLI/PTY totalmente sintéticas, sem processos, TCP ou credenciais reais.
 use super::*;
 use std::{cell::Cell, sync::atomic::AtomicBool};
 use tower::ServiceExt;
@@ -132,7 +132,7 @@ fn sessao(state: &Arc<EngineState>, tela: &str) -> (Arc<LiveSession>, Arc<Mutex<
     }
 }
 
-/// Fork: mensagem comum não cai por redesenho da tela (linha de status, indicador girando do Codex), mas
+/// Mensagem comum não cai por redesenho da tela (linha de status, indicador girando do Codex), mas
 /// aprovação continua presa à tela exata que o usuário viu.
 #[test] fn mensagem_comum_nao_cai_por_redesenho_e_aprovacao_cai() {
     let (_dir,state) = fixture();

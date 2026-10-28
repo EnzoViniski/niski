@@ -1,4 +1,4 @@
-//! Fork: revisão por camada (índice/árvore), com patches sempre reconstruídos pelo Git.
+//! Revisão por camada (índice/árvore), com patches sempre reconstruídos pelo Git.
 use crate::git_client::{git_invocation, hidden, run_git};
 use serde::Serialize;
 use std::io::Write;

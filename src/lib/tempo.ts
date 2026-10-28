@@ -1,4 +1,4 @@
-/** Fork: o "há quanto tempo" de todas as telas num lugar só (antes eram cinco cópias).
+/** O "há quanto tempo" de todas as telas num lugar só (antes eram cinco cópias).
  *
  *  - `curto`: "agora", "5 min", "3 h", "2 d" — cabe na segunda linha de uma lista.
  *  - `longo`: "agora", "há 5 min", "há 3 h", "há 2 d" — numa frase ("consultado há 5 min"). */

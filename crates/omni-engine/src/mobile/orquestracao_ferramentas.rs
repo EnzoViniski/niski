@@ -1,4 +1,4 @@
-//! Fork: as ferramentas MCP do orquestrador (ver `orquestracao.rs`).
+//! As ferramentas MCP do orquestrador (ver `orquestracao.rs`).
 //!
 //! Plataformas, contas e modelos saem do que o app já publica (`workspace.agents`, perfis,
 //! `modelos_claude`, cache de modelos do Codex, `agy models`): uma CLI nova que o app passar a
@@ -179,7 +179,7 @@ fn nome_do_agente(a: &regra::Agente) -> String {
 fn arquivos_dos_vivos(state: &EngineState, orquestrador: &str, pasta: &str, varias_pastas: bool) -> Vec<(String, Vec<String>)> {
     ler_registro(state).orquestrador(orquestrador).map(|o| o.agentes.iter()
         .filter(|a| a.worktree.is_none() && a.arquivos().next().is_some() && estado_de(state, &a.conversation_key).0.vivo())
-        // Fork: o Jarvis (e o copiloto) trabalham em vários projetos; nomes relativos só disputam a mesma pasta.
+        // O Jarvis (e o copiloto) trabalham em vários projetos; nomes relativos só disputam a mesma pasta.
         .filter(|a| !varias_pastas || current(state,&a.conversation_key).ok()
             .is_some_and(|(c,_)| super::jarvis::mesma_pasta(&c.cwd,pasta)))
         .map(|a| (nome_do_agente(a), a.arquivos().cloned().collect())).collect()).unwrap_or_default()
@@ -206,7 +206,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
     let esforco = texto_do_campo(args, "esforco").map(str::to_owned);
     let extras = regra::argumentos_de_modelo(&plataforma, modelo.as_deref(), esforco.as_deref())?;
     let titulo = texto_do_campo(args, "titulo").map(str::to_owned);
-    // Fork: `worktree` = true (nome da tarefa) ou um nome.
+    // `worktree` = true (nome da tarefa) ou um nome.
     let nome_da_worktree = match args.get("worktree") {
         None | Some(Value::Null) | Some(Value::Bool(false)) => None,
         Some(Value::Bool(true)) => Some(worktree_isolada::nome_a_partir_de(titulo.as_deref().or(objetivo.as_deref()).unwrap_or("conversa"))),
@@ -214,7 +214,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
         Some(Value::String(nome)) => Some(worktree_isolada::nome_valido(nome)?),
         Some(_) => return Err("`worktree` é true/false ou um nome".into()),
     };
-    // Fork: Jarvis só cria no projeto publicado explicitamente escolhido na chamada.
+    // Jarvis só cria no projeto publicado explicitamente escolhido na chamada.
     let mut mae = if orquestrador == super::jarvis::DONO { super::jarvis::contexto(state, args)? }
         else { current(state, orquestrador).map_err(mensagem_do_erro)?.0 };
     // Fork (Copiloto abre conversa na tela): projeto resolvido no servidor, nunca o especial `copiloto`.
@@ -293,7 +293,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
                 .to_string_lossy().into_owned());
         }
     }
-    // Fork: worktree isolada. Criada só agora (limite e posse de arquivos já conferidos) e apagada se o
+    // Worktree isolada. Criada só agora (limite e posse de arquivos já conferidos) e apagada se o
     // subagente não abrir.
     let worktree = match &nome_da_worktree {
         Some(nome) => Some(worktree_isolada::criar(Path::new(&plano.cwd), nome).map_err(|e| format!("Não consegui criar a worktree: {e}"))?),
@@ -346,7 +346,7 @@ fn criar(state: &Arc<EngineState>, orquestrador: &str, args: &Value) -> Result<S
     })))
 }
 
-/// Fork: o que o subagente numa worktree isolada precisa saber, no fim do briefing.
+/// O que o subagente numa worktree isolada precisa saber, no fim do briefing.
 fn secao_da_worktree(wt: &worktree_isolada::WorktreeIsolada) -> String {
     format!("\n## Sua pasta (worktree isolada)\nVocê trabalha em `{}`, na branch `{}`: uma cópia do repositório só sua. Os outros \
         subagentes não veem suas mudanças até o orquestrador mesclar. Ao terminar, faça commit das suas mudanças nesta branch \
@@ -548,7 +548,7 @@ fn conferir(state: &EngineState, orquestrador: &str) -> Result<String, String> {
     let mudados = briefing::caminhos_do_git_status(&String::from_utf8_lossy(&saida.stdout));
     let registro = ler_registro(state);
     let todos = registro.orquestrador(orquestrador).map(|o| o.agentes.as_slice()).unwrap_or_default();
-    // Fork: subagente em worktree isolada mexe na pasta dele, não nesta: entra à parte, com a branch.
+    // Subagente em worktree isolada mexe na pasta dele, não nesta: entra à parte, com a branch.
     let agentes: Vec<(String, Vec<String>)> = todos.iter().filter(|a| a.worktree.is_none())
         .map(|a| (format!("{} ({})", nome_do_agente(a), a.conversation_key), a.arquivos().cloned().collect())).collect();
     let em_worktrees: Vec<Value> = todos.iter().filter_map(|a| {
@@ -683,7 +683,7 @@ mod testes_dos_ganchos {
             id_sequence: AtomicU64::new(1) });
         let porta = 47_997;
         crate::ganchos::definir_porta(&state, porta);
-        // Fork: ganchos vêm desligados por padrão; os testes ligam explicitamente.
+        // Ganchos vêm desligados por padrão; os testes ligam explicitamente.
         omni_core::ganchos::gravar_ajustes(dir.path(), &omni_core::ganchos::Ajustes { ligado: true, ..Default::default() }).unwrap();
         let (projeto, conta, bin) = (dir.path().join("projeto"), dir.path().join("conta"), dir.path().join("bin"));
         for pasta in [&projeto, &conta, &bin] { std::fs::create_dir_all(pasta).unwrap(); }

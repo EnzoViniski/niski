@@ -1,4 +1,4 @@
-//! Fork: `/` no campo da Conversa. Lista o que a conversa oferece (comandos da CLI que o chat roda,
+//! `/` no campo da Conversa. Lista o que a conversa oferece (comandos da CLI que o chat roda,
 //! skills e comandos personalizados) e digita na CLI `/skill argumento` do Claude — só se o nome
 //! estiver na lista desta conversa agora. Comandos da CLI continuam pela lista fechada (`comandos.rs`).
 use super::*;

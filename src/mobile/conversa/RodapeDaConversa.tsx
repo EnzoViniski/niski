@@ -8,11 +8,11 @@ import { ListaDeTarefas } from "../ListaDeTarefas";
 import { modoVigente, SeloDoModo } from "../SeloDoModo";
 import { AjustesDaConversa, type Ajustes } from "../AjustesDaConversa";
 import type { Anexo } from "../anexos";
-import type { ItemDaBarra } from "./comandosDaBarra"; // Fork: lista do `/`.
+import type { ItemDaBarra } from "./comandosDaBarra"; // Lista do `/`.
 import { ControlesDaConversa, type ComandoDaConversa, type ModoDePermissao } from "./ControlesDaConversa";
-import { TelaDeAgendamentos } from "../../features/agendamentos/TelaDeAgendamentos"; // Fork: agenda da conversa (3D).
+import { TelaDeAgendamentos } from "../../features/agendamentos/TelaDeAgendamentos"; // Agenda da conversa (3D).
 import { RenomearConversa } from "./RenomearConversa";
-import { TrocarAgente } from "./TrocarAgente"; // Fork: continuar a mesma conversa com outro agente.
+import { TrocarAgente } from "./TrocarAgente"; // Continuar a mesma conversa com outro agente.
 
 export interface RodapeDaConversaProps {
   conversation: Conversation;
@@ -46,7 +46,7 @@ export interface RodapeDaConversaProps {
   onParar?: () => void;
   parando: boolean;
   buscarArquivos: (busca: string) => Promise<string[]>;
-  /** Fork: lista do `/` no campo. */
+  /** Lista do `/` no campo. */
   buscarComandos?: () => Promise<ItemDaBarra[]>;
 }
 
@@ -74,7 +74,7 @@ export function RodapeDaConversa({ conversation, timeline, falhaEnvio, error, an
         : destravavel ? "Mensagem para o agente…"
         : conversation.capabilities ? "Sem sessão ativa" : "Conversa fechada — escolha conta, modelo e esforço e retome abaixo") : "Mensagem para o agente…"}
       toolbar={<>
-        {/* Fork: lista de tarefas do agente, fixa acima do campo. */}
+        {/* Lista de tarefas do agente, fixa acima do campo. */}
         {timeline?.tarefas && <ListaDeTarefas tarefas={timeline.tarefas} conversa={conversation.id} ativo={ativo} />}
         {editandoNome ? <RenomearConversa nome={conversation.title} onFechar={() => setEditandoNome(false)}
           onSalvar={(nome) => { setEditandoNome(false); void onRenomear(nome); }} /> : null}
@@ -84,7 +84,7 @@ export function RodapeDaConversa({ conversation, timeline, falhaEnvio, error, an
           onClick={() => setEditandoNome(true)}>
           <EditIcon aria-hidden className="h-4 w-4" />
         </button>
-        {/* Fork: modo de permissão em que o agente está (tela → transcript). */}
+        {/* Modo de permissão em que o agente está (tela → transcript). */}
         {conversation.capabilities && <SeloDoModo modo={modoVigente(conversation.mode, timeline?.modo_de_permissao)} />}
         {/* Bifurcar e ocultar só na web e no celular (quem passa `abrirConversa`): no PC a lateral já faz. */}
         {abrirConversa && conversation.live && (conversation.provider === "claude" || conversation.provider === "codex") && (
@@ -103,17 +103,17 @@ export function RodapeDaConversa({ conversation, timeline, falhaEnvio, error, an
           </button>
         )}
       </>}
-      // Fork: agendar também funciona com a conversa fechada ou durante turno.
+      // Agendar também funciona com a conversa fechada ou durante turno.
       direita={<>
         <ControlesDaConversa conversaId={conversation.id} provider={conversation.provider}
           modo={modoVigente(conversation.mode, timeline?.modo_de_permissao)} fast={conversation.fast}
           pronto={Boolean(conversation.capabilities?.prompt) && !busy} onModo={onModo} onComando={onComando} onAgendar={() => setAgendando(true)} />
-        {/* Fork: "Continuar com…" outro agente na mesma conversa (passagem de bastão, `TrocarAgente.tsx`). */}
+        {/* "Continuar com…" outro agente na mesma conversa (passagem de bastão, `TrocarAgente.tsx`). */}
         <TrocarAgente conversaId={conversation.id} provider={conversation.provider} profileId={conversation.profile_id}
           pronto={!busy && (Boolean(conversation.capabilities?.prompt) || !conversation.live)}
           mensagem={texto} titulo={conversation.title}
           onTrocado={(resultado) => { if (resultado.mensagem_enviada) onTexto(""); }} />
-        {/* Fork: modelo e esforço no canto direito, ao lado do Parar/Enviar, como no Codex. */}
+        {/* Modelo e esforço no canto direito, ao lado do Parar/Enviar, como no Codex. */}
         {(conversation.live || conversation.capabilities) ? (
           <AjustesDaConversa conversaId={conversation.id} pronto={Boolean(conversation.capabilities?.prompt) && !busy}
             onAplicar={onAjustar} />

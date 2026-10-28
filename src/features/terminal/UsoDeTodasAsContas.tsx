@@ -1,4 +1,4 @@
-// Fork: a paleta abre o mesmo popover do botão do rodapé.
+// A paleta abre o mesmo popover do botão do rodapé.
 import { useAcoesDaPaleta } from "../paleta/acoes";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
